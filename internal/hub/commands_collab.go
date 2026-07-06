@@ -60,6 +60,13 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	// Parse agent mentions and description
 	mentionStrings := protocol.ParseMentions(strings.Join(tail, " "))
 	if len(mentionStrings) < 2 {
+		// Fallback: scan the full command in case flag parsing left @mentions in an unexpected segment.
+		mentionStrings = protocol.ParseMentions(strings.Join(parts[1:], " "))
+	}
+	if len(mentionStrings) < 2 && msg != nil {
+		mentionStrings = protocol.ParseMentions(msg.Content)
+	}
+	if len(mentionStrings) < 2 {
 		return ch.systemResponse(msg.Channel, "❌ At least 2 agents must be @mentioned.\nUsage: /collaborate [--rounds N] [--messages M] [--allow-agent-adds] @Agent1 @Agent2 description"), nil
 	}
 

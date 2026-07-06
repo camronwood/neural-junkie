@@ -59,6 +59,17 @@ var loRATrainingBases = []LoRATrainingBase{
 func LoRATrainingBases() []LoRATrainingBase {
 	out := make([]LoRATrainingBase, len(loRATrainingBases))
 	copy(out, loRATrainingBases)
+	if qwenLoRAComposeEnabled() {
+		out = append([]LoRATrainingBase{{
+			OllamaTag:   "qwen3.5:9b",
+			HFModel:     "Qwen/Qwen3.5-9B",
+			Label:       "Qwen 3.5 9B",
+			Description: "Qwen-native LoRA when Ollama supports ADAPTER compose (NJ_LORA_QWEN_COMPOSE=1).",
+			CodeFocused: true,
+			Recommended: true,
+			SizeHint:    "~5.5 GB",
+		}}, out...)
+	}
 	return out
 }
 
@@ -78,9 +89,14 @@ func ValidateLoRATrainingBase(baseTag string) error {
 		return fmt.Errorf("base_ollama_tag is required")
 	}
 	if !OllamaSafetensorLoRABaseSupported(baseTag) {
+		hint := "Llama, Mistral, and Gemma"
+		if qwenLoRAComposeEnabled() {
+			hint += ", Qwen (NJ_LORA_QWEN_COMPOSE)"
+		}
 		return fmt.Errorf(
-			"base %q cannot be used for LoRA training yet: Ollama only composes safetensors LoRA for Llama, Mistral, and Gemma bases (not Qwen). Use one of: %s",
+			"base %q cannot be used for LoRA training yet: Ollama only composes safetensors LoRA for %s bases. Use one of: %s",
 			baseTag,
+			hint,
 			strings.Join(loRATrainingBaseTags(), ", "),
 		)
 	}
@@ -104,6 +120,11 @@ func MapLoRABaseToHF(ollamaTag string) string {
 		return "meta-llama/Meta-Llama-3.1-8B-Instruct"
 	case "codestral":
 		return "mistralai/Codestral-22B-v0.1"
+	case "qwen3.5:9b", "qwen3.5:latest", "qwen3.5":
+		if qwenLoRAComposeEnabled() {
+			return "Qwen/Qwen3.5-9B"
+		}
+		return ""
 	case "gemma2:9b", "gemma2:2b", "gemma2:latest":
 		return "" // supported by Ollama compose but not curated for NJ training yet
 	}

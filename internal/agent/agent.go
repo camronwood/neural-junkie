@@ -129,6 +129,8 @@ type HubClient interface {
 	GenerateAndPostMusic(ctx context.Context, channel string, from protocol.AgentInfo, req MusicGenerateRequest) error
 	// AskUserQuestion blocks until the user answers or the question times out.
 	AskUserQuestion(agentID, agentName, channel, question string, options []string) (string, error)
+	// RequestToolApproval gates mutating MCP tool calls (returns true if approved).
+	RequestToolApproval(agentID, agentName, channel, toolName string, toolInput map[string]interface{}) (bool, error)
 }
 
 // MusicGenerateRequest is input for hub music generation.

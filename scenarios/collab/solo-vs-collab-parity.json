@@ -1,9 +1,12 @@
 {
   "name": "solo-vs-collab-parity",
-  "description": "Compare solo @Assistant deliverable vs collab execution on the same minimal-repo fixture.",
+  "description": "Compare solo @BackendEngineer deliverable vs collab execution on the same minimal-repo fixture.",
   "channel": "collab-scenarios",
-  "agents": "@Assistant @BackendEngineer",
-  "required_agents": ["Assistant", "BackendEngineer"],
+  "agents": "@BackendEngineer @SoftwareArchitect",
+  "required_agents": [
+    "BackendEngineer",
+    "SoftwareArchitect"
+  ],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,
@@ -16,14 +19,29 @@
     "timeout": "300s",
     "min_bytes": 40,
     "allow_discussion_fallback": true,
-    "message": "@Assistant Create collabs/parity-solo/findings.md with three bullet findings about README.md and core/sample/main.go.",
+    "message": "@BackendEngineer Create collabs/parity-solo/findings.md with three bullet findings about README.md and core/sample/main.go.",
     "approve_timeout": "240s",
-    "any_match": ["main\\.go", "core/sample", "minimal"],
-    "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
+    "any_match": [
+      "main\\.go",
+      "core/sample",
+      "minimal"
+    ],
+    "none_match": [
+      "index\\.js",
+      "utils\\.js",
+      "\\bapp\\.js\\b",
+      "data handling module"
+    ]
   },
   "collaborate": {
-    "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@Assistant Plan one task: @Assistant writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @Assistant - Write collabs/<collab-id>/findings.md"
+    "flags": [
+      "--workspace",
+      "--rounds",
+      "1",
+      "--messages",
+      "3"
+    ],
+    "goal": "@BackendEngineer Plan one task: @BackendEngineer writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @BackendEngineer - Write collabs/<collab-id>/findings.md"
   },
   "expect_deliverables": [
     {
@@ -31,8 +49,17 @@
       "min_bytes": 40,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["main\\.go", "core/sample", "minimal"],
-        "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
+        "any_match": [
+          "main\\.go",
+          "core/sample",
+          "minimal"
+        ],
+        "none_match": [
+          "index\\.js",
+          "utils\\.js",
+          "\\bapp\\.js\\b",
+          "data handling module"
+        ]
       },
       "llm_judge": {
         "criteria": "PASS if findings.md summarizes this minimal-repo fixture using README.md and core/sample/main.go. FAIL for hallucinated paths like index.js or unrelated boilerplate."
@@ -40,20 +67,41 @@
     }
   ],
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 30},
+    {
+      "action": "wait_phase",
+      "phase": "planning",
+      "timeout": 30
+    },
     {
       "action": "wait_discussion",
       "min_total": 2,
-      "required_agents": ["Assistant"],
+      "required_agents": [
+        "BackendEngineer"
+      ],
       "timeout": "300s",
       "retries": 1,
-      "nudge_agents": ["Assistant"],
+      "nudge_agents": [
+        "BackendEngineer"
+      ],
       "retry_on_generation_error": true
     },
-    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
-    {"action": "wait_planning_recap", "timeout": "180s"},
-    {"action": "approve_plan"},
-    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {
+      "action": "wait_phase",
+      "phase": "reviewing",
+      "timeout": "180s"
+    },
+    {
+      "action": "wait_planning_recap",
+      "timeout": "180s"
+    },
+    {
+      "action": "approve_plan"
+    },
+    {
+      "action": "wait_phase",
+      "phase": "executing",
+      "timeout": 45
+    },
     {
       "action": "wait_tasks",
       "min_completed": 1,
@@ -66,8 +114,17 @@
       "must_exist": true,
       "min_bytes": 40,
       "deny_task_status": true,
-      "any_match": ["main\\.go", "core/sample", "minimal"],
-      "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
+      "any_match": [
+        "main\\.go",
+        "core/sample",
+        "minimal"
+      ],
+      "none_match": [
+        "index\\.js",
+        "utils\\.js",
+        "\\bapp\\.js\\b",
+        "data handling module"
+      ]
     }
   ],
   "cleanup": "cancel"

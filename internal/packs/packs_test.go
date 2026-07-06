@@ -46,8 +46,8 @@ func TestSoftwareDevelopmentNoLoRAAdapters(t *testing.T) {
 
 func TestSpecialistTuningLoRAAdapters(t *testing.T) {
 	m := officialTestManifest(t, "specialist-tuning")
-	if len(m.LoRAAdapters) != 4 {
-		t.Fatalf("expected 4 lora adapters, got %d", len(m.LoRAAdapters))
+	if len(m.LoRAAdapters) != 9 {
+		t.Fatalf("expected 9 lora adapters, got %d", len(m.LoRAAdapters))
 	}
 	want := map[string]string{
 		"security":    "nj-security:14b",

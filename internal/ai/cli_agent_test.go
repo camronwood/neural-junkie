@@ -106,6 +106,35 @@ func TestBuildCLIInvocationArgs_prependsTrustForCursor(t *testing.T) {
 	}
 }
 
+func TestClaudePermissionArgs_autoEdit(t *testing.T) {
+	p := &CLIAgentProvider{ProviderName: "claude-cli", ApprovalMode: "auto_edit"}
+	got := p.claudePermissionArgs()
+	want := []string{"--permission-mode", "acceptEdits"}
+	if len(got) != len(want) {
+		t.Fatalf("claudePermissionArgs() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("args[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestClaudePermissionArgs_yolo(t *testing.T) {
+	p := &CLIAgentProvider{ProviderName: "claude-cli", ApprovalMode: "yolo"}
+	got := p.claudePermissionArgs()
+	if len(got) != 2 || got[0] != "--permission-mode" || got[1] != "bypassPermissions" {
+		t.Fatalf("claudePermissionArgs() = %v", got)
+	}
+}
+
+func TestShouldUsePTYStreaming_ClaudeOff(t *testing.T) {
+	p := &CLIAgentProvider{ProviderName: "claude-cli"}
+	if p.shouldUsePTYStreaming() {
+		t.Fatal("expected claude-cli to use pipe streaming, not PTY")
+	}
+}
+
 func TestShouldUsePTYStreaming_GeminiDefaultOff(t *testing.T) {
 	t.Setenv("NEURAL_JUNKIE_DISABLE_CLI_PTY", "")
 	t.Setenv("NEURAL_JUNKIE_GEMINI_CLI_PTY", "")

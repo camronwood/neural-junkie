@@ -4,7 +4,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/browser"
+	"github.com/camronwood/neural-junkie/internal/awssidecar"
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/incidentsidecar"
 	"github.com/camronwood/neural-junkie/internal/music"
 	"github.com/camronwood/neural-junkie/internal/packsidecar"
 )
@@ -21,6 +24,38 @@ func initMusicSidecarGenerator() {
 	}
 	music.SidecarBaseURL = baseURL
 	music.Default = music.NewSidecarGenerator(baseURL)
+}
+
+func initBrowserSidecarClient() {
+	baseURL := func() string {
+		if packSidecarMgr == nil {
+			return ""
+		}
+		return packSidecarMgr.BaseURL(config.PackWebBrowser)
+	}
+	browser.SidecarBaseURL = baseURL
+	browser.DefaultSidecarClient = browser.NewSidecarClient(baseURL)
+}
+
+func initIncidentSidecarClient() {
+	baseURL := func() string {
+		if packSidecarMgr == nil {
+			return ""
+		}
+		return packSidecarMgr.BaseURL(config.PackIncidentManagement)
+	}
+	incidentsidecar.SidecarBaseURL = baseURL
+}
+
+func initAWSSidecarClient() {
+	baseURL := func() string {
+		if packSidecarMgr == nil {
+			return ""
+		}
+		return packSidecarMgr.BaseURL(config.PackAWS)
+	}
+	awssidecar.SidecarBaseURL = baseURL
+	awssidecar.DefaultSidecarClient = awssidecar.NewSidecarClient(baseURL)
 }
 
 func syncPackSidecars() {
@@ -62,7 +97,7 @@ func handlePackExtensionRoute(w http.ResponseWriter, r *http.Request) {
 
 func packExtensionRoutePrefix(path string) string {
 	path = strings.TrimSpace(path)
-	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music"} {
+	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music", "/api/browser", "/api/aws", "/api/lora/sidecar"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return prefix
 		}
@@ -80,9 +115,39 @@ func routeCapabilityForRoute(prefix string) string {
 		return "secondary-analysis-api"
 	case "/api/music":
 		return "music-sidecar"
+	case "/api/lora/sidecar":
+		return "lora-training-sidecar"
+	case "/api/browser":
+		return "browser-sidecar"
+	case "/api/aws":
+		return "aws-sidecar"
 	default:
 		return ""
 	}
+}
+
+func handleLoraSidecarRoute(w http.ResponseWriter, r *http.Request) {
+	if appConfig != nil && appConfig.RouteOwnerPackID("/api/lora/sidecar") != "" {
+		handlePackExtensionRoute(w, r)
+		return
+	}
+	http.NotFound(w, r)
+}
+
+func handleBrowserRoute(w http.ResponseWriter, r *http.Request) {
+	if appConfig != nil && appConfig.RouteOwnerPackID("/api/browser") != "" {
+		handlePackExtensionRoute(w, r)
+		return
+	}
+	http.Error(w, "Browser API requires the Web browser pack", http.StatusForbidden)
+}
+
+func handleAWSRoute(w http.ResponseWriter, r *http.Request) {
+	if appConfig != nil && appConfig.RouteOwnerPackID("/api/aws") != "" {
+		handlePackExtensionRoute(w, r)
+		return
+	}
+	http.Error(w, "AWS API requires the AWS pack", http.StatusForbidden)
 }
 
 func handlePhoenixRoute(w http.ResponseWriter, r *http.Request) {

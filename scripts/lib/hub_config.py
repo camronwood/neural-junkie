@@ -73,7 +73,7 @@ def env_or_automation_int(key: str, field: str, default: int) -> int:
 def apply_automation_to_env(env: dict[str, str]) -> None:
     """Fill unset automation env keys from hub config (env wins when already set)."""
     pairs: list[tuple[str, str, str]] = [
-        ("NJ_DELIVERABLE_JUDGE_PROVIDER", "deliverable_judge_provider", "gemini"),
+        ("NJ_DELIVERABLE_JUDGE_PROVIDER", "deliverable_judge_provider", "claude"),
         ("NJ_DELIVERABLE_JUDGE_MODE", "deliverable_judge_mode", "hub"),
         ("NJ_DELIVERABLE_JUDGE_MODEL", "deliverable_judge_model", "qwen2.5-coder:14b"),
         ("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL", "deliverable_judge_gemini_model", ""),

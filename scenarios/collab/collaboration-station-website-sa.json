@@ -1,10 +1,19 @@
 {
   "name": "collaboration-station-website-sa",
-  "description": "Replay of last-session 2981211b: FrontendEngineer, SoftwareArchitect, and Gemini plan markdown specs (site-structure, design-system, layout-specs) for Collaboration Station with prior collab HTML/CSS in workspace.",
-  "tags": ["collab", "execution", "regression", "website", "gemini"],
+  "description": "FrontendEngineer, SoftwareArchitect, and Claude plan markdown specs (site-structure, design-system, layout-specs) for Collaboration Station with prior collab HTML/CSS in workspace.",
+  "tags": [
+    "collab",
+    "execution",
+    "regression",
+    "website"
+  ],
   "channel": "collab-scenarios",
-  "agents": "@FrontendEngineer @SoftwareArchitect @Gemini",
-  "required_agents": ["FrontendEngineer", "SoftwareArchitect", "Gemini"],
+  "agents": "@FrontendEngineer @SoftwareArchitect @Claude",
+  "required_agents": [
+    "FrontendEngineer",
+    "SoftwareArchitect",
+    "Claude"
+  ],
   "workspace": {
     "fixture": "website-prior-collab",
     "workspace_flag": true,
@@ -12,8 +21,14 @@
     "file_tree": "README.md\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/frontend_architecture_plan.md\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/index.html\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/about.html\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/contact.html\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/style.css\n"
   },
   "collaborate": {
-    "flags": ["--workspace", "--rounds", "3", "--messages", "18"],
-    "goal": "@FrontendEngineer @SoftwareArchitect @Gemini Design a website named Collaboration Station. Colors: black, white, gray, blue, red. Three pages: home, about, contact. Review existing work under collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/ before planning. End with exactly three file tasks under collabs/<id>/: Task 1 @SoftwareArchitect Write site-structure.md (navigation and page hierarchy); Task 2 @FrontendEngineer Write design-system.md (color palette, typography, spacing); Task 3 @FrontendEngineer Write layout-specs.md (responsive templates for home, about, contact)."
+    "flags": [
+      "--workspace",
+      "--rounds",
+      "3",
+      "--messages",
+      "18"
+    ],
+    "goal": "@FrontendEngineer @SoftwareArchitect @Claude Design a website named Collaboration Station. Colors: black, white, gray, blue, red. Three pages: home, about, contact. Review existing work under collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/ before planning. End with exactly three file tasks under collabs/<id>/: Task 1 @SoftwareArchitect Write site-structure.md (navigation and page hierarchy); Task 2 @FrontendEngineer Write design-system.md (color palette, typography, spacing); Task 3 @FrontendEngineer Write layout-specs.md (responsive templates for home, about, contact)."
   },
   "expect_deliverables": [
     {
@@ -21,8 +36,12 @@
       "min_bytes": 80,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["navigation|page|home|about|contact|structure|Collaboration Station"],
-        "none_match": ["_Initial stub created"]
+        "any_match": [
+          "navigation|page|home|about|contact|structure|Collaboration Station"
+        ],
+        "none_match": [
+          "_Initial stub created"
+        ]
       },
       "llm_judge": true
     },
@@ -31,41 +50,84 @@
       "min_bytes": 80,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["color|typography|spacing|palette|black|white|gray|blue|red"],
-        "none_match": ["_Initial stub created", "index\\.js", "utils\\.js"]
+        "any_match": [
+          "color|typography|spacing|palette|black|white|gray|blue|red"
+        ],
+        "none_match": [
+          "_Initial stub created",
+          "index\\.js",
+          "utils\\.js"
+        ]
       },
       "llm_judge": true
     }
   ],
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 45},
+    {
+      "action": "wait_phase",
+      "phase": "planning",
+      "timeout": 45
+    },
     {
       "action": "wait_discussion",
       "min_total": 3,
       "min_per_agent": 1,
-      "required_agents": ["FrontendEngineer", "SoftwareArchitect", "Gemini"],
+      "required_agents": [
+        "FrontendEngineer",
+        "SoftwareArchitect",
+        "PlatformEngineer"
+      ],
       "timeout": "360s",
       "retries": 1,
-      "nudge_agents": ["SoftwareArchitect"]
+      "nudge_agents": [
+        "PlatformEngineer"
+      ]
     },
-    {"action": "wait_phase", "phase": "reviewing", "timeout": "300s"},
-    {"action": "wait_planning_recap", "timeout": "300s"},
+    {
+      "action": "wait_phase",
+      "phase": "reviewing",
+      "timeout": "300s"
+    },
+    {
+      "action": "wait_planning_recap",
+      "timeout": "300s"
+    },
     {
       "action": "assert_plan",
       "min_tasks": 3,
       "max_tasks": 5,
       "tasks_have_assignee": true,
       "tasks_have_file_deliverable": true,
-      "assignee_min_tasks": {"SoftwareArchitect": 1, "FrontendEngineer": 1},
-      "content_any_match": ["site-structure\\.md", "design-system\\.md", "layout-specs\\.md"]
+      "assignee_min_tasks": {
+        "SoftwareArchitect": 1,
+        "FrontendEngineer": 1
+      },
+      "content_any_match": [
+        "site-structure\\.md",
+        "design-system\\.md",
+        "layout-specs\\.md"
+      ]
     },
     {
       "action": "assert_messages",
-      "any_match": ["b222bffe|Collaboration Station"],
-      "none_match": ["Grounding: I loaded", "index\\.js", "utils\\.js", "write_file"]
+      "any_match": [
+        "b222bffe|Collaboration Station"
+      ],
+      "none_match": [
+        "Grounding: I loaded",
+        "index\\.js",
+        "utils\\.js",
+        "write_file"
+      ]
     },
-    {"action": "approve_plan"},
-    {"action": "wait_phase", "phase": "executing", "timeout": 60},
+    {
+      "action": "approve_plan"
+    },
+    {
+      "action": "wait_phase",
+      "phase": "executing",
+      "timeout": 60
+    },
     {
       "action": "assert_collab",
       "phase": "executing",
@@ -73,7 +135,10 @@
       "tasks_dispatched": true,
       "source_repo_path_nonempty": true
     },
-    {"action": "send", "content": "/resume-plan <collab-id>"},
+    {
+      "action": "send",
+      "content": "/resume-plan <collab-id>"
+    },
     {
       "action": "wait_tasks",
       "min_completed": 2,
@@ -101,14 +166,20 @@
       "path": "collabs/<collab-id>/site-structure.md",
       "min_bytes": 80,
       "deny_task_status": true,
-      "none_match": ["_Initial stub created"]
+      "none_match": [
+        "_Initial stub created"
+      ]
     },
     {
       "action": "assert_files",
       "path": "collabs/<collab-id>/design-system.md",
       "min_bytes": 80,
       "deny_task_status": true,
-      "none_match": ["_Initial stub created", "index\\.js", "utils\\.js"]
+      "none_match": [
+        "_Initial stub created",
+        "index\\.js",
+        "utils\\.js"
+      ]
     }
   ],
   "cleanup": "cancel"

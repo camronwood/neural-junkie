@@ -9,7 +9,10 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
+	"github.com/camronwood/neural-junkie/internal/integrations/ticketing"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
+	"github.com/camronwood/neural-junkie/internal/config"
+	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
@@ -233,6 +236,24 @@ func (a *Agent) generateWithMCPTools(
 	return toolProvider.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools,
 		func(ctx context.Context, req ai.ToolUseRequest) (string, error) {
 			log.Printf("[%s] MCP tool call: %s", a.Info.Name, req.Name)
+			if ticketing.IsMutatingTool(req.Name) && ticketing.RequireApproval(mcpAppConfig()) {
+				if !ticketing.WriteAllowed(mcpAppConfig()) {
+					return "", ticketing.WriteDeniedError(req.Name)
+				}
+				var args map[string]interface{}
+				_ = json.Unmarshal(req.Input, &args)
+				ch := channelID
+				if ch == "" {
+					ch = ai.ToolApprovalChannelFrom(ctx)
+				}
+				ok, err := a.Hub.RequestToolApproval(a.Info.ID, a.Info.Name, ch, req.Name, args)
+				if err != nil {
+					return "", err
+				}
+				if !ok {
+					return "", fmt.Errorf("tool %q was not approved", req.Name)
+				}
+			}
 			callCtx := ctx
 			if len(history) > 0 {
 				callCtx = a.contextWithWorkspaceBackend(ctx, history[len(history)-1])
@@ -256,4 +277,8 @@ func (a *Agent) generateWithMCPTools(
 			}
 			return result, nil
 		})
+}
+
+func mcpAppConfig() *config.Config {
+	return mcp.AppConfig()
 }

@@ -124,7 +124,7 @@ def live_stage_cmds(hub_url: str, full: bool, verbose: bool) -> list[tuple[str, 
     stages: list[tuple[str, list[str]]] = [
         (
             "collab-preflight",
-            [py, "scripts/collab-preflight.py", *(["--require-gemini"] if full else [])],
+            [py, "scripts/collab-preflight.py"],
         ),
         ("implement-scenarios", [py, "scripts/implement-scenarios.py", "--all", "--hub", hub_url]),
         (

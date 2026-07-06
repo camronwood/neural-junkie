@@ -12,8 +12,10 @@ const CapabilityCustomerPack = "customer-pack"
 
 // PackAssetsSpec locates bundled documentation and runbooks inside a pack directory.
 type PackAssetsSpec struct {
-	WorkspaceGuide string `yaml:"workspace_guide,omitempty"`
-	RunbooksGlob   string `yaml:"runbooks_glob,omitempty"`
+	WorkspaceGuide        string `yaml:"workspace_guide,omitempty"`
+	RunbooksGlob          string `yaml:"runbooks_glob,omitempty"`
+	RunbookTemplatesGlob  string `yaml:"runbook_templates_glob,omitempty"`
+	SeverityRubric        string `yaml:"severity_rubric,omitempty"`
 }
 
 // IsCustomerPack reports whether the manifest is a customer data pack.

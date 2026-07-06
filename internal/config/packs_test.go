@@ -401,8 +401,8 @@ func TestListPackCatalogStatusLoRAAdapterCount(t *testing.T) {
 	if tuningRow == nil {
 		t.Fatal("specialist-tuning not in catalog")
 	}
-	if tuningRow.LoRAAdapterCount != 4 {
-		t.Fatalf("expected 4 lora adapters, got %d", tuningRow.LoRAAdapterCount)
+	if tuningRow.LoRAAdapterCount != 9 {
+		t.Fatalf("expected 9 lora adapters, got %d", tuningRow.LoRAAdapterCount)
 	}
 	bases := map[string]struct{}{}
 	for _, b := range tuningRow.LoRABaseTags {

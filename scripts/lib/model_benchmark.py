@@ -361,14 +361,14 @@ def fetch_hardware_snapshot(hub_url: str) -> dict[str, Any]:
 
 
 def resolve_judge_provider_note() -> str:
-    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
+    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "claude").strip().lower()
     model = os.environ.get("NJ_DELIVERABLE_JUDGE_MODEL", "").strip()
     if provider == "ollama":
         model = model or os.environ.get("NJ_DELIVERABLE_JUDGE_MODEL", "qwen2.5-coder:14b")
         return f"ollama/{model}" if model else "ollama"
     if model:
         return f"{provider}/{model}"
-    return provider or "gemini"
+    return provider or "claude"
 
 
 def load_scenario_meta(kind: str, name: str) -> dict[str, Any]:

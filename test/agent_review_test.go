@@ -90,6 +90,9 @@ func (m *mockHubClientReview) GenerateAndPostMusic(context.Context, string, prot
 func (m *mockHubClientReview) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
+func (m *mockHubClientReview) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}
 
 
 

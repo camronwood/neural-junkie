@@ -418,6 +418,14 @@ func planningDiscussionTimeoutElapsed(c *Collaboration, d *DiscussionSession) bo
 	if len(silent) == 0 || d.TotalMessageCount >= d.MaxTotalMessages {
 		return true
 	}
+	// Keep planning open while no turn has been recorded yet — the first LLM reply
+	// often exceeds the scaled wall timeout (--messages 4 → 180s).
+	if d.TotalMessageCount == 0 {
+		const firstReplyGrace = 2 * time.Minute
+		if elapsed <= d.Timeout+firstReplyGrace {
+			return false
+		}
+	}
 	grace := time.Duration(len(silent)) * 45 * time.Second
 	const maxGrace = 3 * time.Minute
 	if grace > maxGrace {

@@ -2,36 +2,69 @@
   "name": "planning-two-agent",
   "description": "Two agents produce a structured plan and reach reviewing without grounding spam.",
   "channel": "collab-scenarios",
-  "agents": "@Assistant @SoftwareArchitect",
-  "required_agents": ["Assistant", "SoftwareArchitect"],
+  "agents": "@SoftwareArchitect @BackendEngineer",
+  "required_agents": [
+    "SoftwareArchitect",
+    "BackendEngineer"
+  ],
   "collaborate": {
-    "flags": ["--rounds", "2", "--messages", "4"],
+    "flags": [
+      "--rounds",
+      "2",
+      "--messages",
+      "4"
+    ],
     "goal": "Design a small CLI file encryption tool. Propose a plan using lines like: - Task 1: @AgentName - description. Include at least two tasks for different agents."
   },
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 30},
+    {
+      "action": "wait_phase",
+      "phase": "planning",
+      "timeout": 30
+    },
     {
       "action": "wait_discussion",
       "min_total": 2,
       "min_per_agent": 1,
-      "required_agents": ["Assistant", "SoftwareArchitect"],
+      "required_agents": [
+        "SoftwareArchitect",
+        "BackendEngineer"
+      ],
       "timeout": "180s",
       "retries": 1,
-      "nudge_agents": ["Assistant"],
+      "nudge_agents": [
+        "BackendEngineer"
+      ],
       "retry_on_generation_error": true
     },
-    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
-    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "wait_phase",
+      "phase": "reviewing",
+      "timeout": "180s"
+    },
+    {
+      "action": "wait_planning_recap",
+      "timeout": "120s"
+    },
     {
       "action": "assert_messages",
-      "none_match": ["Grounding: I loaded"]
+      "none_match": [
+        "Grounding: I loaded"
+      ]
     },
     {
       "action": "assert_plan",
       "min_tasks": 2,
-      "title_none_match": ["task is to ", "should perform ", "review will "]
+      "title_none_match": [
+        "task is to ",
+        "should perform ",
+        "review will "
+      ]
     },
-    {"action": "assert_collab", "phase": "reviewing"}
+    {
+      "action": "assert_collab",
+      "phase": "reviewing"
+    }
   ],
   "cleanup": "cancel"
 }

@@ -57,7 +57,7 @@ func typeKeywords(t protocol.AgentType) []string {
 		return []string{"api", "backend", "server", "endpoint", "service", "business", "logic", "integration", "cache", "queue"}
 	case protocol.AgentTypeDevOps:
 		return []string{"deploy", "deployment", "ci/cd", "docker", "kubernetes", "infrastructure", "monitoring",
-			"aws", "azure", "gcp", "cloud", "terraform", "ansible", "pipeline", "ecs", "eks", "lambda"}
+			"terraform", "ansible", "pipeline", "helm", "github actions", "jenkins"}
 	case protocol.AgentTypeDatabase:
 		return []string{"database", "sql", "query", "schema", "migration", "postgres", "mysql", "mongodb",
 			"db", "documentdb", "dynamodb", "aurora", "rds", "nosql", "redis", "index"}

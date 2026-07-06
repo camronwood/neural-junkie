@@ -2161,6 +2161,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           prior_adapter_id: ctx.prior_adapter_id,
           active_adapter_version: ctx.active_adapter_version,
           refresh_suggested: ctx.refresh_suggested,
+          include_learnings_default: ctx.include_learnings_default,
+          eval_min_score: ctx.eval_min_score,
+          require_eval_to_assign: ctx.require_eval_to_assign,
+          sharpen: Boolean(ctx.suggest_training || ctx.ready),
         });
         setModelLibraryInitialTab('train');
         setModelLibraryOpen(true);
@@ -3204,11 +3208,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           });
           try {
             const stats = await api.fetchLearningStats(agentId);
-            if (stats.ready_for_lora) {
+            if (stats.suggest_training || stats.ready_for_lora) {
               addToast({
                 type: 'info',
-                title: 'Train LoRA',
-                message: `10+ turns with ${learningProposal?.agent_name ?? 'this expert'} — open agent info to train LoRA.`,
+                title: 'Sharpen expert',
+                message: `10+ turns with ${learningProposal?.agent_name ?? 'this expert'} — open agent info to sharpen.`,
               });
             }
           } catch {

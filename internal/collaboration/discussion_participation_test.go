@@ -121,3 +121,22 @@ func TestPlanningDiscussionTimeoutElapsed_graceForSilent(t *testing.T) {
 		t.Fatal("expected timeout after grace window")
 	}
 }
+
+func TestPlanningDiscussionTimeoutElapsed_graceBeforeFirstRecordedMessage(t *testing.T) {
+	t.Parallel()
+	c := &Collaboration{Phase: PhasePlanning}
+	d := &DiscussionSession{
+		Participants:      []string{"a1", "a2"},
+		Timeout:           3 * time.Minute,
+		MaxTotalMessages:  4,
+		TotalMessageCount: 0,
+		StartedAt:         time.Now().Add(-4 * time.Minute),
+	}
+	if planningDiscussionTimeoutElapsed(c, d) {
+		t.Fatal("expected extra grace before any message is recorded")
+	}
+	d.StartedAt = time.Now().Add(-6 * time.Minute)
+	if !planningDiscussionTimeoutElapsed(c, d) {
+		t.Fatal("expected timeout after first-reply grace")
+	}
+}

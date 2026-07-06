@@ -48,6 +48,11 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		EnvVars:      []string{"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AIDER_MODEL"},
 		WorkDirEnv:   "AIDER_WORK_DIR",
 		InstallHint:  "Install with: pip install aider-install  OR  pip install aider-chat",
+		Install: &CLIInstallSpec{
+			Method:  "pip",
+			Command: "python3 -m pip install aider-chat",
+			Prereqs: []string{"python3"},
+		},
 		JoinMessage:  "Aider CLI agent online. I can pair-program in your repo with git-aware edits. @mention me to get started.",
 	},
 	"amazonq": {
@@ -61,7 +66,12 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		Expertise:         append([]string(nil), cliDevExpertise...),
 		EnvVars:           nil,
 		WorkDirEnv:        "AMAZONQ_WORK_DIR",
-		InstallHint:       "Install AWS Amazon Q Developer CLI (binary: q). See https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line.html",
+		InstallHint:       "Legacy AWS Amazon Q CLI (binary: q). Prefer Kiro CLI for new installs. macOS: brew install --cask amazon-q",
+		Install: &CLIInstallSpec{
+			Method:  "brew",
+			Command: "brew install --cask amazon-q",
+			Prereqs: []string{"brew"},
+		},
 		JoinMessage:       "Amazon Q CLI agent online. I can help with code and AWS-aware development tasks. @mention me to get started.",
 	},
 	"amp": {
@@ -75,6 +85,11 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		EnvVars:      []string{"AMP_API_KEY"},
 		WorkDirEnv:   "AMP_WORK_DIR",
 		InstallHint:  "Install with: curl -fsSL https://ampcode.com/install.sh | bash  OR  brew install ampcode/tap/ampcode",
+		Install: &CLIInstallSpec{
+			Method:  "curl",
+			Command: "curl -fsSL https://ampcode.com/install.sh | bash",
+			Prereqs: []string{"curl", "bash"},
+		},
 		JoinMessage:  "Amp CLI agent online. I can help with codebase-aware tasks using Sourcegraph Amp. @mention me to get started.",
 	},
 	"claude": {
@@ -92,7 +107,7 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		},
 		EnvVars:      []string{"ANTHROPIC_API_KEY"},
 		WorkDirEnv:   "CLAUDE_WORK_DIR",
-		ApprovalMode: "",
+		ApprovalMode: "auto_edit",
 		InstallHint:  "Install with: npm install -g @anthropic-ai/claude-code",
 		Install: &CLIInstallSpec{
 			Method:  "npm",
@@ -120,7 +135,12 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		Expertise:    cliDevExpertise,
 		EnvVars:      nil,
 		WorkDirEnv:   "CODEX_WORK_DIR",
-		InstallHint:  "Install with: brew install codex  OR  see https://github.com/openai/codex",
+		InstallHint:  "Install with: npm install -g @openai/codex  OR  brew install --cask codex",
+		Install: &CLIInstallSpec{
+			Method:  "npm",
+			Command: "npm install -g @openai/codex",
+			Prereqs: []string{"node", "npm"},
+		},
 		JoinMessage:  "Codex CLI agent online. I can analyze codebases, generate code, and run tasks using OpenAI Codex. @mention me to get started.",
 	},
 	"copilot": {
@@ -142,7 +162,12 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		EnvVars:      nil,
 		WorkDirEnv:   "COPILOT_WORK_DIR",
 		ApprovalMode: "",
-		InstallHint:  "Install with: brew install copilot-cli  OR  npm install -g @github/copilot  (legacy: npm install -g @githubnext/github-copilot-cli)",
+		InstallHint:  "Install with: npm install -g @github/copilot  OR  brew install copilot-cli",
+		Install: &CLIInstallSpec{
+			Method:  "npm",
+			Command: "npm install -g @github/copilot",
+			Prereqs: []string{"node", "npm"},
+		},
 		JoinMessage:  "Copilot CLI agent online. I can help with code generation and review using GitHub Copilot. @mention me to get started.",
 	},
 	"crush": {
@@ -156,6 +181,11 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		EnvVars:      nil,
 		WorkDirEnv:   "CRUSH_WORK_DIR",
 		InstallHint:  "Install with: brew install charmbracelet/tap/crush  OR  see https://github.com/charmbracelet/crush",
+		Install: &CLIInstallSpec{
+			Method:  "brew",
+			Command: "brew install charmbracelet/tap/crush",
+			Prereqs: []string{"brew"},
+		},
 		JoinMessage:  "Crush CLI agent online. I can run coding tasks using Charm Crush. @mention me to get started.",
 	},
 	"cursor": {
@@ -198,7 +228,12 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		Expertise:    cliDevExpertise,
 		EnvVars:      nil,
 		WorkDirEnv:   "DROID_WORK_DIR",
-		InstallHint:  "Install Factory CLI (binary: droid). See https://docs.factory.ai/",
+		InstallHint:  "Install with: curl -fsSL https://app.factory.ai/cli | sh  OR  npm install -g @factory/cli",
+		Install: &CLIInstallSpec{
+			Method:  "curl",
+			Command: "curl -fsSL https://app.factory.ai/cli | sh",
+			Prereqs: []string{"curl", "sh"},
+		},
 		JoinMessage:  "Factory Droid CLI agent online. I can run headless coding tasks with droid exec. @mention me to get started.",
 	},
 	"gemini": {
@@ -245,7 +280,12 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		Expertise:         append([]string(nil), cliDevExpertise...),
 		EnvVars:           nil,
 		WorkDirEnv:        "KIRO_WORK_DIR",
-		InstallHint:       "Install Kiro CLI (kiro-cli). See https://kiro.dev/docs/cli/",
+		InstallHint:       "Install with: curl -fsSL https://cli.kiro.dev/install | bash",
+		Install: &CLIInstallSpec{
+			Method:  "curl",
+			Command: "curl -fsSL https://cli.kiro.dev/install | bash",
+			Prereqs: []string{"curl", "bash"},
+		},
 		JoinMessage:       "Kiro CLI agent online. I can help with code tasks using Kiro. @mention me to get started.",
 	},
 	"opencode": {
@@ -259,6 +299,11 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		EnvVars:      nil,
 		WorkDirEnv:   "OPENCODE_WORK_DIR",
 		InstallHint:  "Install with: npm install -g opencode-ai  OR  see https://opencode.ai/docs/cli/",
+		Install: &CLIInstallSpec{
+			Method:  "npm",
+			Command: "npm install -g opencode-ai",
+			Prereqs: []string{"node", "npm"},
+		},
 		JoinMessage:  "OpenCode CLI agent online. I can run non-interactive prompts against your codebase. @mention me to get started.",
 	},
 }

@@ -15,11 +15,21 @@ elif [ ! -f ".gemini-api-key" ]; then
 fi
 
 if [ -z "${GEMINI_API_KEY:-}" ] && [ -f ".gemini-api-key" ]; then
-    export GEMINI_API_KEY="$(tr -d '[:space:]' < .gemini-api-key)"
-    echo "✅ GEMINI_API_KEY loaded from .gemini-api-key"
+    export GEMINI_API_KEY="$(
+        grep -v '^[[:space:]]*#' .gemini-api-key \
+        | grep -v '^[[:space:]]*$' \
+        | head -1 \
+        | tr -d '[:space:]'
+    )"
+    echo "✅ GEMINI_API_KEY loaded from .gemini-api-key (first key)"
 fi
 
 if [ -z "${CURSOR_API_KEY:-}" ] && [ -f ".cursor-api-key" ]; then
     export CURSOR_API_KEY="$(tr -d '[:space:]' < .cursor-api-key)"
     echo "✅ CURSOR_API_KEY loaded from .cursor-api-key"
+fi
+
+# Drop stale LiteLLM/Claude proxy overrides unless explicitly opted in.
+if [ "${NEURAL_JUNKIE_CLAUDE_CUSTOM_ROUTING:-}" != "1" ]; then
+    unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_SMALL_FAST_MODEL
 fi

@@ -28,14 +28,13 @@ class TestReleasePrepEnv(unittest.TestCase):
         env = release_prep_env(SCRIPTS_DIR.parent)
         self.assertEqual(env.get("NEURAL_JUNKIE_RATE_LIMIT"), "0")
 
-    def test_release_prep_env_cloud_first_with_fallback(self) -> None:
+    def test_release_prep_env_ollama_judge_default(self) -> None:
         env = release_prep_env(SCRIPTS_DIR.parent)
-        self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_PROVIDER"), "gemini")
-        self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_MODE"), "hub")
+        self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_PROVIDER"), "ollama")
+        self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_MODE"), "ollama")
         self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA"), "1")
         self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_MODEL"), "qwen2.5-coder:14b")
         self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S"), "13")
-        self.assertNotIn("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL", env)
 
     def test_load_gemini_from_file_when_env_empty(self) -> None:
         key_path = SCRIPTS_DIR.parent / ".gemini-api-key"

@@ -174,16 +174,18 @@ learning-scenarios: ## Run all live learning scenarios under scenarios/learning/
 		$(if $(VERBOSE),--verbose,)
 
 collab-scenario: ## Run one live collab scenario (SCENARIO=planning-two-agent, PROFILE=fast|realistic, KEEP=1)
-	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make collab-scenario SCENARIO=planning-two-agent [PROFILE=fast] [KEEP=1] [VERBOSE=1]"; exit 1; fi
+	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make collab-scenario SCENARIO=planning-two-agent [PROFILE=fast] [KEEP=1] [VERBOSE=1] [REQUIRE_GEMINI=1]"; exit 1; fi
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario "$(SCENARIO)" \
 		$(if $(PROFILE),--profile $(PROFILE),) \
 		$(if $(VERBOSE),--verbose,) \
-		$(if $(KEEP),--keep,)
+		$(if $(KEEP),--keep,) \
+		$(if $(REQUIRE_GEMINI),--require-gemini,)
 
 collab-scenarios: ## Run all live collab scenarios (hub should use make server-regression)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --all \
 		$(if $(PROFILE),--profile $(PROFILE),) \
-		$(if $(VERBOSE),--verbose,)
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(REQUIRE_GEMINI),--require-gemini,)
 
 collab-scenarios-all: collab-scenarios ## Alias: full collab sweep (15 scenarios; PROFILE does not shorten timeouts)
 

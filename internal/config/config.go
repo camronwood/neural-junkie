@@ -173,6 +173,11 @@ type Config struct {
 	Phoenix        PhoenixConfig        `json:"phoenix"`
 	AWS            AWSConfig            `json:"aws"`
 	Jira           JiraConfig           `json:"jira"`
+	Incident       IncidentConfig       `json:"incident"`
+	GitHubIssues   GitHubIssuesConfig   `json:"github_issues"`
+	Linear         LinearConfig         `json:"linear"`
+	PagerDuty      PagerDutyConfig      `json:"pagerduty"`
+	Sentry         SentryConfig         `json:"sentry"`
 	Security       SecurityConfig       `json:"security"`
 	Session        SessionConfig        `json:"session"`
 	SessionSummary SessionSummaryConfig `json:"session_summary"`
@@ -232,6 +237,11 @@ func DefaultConfig() *Config {
 		AWS: AWSConfig{
 			DefaultRegion: DefaultAWSRegion,
 			ReadOnly:      boolPtr(true),
+		},
+		Incident: IncidentConfig{
+			DefaultProvider: "jira",
+			WriteMode:       boolPtr(false),
+			RequireApproval: boolPtr(true),
 		},
 		Security:       DefaultSecurityConfig(),
 		Session:        DefaultSessionConfig(),

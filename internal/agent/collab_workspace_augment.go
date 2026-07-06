@@ -12,6 +12,14 @@ func collaborationProactiveWorkspaceScan(msg *protocol.Message, info Collaborati
 	if msg == nil || info.ID == "" {
 		return true
 	}
+	if msg.IsFromSystem() {
+		return false
+	}
+	if msg.Metadata != nil {
+		if internal, ok := msg.Metadata["collab_internal_event"].(bool); ok && internal {
+			return false
+		}
+	}
 	// No bound repo (--no-workspace / research-only planning): do not scan the open editor tree.
 	if (info.Phase == "planning" || info.Phase == "reviewing") && len(info.SourceWorkspaceContext) == 0 {
 		return false

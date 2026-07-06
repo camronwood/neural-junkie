@@ -119,6 +119,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Log that we're processing this message
 	a.resetRoutingSnapshot()
 	a.resetCompressSnapshot()
+	a.syncWorkspaceFromMessage(msg)
 	a.recordKnowledgeRoute(msg)
 	a.applyKnowledgePlanEarly(msg)
 	a.recordTurnGovernance(msg)
@@ -437,9 +438,12 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		if collabPhase != "executing" {
 			if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
 				log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
+			} else {
+				a.Collab.AnalyzeConsensus(collabID, responseMsg)
 			}
-			a.Collab.AnalyzeConsensus(collabID, responseMsg)
-			a.promptNextCollaborationTurn(responseMsg, collabID)
+			if collabPhase == "planning" {
+				a.promptNextCollaborationTurn(responseMsg, collabID)
+			}
 		}
 	}
 }

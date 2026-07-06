@@ -2,6 +2,8 @@
   "name": "delivery-sandbox-auto-ack",
   "description": "Sandbox collab with bound workspace auto-acks on approve and dispatches tasks without a separate workspace_ack step.",
   "channel": "collab-scenarios",
+  "agents": "@BackendEngineer",
+  "required_agents": ["BackendEngineer"],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,
@@ -10,7 +12,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "4"],
-    "goal": "@Assistant Plan one task: @Assistant writes collabs/<collab-id>/findings.md with two bullets from README.md only. Use - Task 1: @Assistant - Write collabs/<collab-id>/findings.md"
+    "goal": "@BackendEngineer Plan one task: @BackendEngineer writes collabs/<collab-id>/findings.md with two bullets from README.md only. Use - Task 1: @BackendEngineer - Write collabs/<collab-id>/findings.md"
   },
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 20},

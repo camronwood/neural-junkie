@@ -1,19 +1,32 @@
 id: web-browser
-version: "1.0.0"
+version: "2.0.0"
 title: Web browser
-description: WebBrowserExpert with fetch_url, web search, and an HTML preview workbench for local pages and dev servers.
+description: WebBrowserExpert with fetch_url, web search, HTML preview workbench, and Playwright QA (screenshots, a11y, visual diff, perf).
 layout_profile: team
 capabilities:
   - web-browser
   - web-preview
   - web-browser-workbench
+  - browser-sidecar
+capability_defs:
+  browser-sidecar:
+    kind: hub-sidecar
+    routes:
+      - /api/browser
+    sidecar:
+      module: assets/hub/routes/browser.py
+    settings:
+      - playwright_browsers_path
+      - browser_headless
+      - browser_baseline_dir
+      - python_executable
 requires_packs:
   - software-development
 agents:
   - type: browser
     name: WebBrowserExpert
     implementation: builtin/browser
-    ollama_model: qwen2.5-coder:14b
+    ollama_model: qwen3.5:27b
     compose:
       tool_model: qwen3.5:9b
       consult_triggers:
@@ -26,10 +39,23 @@ agents:
         - dom
         - responsive
         - fetch
+        - verify
+        - audit
+        - screenshot
+        - accessibility
+        - wcag
+        - visual regression
 models_to_ensure:
-  - qwen2.5-coder:14b
+  - qwen3.5:27b
   - qwen3.5:9b
 expert_slug: browser
 expert_label: Web / HTML preview
 mcp_agents:
   - browser
+settings_overlay:
+  playwright_browsers_path: ~/.neural-junkie/browser/playwright-browsers
+  browser_headless: true
+  browser_baseline_dir: .nj/browser-baselines
+  python_executable: ~/.neural-junkie/browser/venv/bin/python3
+assets:
+  workspace_guide: assets/WORKSPACE.md

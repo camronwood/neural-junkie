@@ -1,0 +1,6 @@
+agent_type: cad
+questions:
+  - prompt: "What is parametric modeling in OpenSCAD?"
+    keywords: ["parameter", "variable", "model", "scad"]
+  - prompt: "How do you export a mesh for 3D printing?"
+    keywords: ["stl", "export", "mesh"]

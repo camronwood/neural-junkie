@@ -10,8 +10,8 @@ func TestValidateLoRATrainingBaseRejectsQwen(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for qwen base")
 	}
-	if !strings.Contains(err.Error(), "Qwen") {
-		t.Fatalf("expected Qwen in error: %v", err)
+	if !strings.Contains(err.Error(), "cannot be used for LoRA training") {
+		t.Fatalf("expected compose rejection: %v", err)
 	}
 }
 
@@ -30,6 +30,15 @@ func TestMapLoRABaseToHF(t *testing.T) {
 	}
 }
 
+func TestOllamaSafetensorLoRABaseSupportedQwenWithEnv(t *testing.T) {
+	t.Setenv("NJ_LORA_QWEN_COMPOSE", "1")
+	if !OllamaSafetensorLoRABaseSupported("qwen3.5:9b") {
+		t.Fatal("expected qwen support when NJ_LORA_QWEN_COMPOSE=1")
+	}
+	if err := ValidateLoRATrainingBase("qwen3.5:9b"); err != nil {
+		t.Fatalf("qwen3.5:9b should validate with env: %v", err)
+	}
+}
 func TestDefaultLoRATrainingBaseForAgent(t *testing.T) {
 	if got := DefaultLoRATrainingBaseForAgent("biology"); got != BiologyLoRABaseTag {
 		t.Fatalf("biology base = %q", got)

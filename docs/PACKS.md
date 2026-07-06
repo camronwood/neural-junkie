@@ -2,6 +2,8 @@
 
 Official domain packs are listed in [`packs/catalog.json`](../packs/catalog.json) on the `main` branch. Each pack is maintained in its own repository and published as a GitHub Release zip. The hub loads the catalog and installs pack bundles from **`download_url`** (catalog-only; no embedded fallback).
 
+**v2 direction:** [PACKS_V2_ROADMAP.md](./PACKS_V2_ROADMAP.md) — fat packs, thin core.
+
 ## Install flow
 
 1. Desktop **Settings → Domain packs → Pack store** → **Install**

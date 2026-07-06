@@ -43,5 +43,19 @@ func (h *Hub) packRunbookDefinitions() []runbooklibrary.RunbookDefinition {
 	if err != nil {
 		return nil
 	}
+	tplEntries, err := packs.ListPackRunbookTemplates(dirs, manifests)
+	if err == nil && len(tplEntries) > 0 {
+		tplSources := make([]runbooklibrary.PackRunbookTemplateSource, len(tplEntries))
+		for i, e := range tplEntries {
+			tplSources[i] = runbooklibrary.PackRunbookTemplateSource{PackID: e.PackID, Path: e.Path, Name: e.Name}
+		}
+		readJSON := func(packID, relPath string) ([]byte, error) {
+			return packs.ReadPackRunbookTemplateJSON(dirs[packID], relPath)
+		}
+		tplDefs, err := runbooklibrary.LoadPackTemplateDefinitions(tplSources, readJSON)
+		if err == nil {
+			defs = append(defs, tplDefs...)
+		}
+	}
 	return defs
 }

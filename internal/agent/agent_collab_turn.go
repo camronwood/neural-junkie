@@ -140,6 +140,19 @@ func collaborationWorkingDirectoryForMessage(a *Agent, msg *protocol.Message) st
 	return a.Collab.GetCollaborationWorkingDirectory(cid)
 }
 
+// syncWorkspaceFromMessage binds MCP tools and workspace scans to the collaboration
+// source repo (or outbound workspace metadata) instead of a stale hub/editor root.
+func (a *Agent) syncWorkspaceFromMessage(msg *protocol.Message) {
+	if a == nil || msg == nil {
+		return
+	}
+	if ws := collaborationWorkingDirectoryForMessage(a, msg); ws != "" {
+		a.WorkspacePath = ws
+		return
+	}
+	a.resolveWorkspacePath(msg)
+}
+
 // registerGenCancel tracks a cancellable generation for channel interject.
 func isHumanCollabSpeaker(msg *protocol.Message) bool {
 	if msg == nil || msg.IsFromSystem() {

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/learning"
-	"github.com/camronwood/neural-junkie/internal/lora/export"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -318,6 +317,7 @@ func handleLearningsStats(w http.ResponseWriter, r *http.Request) {
 	ready := false
 	previewRows := 0
 	refreshSuggested := false
+	suggestTraining := false
 	activeVersion := 0
 	if info, err := chatHub.GetAgent(agentID); err == nil {
 		ctx := buildExpertTrainContext(info)
@@ -330,6 +330,9 @@ func handleLearningsStats(w http.ResponseWriter, r *http.Request) {
 		if v, ok := ctx["refresh_suggested"].(bool); ok {
 			refreshSuggested = v
 		}
+		if v, ok := ctx["suggest_training"].(bool); ok {
+			suggestTraining = v
+		}
 		if v, ok := ctx["active_adapter_version"].(int); ok {
 			activeVersion = v
 		}
@@ -341,9 +344,10 @@ func handleLearningsStats(w http.ResponseWriter, r *http.Request) {
 		"collab_count":           collabCount,
 		"embedding_index_ready":  learning.IndexReady(),
 		"preview_rows":           previewRows,
-		"min_rows":               export.MinRows,
+		"min_rows":               minRowsFromConfig(),
 		"ready_for_lora":         ready,
 		"refresh_suggested":      refreshSuggested,
+		"suggest_training":       suggestTraining,
 		"active_adapter_version": activeVersion,
 	})
 }

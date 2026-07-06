@@ -125,6 +125,10 @@ export interface LoraTrainPrefill {
   active_adapter_version?: number;
   refresh_suggested?: boolean;
   supported_bases?: LoraTrainingBase[];
+  include_learnings_default?: boolean;
+  eval_min_score?: number;
+  require_eval_to_assign?: boolean;
+  sharpen?: boolean;
 }
 
 interface LoraTrainingPanelProps {
@@ -155,7 +159,9 @@ export function LoraTrainingPanel({
   const [trainingBases, setTrainingBases] = useState<LoraTrainingBase[]>([]);
   const [rank, setRank] = useState(16);
   const [epochs, setEpochs] = useState(1);
-  const [includeLearnings, setIncludeLearnings] = useState(true);
+  const [includeLearnings, setIncludeLearnings] = useState(
+    prefill?.include_learnings_default ?? true,
+  );
   const [incremental, setIncremental] = useState(Boolean(prefill?.prior_adapter_id));
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [learningRate, setLearningRate] = useState(2e-4);
@@ -174,6 +180,8 @@ export function LoraTrainingPanel({
   const [job, setJob] = useState<LoraTrainJob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const evalMinScore = prefill?.eval_min_score ?? 0.35;
+  const requireEvalToAssign = prefill?.require_eval_to_assign ?? false;
 
   useEffect(() => {
     if (!prefill) return;
@@ -183,6 +191,9 @@ export function LoraTrainingPanel({
     if (prefill.baseTag) setBaseTag(prefill.baseTag);
     if (prefill.ollamaTag) setOllamaTag(prefill.ollamaTag);
     if (prefill.previewRows != null) setPreviewCount(prefill.previewRows);
+    if (prefill.include_learnings_default != null) {
+      setIncludeLearnings(prefill.include_learnings_default);
+    }
   }, [prefill]);
 
   const api = useCallback(() => new ChatAPI(serverAddr), [serverAddr]);
@@ -448,8 +459,25 @@ export function LoraTrainingPanel({
 
   const assignToAgent = async (agentId: string) => {
     if (!switchAgentProvider || !ollamaTag.trim()) return;
+    if (
+      requireEvalToAssign &&
+      job?.eval_score != null &&
+      job.eval_score > 0 &&
+      job.eval_score < evalMinScore
+    ) {
+      setError(
+        `Eval score ${job.eval_score.toFixed(2)} is below minimum ${evalMinScore.toFixed(2)} — retrain with more data`,
+      );
+      return;
+    }
     await switchAgentProvider(agentId, 'ollama-local', ollamaTag.trim());
   };
+
+  const evalPassed =
+    !requireEvalToAssign ||
+    job?.eval_score == null ||
+    job.eval_score === 0 ||
+    job.eval_score >= evalMinScore;
 
   const effectiveCount = previewRows.length > 0 ? includedCount : (previewCount ?? 0);
   const canStart =
@@ -844,14 +872,29 @@ export function LoraTrainingPanel({
           )}
           {job.status === 'done' && switchAgentProvider && assignAgents.length > 0 && (
             <div className="flex flex-wrap gap-2 pt-1">
+              {job.eval_score != null && job.eval_score > 0 && (
+                <p className="text-[10px] w-full text-gray-400">
+                  Eval score:{' '}
+                  <span className={evalPassed ? 'text-teal-300' : 'text-amber-300'}>
+                    {job.eval_score.toFixed(2)}
+                  </span>
+                  {requireEvalToAssign ? ` (min ${evalMinScore.toFixed(2)})` : ''}
+                </p>
+              )}
               {assignAgents.map((a) => (
                 <button
                   key={a.id}
                   type="button"
+                  disabled={!evalPassed}
                   onClick={() => void assignToAgent(a.id)}
-                  className="px-2 py-1 text-[10px] rounded bg-teal-800/60 text-teal-100 hover:bg-teal-700/60"
+                  className="px-2 py-1 text-[10px] rounded bg-teal-800/60 text-teal-100 hover:bg-teal-700/60 disabled:opacity-40"
+                  title={
+                    evalPassed
+                      ? `Apply ${ollamaTag} to ${a.name}`
+                      : 'Eval score too low — retrain before assigning'
+                  }
                 >
-                  Assign to {a.name}
+                  {prefill?.sharpen ? 'Apply to expert' : `Assign to ${a.name}`}
                 </button>
               ))}
             </div>

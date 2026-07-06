@@ -63,6 +63,9 @@ func (m *mockHubClient) GenerateAndPostMusic(context.Context, string, protocol.A
 func (m *mockHubClient) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
+func (m *mockHubClient) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}
 
 
 

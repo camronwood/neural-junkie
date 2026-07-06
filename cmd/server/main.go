@@ -260,6 +260,9 @@ func main() {
 
 	registerRoutes()
 	initMusicSidecarGenerator()
+	initBrowserSidecarClient()
+	initIncidentSidecarClient()
+	initAWSSidecarClient()
 	syncPackSidecars()
 
 	log.Printf("Chat Hub Server starting on %s", *addr)

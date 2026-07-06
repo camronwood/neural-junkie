@@ -301,7 +301,7 @@ const handleOllamaChange = (field: keyof OllamaSettings, value: string | string[
     <div className="space-y-8">
 {/* CLI agent install & auth */}
     <div className="border border-slack-border rounded-lg p-6">
-      <CLIAgentsManager serverAddr={hubHttp} />
+      <CLIAgentsManager serverAddr={hubHttp} expandable />
     </div>
 {/* CLI agent runtime (hub config) */}
     <div className="border border-slack-border rounded-lg p-6">

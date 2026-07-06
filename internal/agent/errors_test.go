@@ -54,6 +54,17 @@ func TestClassifyUserFacingErrorGeminiIneligibleTier(t *testing.T) {
 	}
 }
 
+func TestClassifyUserFacingErrorClaudeLiteLLM(t *testing.T) {
+	err := fmt.Errorf("CLI agent error: API Error: 500 litellm.InternalServerError: Connection error.. localhost:4000")
+	msg, code, retryable := classifyUserFacingError(err)
+	if code != "provider_unavailable" || !retryable {
+		t.Fatalf("code=%s retryable=%v", code, retryable)
+	}
+	if !containsAll(msg, "litellm", "4000") {
+		t.Fatalf("message=%q", msg)
+	}
+}
+
 func containsAll(s string, parts ...string) bool {
 	for _, p := range parts {
 		if !strings.Contains(s, p) {

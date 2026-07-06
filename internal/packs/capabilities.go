@@ -30,11 +30,16 @@ var OfficialDomainCapabilityTokens = []string{
 	"incident-api",
 	"jira-integration",
 	"incident-triage",
+	"github-issues-integration",
+	"linear-integration",
+	"pagerduty-integration",
+	"sentry-integration",
 	"web-browser",
 	"web-preview",
 	"web-browser-workbench",
 	"music-generation",
 	"music-sidecar",
+	"lora-training-sidecar",
 }
 
 // KnownExtensionKinds are valid capability_defs.kind values.

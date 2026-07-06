@@ -71,5 +71,30 @@ func classifyUserFacingError(err error) (message, code string, retryable bool) {
 	if strings.Contains(lower, "gemini_api_key") || (strings.Contains(lower, "authentication") && strings.Contains(lower, "gemini")) {
 		return "Gemini CLI is not authenticated. Add GEMINI_API_KEY to env.local (Google AI Studio), restart the hub, then run: python3 scripts/check-gemini-judge.py", "provider_unavailable", false
 	}
+	if strings.Contains(lower, "litellm") || strings.Contains(lower, "localhost:4000") || strings.Contains(lower, "inference gateway") {
+		return "Claude CLI failed to reach the configured inference gateway (litellm). Use `claude auth status` and ensure Anthropic first-party auth, or start your local gateway on port 4000.", "provider_unavailable", true
+	}
+	if strings.Contains(lower, "connectors are disabled") || (strings.Contains(lower, "anthropic_api_key") && strings.Contains(lower, "precedence")) {
+		return "Claude CLI is using ANTHROPIC_API_KEY from the environment instead of your `claude login` session. Remove ANTHROPIC_API_KEY from env.local (or unset it in your shell) and restart the hub.", "provider_unavailable", true
+	}
+	if strings.Contains(lower, "api error:") {
+		msg := strings.TrimSpace(err.Error())
+		if idx := strings.Index(strings.ToLower(msg), "api error:"); idx >= 0 {
+			msg = strings.TrimSpace(msg[idx+len("API Error:"):])
+		}
+		if len(msg) > 220 {
+			msg = msg[:220] + "…"
+		}
+		if msg != "" {
+			return "Claude CLI error: " + msg, "provider_error", true
+		}
+	}
+	if strings.Contains(lower, "cli agent error:") || strings.Contains(lower, "cli agent failed:") {
+		msg := strings.TrimSpace(err.Error())
+		if len(msg) > 220 {
+			msg = msg[:220] + "…"
+		}
+		return msg, "provider_error", true
+	}
 	return "Sorry, I encountered an error while generating a response. Please try again.", "provider_error", true
 }

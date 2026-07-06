@@ -285,7 +285,6 @@ def main() -> int:
             str(SCRIPTS_DIR / "collab-preflight.py"),
             "--hub",
             hub_url,
-            "--require-gemini",
             "--skip-judge-smoke",
         ]
         preflight_phase = run_phase("release-prep-preflight", preflight_cmd, env=hub_recovery_env)

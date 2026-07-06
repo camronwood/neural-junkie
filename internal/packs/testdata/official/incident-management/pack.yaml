@@ -1,14 +1,30 @@
 id: incident-management
-version: "1.0.0"
+version: "2.0.0"
 title: Incident management
-description: IncidentManager for bug tickets, Jira triage, reproduction steps, and handoff to engineering specialists.
+description: IncidentManager — multi-provider ticketing, severity rubric, handoff runbooks, stack trace ingestion, and postmortem workflows.
 layout_profile: team
 capabilities:
   - incident-api
-  - jira-integration
   - incident-triage
+  - jira-integration
+  - github-issues-integration
+  - linear-integration
+  - pagerduty-integration
+  - sentry-integration
+  - incident-sidecar
 requires_packs:
   - software-development
+capability_defs:
+  incident-sidecar:
+    kind: hub-sidecar
+    routes:
+      - /api/incident
+    sidecar:
+      module: assets/hub/server.py
+    settings:
+      - incident_default_provider
+      - incident_write_mode
+      - incident_require_approval
 agents:
   - type: incident
     name: IncidentManager
@@ -24,6 +40,11 @@ agents:
         - sentry
         - stack trace
         - jira
+        - postmortem
+        - pagerduty
+        - on-call
+        - severity
+        - p0
 models_to_ensure:
   - qwen2.5-coder:14b
   - qwen3.5:9b
@@ -31,3 +52,12 @@ expert_slug: incident
 expert_label: Incident / Bug triage
 mcp_agents:
   - incident
+settings_overlay:
+  incident_default_provider: jira
+  incident_write_mode: "false"
+  incident_require_approval: "true"
+assets:
+  workspace_guide: assets/WORKSPACE.md
+  runbooks_glob: assets/runbooks/*.md
+  runbook_templates_glob: assets/runbook-templates/*.json
+  severity_rubric: assets/severity-rubric.md

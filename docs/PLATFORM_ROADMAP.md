@@ -59,6 +59,7 @@ Full LSP, remote SSH workspaces, dev containers — [IDE_V4.md](IDE_V4.md).
 
 ## Related docs
 
+- [ROADMAP-Q3-2026.md](ROADMAP-Q3-2026.md) — Jul–Sep 2026 prioritized plan + Month 1 week-by-week gates
 - [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md) — full idea backlog
 - [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) — v1.0 cut gates
 - [RELEASE_UPDATES.md](RELEASE_UPDATES.md) — beta vs stable updater channels

@@ -299,7 +299,7 @@ func NewAWSAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	if awsMCP, err := aws.NewAWSMCP(); err != nil {
 		log.Printf("Failed to create AWS MCP server: %v", err)
 	} else {
-		startDomainAgentMCP(agent, "AWS", awsMCP)
+		startAgentMCPWithOptions(agent, "AWS", awsMCP, true)
 	}
 
 	return agent

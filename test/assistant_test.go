@@ -489,6 +489,9 @@ func (m *MockHub) GenerateAndPostMusic(context.Context, string, protocol.AgentIn
 func (m *MockHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
+func (m *MockHub) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}
 
 
 

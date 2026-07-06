@@ -53,25 +53,25 @@
     },
     {
       "id": "incident-management",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "title": "Incident management",
-      "description": "IncidentManager for bug tickets, Jira triage, reproduction steps, and handoff to engineering specialists.",
+      "description": "IncidentManager — multi-provider ticketing, severity rubric, handoff runbooks, and postmortem workflows.",
       "icon_key": "incident",
       "publisher": "Neural Junkie",
       "builtin": true,
       "requires_packs": ["software-development"],
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-incident-management/releases/download/v1.0.0/incident-management-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-incident-management/releases/download/v2.0.0/incident-management-2.0.0.zip"
     },
     {
       "id": "web-browser",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "title": "Web browser",
-      "description": "WebBrowserExpert with fetch_url, web search, and an HTML preview workbench for local pages and dev servers.",
+      "description": "WebBrowserExpert with fetch_url, web search, HTML preview workbench, and Playwright QA (screenshots, a11y, visual diff, perf).",
       "icon_key": "code",
       "publisher": "Neural Junkie",
       "builtin": true,
       "requires_packs": ["software-development"],
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-web-browser/releases/download/v1.0.0/web-browser-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-web-browser/releases/download/v2.0.0/web-browser-2.0.0.zip"
     },
     {
       "id": "music-creation",

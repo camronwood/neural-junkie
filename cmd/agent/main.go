@@ -416,6 +416,32 @@ func (h *httpHubClient) AskUserQuestion(agentID, agentName, channel, question st
 	return out.Answer, nil
 }
 
+func (h *httpHubClient) RequestToolApproval(agentID, agentName, channel, toolName string, toolInput map[string]interface{}) (bool, error) {
+	body, err := json.Marshal(map[string]interface{}{
+		"agent_id":   agentID,
+		"agent_name": agentName,
+		"channel":    channel,
+		"tool_name":  toolName,
+		"tool_input": toolInput,
+		"mode":       "interactive",
+	})
+	if err != nil {
+		return false, err
+	}
+	resp, err := h.doPost(h.baseURL+"/api/tool-approvals", "application/json", body)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	var out struct {
+		Decision string `json:"decision"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return false, err
+	}
+	return out.Decision == "allow", nil
+}
+
 func main() {
 	flag.Parse()
 

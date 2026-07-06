@@ -1,0 +1,6 @@
+agent_type: code-review
+questions:
+  - prompt: "What should you check in a pull request review?"
+    keywords: ["test", "readability", "bug", "style"]
+  - prompt: "When should you request changes vs approve?"
+    keywords: ["blocker", "nit", "approve", "change"]

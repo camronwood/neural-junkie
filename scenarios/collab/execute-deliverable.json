@@ -2,8 +2,11 @@
   "name": "execute-deliverable",
   "description": "Approve plan, ack workspace on fixture repo; auto-approve writes findings.md grounded in minimal-repo, then /complete-collab to completed phase.",
   "channel": "collab-scenarios",
-  "agents": "@Assistant @BackendEngineer",
-  "required_agents": ["Assistant", "BackendEngineer"],
+  "agents": "@BackendEngineer @SoftwareArchitect",
+  "required_agents": [
+    "BackendEngineer",
+    "SoftwareArchitect"
+  ],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,
@@ -11,8 +14,14 @@
     "file_tree": "README.md\ncore/sample/main.go\n"
   },
   "collaborate": {
-    "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@Assistant @BackendEngineer Plan one task: @Assistant writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @Assistant - Write findings.md with paths and facts from those files."
+    "flags": [
+      "--workspace",
+      "--rounds",
+      "1",
+      "--messages",
+      "3"
+    ],
+    "goal": "@BackendEngineer @BackendEngineer Plan one task: @BackendEngineer writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @BackendEngineer - Write findings.md with paths and facts from those files."
   },
   "expect_deliverables": [
     {
@@ -20,20 +29,52 @@
       "min_bytes": 40,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["main\\.go", "core/sample", "minimal"],
-        "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module", "security vulnerabilities identified"]
+        "any_match": [
+          "main\\.go",
+          "core/sample",
+          "minimal"
+        ],
+        "none_match": [
+          "index\\.js",
+          "utils\\.js",
+          "\\bapp\\.js\\b",
+          "data handling module",
+          "security vulnerabilities identified"
+        ]
       },
       "llm_judge": true
     }
   ],
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 20},
-    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
-    {"action": "wait_planning_recap", "timeout": "120s"},
-    {"action": "approve_plan"},
-    {"action": "wait_phase", "phase": "executing", "timeout": 45},
-    {"action": "workspace_ack"},
-    {"action": "send", "content": "/resume-plan <collab-id>"},
+    {
+      "action": "wait_phase",
+      "phase": "planning",
+      "timeout": 20
+    },
+    {
+      "action": "wait_phase",
+      "phase": "reviewing",
+      "timeout": "180s"
+    },
+    {
+      "action": "wait_planning_recap",
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_plan"
+    },
+    {
+      "action": "wait_phase",
+      "phase": "executing",
+      "timeout": 45
+    },
+    {
+      "action": "workspace_ack"
+    },
+    {
+      "action": "send",
+      "content": "/resume-plan <collab-id>"
+    },
     {
       "action": "wait_tasks",
       "min_completed": 1,
@@ -45,7 +86,12 @@
       "require_task_status": true,
       "deny_task_status_blocked": true,
       "deny_failed_command_output": true,
-      "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
+      "none_match": [
+        "index\\.js",
+        "utils\\.js",
+        "\\bapp\\.js\\b",
+        "data handling module"
+      ]
     },
     {
       "action": "approve_file_changes",
@@ -61,13 +107,36 @@
       "must_exist": true,
       "min_bytes": 40,
       "deny_task_status": true,
-      "any_match": ["main\\.go", "core/sample", "minimal"],
-      "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module", "security vulnerabilities identified"]
+      "any_match": [
+        "main\\.go",
+        "core/sample",
+        "minimal"
+      ],
+      "none_match": [
+        "index\\.js",
+        "utils\\.js",
+        "\\bapp\\.js\\b",
+        "data handling module",
+        "security vulnerabilities identified"
+      ]
     },
-    {"action": "assert_collab", "phase": "executing"},
-    {"action": "send", "content": "/complete-collab <collab-id> --force"},
-    {"action": "wait_phase", "phase": "completed", "timeout": "120s"},
-    {"action": "assert_collab", "phase": "completed"}
+    {
+      "action": "assert_collab",
+      "phase": "executing"
+    },
+    {
+      "action": "send",
+      "content": "/complete-collab <collab-id> --force"
+    },
+    {
+      "action": "wait_phase",
+      "phase": "completed",
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_collab",
+      "phase": "completed"
+    }
   ],
   "cleanup": "cancel"
 }

@@ -42,6 +42,15 @@ agents:
     implementation: builtin/devops
     compose:
       tool_model: qwen3.5:9b
+      consult_triggers:
+        - k8s
+        - kubernetes
+        - helm
+        - docker
+        - github actions
+        - ci/cd
+        - pipeline
+        - deploy
   - type: security
     name: SecurityReviewer
     implementation: builtin/security

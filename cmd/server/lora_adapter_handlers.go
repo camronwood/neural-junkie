@@ -3,16 +3,19 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/lora/eval"
 	"github.com/camronwood/neural-junkie/internal/lora/registry"
 	"github.com/camronwood/neural-junkie/internal/lora/train"
+	"github.com/camronwood/neural-junkie/internal/packs"
 )
 
 var loraAdapterRegistry *registry.Store
@@ -40,6 +43,12 @@ func initLoraTrainManager() {
 		loraTrainMgr.SetRegistry(loraAdapterRegistry)
 	}
 	loraTrainMgr.SetOnComplete(loraTrainOnComplete)
+	loraTrainMgr.SetSidecarBaseURL(func() string {
+		if packSidecarMgr == nil {
+			return ""
+		}
+		return packSidecarMgr.BaseURL(config.PackSpecialistTuning)
+	})
 }
 
 func loraTrainOnComplete(ctx context.Context, job *train.Job, artifactDir, datasetPath string) error {
@@ -67,14 +76,51 @@ func loraTrainOnComplete(ctx context.Context, job *train.Job, artifactDir, datas
 		score := runLoRAEval(ctx, job)
 		job.EvalScore = score.Score
 		_ = loraAdapterRegistry.SetEvalScore(entry.ID, score.Score)
+		if appConfig != nil {
+			policy := appConfig.ResolvedLoRAPolicy()
+			if policy.RequireEvalToAssign && !score.Passed && score.Score < policy.EvalMinScore {
+				return fmt.Errorf("eval score %.2f below minimum %.2f", score.Score, policy.EvalMinScore)
+			}
+		}
 	}
 	return nil
 }
 
+func loraEvalQuestions(job *train.Job) []eval.Question {
+	agentType := ""
+	if job != nil && appConfig != nil && job.AgentID != "" {
+		if info, err := chatHub.GetAgent(job.AgentID); err == nil && info != nil {
+			agentType = string(info.Type)
+		}
+	}
+	packDir := ""
+	probeRel := ""
+	if appConfig != nil {
+		probeRel = appConfig.LoRAEvalProbesForAgentType(agentType)
+		if dir, err := packs.InstalledPackDir(config.PackSpecialistTuning); err == nil {
+			packDir = dir
+		}
+	}
+	if job == nil {
+		return nil
+	}
+	return eval.QuestionsForAgentType(agentType, job.AgentID, packDir, probeRel)
+}
+
 func runLoRAEval(ctx context.Context, job *train.Job) eval.Result {
-	questions := eval.DefaultRepoQuestions(job.AgentID)
+	questions := loraEvalQuestions(job)
+	min := eval.DefaultMinScore
+	if appConfig != nil {
+		min = appConfig.ResolvedLoRAPolicy().EvalMinScore
+		if min <= 0 {
+			min = eval.DefaultMinScore
+		}
+	}
+	if len(questions) == 0 {
+		return eval.Result{Score: 1, Passed: true, MinScore: min}
+	}
 	if appConfig == nil {
-		return eval.Result{Score: 1, Passed: true}
+		return eval.Result{Score: 1, Passed: true, MinScore: min}
 	}
 	pcfg := appConfig.GetProvider("ollama-local")
 	if pcfg == nil {
@@ -86,7 +132,10 @@ func runLoRAEval(ctx context.Context, job *train.Job) eval.Result {
 	if err != nil {
 		return eval.Result{Score: 0.5, Passed: true}
 	}
-	return eval.Run(ctx, prov, job.OllamaTag, questions)
+	res := eval.Run(ctx, prov, job.OllamaTag, questions)
+	res.MinScore = min
+	res.Passed = res.Score >= min
+	return res
 }
 
 func handleLoraAdaptersRoute(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +202,13 @@ func handleLoraAdapterActivate(w http.ResponseWriter, r *http.Request, id string
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+	if appConfig != nil {
+		policy := appConfig.ResolvedLoRAPolicy()
+		if policy.RequireEvalToAssign && entry.EvalScore > 0 && entry.EvalScore < policy.EvalMinScore {
+			http.Error(w, fmt.Sprintf("eval score %.2f below minimum %.2f — retrain or disable require_eval_to_assign", entry.EvalScore, policy.EvalMinScore), http.StatusBadRequest)
+			return
+		}
 	}
 	adapterPath := filepath.Join(entry.ArtifactDir, "adapter_model.safetensors")
 	if err := hfhub.ImportAdapterToOllama(r.Context(), entry.BaseOllamaTag, adapterPath, entry.OllamaTag); err != nil {

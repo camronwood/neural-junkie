@@ -10,19 +10,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from lib.gemini_judge_auth import check_gemini_judge  # noqa: E402
+from lib.gemini_judge_auth import ensure_gemini_for_testing  # noqa: E402
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Smoke-test Gemini deliverable judge auth")
-    p.add_argument("--timeout", type=float, default=60.0, help="Seconds to wait for gemini")
+    p.add_argument("--timeout", type=float, default=60.0, help="Seconds to wait per probe")
+    p.add_argument("--model", help="Probe only this model (default: fast → pro → fast-light)")
     args = p.parse_args()
 
-    ok, detail = check_gemini_judge(timeout_s=args.timeout)
-    if ok:
-        print(detail)
+    sel = ensure_gemini_for_testing(
+        root=ROOT,
+        timeout_s=args.timeout,
+        explicit_model=args.model or "",
+        retry_quota=True,
+    )
+    if sel.ok:
+        print(sel.detail)
         return 0
-    print(f"FAIL: {detail}", file=sys.stderr)
+    print(f"FAIL: {sel.detail}", file=sys.stderr)
     return 1
 
 

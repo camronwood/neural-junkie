@@ -1,4 +1,4 @@
-package incident
+package jira_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	jiraclient "github.com/camronwood/neural-junkie/internal/integrations/jira"
 	"github.com/camronwood/neural-junkie/internal/config"
 )
 
@@ -23,10 +24,10 @@ func TestClientGetMyself(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	client, err := NewClient(config.JiraConfig{
-		BaseURL:   srv.URL,
-		Email:     "user@example.com",
-		APIToken:  "token",
+	client, err := jiraclient.NewClient(config.JiraConfig{
+		BaseURL:  srv.URL,
+		Email:    "user@example.com",
+		APIToken: "token",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +62,7 @@ func TestSummarizeIssue(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	client, err := NewClient(config.JiraConfig{
+	client, err := jiraclient.NewClient(config.JiraConfig{
 		BaseURL:  srv.URL,
 		Email:    "user@example.com",
 		APIToken: "token",

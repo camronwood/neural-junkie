@@ -17,6 +17,8 @@ import re
 import shutil
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -1096,6 +1098,109 @@ def step_assert_deliverable_stubs(ctx: ScenarioContext, step: dict) -> tuple[boo
     return True, f"{len(deliverable_stubs)} stub(s) in {collab_dir}"
 
 
+def step_setup_pack(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
+    pack_id = (step.get("pack_id") or "").strip()
+    if not pack_id:
+        return False, "pack_id required"
+    code, out = hub.hub_request(ctx.base, "PUT", f"/api/packs/{pack_id}", {"enabled": True})
+    if code != 200:
+        return False, f"enable pack {pack_id}: {code} {out}"
+    return True, f"enabled pack {pack_id}"
+
+
+def _browser_post(base: str, path: str, body: dict) -> tuple[int, dict]:
+    url = f"{base.rstrip('/')}{path}"
+    raw = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=raw, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return resp.status, data if isinstance(data, dict) else {}
+    except urllib.error.HTTPError as exc:
+        try:
+            data = json.loads(exc.read().decode("utf-8"))
+        except Exception:
+            data = {"error": exc.reason or str(exc)}
+        return exc.code, data if isinstance(data, dict) else {"error": str(data)}
+
+
+def step_assert_browser_screenshot(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
+    ws_root = ctx.workspace_root or ctx.resolve_workspace_root()
+    if not ws_root:
+        return False, "workspace root required"
+    rel_path = (step.get("rel_path") or step.get("path") or "").strip().lstrip("/")
+    if not rel_path:
+        return False, "rel_path or path required"
+    rel_path = rel_path.replace("<collab-id>", ctx.collab_id or "")
+    url = (step.get("url") or "").strip()
+    if not url:
+        ws_id = (step.get("workspace_id") or "").strip()
+        if not ws_id:
+            # Derive workspace id from hub is non-trivial; use file URL for local fixtures.
+            file_path = Path(ws_root) / rel_path
+            if not file_path.is_file():
+                return False, f"missing file {file_path}"
+            url = file_path.resolve().as_uri()
+        else:
+            from urllib.parse import urlencode
+
+            hub_host = ctx.base.rstrip("/")
+            url = f"{hub_host}/api/workspace-preview?{urlencode({'workspace': ws_id, 'path': rel_path})}"
+
+    viewport = step.get("viewport") if isinstance(step.get("viewport"), dict) else None
+    golden = (step.get("golden") or "").strip()
+    min_match = float(step.get("min_match_pct", step.get("max_diff_pct", 90)))
+    create_baseline = bool(step.get("create_baseline_if_missing"))
+
+    if golden:
+        golden_path = Path(golden)
+        if not golden_path.is_absolute():
+            golden_path = (Path(ws_root) / golden).resolve()
+        baseline_path = str(golden_path)
+        workspace_id = (step.get("workspace_id") or "").strip()
+        body: dict[str, Any] = {
+            "url": url,
+            "baseline_path": baseline_path,
+            "full_page": bool(step.get("full_page", True)),
+        }
+        if viewport:
+            body["viewport"] = viewport
+        if workspace_id:
+            body["workspace_id"] = workspace_id
+        else:
+            body["workspace_root"] = ws_root
+        code, data = _browser_post(ctx.base, "/api/browser/visual-diff", body)
+        if code != 200:
+            return False, data.get("error") or f"visual-diff HTTP {code}"
+        if not data.get("baseline_exists") and create_baseline:
+            accept_body = dict(body)
+            accept_body["baseline_path"] = baseline_path
+            if workspace_id:
+                accept_body["workspace_id"] = workspace_id
+            acode, adata = _browser_post(ctx.base, "/api/browser/accept-baseline", accept_body)
+            if acode != 200:
+                return False, adata.get("error") or f"accept-baseline HTTP {acode}"
+            return True, f"created baseline {baseline_path}"
+        match_pct = float(data.get("match_pct") or 0)
+        if match_pct < min_match:
+            return False, f"visual match {match_pct:.1f}% < {min_match}%"
+        return True, f"visual match {match_pct:.1f}%"
+
+    body = {"url": url, "full_page": bool(step.get("full_page", True))}
+    if viewport:
+        body["viewport"] = viewport
+    code, data = _browser_post(ctx.base, "/api/browser/screenshot", body)
+    if code != 200:
+        return False, data.get("error") or f"screenshot HTTP {code}"
+    b64 = (data.get("png_b64") or "").strip()
+    if len(b64) < 100:
+        return False, "screenshot payload too small"
+    min_bytes = int(step.get("min_png_b64_bytes", 100))
+    if len(b64) < min_bytes:
+        return False, f"png b64 len {len(b64)} < {min_bytes}"
+    return True, f"screenshot ok ({data.get('width')}x{data.get('height')})"
+
+
 def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
     action = (step.get("action") or step.get("type") or "").strip()
     handlers = {
@@ -1113,6 +1218,8 @@ def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
         "assert_deliverable": step_assert_deliverable,
         "assert_files": step_assert_files,
         "assert_deliverable_stubs": step_assert_deliverable_stubs,
+        "setup_pack": step_setup_pack,
+        "assert_browser_screenshot": step_assert_browser_screenshot,
     }
     fn = handlers.get(action)
     if not fn:
@@ -1586,6 +1693,21 @@ def _run_scenario_once(
         if isinstance(setup, dict) and setup.get("action") == "executing_blocker":
             if not run_setup_blocker(ctx, setup, agents):
                 return False, "executing_blocker setup failed"
+
+        ctx.workspace_root = ctx.resolve_workspace_root()
+
+        if not scenario.get("collaborate"):
+            all_ok = True
+            steps = list(scenario.get("steps") or []) + expand_deliverable_steps(scenario)
+            for i, step in enumerate(steps, 1):
+                if not run_step(ctx, step, f"{i}"):
+                    all_ok = False
+                    break
+            if all_ok:
+                print(f"=== PASS: {name} ===\n")
+                return True, ""
+            print(f"=== FAIL: {name} ===\n", file=sys.stderr)
+            return False, ctx.last_failure or f"scenario {name} failed"
 
         started = start_collaboration(ctx, channel, scenario, agents)
         if not started:

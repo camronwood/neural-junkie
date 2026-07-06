@@ -86,6 +86,9 @@ func (m *mockHubClientRepo) GenerateAndPostMusic(context.Context, string, protoc
 func (m *mockHubClientRepo) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
+func (m *mockHubClientRepo) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}
 
 
 

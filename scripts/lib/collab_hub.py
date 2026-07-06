@@ -209,6 +209,10 @@ def send_message(
             refresh_hub_auth_after_restart(base)
             time.sleep(1.0)
             continue
+        if code == 0 and attempt + 1 < max_retries:
+            time.sleep(2.0 * (attempt + 1))
+            if check_health(base):
+                continue
         if code == 200 and isinstance(data, dict):
             return code, data
         return code, data if isinstance(data, dict) else None
@@ -390,12 +394,15 @@ def agent_messages(
     *,
     types: frozenset[str] | None = None,
     exclude_system: bool = True,
+    exclude_generation_errors: bool = False,
 ) -> list[dict]:
     out: list[dict] = []
     for m in messages:
         if exclude_system and (m.get("from") or {}).get("name") == "System":
             if m.get("type") == "collaboration_discussion":
                 continue
+        if exclude_generation_errors and is_generation_error_message(m):
+            continue
         typ = m.get("type") or ""
         if types and typ not in types:
             continue
@@ -404,6 +411,18 @@ def agent_messages(
             if who and who != "System":
                 out.append(m)
     return out
+
+
+def is_generation_error_message(m: dict) -> bool:
+    if not isinstance(m, dict):
+        return False
+    meta = m.get("metadata") or {}
+    if not isinstance(meta, dict):
+        meta = {}
+    if meta.get("generation_error") or meta.get("error_code"):
+        return True
+    content = (m.get("content") or "").lower()
+    return "could not complete this turn" in content
 
 
 def count_by_agent(messages: list[dict]) -> dict[str, int]:
@@ -916,9 +935,12 @@ def discussion_diagnosis(
 ) -> str:
     """Human-readable summary of who spoke and common failure signals."""
     msgs = messages_for_collab(list_messages(base, channel, 200), collab_id)
-    pool = agent_messages(msgs)
+    pool = agent_messages(msgs, exclude_generation_errors=True)
+    raw_pool = agent_messages(msgs)
     counts = count_by_agent(pool)
-    lines = [f"agent discussion: total={len(pool)} counts={counts}"]
+    lines = [f"agent discussion: total={len(pool)} counts={counts} (excluding generation_error)"]
+    if len(raw_pool) != len(pool):
+        lines.append(f"  raw discussion posts (incl. errors): {len(raw_pool)}")
     gen_errors = sum(
         1
         for m in msgs

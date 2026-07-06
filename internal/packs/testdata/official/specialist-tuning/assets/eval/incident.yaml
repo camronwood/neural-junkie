@@ -1,0 +1,6 @@
+agent_type: incident
+questions:
+  - prompt: "What are the first steps in incident triage?"
+    keywords: ["severity", "impact", "communicate", "mitigate"]
+  - prompt: "What belongs in an initial incident ticket update?"
+    keywords: ["status", "timeline", "owner", "impact"]

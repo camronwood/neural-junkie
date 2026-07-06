@@ -3,8 +3,8 @@
   "description": "Natural-language 'make me a website' must plan and execute real HTML/CSS pages, not markdown specs only.",
   "tags": ["collab", "execution", "regression", "website"],
   "channel": "collab-scenarios",
-  "agents": "@FrontendEngineer @Gemini",
-  "required_agents": ["FrontendEngineer", "Gemini"],
+  "agents": "@FrontendEngineer @Claude",
+  "required_agents": ["FrontendEngineer", "Claude"],
   "workspace": {
     "fixture": "website-prior-collab",
     "workspace_flag": true,
@@ -13,7 +13,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "2", "--messages", "12"],
-    "goal": "@FrontendEngineer @Gemini I want you to make me a website called Collaboration Station. Colors: black, white, gray, blue, red. Three pages: home, about, contact."
+    "goal": "@FrontendEngineer @Claude I want you to make me a website called Collaboration Station. Colors: black, white, gray, blue, red. Three pages: home (index.html), about (about.html), contact (contact.html) — real HTML and CSS under collabs/<id>/, not markdown specs only."
   },
   "expect_deliverables": [
     {
@@ -21,7 +21,27 @@
       "min_bytes": 80,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["<!DOCTYPE|<html|Collaboration Station|home|about|contact"],
+        "any_match": ["<!DOCTYPE|<html|Collaboration Station"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/about.html",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["<!DOCTYPE|<html|about|Collaboration Station"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/contact.html",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["<!DOCTYPE|<html|contact|Collaboration Station"],
         "none_match": ["_Initial stub created"]
       },
       "llm_judge": true
@@ -43,10 +63,10 @@
       "action": "wait_discussion",
       "min_total": 2,
       "min_per_agent": 1,
-      "required_agents": ["FrontendEngineer", "Gemini"],
+      "required_agents": ["FrontendEngineer", "Claude"],
       "timeout": "360s",
       "retries": 1,
-      "nudge_agents": ["Gemini"]
+      "nudge_agents": ["Claude"]
     },
     {"action": "wait_phase", "phase": "reviewing", "timeout": "300s"},
     {"action": "wait_planning_recap", "timeout": "300s"},
@@ -74,13 +94,48 @@
     {"action": "send", "content": "/resume-plan <collab-id>"},
     {
       "action": "wait_tasks",
-      "min_completed": 1,
+      "min_completed": 2,
       "all_match": false,
       "timeout": "420s"
     },
     {
+      "action": "send",
+      "content": "@FrontendEngineer @Claude Finish the remaining HTML pages (about.html, contact.html) under collabs/<collab-id>/ using the same layout and style.css as index.html."
+    },
+    {
+      "action": "wait_tasks",
+      "min_completed": 1,
+      "all_match": false,
+      "timeout": "300s"
+    },
+    {
       "action": "approve_file_changes",
-      "path_match": ".html",
+      "path_match": "index.html",
+      "target_rel": "collabs/<collab-id>/index.html",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "about.html",
+      "target_rel": "collabs/<collab-id>/about.html",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "contact.html",
+      "target_rel": "collabs/<collab-id>/contact.html",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": ".css",
+      "target_rel": "collabs/<collab-id>/style.css",
       "from_discussion_fallback": true,
       "min_approved": 0,
       "timeout": "120s"
@@ -88,17 +143,22 @@
     {
       "action": "assert_files",
       "path": "collabs/<collab-id>/index.html",
-      "min_bytes": 80,
-      "deny_task_status": true,
-      "none_match": ["_Initial stub created"],
-      "any_match": ["<!DOCTYPE|<html|Collaboration Station"]
+      "path_alternatives": [
+        "collabs/<collab-id>/homepage.html",
+        "collabs/<collab-id>/home.html"
+      ]
     },
     {
       "action": "assert_files",
-      "path": "collabs/<collab-id>/style.css",
-      "min_bytes": 40,
-      "deny_task_status": true,
-      "none_match": ["_Initial stub created"]
+      "path": "collabs/<collab-id>/about.html"
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/contact.html"
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/style.css"
     }
   ],
   "cleanup": "cancel"

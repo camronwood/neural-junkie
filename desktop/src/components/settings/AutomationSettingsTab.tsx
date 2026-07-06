@@ -5,7 +5,7 @@ export function AutomationSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
   const [form, setForm] = useState({
     scenario_repo: '',
     scenario_allow_file_fallback: false,
-    deliverable_judge_provider: 'gemini',
+    deliverable_judge_provider: 'claude',
     deliverable_judge_mode: 'hub',
     deliverable_judge_model: 'qwen2.5-coder:14b',
     deliverable_judge_gemini_model: '',
@@ -34,7 +34,7 @@ export function AutomationSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
           setForm({
             scenario_repo: String(a.scenario_repo ?? ''),
             scenario_allow_file_fallback: !!a.scenario_allow_file_fallback,
-            deliverable_judge_provider: String(a.deliverable_judge_provider ?? 'gemini'),
+            deliverable_judge_provider: String(a.deliverable_judge_provider ?? 'claude'),
             deliverable_judge_mode: String(a.deliverable_judge_mode ?? 'hub'),
             deliverable_judge_model: String(a.deliverable_judge_model ?? 'qwen2.5-coder:14b'),
             deliverable_judge_gemini_model: String(a.deliverable_judge_gemini_model ?? ''),

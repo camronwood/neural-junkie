@@ -2,8 +2,11 @@
   "name": "document-findings-execution",
   "description": "Task phrased as 'Document findings in collabs/<id>/findings.md' (no Write verb) must dispatch, produce a file deliverable, and complete via /complete-collab.",
   "channel": "collab-scenarios",
-  "agents": "@Assistant @BackendEngineer",
-  "required_agents": ["Assistant", "BackendEngineer"],
+  "agents": "@BackendEngineer @SoftwareArchitect",
+  "required_agents": [
+    "BackendEngineer",
+    "SoftwareArchitect"
+  ],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,
@@ -11,8 +14,14 @@
     "file_tree": "README.md\ncore/sample/main.go\n"
   },
   "collaborate": {
-    "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@Assistant @BackendEngineer Plan one task using this exact line: - Task 1: @Assistant - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go."
+    "flags": [
+      "--workspace",
+      "--rounds",
+      "1",
+      "--messages",
+      "3"
+    ],
+    "goal": "@BackendEngineer @BackendEngineer Plan one task using this exact line: - Task 1: @BackendEngineer - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go."
   },
   "expect_deliverables": [
     {
@@ -20,33 +29,71 @@
       "min_bytes": 30,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["README|main\\.go|core/sample|minimal"],
-        "none_match": ["index\\.js", "utils\\.js", "\\[Insert", "lorem ipsum"]
+        "any_match": [
+          "README|main\\.go|core/sample|minimal"
+        ],
+        "none_match": [
+          "index\\.js",
+          "utils\\.js",
+          "\\[Insert",
+          "lorem ipsum"
+        ]
       },
       "llm_judge": true
     }
   ],
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 20},
-    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
-    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "wait_phase",
+      "phase": "planning",
+      "timeout": 20
+    },
+    {
+      "action": "wait_phase",
+      "phase": "reviewing",
+      "timeout": "180s"
+    },
+    {
+      "action": "wait_planning_recap",
+      "timeout": "120s"
+    },
     {
       "action": "assert_plan",
       "min_tasks": 1,
       "max_tasks": 2,
       "tasks_have_file_deliverable": true,
-      "content_any_match": ["findings\\.md"]
+      "content_any_match": [
+        "findings\\.md"
+      ]
     },
-    {"action": "approve_plan"},
-    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {
+      "action": "approve_plan"
+    },
+    {
+      "action": "wait_phase",
+      "phase": "executing",
+      "timeout": 45
+    },
     {
       "action": "assert_deliverable_stubs",
       "min_stubs": 1,
       "require_plan_md": true,
-      "skip_names": ["README.md", "planning-summary.md", "session-summary.md", "plan.md"]
+      "skip_names": [
+        "README.md",
+        "planning-summary.md",
+        "session-summary.md",
+        "plan.md"
+      ]
     },
-    {"action": "send", "content": "/resume-plan <collab-id>"},
-    {"action": "wait_tasks", "settle_only": true, "timeout": "120s"},
+    {
+      "action": "send",
+      "content": "/resume-plan <collab-id>"
+    },
+    {
+      "action": "wait_tasks",
+      "settle_only": true,
+      "timeout": "120s"
+    },
     {
       "action": "approve_file_changes",
       "path_match": "findings.md",
@@ -62,10 +109,23 @@
       "min_bytes": 30,
       "deny_task_status": true
     },
-    {"action": "assert_collab", "phase": "executing"},
-    {"action": "send", "content": "/complete-collab <collab-id> --force"},
-    {"action": "wait_phase", "phase": "completed", "timeout": "120s"},
-    {"action": "assert_collab", "phase": "completed"}
+    {
+      "action": "assert_collab",
+      "phase": "executing"
+    },
+    {
+      "action": "send",
+      "content": "/complete-collab <collab-id> --force"
+    },
+    {
+      "action": "wait_phase",
+      "phase": "completed",
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_collab",
+      "phase": "completed"
+    }
   ],
   "cleanup": "cancel"
 }

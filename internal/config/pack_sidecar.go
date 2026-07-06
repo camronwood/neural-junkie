@@ -47,6 +47,13 @@ func (c *Config) CollectPackSidecarEnvs() []packs.SidecarEnv {
 				}
 			}
 		}
+		if m.ID == PackAWS {
+			for k, v := range c.awsSidecarSettingsLocked() {
+				if strings.TrimSpace(v) != "" {
+					resolved[k] = v
+				}
+			}
+		}
 		settings[m.ID] = resolved
 	}
 	return packs.CollectSidecarEnvs(manifests, packDirs, settings)

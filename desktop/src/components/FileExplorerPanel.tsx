@@ -1228,48 +1228,49 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
         </div>
       
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slack-border flex items-center justify-between gap-2 bg-slack-bgHover min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+      <div className="border-b border-slack-border bg-slack-bgHover min-w-0">
+        <div className="px-4 py-2 flex items-center justify-between gap-2 min-w-0">
           <h2 className="font-bold text-slack-text flex-shrink-0">Files</h2>
-          <WorkspaceScopeChip />
-          <div className="min-w-0 flex-shrink">
-            <FilesPanelMenu repoPath={getActiveWorkspace()?.path} />
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {canSwitchWorkspaces && (
+              <button
+                type="button"
+                onClick={() => setShowWorkspaceSwitcher(true)}
+                className="text-slack-textMuted hover:text-slack-text transition-colors flex-shrink-0 px-1 py-0.5 text-xs font-medium"
+                title="All workspaces"
+                aria-label={
+                  workspaceSwitcherOverflow > 0
+                    ? `All workspaces, ${workspaceSwitcherOverflow} not shown in tabs`
+                    : 'All workspaces'
+                }
+              >
+                {workspaceSwitcherOverflow > 0 ? `... +${workspaceSwitcherOverflow}` : '...'}
+              </button>
+            )}
+            <button
+              onClick={() => setShowAddWorkspace(true)}
+              className="text-slack-textMuted hover:text-slack-text transition-colors"
+              title="Add workspace"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+            </button>
+            <button
+              onClick={onClose}
+              className="text-slack-textMuted hover:text-slack-text transition-colors"
+              title="Close file explorer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {canSwitchWorkspaces && (
-            <button
-              type="button"
-              onClick={() => setShowWorkspaceSwitcher(true)}
-              className="text-slack-textMuted hover:text-slack-text transition-colors flex-shrink-0 px-1 py-0.5 text-xs font-medium"
-              title="All workspaces"
-              aria-label={
-                workspaceSwitcherOverflow > 0
-                  ? `All workspaces, ${workspaceSwitcherOverflow} not shown in tabs`
-                  : 'All workspaces'
-              }
-            >
-              {workspaceSwitcherOverflow > 0 ? `... +${workspaceSwitcherOverflow}` : '...'}
-            </button>
-          )}
-          <button
-            onClick={() => setShowAddWorkspace(true)}
-            className="text-slack-textMuted hover:text-slack-text transition-colors"
-            title="Add workspace"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-          </button>
-          <button
-            onClick={onClose}
-            className="text-slack-textMuted hover:text-slack-text transition-colors"
-            title="Close file explorer"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+
+        <div className="px-4 py-1.5 border-t border-slack-border flex items-center justify-center gap-2 min-w-0">
+          <WorkspaceScopeChip variant="row" />
+          <FilesPanelMenu repoPath={getActiveWorkspace()?.path} variant="bar" />
         </div>
       </div>
 

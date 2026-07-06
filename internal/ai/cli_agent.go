@@ -32,6 +32,17 @@ func WithToolApprovalChannel(ctx context.Context, channel string) context.Contex
 	return context.WithValue(ctx, toolApprovalChannelKey, channel)
 }
 
+// ToolApprovalChannelFrom returns the channel attached by WithToolApprovalChannel.
+func ToolApprovalChannelFrom(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok {
+		return channel
+	}
+	return ""
+}
+
 // ansiRegex strips ANSI escape sequences (colors, cursor control, etc.)
 // that leak through the PTY since the subprocess thinks it's a real terminal.
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b[()][0-9A-B]`)
@@ -215,6 +226,9 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 	if c.ProviderName == "gemini-cli" {
 		cmd.Env = appendGeminiCLIEnv(cmd.Env, c)
 	}
+	if c.ProviderName == "claude-cli" {
+		cmd.Env = appendClaudeCLIEnv(cmd.Env)
+	}
 	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok && channel != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("NEURAL_JUNKIE_CHANNEL=%s", channel))
 	}
@@ -299,8 +313,9 @@ func (c *CLIAgentProvider) useInteractiveMode() bool {
 
 // buildCLIInvocationArgs prepends provider-specific flags (model, workspace trust) before base args.
 func (c *CLIAgentProvider) buildCLIInvocationArgs(baseArgs []string) []string {
-	args := make([]string, 0, len(baseArgs)+4)
+	args := make([]string, 0, len(baseArgs)+8)
 	args = append(args, c.cursorTrustArgs()...)
+	args = append(args, c.claudePermissionArgs()...)
 	base := make([]string, len(baseArgs))
 	copy(base, baseArgs)
 	if model := c.EffectiveCLIModel(); model != "" {
@@ -323,6 +338,25 @@ func (c *CLIAgentProvider) cursorTrustArgs() []string {
 		return nil
 	}
 	return []string{"--trust"}
+}
+
+// claudePermissionArgs returns headless permission flags for Claude Code (-p) invocations.
+func (c *CLIAgentProvider) claudePermissionArgs() []string {
+	if c.ProviderName != "claude-cli" {
+		return nil
+	}
+	mode := strings.ToLower(strings.TrimSpace(c.ApprovalMode))
+	switch mode {
+	case "yolo":
+		return []string{"--permission-mode", "bypassPermissions"}
+	case "auto_edit", "auto_apply_edits":
+		return []string{"--permission-mode", "acceptEdits"}
+	default:
+		if mode != "" && mode != "interactive" {
+			return []string{"--permission-mode", "acceptEdits"}
+		}
+		return nil
+	}
 }
 
 // GenerateResponseStream invokes the CLI agent and streams its stdout
@@ -358,6 +392,9 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 	}
 	if c.ProviderName == "gemini-cli" {
 		cmd.Env = appendGeminiCLIEnv(cmd.Env, c)
+	}
+	if c.ProviderName == "claude-cli" {
+		cmd.Env = appendClaudeCLIEnv(cmd.Env)
 	}
 	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok && channel != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("NEURAL_JUNKIE_CHANNEL=%s", channel))
@@ -561,6 +598,9 @@ func (c *CLIAgentProvider) streamInteractiveMode(ctx context.Context, cancel con
 	for key, value := range c.Env {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 	}
+	if c.ProviderName == "claude-cli" {
+		cmd.Env = appendClaudeCLIEnv(cmd.Env)
+	}
 	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok && channel != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("NEURAL_JUNKIE_CHANNEL=%s", channel))
 	}
@@ -696,6 +736,10 @@ func (c *CLIAgentProvider) shouldUsePTYStreaming() bool {
 		return false
 	}
 	if c.ProviderName == "gemini-cli" && !cli.GeminiCLIPTY && os.Getenv("NEURAL_JUNKIE_GEMINI_CLI_PTY") != "1" {
+		return false
+	}
+	// Claude -p headless runs more reliably with pipes (PTY can hang on permission prompts).
+	if c.ProviderName == "claude-cli" {
 		return false
 	}
 	// Default to PTY streaming for other CLI-backed agents so tools that buffer

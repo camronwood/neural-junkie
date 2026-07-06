@@ -26,8 +26,20 @@ func collabLaneFor(agentType protocol.AgentType, agentName string) collabLane {
 	case protocol.AgentTypeDevOps:
 		return collabLane{
 			owns:   "CI/CD, packaging, deployment, observability hooks, environment config, release mechanics; assigned pipeline/config files via [FILE_CHANGE]",
-			defers: "API/schema design and markdown spec content to @SoftwareArchitect or architect types when not assigned",
-			avoid:  "kubectl/helm/json tool-call payloads during planning when the goal is documentation or API schema; re-defining the schema model",
+			defers: "API/schema design and markdown spec content to @SoftwareArchitect or architect types when not assigned; live AWS account state to @AWSExpert",
+			avoid:  "kubectl/helm/json tool-call payloads during planning when the goal is documentation or API schema; re-defining the schema model; EC2/IAM/SSO describe when @AWSExpert is available",
+		}
+	case protocol.AgentTypeAWS:
+		return collabLane{
+			owns:   "live AWS resource investigation, alarm trace, IAM/cost/security read ops, IaC drift vs account state; typed AWS sidecar tools",
+			defers: "repo pipeline and k8s manifest changes to @PlatformEngineer; Jira ticket filing to @IncidentManager",
+			avoid:  "editing .github/workflows or Helm charts unless assigned; terraform apply or CDK deploy",
+		}
+	case protocol.AgentTypeIncident:
+		return collabLane{
+			owns:   "incident triage, Jira ticket create/update, severity rubric, postmortem summaries",
+			defers: "AWS resource root-cause and live account queries to @AWSExpert; code fixes to engineering specialists",
+			avoid:  "running AWS describe tools when @AWSExpert is in the collab",
 		}
 	case protocol.AgentTypeCLI:
 		if strings.Contains(nameLower, "gemini") {

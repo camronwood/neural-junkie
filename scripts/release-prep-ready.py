@@ -155,7 +155,6 @@ def main() -> int:
             str(SCRIPTS_DIR / "collab-preflight.py"),
             "--hub",
             hub,
-            "--require-gemini",
             "--skip-judge-smoke",
         ],
         cwd=ROOT,

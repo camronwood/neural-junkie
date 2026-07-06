@@ -17,9 +17,13 @@ func GeminiAPIKeyFromEnvOrFile() string {
 	if err != nil {
 		return ""
 	}
-	v := strings.TrimSpace(string(data))
-	if v != "" {
-		_ = os.Setenv("GEMINI_API_KEY", v)
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		_ = os.Setenv("GEMINI_API_KEY", line)
+		return line
 	}
-	return v
+	return ""
 }

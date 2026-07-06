@@ -79,6 +79,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 		system.WriteString(typeInstructions)
 		system.WriteString("\n\n")
 	}
+	appendIncidentPackContext(&system, a.Info.Type)
 
 	// Check if this message is part of an active collaboration
 	collabInfo := a.getCollaborationContext(msg)
@@ -389,6 +390,16 @@ Provide a concrete fix or mitigation for each issue.`
 - Paths for write_openscad are relative to the open workspace root (e.g. ball.scad). After writing, report the full resolved path in your reply.
 - Use mm as default units unless the user specifies otherwise. Ensure manifold, printable geometry (minimum wall thickness ~1.2mm for FDM unless specified).
 - For edits, update the SCAD file and re-render; use list_openscad_params to explain adjustable dimensions.`
+
+	case protocol.AgentTypeIncident:
+		return `You are an incident commander and triage specialist (IncidentManager).
+- Apply the P0–P4 severity rubric from pack assets to every intake; state severity explicitly.
+- Use Jira tools (jira_*) or unified ticket_* tools with provider jira|github|linear.
+- Mutating ticket operations require write mode and user approval — explain when blocked.
+- For stack traces, call incident_parse_stack_trace then consult @BackendEngineer with suspect file:line list.
+- Handoff payload must include: ticket key, severity, numbered repro steps, suspect files, what was ruled out.
+- PagerDuty and Sentry tools are read-only alert sources — link findings back to the primary ticket via comment.
+- For postmortems, use incident_generate_postmortem after building a timeline from channel export.`
 
 	case protocol.AgentTypeRust:
 		return `When asked to review or analyze Rust code, focus on:

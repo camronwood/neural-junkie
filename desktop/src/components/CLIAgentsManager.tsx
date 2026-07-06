@@ -15,8 +15,10 @@ import { isTauriRuntime } from '../utils/promptAttachments';
 
 interface CLIAgentsManagerProps {
   serverAddr: string;
-  /** When set, only show these CLI types (defaults to featured). */
+  /** When true, only show featured CLI types with no expand control (e.g. setup wizard). */
   featuredOnly?: boolean;
+  /** When true, show featured agents first and let the user expand to see the rest. */
+  expandable?: boolean;
   compact?: boolean;
   onAgentActivated?: () => void;
 }
@@ -195,14 +197,23 @@ function CLIAgentCard({
       )}
 
       {!agent.installed && agent.can_install && (
-        <button
-          type="button"
-          onClick={() => void handleInstall()}
-          disabled={installing || (agent.missing_prereqs?.length ?? 0) > 0}
-          className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
-        >
-          {installing ? 'Installing…' : `Install ${agent.name}`}
-        </button>
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => void handleInstall()}
+            disabled={installing || (agent.missing_prereqs?.length ?? 0) > 0}
+            className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
+          >
+            {installing ? 'Installing…' : `Install ${agent.name}`}
+          </button>
+          {agent.install?.command && (
+            <p className="text-xs text-gray-500 font-mono break-all">{agent.install.command}</p>
+          )}
+        </div>
+      )}
+
+      {!agent.installed && !agent.can_install && agent.install_hint && (
+        <p className="text-xs text-gray-500">{agent.install_hint}</p>
       )}
 
       {installLog && (
@@ -299,15 +310,48 @@ function CLIAgentCard({
   );
 }
 
+function AgentCardGrid({
+  agents,
+  serverAddr,
+  compact,
+  onRefresh,
+  onAgentActivated,
+}: {
+  agents: CLIAgentStatus[];
+  serverAddr: string;
+  compact?: boolean;
+  onRefresh: () => void;
+  onAgentActivated?: () => void;
+}) {
+  if (agents.length === 0) return null;
+
+  return (
+    <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-2'}`}>
+      {agents.map((agent) => (
+        <CLIAgentCard
+          key={agent.type}
+          agent={agent}
+          serverAddr={serverAddr}
+          compact={compact}
+          onRefresh={onRefresh}
+          onAgentActivated={onAgentActivated}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function CLIAgentsManager({
   serverAddr,
-  featuredOnly = true,
+  featuredOnly = false,
+  expandable = true,
   compact = false,
   onAgentActivated,
 }: CLIAgentsManagerProps) {
   const [agents, setAgents] = useState<CLIAgentStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -325,10 +369,21 @@ export function CLIAgentsManager({
     void refresh();
   }, [refresh]);
 
-  const visible = useMemo(() => {
-    if (!featuredOnly) return agents;
-    return agents.filter((a) => FEATURED_TYPES.includes(a.type));
-  }, [agents, featuredOnly]);
+  const { featured, other } = useMemo(() => {
+    const featuredList: CLIAgentStatus[] = [];
+    const otherList: CLIAgentStatus[] = [];
+    for (const agent of agents) {
+      if (FEATURED_TYPES.includes(agent.type)) {
+        featuredList.push(agent);
+      } else {
+        otherList.push(agent);
+      }
+    }
+    return { featured: featuredList, other: otherList };
+  }, [agents]);
+
+  const showExpandControl = expandable && !featuredOnly && other.length > 0;
+  const showOther = !featuredOnly && (!expandable || showAll);
 
   return (
     <div className="space-y-3">
@@ -336,8 +391,9 @@ export function CLIAgentsManager({
         <>
           <h3 className="text-sm font-semibold text-gray-300">CLI agents</h3>
           <p className="text-xs text-gray-500 leading-relaxed">
-            Install Cursor, Claude Code, or Gemini CLI and sign in from here. Ready agents join{' '}
-            <code className="text-gray-400">#general</code> automatically when activated.
+            Install and sign in to CLI coding agents from here. Cursor, Claude Code, and Gemini are
+            recommended; expand below for Copilot, Codex, Aider, and more. Ready agents join{' '}
+            <code className="text-gray-400">#general</code> when activated.
           </p>
         </>
       )}
@@ -345,18 +401,73 @@ export function CLIAgentsManager({
       {loading && <div className="text-sm text-gray-500">Loading CLI status…</div>}
       {error && <div className="text-sm text-red-400">{error}</div>}
 
-      <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-1'}`}>
-        {visible.map((agent) => (
-          <CLIAgentCard
-            key={agent.type}
-            agent={agent}
-            serverAddr={serverAddr}
-            compact={compact}
-            onRefresh={refresh}
-            onAgentActivated={onAgentActivated}
-          />
-        ))}
-      </div>
+      {featuredOnly ? (
+        <AgentCardGrid
+          agents={featured}
+          serverAddr={serverAddr}
+          compact={compact}
+          onRefresh={refresh}
+          onAgentActivated={onAgentActivated}
+        />
+      ) : (
+        <div className="space-y-4">
+          {featured.length > 0 && (
+            <div className="space-y-2">
+              {!compact && expandable && (
+                <h4 className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Recommended
+                </h4>
+              )}
+              <AgentCardGrid
+                agents={featured}
+                serverAddr={serverAddr}
+                compact={compact}
+                onRefresh={refresh}
+                onAgentActivated={onAgentActivated}
+              />
+            </div>
+          )}
+
+          {showExpandControl && !showAll && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="w-full px-3 py-2 text-xs text-gray-300 border border-gray-700 rounded-lg hover:bg-gray-800/80 hover:text-white transition-colors"
+            >
+              Show {other.length} more CLI agent{other.length === 1 ? '' : 's'} (Copilot, Codex,
+              Aider, OpenCode, …)
+            </button>
+          )}
+
+          {showOther && other.length > 0 && (
+            <div className="space-y-2">
+              {!compact && expandable && (
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    More CLI agents
+                  </h4>
+                  {showExpandControl && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAll(false)}
+                      className="text-xs text-gray-400 hover:text-gray-200"
+                    >
+                      Show fewer
+                    </button>
+                  )}
+                </div>
+              )}
+              <AgentCardGrid
+                agents={other}
+                serverAddr={serverAddr}
+                compact={compact}
+                onRefresh={refresh}
+                onAgentActivated={onAgentActivated}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

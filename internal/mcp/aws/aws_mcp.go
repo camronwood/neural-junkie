@@ -71,7 +71,7 @@ func (a *AWSMCP) registerTools() {
 
 	a.mcpServer.AddTool(mcp.CreateTool(
 		"aws_cli_query",
-		"Run a read-only AWS CLI query (ec2 describe-*, s3 ls, lambda list-*, iam list-*, cloudformation describe-*). Args are service and operation plus optional flags.",
+		"Deprecated: prefer typed tools (describe_ec2_instances, list_s3_buckets, etc.). Read-only AWS CLI passthrough when sidecar cannot serve a resource type.",
 		mcp.CreateObjectInputSchema(map[string]interface{}{
 			"service": map[string]interface{}{"type": "string", "description": "AWS service, e.g. ec2, s3, lambda"},
 			"operation": map[string]interface{}{"type": "string", "description": "CLI operation, e.g. describe-instances"},
@@ -84,10 +84,15 @@ func (a *AWSMCP) registerTools() {
 		nil,
 	), a.handleCLIQuery)
 
+	attachSidecarTools(a.mcpServer)
+
 	log.Printf("Registered %d AWS MCP tools", len(a.mcpServer.ListTools()))
 }
 
 func (a *AWSMCP) handleGetCallerIdentity(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if out, err := sidecarCallerIdentity(ctx); err == nil {
+		return mcp.HandleToolSuccess(out), nil
+	}
 	settings := awsSettings()
 	if p := strings.TrimSpace(request.GetString("profile", "")); p != "" {
 		settings.Profile = p

@@ -24,7 +24,7 @@ try:
 except ImportError:
     from lib.hub_config import env_or_automation, env_or_automation_bool, env_or_automation_int  # type: ignore[no-redef]
 
-DEFAULT_JUDGE_PROVIDER = env_or_automation("NJ_DELIVERABLE_JUDGE_PROVIDER", "deliverable_judge_provider", "gemini").lower()
+DEFAULT_JUDGE_PROVIDER = env_or_automation("NJ_DELIVERABLE_JUDGE_PROVIDER", "deliverable_judge_provider", "claude").lower()
 DEFAULT_JUDGE_AGENT = env_or_automation("NJ_DELIVERABLE_JUDGE_AGENT", "deliverable_judge_agent", "")
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 DEFAULT_OLLAMA_MODEL = env_or_automation("NJ_DELIVERABLE_JUDGE_MODEL", "deliverable_judge_model", "qwen2.5-coder:14b")
@@ -41,6 +41,7 @@ _RETRY_DELAY_RE = re.compile(r"retry in ([\d.]+)s", re.I)
 _PROVIDER_DEFAULT_AGENT = {
     "gemini": "Gemini",
     "cursor": "Cursor",
+    "claude": "Claude",
     "ollama": "",
 }
 
@@ -114,13 +115,13 @@ def throttle_gemini_judge() -> None:
 
 def _default_judge_provider() -> str:
     p = DEFAULT_JUDGE_PROVIDER
-    return p if p in ("gemini", "cursor", "ollama") else "gemini"
+    return p if p in ("gemini", "cursor", "claude", "ollama") else "claude"
 
 
 def _should_fallback_to_ollama(provider: str, detail: str) -> bool:
     if provider == "ollama" or not ollama_fallback_enabled():
         return False
-    if provider not in ("gemini", "cursor"):
+    if provider not in ("gemini", "cursor", "claude"):
         return False
     if is_gemini_quota_error(detail):
         return True
@@ -208,7 +209,11 @@ def _judge_spec_provider(spec: dict[str, Any] | bool | None) -> str:
     mode = os.environ.get("NJ_DELIVERABLE_JUDGE_MODE", "").strip().lower()
     if mode in ("cli", "hub", "ollama"):
         if mode == "cli":
-            return DEFAULT_JUDGE_PROVIDER if DEFAULT_JUDGE_PROVIDER in ("gemini", "cursor") else "gemini"
+            return (
+                DEFAULT_JUDGE_PROVIDER
+                if DEFAULT_JUDGE_PROVIDER in ("gemini", "cursor", "claude")
+                else "claude"
+            )
         if mode == "ollama":
             return "ollama"
     return _default_judge_provider()
@@ -285,6 +290,16 @@ def cli_judge_deliverable(
             return False, "cursor agent CLI not on PATH"
         cmd = [binary, "-p", "--output-format", "text", prompt]
         run_env = None
+    elif provider == "claude":
+        binary = shutil.which("claude")
+        if not binary:
+            return False, "claude CLI not on PATH"
+        cmd = [binary, "-p", prompt]
+        try:
+            from lib.claude_judge_auth import claude_subprocess_env
+        except ImportError:
+            from claude_judge_auth import claude_subprocess_env  # type: ignore[no-redef]
+        run_env = claude_subprocess_env()
     else:
         return False, f"unsupported CLI judge provider {provider!r}"
 
@@ -428,7 +443,7 @@ def judge_deliverable(
         return ok, f"ollama/{DEFAULT_OLLAMA_MODEL}: {detail}"
 
     if (
-        provider in ("gemini", "cursor")
+        provider in ("gemini", "cursor", "claude")
         and cloud_judge_tripped(provider)
         and ollama_fallback_enabled()
     ):

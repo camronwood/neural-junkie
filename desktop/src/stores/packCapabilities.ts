@@ -19,11 +19,16 @@ export const PACK_PLATFORM_CAP = {
   INCIDENT_API: 'incident-api',
   JIRA_INTEGRATION: 'jira-integration',
   INCIDENT_TRIAGE: 'incident-triage',
+  GITHUB_ISSUES_INTEGRATION: 'github-issues-integration',
+  LINEAR_INTEGRATION: 'linear-integration',
+  PAGERDUTY_INTEGRATION: 'pagerduty-integration',
+  SENTRY_INTEGRATION: 'sentry-integration',
   WEB_BROWSER: 'web-browser',
   WEB_PREVIEW: 'web-preview',
   WEB_BROWSER_WORKBENCH: 'web-browser-workbench',
   MUSIC_GENERATION: 'music-generation',
   MUSIC_SIDECAR: 'music-sidecar',
+  BROWSER_SIDECAR: 'browser-sidecar',
 } as const;
 
 /**

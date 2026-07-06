@@ -1,0 +1,6 @@
+agent_type: browser
+questions:
+  - prompt: "What is accessibility testing for web apps?"
+    keywords: ["a11y", "wcag", "screen", "keyboard"]
+  - prompt: "How do you verify a responsive layout?"
+    keywords: ["viewport", "breakpoint", "mobile", "css"]

@@ -22,12 +22,13 @@ from lib.hub_auth import ensure_automation_api_key, hub_auth_headers, ensure_hub
 from lib.release_prep_env import apply_release_prep_env  # noqa: E402
 
 DEFAULT_ROSTER = [
-    "Assistant",
     "BackendEngineer",
     "SoftwareArchitect",
     "PlatformEngineer",
+    "FrontendEngineer",
+    "SecurityReviewer",
 ]
-GEMINI_SCENARIOS = ("resource-api-schema-planning", "collaboration-station-website", "collaboration-station-website-sa", "make-me-a-website")
+GEMINI_SCENARIOS: tuple[str, ...] = ()  # no live collab scenarios require @Gemini (quota/flake)
 EXPECTED_SCENARIO_COUNT = 24
 HUB_LOG = Path("/tmp/nj-hub.log")
 OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
@@ -172,13 +173,79 @@ def check_ollama(expected_models: list[str]) -> bool:
 
 
 def _deliverable_judge_agent() -> str | None:
-    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
+    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "claude").strip().lower()
     if provider == "ollama":
         return None
     agent = (os.environ.get("NJ_DELIVERABLE_JUDGE_AGENT") or "").strip().lstrip("@")
     if not agent:
-        agent = "Cursor" if provider == "cursor" else "Gemini"
+        if provider == "cursor":
+            agent = "Cursor"
+        elif provider == "claude":
+            agent = "Claude"
+        else:
+            agent = "Gemini"
     return agent
+
+
+def check_claude_for_testing(*, require: bool, timeout_s: float = 45.0) -> bool:
+    """Probe Claude Code CLI before scenarios that use hub @Claude judge."""
+    if os.environ.get("NJ_SKIP_CLAUDE_PROBE", "").strip().lower() in ("1", "true", "yes"):
+        _ok("Claude probe skipped (NJ_SKIP_CLAUDE_PROBE)")
+        return True
+
+    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "claude").strip().lower()
+    if not require and provider == "ollama":
+        _ok("Claude probe skipped (NJ_DELIVERABLE_JUDGE_PROVIDER=ollama)")
+        return True
+    if provider != "claude":
+        _ok(f"Claude probe skipped (NJ_DELIVERABLE_JUDGE_PROVIDER={provider})")
+        return True
+
+    from lib.claude_judge_auth import ensure_claude_for_testing  # noqa: E402
+
+    sel = ensure_claude_for_testing(timeout_s=timeout_s, smoke=False)
+    if sel.ok:
+        _ok(f"Claude ready: {sel.detail}")
+        return True
+    if require:
+        _fail(f"Claude required for deliverable judge: {sel.detail}")
+        return False
+    _warn(f"Claude unavailable (non-fatal): {sel.detail}")
+    return True
+
+
+def check_gemini_for_testing(*, require: bool, timeout_s: float = 45.0) -> bool:
+    """Probe all API keys × top Gemini models before collab scenarios that need @Gemini."""
+    if os.environ.get("NJ_SKIP_GEMINI_PROBE", "").strip().lower() in ("1", "true", "yes"):
+        _ok("Gemini probe skipped (NJ_SKIP_GEMINI_PROBE)")
+        return True
+
+    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "claude").strip().lower()
+    if not require and provider == "ollama":
+        _ok("Gemini probe skipped (NJ_DELIVERABLE_JUDGE_PROVIDER=ollama)")
+        return True
+    if provider != "gemini":
+        _ok(f"Gemini probe skipped (NJ_DELIVERABLE_JUDGE_PROVIDER={provider})")
+        return True
+
+    from lib.gemini_judge_auth import ensure_gemini_for_testing  # noqa: E402
+    from lib.release_prep_env import explicit_gemini_judge_model  # noqa: E402
+
+    sel = ensure_gemini_for_testing(
+        root=ROOT,
+        timeout_s=timeout_s,
+        explicit_model=explicit_gemini_judge_model(ROOT),
+        retry_quota=True,
+        collab=require,
+    )
+    if sel.ok:
+        _ok(f"Gemini ready: {sel.detail}")
+        return True
+    if require:
+        _fail(f"Gemini required for collab testing: {sel.detail}")
+        return False
+    _warn(f"Gemini unavailable (non-fatal): {sel.detail}")
+    return True
 
 
 def check_deliverable_judge(base: str, *, skip_smoke: bool = False) -> bool:
@@ -190,7 +257,7 @@ def check_deliverable_judge(base: str, *, skip_smoke: bool = False) -> bool:
         _ok("deliverable judge smoke skipped (already verified)")
         return True
 
-    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
+    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "claude").strip().lower()
     if provider != "ollama":
         agent = _deliverable_judge_agent()
         if agent:
@@ -258,12 +325,12 @@ def main() -> int:
     p.add_argument(
         "--require-gemini",
         action="store_true",
-        help="Require Gemini agent (resource-api-schema-planning)",
+        help="Require Gemini API probe (optional; no collab scenarios use @Gemini by default)",
     )
     p.add_argument(
         "--skip-judge-smoke",
         action="store_true",
-        help="Skip Gemini CLI judge smoke (hub judge already verified in release-prep)",
+        help="Skip deliverable judge smoke (hub judge already verified in release-prep)",
     )
     args = p.parse_args()
     apply_release_prep_env(ROOT)
@@ -281,6 +348,8 @@ def main() -> int:
 
     checks = [
         check_ollama(load_expected_ollama_models()),
+        check_gemini_for_testing(require=args.require_gemini),
+        check_claude_for_testing(require=False),
         check_agents(base, require_gemini=args.require_gemini),
         check_deliverable_judge(base, skip_smoke=args.skip_judge_smoke),
         check_scenario_list(),

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/memory"
+	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/routing"
 )
 
@@ -39,5 +40,33 @@ func TestShouldRunCodebaseSearch(t *testing.T) {
 	plan := routing.PlanKnowledgeRoute("where is auth in the repo?")
 	if !ShouldRunCodebaseSearch(plan) {
 		t.Fatal("expected codebase search")
+	}
+}
+
+func TestSkipKnowledgeRetrievalForMessage_collabOrchestration(t *testing.T) {
+	handoff := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-abc",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"Collaboration turn handoff: next participant, please continue the plan discussion and refine task assignments under collabs/<id>/.",
+	)
+	handoff.SetCollaborationID("collab-id")
+	handoff.Metadata = map[string]interface{}{"collab_internal_event": true}
+	if !skipKnowledgeRetrievalForMessage(handoff) {
+		t.Fatal("expected collab orchestration message to skip knowledge retrieval")
+	}
+	human := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"collab-abc",
+		protocol.AgentInfo{ID: "human-user", Name: "Camron", Type: protocol.AgentTypeGeneral},
+		"Please focus only on README.md — keep the plan brief.",
+	)
+	human.SetCollaborationID("collab-id")
+	if skipKnowledgeRetrievalForMessage(human) {
+		t.Fatal("human steering during collab should not skip knowledge retrieval")
+	}
+	plan := (&Agent{}).effectiveKnowledgePlan(handoff)
+	if len(plan.Targets) != 0 || plan.Reason != "collab_turn" {
+		t.Fatalf("expected empty collab plan, got %+v", plan)
 	}
 }

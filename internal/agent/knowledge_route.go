@@ -11,6 +11,13 @@ func (a *Agent) recordKnowledgeRoute(msg *protocol.Message) {
 	if a == nil || msg == nil {
 		return
 	}
+	if skipKnowledgeRetrievalForMessage(msg) {
+		a.RecordRoutingSnapshot(RoutingSnapshot{
+			KnowledgeRoute:  "collab_turn",
+			KnowledgeReason: "collab_turn",
+		})
+		return
+	}
 	plan := routing.PlanKnowledgeRoute(msg.Content)
 	a.RecordRoutingSnapshot(RoutingSnapshot{
 		KnowledgeRoute:   string(plan.Primary()),

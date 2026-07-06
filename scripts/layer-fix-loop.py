@@ -95,17 +95,38 @@ def prepare_next_iteration_hub(hub_url: str, *, layer: str, next_iter: int, cwd:
 
 
 def run_targeted_verification(
-    cmds: list[list[str]], *, hub_url: str, cwd: Path
+    cmds: list[list[str]], *, hub_url: str, cwd: Path, max_scenarios: int = 0
 ) -> tuple[bool, list[tuple[list[str], int]]]:
     env = {"NEURAL_JUNKIE_HUB_URL": hub_url}
     results: list[tuple[list[str], int]] = []
     all_ok = True
-    for cmd in cmds:
+    to_run = cmds
+    if max_scenarios > 0 and len(cmds) > max_scenarios:
+        to_run = cmds[:max_scenarios]
+        print(
+            f"\n>>> Targeted verify capped to {max_scenarios}/{len(cmds)} scenarios "
+            f"(set MAX_VERIFY_SCENARIOS=0 to rerun all)",
+            flush=True,
+        )
+    for cmd in to_run:
         rc, _ = run_cmd(cmd, env=env, cwd=cwd)
         results.append((cmd, rc))
         if rc != 0:
             all_ok = False
     return all_ok, results
+
+
+def effective_max_verify_scenarios(*, layer: str, agent_rc: int | None, configured: int) -> int:
+    """Cap post-agent reruns so a stalled agent does not replay the full gate."""
+    if configured == 0:
+        return 0
+    if configured > 0:
+        return configured
+    if layer == "collab-full":
+        return 5
+    if agent_rc is not None and agent_rc != 0:
+        return 3
+    return 0
 
 
 def write_iteration_log(
@@ -175,6 +196,12 @@ def main() -> int:
     p.add_argument("--skip-gate", action="store_true", help="Only parse/fix/rerun (requires --report)")
     p.add_argument("--skip-agent", action="store_true")
     p.add_argument("--skip-verify", action="store_true")
+    p.add_argument(
+        "--max-verify-scenarios",
+        type=int,
+        default=int(os.environ.get("MAX_VERIFY_SCENARIOS", "-1")),
+        help="Cap targeted reruns after agent (0=unlimited; default 5 for collab-full)",
+    )
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--no-restart-hub", action="store_true")
     p.add_argument("--verbose", action="store_true")
@@ -284,7 +311,12 @@ def main() -> int:
         if not code_fixes and report.retry_only and not args.skip_agent:
             print("\n>>> No code-fix candidates; flake/infra only.")
             if report.rerun_cmds and not args.skip_verify:
-                ok, verify_results = run_targeted_verification(report.rerun_cmds, hub_url=hub_url, cwd=loop_cwd)
+                max_verify = effective_max_verify_scenarios(
+                    layer=layer, agent_rc=None, configured=args.max_verify_scenarios
+                )
+                ok, verify_results = run_targeted_verification(
+                    report.rerun_cmds, hub_url=hub_url, cwd=loop_cwd, max_scenarios=max_verify
+                )
                 log_path = testing_dir / f"{LOOP_LOG_PREFIX}-{layer}-{iter_stamp}.md"
                 write_iteration_log(
                     log_path,
@@ -374,7 +406,17 @@ def main() -> int:
         verify_results: list[tuple[list[str], int]] = []
         verify_ok = True
         if not args.skip_verify and report.rerun_cmds:
-            verify_ok, verify_results = run_targeted_verification(report.rerun_cmds, hub_url=hub_url, cwd=loop_cwd)
+            max_verify = effective_max_verify_scenarios(
+                layer=layer, agent_rc=agent_rc, configured=args.max_verify_scenarios
+            )
+            if agent_rc in RECOVERABLE_AGENT_EXITS and max_verify > 0:
+                print(
+                    f">>> Agent exited {agent_exit_label(agent_rc)} — verify capped to {max_verify} scenario(s)",
+                    flush=True,
+                )
+            verify_ok, verify_results = run_targeted_verification(
+                report.rerun_cmds, hub_url=hub_url, cwd=loop_cwd, max_scenarios=max_verify
+            )
 
         log_path = testing_dir / f"{LOOP_LOG_PREFIX}-{layer}-{iter_stamp}.md"
         write_iteration_log(

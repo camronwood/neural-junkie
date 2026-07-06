@@ -136,9 +136,15 @@ def start_regression_hub(
     env: dict[str, str] | None = None,
 ) -> subprocess.Popen[bytes] | None:
     """Start make server-regression in background; returns Popen or None on failure."""
-    merged = os.environ.copy()
+    try:
+        from lib.claude_judge_auth import strip_claude_proxy_env
+    except ImportError:
+        from claude_judge_auth import strip_claude_proxy_env  # type: ignore[no-redef]
+
+    merged = strip_claude_proxy_env(os.environ.copy())
     if env:
         merged.update(env)
+        merged = strip_claude_proxy_env(merged)
     try:
         proc = subprocess.Popen(
             ["make", "server-regression"],

@@ -2,46 +2,93 @@
   "name": "plan-dependency-prose-regression",
   "description": "Approve-plan must not spawn executable tasks from dependency prose bullets (f7518f88 regression).",
   "channel": "collab-scenarios",
-  "agents": "@BackendEngineer @SoftwareArchitect @PlatformEngineer",
-  "required_agents": ["BackendEngineer", "SoftwareArchitect", "PlatformEngineer"],
+  "agents": "@BackendEngineer @SoftwareArchitect @Claude",
+  "required_agents": [
+    "BackendEngineer",
+    "SoftwareArchitect",
+    "Claude"
+  ],
   "workspace": {
     "path_env": "NEURAL_JUNKIE_SCENARIO_REPO",
     "workspace_flag": true,
     "outline": true
   },
   "collaborate": {
-    "flags": ["--rounds", "1", "--messages", "4", "--workspace"],
-    "goal": "@BackendEngineer @SoftwareArchitect @PlatformEngineer Produce a short plan with exactly three file tasks under collabs/<id>/: api_schema.md (@BackendEngineer), markdown_doc_structure.md (@SoftwareArchitect), ci_cd_pipeline.md (@PlatformEngineer). Put dependency notes AFTER the tasks as plain bullets starting with 'depends on' — do not make those bullets separate @assigned tasks."
+    "flags": [
+      "--rounds",
+      "1",
+      "--messages",
+      "4",
+      "--workspace"
+    ],
+    "goal": "@BackendEngineer @SoftwareArchitect @Claude Produce a short plan with exactly three file tasks under collabs/<id>/: api_schema.md (@BackendEngineer), markdown_doc_structure.md (@SoftwareArchitect), ci_cd_pipeline.md (@Claude). Put dependency notes AFTER the tasks as plain bullets starting with 'depends on' — do not make those bullets separate @assigned tasks."
   },
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 45},
+    {
+      "action": "wait_phase",
+      "phase": "planning",
+      "timeout": 45
+    },
     {
       "action": "wait_discussion",
       "min_total": 3,
       "min_per_agent": 1,
-      "required_agents": ["BackendEngineer", "SoftwareArchitect", "PlatformEngineer"],
+      "required_agents": [
+        "BackendEngineer",
+        "SoftwareArchitect",
+        "PlatformEngineer"
+      ],
       "timeout": "300s",
       "retries": 1,
-      "nudge_agents": ["PlatformEngineer", "BackendEngineer", "SoftwareArchitect"]
+      "nudge_agents": [
+        "PlatformEngineer",
+        "BackendEngineer",
+        "SoftwareArchitect"
+      ]
     },
-    {"action": "wait_phase", "phase": "reviewing", "timeout": "240s"},
-    {"action": "wait_planning_recap", "timeout": "180s"},
+    {
+      "action": "wait_phase",
+      "phase": "reviewing",
+      "timeout": "240s"
+    },
+    {
+      "action": "wait_planning_recap",
+      "timeout": "180s"
+    },
     {
       "action": "assert_plan",
       "min_tasks": 2,
       "max_tasks": 4,
       "tasks_have_assignee": true,
       "tasks_have_file_deliverable": true,
-      "title_none_match": ["depends on task", "can be started independently", "should reference the schema", "depends on task 2"]
+      "title_none_match": [
+        "depends on task",
+        "can be started independently",
+        "should reference the schema",
+        "depends on task 2"
+      ]
     },
-    {"action": "approve_plan"},
-    {"action": "wait_phase", "phase": "executing", "timeout": 45},
-    {"action": "assert_collab", "phase": "executing", "source_repo_path_nonempty": true},
+    {
+      "action": "approve_plan"
+    },
+    {
+      "action": "wait_phase",
+      "phase": "executing",
+      "timeout": 45
+    },
+    {
+      "action": "assert_collab",
+      "phase": "executing",
+      "source_repo_path_nonempty": true
+    },
     {
       "action": "assert_plan",
       "min_tasks": 2,
       "max_tasks": 4,
-      "task_none_match": ["depends on task 2", "can be started independently"]
+      "task_none_match": [
+        "depends on task 2",
+        "can be started independently"
+      ]
     }
   ],
   "cleanup": "cancel"

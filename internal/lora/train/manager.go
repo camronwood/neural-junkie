@@ -107,6 +107,7 @@ type Manager struct {
 	collab     CollabLookup
 	registry   *registry.Store
 	onComplete OnCompleteFunc
+	sidecarURL func() string
 }
 
 type runningJob struct {
@@ -162,6 +163,13 @@ func (m *Manager) SetRegistry(reg *registry.Store) {
 func (m *Manager) SetOnComplete(fn OnCompleteFunc) {
 	m.mu.Lock()
 	m.onComplete = fn
+	m.mu.Unlock()
+}
+
+// SetSidecarBaseURL sets a resolver for the specialist-tuning training sidecar.
+func (m *Manager) SetSidecarBaseURL(fn func() string) {
+	m.mu.Lock()
+	m.sidecarURL = fn
 	m.mu.Unlock()
 }
 
@@ -323,23 +331,50 @@ func (m *Manager) run(ctx context.Context, rj *runningJob, req StartRequest) {
 	if resume := m.resumeAdapterPath(req); resume != "" {
 		args = append(args, "--resume-adapter", resume)
 	}
-	cmd := exec.CommandContext(ctx, m.python, args...)
-	rj.cmd = cmd
-	stdout, _ := cmd.StdoutPipe()
-	stderr, _ := cmd.StderrPipe()
-	if err := cmd.Start(); err != nil {
-		m.fail(rj, "start trainer: "+err.Error())
-		return
+
+	m.mu.Lock()
+	sidecarURL := ""
+	if m.sidecarURL != nil {
+		sidecarURL = strings.TrimSpace(m.sidecarURL())
 	}
-	go m.pipeLines(stdout, rj)
-	go m.pipeLines(stderr, rj)
-	if err := cmd.Wait(); err != nil {
-		if ctx.Err() != nil {
-			m.setStatus(rj, StatusCancelled, "cancelled")
+	m.mu.Unlock()
+
+	if sidecarURL != "" && SidecarReady(ctx, sidecarURL) {
+		m.appendLog(rj, "training via pack sidecar")
+		sreq := SidecarRunRequest{
+			Dataset:       datasetPath,
+			OutputDir:     outDir,
+			BaseModel:     mapBaseToHF(req.BaseOllamaTag),
+			Rank:          hp.Rank,
+			Epochs:        hp.Epochs,
+			LearningRate:  hp.LearningRate,
+			MaxSeqLen:     hp.MaxSeqLen,
+			Backend:       backend,
+			ResumeAdapter: m.resumeAdapterPath(req),
+		}
+		if err := RunViaSidecar(ctx, sidecarURL, sreq); err != nil {
+			m.fail(rj, "sidecar training: "+err.Error())
 			return
 		}
-		m.fail(rj, "training failed: "+err.Error())
-		return
+	} else {
+		cmd := exec.CommandContext(ctx, m.python, args...)
+		rj.cmd = cmd
+		stdout, _ := cmd.StdoutPipe()
+		stderr, _ := cmd.StderrPipe()
+		if err := cmd.Start(); err != nil {
+			m.fail(rj, "start trainer: "+err.Error())
+			return
+		}
+		go m.pipeLines(stdout, rj)
+		go m.pipeLines(stderr, rj)
+		if err := cmd.Wait(); err != nil {
+			if ctx.Err() != nil {
+				m.setStatus(rj, StatusCancelled, "cancelled")
+				return
+			}
+			m.fail(rj, "training failed: "+err.Error())
+			return
+		}
 	}
 
 	adapterPath := filepath.Join(outDir, "adapter_model.safetensors")

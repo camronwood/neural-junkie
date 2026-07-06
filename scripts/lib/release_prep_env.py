@@ -46,14 +46,16 @@ def parse_env_file(path: Path) -> dict[str, str]:
     return out
 
 
+def load_gemini_api_keys(root: Path = ROOT) -> list[str]:
+    """All configured Gemini API keys (env first, then one per line in .gemini-api-key)."""
+    from lib.gemini_judge_auth import list_gemini_api_keys
+
+    return [key for _label, key in list_gemini_api_keys(root)]
+
+
 def load_gemini_api_key(root: Path = ROOT) -> str:
-    key = (os.environ.get("GEMINI_API_KEY") or "").strip()
-    if key:
-        return key
-    path = root / ".gemini-api-key"
-    if path.is_file():
-        return path.read_text(encoding="utf-8").strip()
-    return ""
+    keys = load_gemini_api_keys(root)
+    return keys[0] if keys else ""
 
 
 def load_cursor_api_key(root: Path = ROOT) -> str:
@@ -104,9 +106,9 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
     if headless.is_dir() and not env.get("NEURAL_JUNKIE_GEMINI_CLI_HOME"):
         env["NEURAL_JUNKIE_GEMINI_CLI_HOME"] = str(headless)
 
-    # Cloud-first judge (hub Gemini); Ollama fallback so quota outages do not block sweeps.
-    env.setdefault("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini")
-    env.setdefault("NJ_DELIVERABLE_JUDGE_MODE", "hub")
+    # Local Ollama judge for live regression (Gemini CLI quota is too flaky for sweeps).
+    env.setdefault("NJ_DELIVERABLE_JUDGE_PROVIDER", "ollama")
+    env.setdefault("NJ_DELIVERABLE_JUDGE_MODE", "ollama")
     env.setdefault("NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA", "1")
     env.setdefault("NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S", DEFAULT_GEMINI_JUDGE_MIN_INTERVAL_S)
     shell_gemini = (os.environ.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL") or "").strip()
@@ -150,7 +152,7 @@ def summarize_release_prep_env(env: dict[str, str]) -> list[str]:
     from lib.gemini_judge_auth import GEMINI_JUDGE_PROBE_CANDIDATES
 
     lines: list[str] = []
-    provider = (env.get("NJ_DELIVERABLE_JUDGE_PROVIDER") or "gemini").strip().lower()
+    provider = (env.get("NJ_DELIVERABLE_JUDGE_PROVIDER") or "claude").strip().lower()
     mode = (env.get("NJ_DELIVERABLE_JUDGE_MODE") or "hub").strip().lower()
     fallback = env.get("NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA") == "1"
     ollama_model = (env.get("NJ_DELIVERABLE_JUDGE_MODEL") or DEFAULT_OLLAMA_JUDGE_MODEL).strip()
@@ -159,16 +161,21 @@ def summarize_release_prep_env(env: dict[str, str]) -> list[str]:
         lines.append(f"NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA=1 → ollama/{ollama_model} on cloud errors")
     if env.get("NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S"):
         lines.append(f"NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S={env['NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S']}")
-    gemini_model = (env.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL") or "").strip()
-    if gemini_model:
-        lines.append(f"NJ_DELIVERABLE_JUDGE_GEMINI_MODEL={gemini_model}")
-    else:
-        probe_labels = " → ".join(label for label, _ in GEMINI_JUDGE_PROBE_CANDIDATES)
-        lines.append(f"NJ_DELIVERABLE_JUDGE_GEMINI_MODEL=probe ({probe_labels})")
-    if env.get("GEMINI_API_KEY"):
-        lines.append("GEMINI_API_KEY loaded")
-    else:
-        lines.append("GEMINI_API_KEY missing — cloud judge will use Ollama fallback only")
+    if provider == "gemini":
+        gemini_model = (env.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL") or "").strip()
+        if gemini_model:
+            lines.append(f"NJ_DELIVERABLE_JUDGE_GEMINI_MODEL={gemini_model}")
+        else:
+            probe_labels = " → ".join(label for label, _ in GEMINI_JUDGE_PROBE_CANDIDATES)
+            lines.append(f"NJ_DELIVERABLE_JUDGE_GEMINI_MODEL=probe ({probe_labels})")
+        if env.get("GEMINI_API_KEY"):
+            lines.append("GEMINI_API_KEY loaded")
+        else:
+            lines.append("GEMINI_API_KEY missing — cloud judge will use Ollama fallback only")
+    elif provider == "claude":
+        agent = (env.get("NJ_DELIVERABLE_JUDGE_AGENT") or "Claude").strip()
+        lines.append(f"NJ_DELIVERABLE_JUDGE_AGENT={agent}")
+        lines.append("Claude Code CLI on PATH + hub @Claude for cloud judging")
     if env.get("NEURAL_JUNKIE_AUTH_REQUIRED") == "1":
         lines.append("NEURAL_JUNKIE_AUTH_REQUIRED=1 (scripts use API key or hub_auth session)")
     if env.get("NJ_AGENT_TIMEOUT_MINUTES"):

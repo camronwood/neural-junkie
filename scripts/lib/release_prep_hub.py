@@ -28,9 +28,17 @@ def ensure_hub_for_release_prep(
     env = release_prep_env(root)
     os.environ.update(env)
 
-    provider = (env.get("NJ_DELIVERABLE_JUDGE_PROVIDER") or "gemini").strip().lower()
+    provider = (env.get("NJ_DELIVERABLE_JUDGE_PROVIDER") or "claude").strip().lower()
     hub_needs_model_restart = False
-    if provider == "gemini" and env.get("GEMINI_API_KEY"):
+    if provider == "claude":
+        from lib.claude_judge_auth import ensure_claude_for_testing
+
+        sel = ensure_claude_for_testing(timeout_s=15.0, smoke=False)
+        if sel.ok:
+            print(f"OK: Claude judge probe → {sel.detail}")
+        else:
+            print(f"WARN: Claude judge probe failed: {sel.detail}")
+    elif provider == "gemini" and env.get("GEMINI_API_KEY"):
         model, probe_ok, probe_detail = select_gemini_judge_model(
             timeout_s=30.0,
             explicit_model=explicit_gemini,

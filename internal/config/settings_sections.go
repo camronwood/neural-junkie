@@ -121,7 +121,7 @@ type AutomationConfig struct {
 
 func DefaultAutomationConfig() AutomationConfig {
 	return AutomationConfig{
-		DeliverableJudgeProvider:       "gemini",
+		DeliverableJudgeProvider:       "claude",
 		DeliverableJudgeMode:           "hub",
 		DeliverableJudgeModel:          "qwen2.5-coder:14b",
 		DeliverableJudgeTimeout:        180,

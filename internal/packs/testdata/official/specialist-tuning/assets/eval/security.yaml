@@ -1,0 +1,6 @@
+agent_type: security
+questions:
+  - prompt: "What is SQL injection and how do you prevent it?"
+    keywords: ["parameter", "sanitize", "injection", "query"]
+  - prompt: "List three OWASP Top 10 categories."
+    keywords: ["injection", "broken", "auth", "security"]

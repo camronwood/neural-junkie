@@ -11,6 +11,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/lora/export"
 	"github.com/camronwood/neural-junkie/internal/lora/train"
+	"github.com/camronwood/neural-junkie/internal/packs"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -311,7 +312,24 @@ func handleLoraTrainBases(w http.ResponseWriter, r *http.Request) {
 }
 
 func buildExpertTrainContext(info *protocol.AgentInfo) map[string]any {
+	policy := packs.LoRAPolicy{}.Resolved()
+	minRows := export.MinRows
+	refreshDelta := export.DefaultRefreshDelta
+	includeLearningsDefault := false
+	evalMinScore := 0.35
+	requireEvalToAssign := false
+	if appConfig != nil {
+		policy = appConfig.ResolvedLoRAPolicy()
+		minRows = export.MinRowsFromPolicy(policy)
+		refreshDelta = export.RefreshDeltaFromPolicy(policy)
+		includeLearningsDefault = policy.IncludeLearningsDefault
+		evalMinScore = policy.EvalMinScore
+		requireEvalToAssign = policy.RequireEvalToAssign
+	}
 	base := hfhub.DefaultLoRATrainingBaseForAgent(string(info.Type))
+	if db := strings.TrimSpace(policy.DefaultBase); db != "" && hfhub.OllamaSafetensorLoRABaseSupported(db) {
+		base = db
+	}
 	channels := chatHub.GetAgentChannels(info.ID)
 	channelID := ""
 	if len(channels) > 0 {
@@ -319,14 +337,20 @@ func buildExpertTrainContext(info *protocol.AgentInfo) map[string]any {
 	}
 
 	result := map[string]any{
-		"agent_id":                  info.ID,
-		"agent_name":                info.Name,
-		"agent_type":                string(info.Type),
-		"suggested_base_ollama_tag": base,
-		"supported_bases":           hfhub.LoRATrainingBases(),
-		"min_rows":                  export.MinRows,
-		"preview_rows":              0,
-		"ready":                     false,
+		"agent_id":                    info.ID,
+		"agent_name":                  info.Name,
+		"agent_type":                  string(info.Type),
+		"suggested_base_ollama_tag":   base,
+		"supported_bases":             hfhub.LoRATrainingBases(),
+		"min_rows":                    minRows,
+		"preview_rows":                0,
+		"ready":                       false,
+		"suggest_training":            false,
+		"turns":                       0,
+		"include_learnings_default":   includeLearningsDefault,
+		"eval_min_score":              evalMinScore,
+		"require_eval_to_assign":      requireEvalToAssign,
+		"lora_policy":                 policy,
 	}
 	if channelID != "" {
 		result["source_id"] = channelID
@@ -382,7 +406,9 @@ func buildExpertTrainContext(info *protocol.AgentInfo) map[string]any {
 		result["chat_rows"] = chatRows
 		result["learning_rows"] = learningRows
 		result["preview_rows"] = total
-		result["ready"] = total >= export.MinRows
+		result["turns"] = chatRows
+		result["ready"] = total >= minRows
+		result["suggest_training"] = chatRows >= minRows || total >= minRows
 
 		deltaRows := 0
 		if loraAdapterRegistry != nil {
@@ -401,7 +427,14 @@ func buildExpertTrainContext(info *protocol.AgentInfo) map[string]any {
 			}
 		}
 		result["delta_rows"] = deltaRows
-		result["refresh_suggested"] = deltaRows >= export.DefaultRefreshDelta
+		result["refresh_suggested"] = deltaRows >= refreshDelta
 	}
 	return result
+}
+
+func minRowsFromConfig() int {
+	if appConfig == nil {
+		return export.MinRows
+	}
+	return export.MinRowsFromPolicy(appConfig.ResolvedLoRAPolicy())
 }

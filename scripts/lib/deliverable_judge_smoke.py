@@ -15,7 +15,7 @@ HUB_JUDGE_PROMPT = (
 
 
 def _judge_provider() -> str:
-    return os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
+    return os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "claude").strip().lower()
 
 
 def _judge_mode() -> str:
@@ -31,22 +31,22 @@ def _ollama_fallback_enabled() -> bool:
 
 
 def _ensure_gemini_judge_model(*, timeout_s: float) -> tuple[bool, str]:
-    """Probe fast → pro → fast-light when unset; verify configured model when pinned."""
+    """Probe keys × models when unset; verify configured model when pinned."""
     if _judge_provider() != "gemini":
         return True, "not gemini provider"
-    from lib.gemini_judge_auth import select_gemini_judge_model
+    from lib.gemini_judge_auth import ensure_gemini_for_testing
     from lib.release_prep_env import ROOT, explicit_gemini_judge_model
 
     explicit = explicit_gemini_judge_model(ROOT)
-    model, ok, detail = select_gemini_judge_model(
+    sel = ensure_gemini_for_testing(
+        root=ROOT,
         timeout_s=min(timeout_s, 35.0),
         explicit_model=explicit,
         retry_quota=False,
     )
-    if ok and model:
-        os.environ["NJ_DELIVERABLE_JUDGE_GEMINI_MODEL"] = model
-        return True, detail
-    return False, detail
+    if sel.ok:
+        return True, sel.detail
+    return False, sel.detail
 
 
 def _cloud_judge_smoke(hub_url: str, *, timeout_s: float) -> tuple[bool, str]:
@@ -57,6 +57,11 @@ def _cloud_judge_smoke(hub_url: str, *, timeout_s: float) -> tuple[bool, str]:
         ensured, edetail = _ensure_gemini_judge_model(timeout_s=timeout_s)
         if not ensured:
             return False, edetail
+
+    if provider == "claude" and mode == "cli":
+        from lib.claude_judge_auth import check_claude_judge
+
+        return check_claude_judge(timeout_s=timeout_s)
 
     if provider == "gemini" and mode == "cli":
         from lib.gemini_judge_auth import check_gemini_judge
@@ -69,7 +74,12 @@ def _cloud_judge_smoke(hub_url: str, *, timeout_s: float) -> tuple[bool, str]:
 
         agent = (os.environ.get("NJ_DELIVERABLE_JUDGE_AGENT") or "").strip().lstrip("@")
         if not agent:
-            agent = "Cursor" if provider == "cursor" else "Gemini"
+            if provider == "cursor":
+                agent = "Cursor"
+            elif provider == "claude":
+                agent = "Claude"
+            else:
+                agent = "Gemini"
         base = hub_url.rstrip("/")
         ok, missing = hub.verify_agents_online(base, [agent])
         if not ok:
@@ -93,6 +103,11 @@ def _cloud_judge_smoke(hub_url: str, *, timeout_s: float) -> tuple[bool, str]:
 
         model = (os.environ.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL") or "").strip()
         return check_gemini_judge(timeout_s=timeout_s, model=model or None)
+
+    if provider == "claude":
+        from lib.claude_judge_auth import check_claude_judge
+
+        return check_claude_judge(timeout_s=timeout_s)
 
     return False, f"unsupported cloud judge provider={provider!r} mode={mode!r}"
 

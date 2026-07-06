@@ -1,6 +1,7 @@
 package runbooklibrary
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -43,6 +44,35 @@ func LoadPackDefinitions(sources []PackRunbookSource, readMarkdown func(packID, 
 			PackID:      e.PackID,
 			Tasks:       tasks,
 		})
+	}
+	return out, nil
+}
+
+// PackRunbookTemplateSource references a JSON runbook template in an installed pack.
+type PackRunbookTemplateSource struct {
+	PackID string
+	Path   string
+	Name   string
+}
+
+// LoadPackTemplateDefinitions parses pack JSON runbook templates into definitions.
+func LoadPackTemplateDefinitions(sources []PackRunbookTemplateSource, readJSON func(packID, relPath string) ([]byte, error)) ([]RunbookDefinition, error) {
+	var out []RunbookDefinition
+	for _, e := range sources {
+		raw, err := readJSON(e.PackID, e.Path)
+		if err != nil {
+			continue
+		}
+		var tpl collaboration.RunbookTemplate
+		if err := json.Unmarshal(raw, &tpl); err != nil {
+			continue
+		}
+		def := FromTemplate(tpl, SourcePack)
+		def.PackID = e.PackID
+		if def.ID == "" {
+			def.ID = PackRunbookDefinitionID(e.PackID, e.Path)
+		}
+		out = append(out, def)
 	}
 	return out, nil
 }

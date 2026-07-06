@@ -1,40 +1,44 @@
-# Incident management domain pack
+# Incident management domain pack (v2)
 
-Official pack id: `incident-management`  
+Official pack id: `incident-management` v2.0.0  
 Repo: [neural-junkie-pack-incident-management](https://github.com/camronwood/neural-junkie-pack-incident-management)
 
 Requires the **software-development** pack.
 
-## What it adds
+## What v2 adds
 
-- **IncidentManager** specialist agent
-- Jira Cloud MCP tools (port **8093**)
-- **Settings → Integrations** panel for Jira credentials
+- **IncidentManager** with P0–P4 severity rubric (pack assets)
+- **Multi-provider ticketing:** Jira, GitHub Issues, Linear (+ unified `ticket_*` tools)
+- **PagerDuty / Sentry** read-only alert linking
+- **Write mode + approval gates** for create/assign/transition/comment
+- **Handoff runbooks** (markdown + JSON templates)
+- **Stack trace ingestion** via pack hub sidecar
+- **Postmortem workflow** (timeline + template draft)
 
-## Setup
+Detailed setup: see pack `assets/WORKSPACE.md` after install.
 
-1. Install **software-development**, then install **incident-management**.
-2. Open **Settings → Integrations** and enter Jira site URL, email, and API token.
-3. Set a default project key (optional).
-4. Click **Test connection** to verify API access.
-
-Create an API token at [Atlassian account security](https://id.atlassian.com/manage-profile/security/api-tokens).
-
-## MCP tools
+## MCP tools (selection)
 
 | Tool | Purpose |
 |------|---------|
-| `jira_get_issue` | Fetch issue by key |
-| `jira_search_issues` | JQL search |
-| `jira_add_comment` | Add triage comment |
-| `jira_summarize_issue` | Structured triage summary |
+| `jira_*` / `ticket_*` | Get, search, comment, create, assign, transition |
+| `pagerduty_*` | List/get incidents |
+| `sentry_*` | Get issue/event |
+| `incident_parse_stack_trace` | Parse trace → suspect files + repro |
+| `incident_generate_postmortem` | Draft postmortem from template |
+
+Port **8093** when MCP enabled.
+
+## Settings
+
+**Settings → Integrations:** Jira, GitHub Issues, Linear, PagerDuty, Sentry, and **Incident** (default provider, write mode).
 
 ## Release
 
 ```bash
-cd /Users/camronwood/development/projects/neural-junkie-pack-incident-management
-make verify && make pack-zip
-git tag v1.0.0 && git push origin v1.0.0
+cd neural-junkie-pack-incident-management
+make verify && make pack-smoke && make pack-zip
+git tag v2.0.0 && git push origin v2.0.0
 ```
 
 Update `packs/catalog.json` when bumping versions.

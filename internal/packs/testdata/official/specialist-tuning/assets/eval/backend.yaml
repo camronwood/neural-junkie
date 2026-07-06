@@ -1,0 +1,6 @@
+agent_type: backend
+questions:
+  - prompt: "Write a SQL query to list users created in the last 7 days."
+    keywords: ["select", "where", "date", "users"]
+  - prompt: "How do you design a REST API for idempotent updates?"
+    keywords: ["put", "idempotent", "resource", "api"]

@@ -10,6 +10,7 @@ const POPOVER_WIDTH = 300;
 
 interface FilesPanelMenuProps {
   repoPath: string | undefined;
+  variant?: 'inline' | 'bar';
 }
 
 function indexDotClass(label: string): string {
@@ -19,7 +20,7 @@ function indexDotClass(label: string): string {
   return 'bg-transparent';
 }
 
-export function FilesPanelMenu({ repoPath }: FilesPanelMenuProps) {
+export function FilesPanelMenu({ repoPath, variant = 'inline' }: FilesPanelMenuProps) {
   const workspaces = useFileExplorerStore((s) => s.workspaces);
   const activeWorkspaceId = useFileExplorerStore((s) => s.activeWorkspaceId);
   const setActiveProjectSet = useProjectSetsStore((s) => s.setActiveProjectSet);
@@ -229,13 +230,19 @@ export function FilesPanelMenu({ repoPath }: FilesPanelMenuProps) {
       />
     ) : null;
 
+  const isBar = variant === 'bar';
+
   return (
     <>
       <button
         ref={anchorRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 px-1 py-0.5 rounded text-slack-textMuted hover:text-slack-text hover:bg-slack-bg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slack-accent"
+        className={
+          isBar
+            ? 'flex items-center justify-center gap-1.5 px-3 py-1 rounded text-[10px] uppercase tracking-wide text-slack-textMuted hover:text-slack-text hover:bg-slack-bg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slack-accent flex-shrink-0'
+            : 'flex items-center gap-1 px-1 py-0.5 rounded text-slack-textMuted hover:text-slack-text hover:bg-slack-bg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slack-accent'
+        }
         title={menuTitle ? `Files options — ${menuTitle}` : 'Files options'}
         aria-label="Files options"
         aria-expanded={open}
@@ -247,6 +254,7 @@ export function FilesPanelMenu({ repoPath }: FilesPanelMenuProps) {
             aria-hidden
           />
         )}
+        {isBar && <span>Options</span>}
         <svg
           className={`w-3 h-3 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none"

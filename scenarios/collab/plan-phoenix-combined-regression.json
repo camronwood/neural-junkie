@@ -2,8 +2,12 @@
   "name": "plan-phoenix-combined-regression",
   "description": "Combined Phoenix-style regression: dependency prose bullets, findings task, three agents, no weak/spurious tasks (4ea36409 + f7518f88).",
   "channel": "collab-scenarios",
-  "agents": "@BackendEngineer @SoftwareArchitect @PlatformEngineer",
-  "required_agents": ["BackendEngineer", "SoftwareArchitect", "PlatformEngineer"],
+  "agents": "@BackendEngineer @SoftwareArchitect @Claude",
+  "required_agents": [
+    "BackendEngineer",
+    "SoftwareArchitect",
+    "Claude"
+  ],
   "workspace": {
     "path_env": "NEURAL_JUNKIE_SCENARIO_REPO",
     "workspace_flag": true,
@@ -11,26 +15,54 @@
     "file_tree": "resource-api/json_endpoints/\nREADME.md\ndocker-compose.yml\npackage.json\n"
   },
   "collaborate": {
-    "flags": ["--rounds", "1", "--messages", "8", "--workspace"],
-    "goal": "@BackendEngineer @SoftwareArchitect @PlatformEngineer Investigate resource API document schema standardization. Plan exactly: Task 1 @BackendEngineer Write collabs/<id>/api_schema.md; Task 2 @SoftwareArchitect Write collabs/<id>/markdown_doc_structure.md; Task 3 @PlatformEngineer Write collabs/<id>/ci_cd_pipeline.md describing CI/CD in prose (not running docker/npm); Task 4 Document findings in collabs/<id>/findings.md. After tasks add dependency bullets like '- Task 1 depends on Task 2' — those are notes, NOT separate tasks."
+    "flags": [
+      "--rounds",
+      "1",
+      "--messages",
+      "8",
+      "--workspace"
+    ],
+    "goal": "@BackendEngineer @SoftwareArchitect @Claude Investigate resource API document schema standardization. Plan exactly: Task 1 @BackendEngineer Write collabs/<id>/api_schema.md; Task 2 @SoftwareArchitect Write collabs/<id>/markdown_doc_structure.md; Task 3 @Claude Write collabs/<id>/ci_cd_pipeline.md describing CI/CD in prose (not running docker/npm); Task 4 Document findings in collabs/<id>/findings.md. After tasks add dependency bullets like '- Task 1 depends on Task 2' — those are notes, NOT separate tasks."
   },
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 45},
+    {
+      "action": "wait_phase",
+      "phase": "planning",
+      "timeout": 45
+    },
     {
       "action": "wait_discussion",
       "min_total": 2,
       "min_per_agent": 1,
-      "required_agents": ["BackendEngineer", "SoftwareArchitect", "PlatformEngineer"],
+      "required_agents": [
+        "BackendEngineer",
+        "SoftwareArchitect",
+        "PlatformEngineer"
+      ],
       "timeout": "240s",
       "retries": 1,
-      "nudge_agents": ["BackendEngineer", "SoftwareArchitect"]
+      "nudge_agents": [
+        "BackendEngineer",
+        "SoftwareArchitect"
+      ]
     },
-    {"action": "wait_phase", "phase": "reviewing", "timeout": "120s"},
-    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "wait_phase",
+      "phase": "reviewing",
+      "timeout": "120s"
+    },
+    {
+      "action": "wait_planning_recap",
+      "timeout": "120s"
+    },
     {
       "action": "assert_messages",
       "phase": "planning",
-      "none_match": ["kubectl get", "docker-compose up", "\\{\"name\"\\s*:\\s*\"kubectl"]
+      "none_match": [
+        "kubectl get",
+        "docker-compose up",
+        "\\{\"name\"\\s*:\\s*\"kubectl"
+      ]
     },
     {
       "action": "assert_plan",
@@ -39,16 +71,28 @@
       "tasks_have_assignee": true,
       "tasks_have_file_deliverable": true,
       "min_file_tasks": 3,
-      "content_any_match": ["api_schema|markdown_doc|ci_cd|findings\\.md"],
+      "content_any_match": [
+        "api_schema|markdown_doc|ci_cd|findings\\.md"
+      ],
       "task_none_match": [
         "depends on task 2 for the markdown",
         "can be started independently",
         "should reference the schema"
       ],
-      "title_none_match": ["depends on task", "can be started", "should reference"]
+      "title_none_match": [
+        "depends on task",
+        "can be started",
+        "should reference"
+      ]
     },
-    {"action": "approve_plan"},
-    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {
+      "action": "approve_plan"
+    },
+    {
+      "action": "wait_phase",
+      "phase": "executing",
+      "timeout": 45
+    },
     {
       "action": "assert_collab",
       "phase": "executing",
@@ -60,13 +104,24 @@
       "min_stubs": 2,
       "require_plan_md": true
     },
-    {"action": "send", "content": "/resume-plan <collab-id>"},
-    {"action": "wait_tasks", "settle_only": true, "timeout": "90s"},
+    {
+      "action": "send",
+      "content": "/resume-plan <collab-id>"
+    },
+    {
+      "action": "wait_tasks",
+      "settle_only": true,
+      "timeout": "90s"
+    },
     {
       "action": "assert_messages",
       "phase": "executing",
       "deny_suggested_stack_commands": true,
-      "none_match": ["docker-compose up", "npm install", "/approve-plan"]
+      "none_match": [
+        "docker-compose up",
+        "npm install",
+        "/approve-plan"
+      ]
     }
   ],
   "cleanup": "cancel"

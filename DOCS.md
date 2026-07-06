@@ -40,6 +40,7 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 | Topic | File |
 |--------|------|
 | Pack store and install flow | [PACKS.md](docs/PACKS.md) |
+| Domain packs v2 roadmap | [PACKS_V2_ROADMAP.md](docs/PACKS_V2_ROADMAP.md) |
 | Custom / customer packs | [PACKS_CUSTOM.md](docs/PACKS_CUSTOM.md) |
 | Capability tokens | [PACK_CAPABILITIES.md](docs/PACK_CAPABILITIES.md) |
 | Software development | [SOFTWARE_DEVELOPMENT_PACK.md](docs/SOFTWARE_DEVELOPMENT_PACK.md) |
@@ -64,6 +65,7 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 | Stable scope | [STABLE_SCOPE.md](docs/STABLE_SCOPE.md) |
 | Stable release checklist | [STABLE_RELEASE_CHECKLIST.md](docs/STABLE_RELEASE_CHECKLIST.md) |
 | Platform roadmap | [PLATFORM_ROADMAP.md](docs/PLATFORM_ROADMAP.md) |
+| Q3 2026 plan | [ROADMAP-Q3-2026.md](docs/ROADMAP-Q3-2026.md) |
 | Release history | [CHANGELOG.md](docs/CHANGELOG.md) |
 | Roadmap / ideas | [FUTURE_ENHANCEMENTS.md](docs/FUTURE_ENHANCEMENTS.md) |
 

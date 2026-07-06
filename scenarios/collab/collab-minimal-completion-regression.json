@@ -1,10 +1,10 @@
 {
   "name": "collab-minimal-completion-regression",
-  "description": "Fast minimal-repo happy path: two-agent roster, single-task execute findings.md, /complete-collab to completed phase.",
+  "description": "Fast minimal-repo happy path: single implementor, one-task execute findings.md, /complete-collab to completed phase.",
   "tags": ["collab", "regression", "completion"],
   "channel": "collab-scenarios",
-  "agents": "@Assistant @BackendEngineer",
-  "required_agents": ["Assistant", "BackendEngineer"],
+  "agents": "@BackendEngineer",
+  "required_agents": ["BackendEngineer"],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,
@@ -13,7 +13,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@Assistant @BackendEngineer Plan one task: @Assistant Write collabs/<id>/findings.md with three bullets citing README.md and core/sample/main.go only."
+    "goal": "@BackendEngineer Plan one task: @BackendEngineer Write collabs/<id>/findings.md with three bullets citing README.md and core/sample/main.go only."
   },
   "expect_deliverables": [
     {

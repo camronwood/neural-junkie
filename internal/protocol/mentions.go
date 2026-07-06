@@ -34,7 +34,7 @@ func ParseMentions(content string) []string {
 			continue
 		}
 		mention := strings.ToLower(content[match[2]:match[3]])
-		if IsSlackMentionToken(mention) {
+		if IsSlackMentionToken(mention) || isCollabTemplateMentionToken(mention) {
 			continue
 		}
 		if !seen[mention] {
@@ -44,6 +44,16 @@ func ParseMentions(content string) []string {
 	}
 
 	return mentions
+}
+
+// isCollabTemplateMentionToken reports @placeholders in plan prose (not real agents).
+func isCollabTemplateMentionToken(mention string) bool {
+	switch strings.ToLower(strings.TrimSpace(mention)) {
+	case "agentname", "agent":
+		return true
+	default:
+		return false
+	}
 }
 
 // IsSlackMentionToken reports @tokens that look like Slack IDs (U0B5MLY2N2E → u0b5mly2n2e).

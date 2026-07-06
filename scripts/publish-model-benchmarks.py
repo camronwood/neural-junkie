@@ -121,7 +121,7 @@ def refresh_run_metadata(run: dict) -> dict:
         out["hardware_note"] = f"{hardware['total_memory_gb']} GB RAM ({hardware.get('tier', '?')} tier)"
     judged = [s for s in (out.get("scenario_catalog") or []) if isinstance(s, dict) and s.get("llm_judge")]
     if judged and not str(out.get("judge_provider") or "").strip():
-        out["judge_provider"] = "gemini"
+        out["judge_provider"] = "claude"
     return out
 
 

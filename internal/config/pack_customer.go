@@ -29,6 +29,10 @@ var jiraOverlayFields = map[string]func(*JiraConfig) *string{
 	"jira_default_project_key": func(j *JiraConfig) *string { return &j.DefaultProjectKey },
 }
 
+var incidentOverlayFields = map[string]func(*IncidentConfig) *string{
+	"incident_default_provider": func(i *IncidentConfig) *string { return &i.DefaultProvider },
+}
+
 var phoenixOverlayFields = map[string]func(*PhoenixConfig) *string{
 	"phoenix_environment":     func(p *PhoenixConfig) *string { return &p.Environment },
 	"environment":             func(p *PhoenixConfig) *string { return &p.Environment },
@@ -108,6 +112,23 @@ func (c *Config) applyPackSettingsOverlayLocked(packID string) error {
 			field := setter(&c.Jira)
 			prev["jira:"+key] = *field
 			*field = val
+			continue
+		}
+		if setter, ok := incidentOverlayFields[key]; ok {
+			field := setter(&c.Incident)
+			prev["incident:"+key] = *field
+			*field = val
+			continue
+		}
+		switch key {
+		case "incident_write_mode":
+			prev["incident:write_mode"] = fmt.Sprintf("%v", c.Incident.WriteMode != nil && *c.Incident.WriteMode)
+			b := parseOverlayBool(val, false)
+			c.Incident.WriteMode = &b
+		case "incident_require_approval":
+			prev["incident:require_approval"] = fmt.Sprintf("%v", c.Incident.RequireApproval != nil && *c.Incident.RequireApproval)
+			b := parseOverlayBool(val, true)
+			c.Incident.RequireApproval = &b
 		}
 	}
 	if len(prev) > 0 {
@@ -154,6 +175,23 @@ func (c *Config) revertPackSettingsOverlayLocked(packID string) {
 			if setter, ok := jiraOverlayFields[k]; ok {
 				field := setter(&c.Jira)
 				*field = val
+			}
+			continue
+		}
+		if strings.HasPrefix(key, "incident:") {
+			k := strings.TrimPrefix(key, "incident:")
+			if setter, ok := incidentOverlayFields[k]; ok {
+				field := setter(&c.Incident)
+				*field = val
+				continue
+			}
+			switch k {
+			case "write_mode":
+				b := parseOverlayBool(val, false)
+				c.Incident.WriteMode = &b
+			case "require_approval":
+				b := parseOverlayBool(val, true)
+				c.Incident.RequireApproval = &b
 			}
 		}
 	}
@@ -244,4 +282,15 @@ func IsCatalogPackID(id string) bool {
 		return packs.IsOfficialPackID(id)
 	}
 	return cat.CatalogEntryByID(id) != nil
+}
+
+func parseOverlayBool(val string, defaultVal bool) bool {
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultVal
+	}
 }

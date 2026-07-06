@@ -1,5 +1,5 @@
 id: specialist-tuning
-version: "1.0.0"
+version: "2.0.0"
 title: Specialist tuning
 description: Train LoRA adapters from chat, collabs, and repo experts; compose Hugging Face adapters in Ollama.
 layout_profile: team
@@ -8,6 +8,33 @@ capabilities:
   - lora-training
   - lora-compose
   - lora-adapters
+  - lora-training-sidecar
+capability_defs:
+  lora-training-sidecar:
+    kind: hub-sidecar
+    routes:
+      - /api/lora/sidecar
+    sidecar:
+      module: assets/hub/routes/train.py
+    settings:
+      - lora_venv
+      - lora_backend
+      - training_output_dir
+      - python_executable
+lora_policy:
+  suggest_after_turns: 10
+  refresh_after_delta: 20
+  eval_min_score: 0.35
+  require_eval_to_assign: true
+  include_learnings_default: true
+  default_base: llama3.1:8b
+assets:
+  workspace_guide: assets/WORKSPACE.md
+settings_overlay:
+  lora_venv: ~/.neural-junkie/lora/.venv-lora
+  lora_backend: auto
+  training_output_dir: ~/.neural-junkie/lora-training
+  python_executable: python3
 models_to_ensure:
   - qwen3.5:9b
   - llama3.1:8b
@@ -18,24 +45,68 @@ models_to_ensure:
   - nj-code-review:14b
   - nj-backend:14b
   - nj-biology:8b
+  - nj-cad:14b
+  - nj-aws:14b
+  - nj-incident:14b
+  - nj-browser:14b
+  - nj-music:14b
 lora_adapters:
   - agent_type: security
     repo_id: scthornton/llama-3.2-3b-securecode
     filename: adapter_model.safetensors
     ollama_tag: nj-security:14b
     base_ollama_tag: llama3.2:3b
+    eval_probes: assets/eval/security.yaml
+    legacy_tier: true
   - agent_type: code-review
     repo_id: juzhengz/LoRI-D_code_llama3_rank_64
     filename: adapter_model.safetensors
     ollama_tag: nj-code-review:14b
     base_ollama_tag: llama3:8b
+    eval_probes: assets/eval/code-review.yaml
+    legacy_tier: true
   - agent_type: backend
     repo_id: visheshgupta/mistral-7b-text2sql-qlora
     filename: adapter_model.safetensors
     ollama_tag: nj-backend:14b
     base_ollama_tag: mistral:7b
+    eval_probes: assets/eval/backend.yaml
+    legacy_tier: true
   - agent_type: biology
     repo_id: Pk3112/medmcqa-lora-llama3-8b-instruct
     filename: adapter_model.safetensors
     ollama_tag: nj-biology:8b
     base_ollama_tag: llama3:8b
+    eval_probes: assets/eval/biology.yaml
+    legacy_tier: true
+  - agent_type: cad
+    repo_id: juzhengz/LoRI-D_code_llama3_rank_64
+    filename: adapter_model.safetensors
+    ollama_tag: nj-cad:14b
+    base_ollama_tag: llama3:8b
+    eval_probes: assets/eval/cad.yaml
+  - agent_type: aws
+    repo_id: visheshgupta/mistral-7b-text2sql-qlora
+    filename: adapter_model.safetensors
+    ollama_tag: nj-aws:14b
+    base_ollama_tag: mistral:7b
+    eval_probes: assets/eval/aws.yaml
+  - agent_type: incident
+    repo_id: scthornton/llama-3.2-3b-securecode
+    filename: adapter_model.safetensors
+    ollama_tag: nj-incident:14b
+    base_ollama_tag: llama3.2:3b
+    eval_probes: assets/eval/incident.yaml
+  - agent_type: browser
+    repo_id: juzhengz/LoRI-D_code_llama3_rank_64
+    filename: adapter_model.safetensors
+    ollama_tag: nj-browser:14b
+    base_ollama_tag: llama3:8b
+    eval_probes: assets/eval/browser.yaml
+  - agent_type: music
+    repo_id: juzhengz/LoRI-D_code_llama3_rank_64
+    filename: adapter_model.safetensors
+    ollama_tag: nj-music:14b
+    base_ollama_tag: llama3:8b
+    eval_probes: assets/eval/music.yaml
+    train_first: true

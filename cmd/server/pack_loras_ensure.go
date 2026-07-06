@@ -42,6 +42,9 @@ func packLoRAsInstalled(ctx context.Context, manifest *packs.Manifest) bool {
 		return true
 	}
 	for _, spec := range manifest.LoRAAdapters {
+		if spec.TrainFirst {
+			continue
+		}
 		tag := packLoRAComposedTag(spec)
 		if tag == "" {
 			continue

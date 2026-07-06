@@ -44,6 +44,12 @@ func InstallPackLoRAs(ctx context.Context, mgr *Manager, manifest *packs.Manifes
 			RepoID:    spec.RepoID,
 			OllamaTag: spec.OllamaTag,
 		}
+		if spec.TrainFirst {
+			res.Status = "skipped"
+			res.Error = "train_first: bootstrap adapter — train from channel data or use Install LoRAs after publishing"
+			out = append(out, res)
+			continue
+		}
 		baseTag := strings.TrimSpace(spec.BaseOllamaTag)
 		if baseTag == "" {
 			baseTag = DefaultLoRABaseTag

@@ -196,6 +196,11 @@ export interface LoraExpertContext {
   chat_rows?: number;
   learning_rows?: number;
   delta_rows?: number;
+  turns?: number;
+  suggest_training?: boolean;
+  include_learnings_default?: boolean;
+  eval_min_score?: number;
+  require_eval_to_assign?: boolean;
 }
 
 export interface LoraTrainJob {
@@ -245,6 +250,7 @@ export interface LearningStats {
   min_rows: number;
   ready_for_lora: boolean;
   refresh_suggested?: boolean;
+  suggest_training?: boolean;
   active_adapter_version?: number;
 }
 

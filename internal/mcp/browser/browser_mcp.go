@@ -38,5 +38,6 @@ func (b *BrowserMCP) GetMCPServer() *server.MCPServer {
 
 func (b *BrowserMCP) registerTools() {
 	webmcp.AttachTools(b.mcpServer)
+	AttachAutomationTools(b.mcpServer)
 	log.Printf("Registered %d web browser MCP tools", len(b.mcpServer.ListTools()))
 }

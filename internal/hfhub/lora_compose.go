@@ -7,12 +7,23 @@ import (
 	"strings"
 )
 
+func qwenLoRAComposeEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("NJ_LORA_QWEN_COMPOSE")))
+	return v == "1" || v == "true" || v == "yes"
+}
+
 const ollamaAdapterWeightsName = "model.safetensors"
 
 // OllamaSafetensorLoRABaseSupported reports whether Ollama can compose a Hugging Face
 // safetensors LoRA on this base tag (see ollama modelfile ADAPTER docs).
+// Set NJ_LORA_QWEN_COMPOSE=1 when your Ollama build supports Qwen ADAPTER compose.
 func OllamaSafetensorLoRABaseSupported(baseTag string) bool {
 	b := normalizeOllamaTag(baseTag)
+	if qwenLoRAComposeEnabled() {
+		if strings.Contains(b, "qwen") {
+			return true
+		}
+	}
 	switch {
 	case strings.Contains(b, "llama"),
 		strings.Contains(b, "mistral"),

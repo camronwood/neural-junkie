@@ -1,0 +1,6 @@
+agent_type: music
+questions:
+  - prompt: "Suggest a verse-chorus structure for a pop song."
+    keywords: ["verse", "chorus", "bridge", "hook"]
+  - prompt: "What makes lyrics fit a melody?"
+    keywords: ["syllable", "rhyme", "meter", "line"]

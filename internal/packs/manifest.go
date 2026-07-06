@@ -31,6 +31,7 @@ type Manifest struct {
 	ExpertPresets   []ExpertPreset    `yaml:"expert_presets"`
 	MCPAgents       []string          `yaml:"mcp_agents"`
 	LoRAAdapters    []LoRAAdapterSpec `yaml:"lora_adapters,omitempty"`
+	LoRAPolicy      LoRAPolicy        `yaml:"lora_policy,omitempty"`
 }
 
 // AgentComposeSpec declares chat/tool/LoRA composition for a specialist.
@@ -57,6 +58,9 @@ type LoRAAdapterSpec struct {
 	Filename      string `yaml:"filename,omitempty"`
 	OllamaTag     string `yaml:"ollama_tag"`
 	BaseOllamaTag string `yaml:"base_ollama_tag,omitempty"`
+	EvalProbes    string `yaml:"eval_probes,omitempty"`
+	LegacyTier    bool   `yaml:"legacy_tier,omitempty"`
+	TrainFirst    bool   `yaml:"train_first,omitempty"`
 }
 
 // ExpertPreset is a /create-expert slug from a pack manifest.

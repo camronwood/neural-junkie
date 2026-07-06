@@ -1,0 +1,6 @@
+agent_type: aws
+questions:
+  - prompt: "How do you list EC2 instances with the AWS CLI?"
+    keywords: ["ec2", "describe", "instances", "aws"]
+  - prompt: "What is an IAM role vs an IAM user?"
+    keywords: ["role", "user", "permission", "assume"]

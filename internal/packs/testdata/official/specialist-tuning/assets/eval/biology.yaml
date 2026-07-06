@@ -1,0 +1,6 @@
+agent_type: biology
+questions:
+  - prompt: "What is the central dogma of molecular biology?"
+    keywords: ["dna", "rna", "protein", "transcription"]
+  - prompt: "What is a reading frame in a nucleotide sequence?"
+    keywords: ["codon", "frame", "start", "sequence"]

@@ -6,6 +6,28 @@ import (
 	"github.com/camronwood/neural-junkie/internal/routing"
 )
 
+// skipKnowledgeRetrievalForMessage avoids running memory/codebase retrieval against
+// collaboration orchestration prompts (they contain boilerplate like "collabs/" and
+// "collaboration" that would otherwise trigger slow, irrelevant knowledge routes).
+func skipKnowledgeRetrievalForMessage(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	switch msg.Type {
+	case protocol.MessageTypeCollabDiscussion, protocol.MessageTypeCollabTask, protocol.MessageTypeCollabRecap:
+		return true
+	}
+	if msg.GetCollaborationID() != "" && msg.IsFromSystem() {
+		return true
+	}
+	if msg.Metadata != nil {
+		if internal, ok := msg.Metadata["collab_internal_event"].(bool); ok && internal {
+			return true
+		}
+	}
+	return false
+}
+
 func routeTargetsToStrings(targets []routing.RouteTarget) []string {
 	if len(targets) == 0 {
 		return nil
@@ -30,6 +52,9 @@ func knowledgePlanFromSnapshot(snap RoutingSnapshot) routing.KnowledgePlan {
 func (a *Agent) effectiveKnowledgePlan(msg *protocol.Message) routing.KnowledgePlan {
 	if a == nil {
 		return routing.KnowledgePlan{}
+	}
+	if skipKnowledgeRetrievalForMessage(msg) {
+		return routing.KnowledgePlan{Reason: "collab_turn"}
 	}
 	snap := a.LastRoutingSnapshot()
 	if len(snap.KnowledgeTargets) > 0 || snap.KnowledgeReason != "" {
@@ -103,7 +128,7 @@ func knowledgeExecutedPathForMemory(plan routing.KnowledgePlan) string {
 }
 
 func (a *Agent) applyKnowledgePlanEarly(msg *protocol.Message) {
-	if a == nil || msg == nil {
+	if a == nil || msg == nil || skipKnowledgeRetrievalForMessage(msg) {
 		return
 	}
 	plan := a.effectiveKnowledgePlan(msg)

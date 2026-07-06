@@ -1,18 +1,42 @@
 id: aws
-version: "1.0.0"
+version: "2.0.0"
 title: AWS
-description: AWSExpert with read-only AWS CLI MCP tools, SSO profile support, and account-scoped infra queries.
+description: AWSExpert — account-aware SRE copilot with typed boto3 tools, IaC drift, cost/security lenses, and gated writes.
 layout_profile: team
 capabilities:
   - aws-api
   - aws-sso
+  - aws-sidecar
+capability_defs:
+  aws-sidecar:
+    kind: hub-sidecar
+    routes:
+      - /api/aws
+    sidecar:
+      module: assets/hub/server.py
+    settings:
+      - aws_profile
+      - aws_default_region
+      - aws_allowed_profiles
+      - aws_allowed_accounts
+      - aws_read_only
+      - aws_write_enabled
+      - aws_write_audit_path
+      - aws_org_root_id
+      - aws_dry_run
+      - python_executable
+      - aws_venv
 settings_overlay:
   aws_default_region: us-east-2
+  aws_venv: ~/.neural-junkie/aws/venv
+  python_executable: ~/.neural-junkie/aws/venv/bin/python3
+  aws_dry_run: false
+  aws_write_audit_path: ~/.neural-junkie/aws-audit.log
 agents:
   - type: aws
     name: AWSExpert
     implementation: builtin/aws
-    ollama_model: qwen2.5-coder:14b
+    ollama_model: qwen3.5:27b
     compose:
       tool_model: qwen3.5:9b
       consult_triggers:
@@ -23,12 +47,21 @@ agents:
         - s3
         - lambda
         - cloudformation
-        - terraform
+        - cost explorer
+        - security hub
+        - guardduty
+        - cloudwatch alarm
+        - account
+        - organization
+        - drift
 models_to_ensure:
-  - qwen2.5-coder:14b
+  - qwen3.5:27b
   - qwen3.5:9b
-ollama_model: qwen2.5-coder:14b
+ollama_model: qwen3.5:27b
 expert_slug: aws
 expert_label: AWS / Cloud infrastructure
 mcp_agents:
   - aws
+assets:
+  workspace_guide: assets/WORKSPACE.md
+  runbooks_glob: assets/runbooks/*.md

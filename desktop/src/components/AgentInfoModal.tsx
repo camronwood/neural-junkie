@@ -81,14 +81,19 @@ export function AgentInfoModal({
   const [editLearning, setEditLearning] = useState<UserLearning | null>(null);
   const [loraReady, setLoraReady] = useState(false);
   const [loraRefresh, setLoraRefresh] = useState(false);
+  const [loraSuggest, setLoraSuggest] = useState(false);
   const [loraAdapterVersion, setLoraAdapterVersion] = useState(0);
 
-  const loraLifecycleLabel = loraAdapterVersion > 0
+  const loraLifecycleLabel = loraSuggest || loraReady
     ? loraRefresh
-      ? `Refresh LoRA (v${loraAdapterVersion})`
-      : `Train LoRA (v${loraAdapterVersion})`
-    : loraReady
-      ? 'Train LoRA (ready)'
+      ? `Sharpen expert (refresh v${loraAdapterVersion})`
+      : loraAdapterVersion > 0
+        ? `Sharpen expert (v${loraAdapterVersion})`
+        : 'Sharpen expert'
+    : loraAdapterVersion > 0
+      ? loraRefresh
+        ? `Refresh LoRA (v${loraAdapterVersion})`
+        : `Train LoRA (v${loraAdapterVersion})`
       : 'Train LoRA';
 
   const isExpertAgent =
@@ -170,6 +175,7 @@ export function AgentInfoModal({
     if (!isOpen || !agent || !hasLoRATraining || !isExpertAgent) {
       setLoraReady(false);
       setLoraRefresh(false);
+      setLoraSuggest(false);
       setLoraAdapterVersion(0);
       return;
     }
@@ -179,11 +185,13 @@ export function AgentInfoModal({
       if (cancelled) return;
       setLoraReady(stats.ready_for_lora);
       setLoraRefresh(Boolean(stats.refresh_suggested));
+      setLoraSuggest(Boolean(stats.suggest_training));
       setLoraAdapterVersion(stats.active_adapter_version ?? 0);
     }).catch(() => {
       if (!cancelled) {
         setLoraReady(false);
         setLoraRefresh(false);
+        setLoraSuggest(false);
         setLoraAdapterVersion(0);
       }
     });
@@ -811,11 +819,15 @@ export function AgentInfoModal({
                     }
                   }}
                   disabled={offlineMode || !onTrainLoRA}
-                  className="px-4 py-2 text-sm text-purple-300 hover:text-purple-200 hover:bg-purple-500/10 rounded transition-colors border border-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`px-4 py-2 text-sm rounded transition-colors border disabled:opacity-50 disabled:cursor-not-allowed ${
+                    loraSuggest || loraReady
+                      ? 'text-teal-200 hover:text-teal-100 hover:bg-teal-500/10 border-teal-500/40'
+                      : 'text-purple-300 hover:text-purple-200 hover:bg-purple-500/10 border-purple-500/30'
+                  }`}
                   title={
                     offlineMode
-                      ? 'Load agent and chat (10+ turns) before training LoRA'
-                      : `Train or refresh a LoRA adapter from ${agent.name} sessions`
+                      ? 'Load agent and chat (10+ turns) before sharpening'
+                      : `Train or refresh adapter from ${agent.name} sessions`
                   }
                 >
                   🎯 {loraLifecycleLabel}
