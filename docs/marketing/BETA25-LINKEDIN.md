@@ -9,26 +9,30 @@
 **Regenerate cover:** `./scripts/compose-beta5-article.sh`
 
 **Suggested title (pick one):**
+
 - v1.2.0-beta.5: The Release Where the Loops Close
 - What Ships in Neural Junkie v1.2.0-beta.5
 - Runbooks, Routing Trace, and Collaboration You Can Ship
 
 **Feed post teaser:**
+
 > v1.2.0-beta.5 bundles the loop-stack vision into one download: ReAct tools on Gemma, per-turn routing transparency, replayable runbooks, multi-repo workspace scope, collab hardening from live scenario gates, LoRA v2 specialists, and the release engineering that keeps betas honest.
 
 **Hashtags:** `#AI #LocalAI #MultiAgent #OpenSource #DeveloperTools #AgenticCoding`
 
-**Link:** https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5
+**Link:** [https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5)
 
-**Website:** https://camronwood.github.io/neural-junkie/articles/beta-5.html
+**Website:** [https://camronwood.github.io/neural-junkie/articles/beta-5.html](https://camronwood.github.io/neural-junkie/articles/beta-5.html)
 
-**Download CTA:** https://camronwood.github.io/neural-junkie/download.html
+**Download CTA:** [https://camronwood.github.io/neural-junkie/download.html](https://camronwood.github.io/neural-junkie/download.html)
 
 **Suggested post date:** Same week as the `v1.2.0-beta.5` GitHub release tag
 
 **Related articles:** [Loop stack](LOOP-STACK-LINKEDIN.md) · [ReAct tools](REACT-TOOLS-LINKEDIN.md) · [Collaboration](COLLABORATION-LINKEDIN.md) · [Personal learning](PERSONAL-LEARNING-LINKEDIN.md)
 
 ---
+
+
 
 ## PASTE START
 
@@ -75,17 +79,17 @@ This is the user-facing half of the inference layer story — decide before you 
 
 Collaboration v1 was powerful and ephemeral: draw a DAG, approve, execute, done. Runbooks v2 adds **ownership**:
 
-| Concept | What it means |
-|---------|----------------|
-| **RunbookDefinition** | Named, versioned workflow with tasks, graph, policies, and inputs |
-| **RunExecution** | One run — still a collaboration under the hood, with run metadata |
+
+| Concept               | What it means                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------- |
+| **RunbookDefinition** | Named, versioned workflow with tasks, graph, policies, and inputs                        |
+| **RunExecution**      | One run — still a collaboration under the hood, with run metadata                        |
 | **Connector profile** | Named Slack/webhook/HTTP credentials referenced by action tasks — never embedded in JSON |
+
 
 **Library UI:** save drafts, browse bundled + pack + user definitions, start runs with input forms, view run history.
 
 **Resolution order:** user library → enabled pack runbooks → collab assets → repo templates.
-
-Biology pack templates (12-plex QC, endogenous study, health-check alert, and others) now ship **with the pack**, not as loose repo assets — customer packs own their operational playbooks.
 
 Docs: [RUNBOOKS_V2.md](https://github.com/camronwood/neural-junkie/blob/main/docs/RUNBOOKS_V2.md)
 
@@ -150,6 +154,8 @@ Still in the box from the previous tag:
 - **Turn telemetry drawer** foundation — expanded in beta.5 with routing trace MVP
 - **IDE v4** — Monaco LSP, remote SSH, dev containers (unchanged baseline)
 
+
+
 ## Try beta.5
 
 1. Download the installer for your platform from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html).
@@ -161,8 +167,9 @@ Still in the box from the previous tag:
 
 **Neural Junkie** is local-first, open source, and built for specialists that share tools, approvals, and routing policy — not one monolithic planner guessing in a vacuum.
 
-Repo: https://github.com/camronwood/neural-junkie
+Repo: [https://github.com/camronwood/neural-junkie](https://github.com/camronwood/neural-junkie)
 
-Release notes: https://camronwood.github.io/neural-junkie/release-notes.html
+Release notes: [https://camronwood.github.io/neural-junkie/release-notes.html](https://camronwood.github.io/neural-junkie/release-notes.html)
 
 ## PASTE END
+
