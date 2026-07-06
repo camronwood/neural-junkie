@@ -126,7 +126,7 @@ func ListUserDefinitions() ([]DefinitionSummary, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return []DefinitionSummary{}, nil
 		}
 		return nil, err
 	}
@@ -152,6 +152,9 @@ func ListUserDefinitions() ([]DefinitionSummary, error) {
 			continue
 		}
 		out = append(out, def.ToSummary())
+	}
+	if out == nil {
+		return []DefinitionSummary{}, nil
 	}
 	return out, nil
 }

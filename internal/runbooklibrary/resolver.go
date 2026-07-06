@@ -68,6 +68,9 @@ func ListAllDefinitions(collabAssetsRoot string, packDefs []RunbookDefinition) (
 		seen[def.ID] = true
 		out = append(out, def.ToSummary())
 	}
+	if out == nil {
+		return []DefinitionSummary{}, nil
+	}
 	return out, nil
 }
 

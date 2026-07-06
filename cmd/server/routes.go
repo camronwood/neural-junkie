@@ -236,6 +236,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/slack/restart", corsMiddleware(handleSlackRestart))
 	http.HandleFunc("/api/slack/channels", corsMiddleware(handleSlackChannels))
 	http.HandleFunc("/api/slack/diagnose", corsMiddleware(handleSlackDiagnose))
+	http.HandleFunc("/api/slack/smoke/run", corsMiddleware(localOnly(handleSlackSmokeRun)))
 	http.HandleFunc("/api/slack/inbox", corsMiddleware(handleSlackInbox))
 	http.HandleFunc("/api/slack/inbox/test-dm", corsMiddleware(handleSlackInboxTestDM))
 	http.HandleFunc("/api/slack/inbox/dm-debug", corsMiddleware(handleSlackInboxDMDebug))

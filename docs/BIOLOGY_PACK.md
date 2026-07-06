@@ -16,7 +16,7 @@ Install and enable this pack from **Settings → Domain packs → Pack store**. 
 | **BiologyExpert** | Preset agent with bio MCP tools |
 | **analyze_sequence** | DNA/RNA/protein checks, length, reverse complement |
 | **fold_protein** | ESMFold via Hugging Face Inference → PDB under `~/.neural-junkie/bio/` |
-| **Sequence review runbook** | Import from Runbook templates |
+| **Sequence review runbook** | Available from your **customer lab pack** (not shipped in core app) |
 
 Phoenix scan viewers, 12-Plex QC, comparator, and other lab workflows ship in a **customer sideload pack** (not Life sciences). See [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
@@ -111,7 +111,7 @@ Covers Phoenix TIM import, scan summary/analysis viewers, 12-Plex QC, comparator
 2. **Clear message history** on an old Biology DM if replies were echoing instructions.
 3. DM with BiologyExpert: paste a short peptide → ask to analyze sequence.
 4. Ask to fold the same sequence (HF hub token saved in Settings) → confirm PDB path in reply.
-5. Runbook → **sequence-review** → instantiate with BiologyExpert → start execution.
+5. Runbook library → import **sequence-review** from your customer lab pack → instantiate with BiologyExpert → start execution.
 6–15. Scan viewers, Phoenix import, 12-Plex QC, comparator — enable your **customer lab pack**; see [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
 ## Out of scope (v1)

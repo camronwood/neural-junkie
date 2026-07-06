@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/packs"
-	"github.com/camronwood/neural-junkie/internal/packs/sidecar"
 )
 
 // ContextOrBackground returns a background context (hub has no request-scoped config ctx).
@@ -14,7 +13,7 @@ func (c *Config) ContextOrBackground() context.Context {
 }
 
 // CollectPackSidecarEnvs returns sidecar env for enabled packs that declare hub-sidecar capabilities.
-func (c *Config) CollectPackSidecarEnvs() []sidecar.SidecarEnv {
+func (c *Config) CollectPackSidecarEnvs() []packs.SidecarEnv {
 	if c == nil {
 		return nil
 	}
@@ -31,7 +30,7 @@ func (c *Config) CollectPackSidecarEnvs() []sidecar.SidecarEnv {
 		if err != nil || m == nil {
 			continue
 		}
-		if !sidecar.PackNeedsSidecar(m) {
+		if !packs.PackNeedsSidecar(m) {
 			continue
 		}
 		dir, err := packs.InstalledPackDir(id)
@@ -41,7 +40,7 @@ func (c *Config) CollectPackSidecarEnvs() []sidecar.SidecarEnv {
 		manifests = append(manifests, m)
 		packDirs[m.ID] = dir
 		resolved, _ := packs.ResolveSettingsOverlay(m, dir)
-		if id == PackMusicCreation {
+		if m.ID == PackMusicCreation {
 			for k, v := range c.musicSidecarSettingsLocked() {
 				if strings.TrimSpace(v) != "" {
 					resolved[k] = v
@@ -50,5 +49,5 @@ func (c *Config) CollectPackSidecarEnvs() []sidecar.SidecarEnv {
 		}
 		settings[m.ID] = resolved
 	}
-	return sidecar.CollectSidecarEnvs(manifests, packDirs, settings)
+	return packs.CollectSidecarEnvs(manifests, packDirs, settings)
 }

@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -36,6 +36,7 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  make layer-list                         # layers in order + time estimates"
 	@echo "  make layer-gate LAYER=implement         # test ONE layer (~15m–3h)"
 	@echo "  make layer-fix-loop LAYER=chat          # layer test → Cursor fix → verify"
+	@echo "  make test-growth-loop                   # discover gaps → add/strengthen tests"
 	@echo "  make layer-climb                        # run layers until first failure"
 	@echo "  make overnight                          # walk-away full release-prep (tmux)"
 	@echo "  make layer-overnight LAYER=implement    # walk-away layer fix loop"
@@ -148,7 +149,7 @@ debug-messages: ## Last messages for CHANNEL (session file; add LIVE=1 for hub)
 collab-smoke: ## Collab lifecycle smoke (API phases); LIVE=1 for running hub
 	@python3 scripts/collab-smoke.py $(if $(LIVE),--live,)
 
-slack-smoke: ## Slack integration + hub /api/slack handler smoke (CI-safe; LIVE=1 runs slack-live-smoke.sh)
+slack-smoke: ## Slack integration smoke (CI: unit tests; LIVE=1: synthetic inbound live check, no Slack posts; SLACK_SMOKE_OUTBOUND=1: optional gated outbound)
 	@go test ./internal/integrations/slack/... -count=1
 	@go test ./cmd/server -run 'TestHandleSlack' -count=1
 	@if [ "$(LIVE)" = "1" ]; then \
@@ -262,7 +263,7 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
-	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py release_prep_failures_test.py fix_loop_git_test.py hub_cleanup_test.py scenario_flake_retry_test.py release_prep_layers_test.py
+	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py test_growth_candidates_test.py test_growth_guardrails_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py release_prep_failures_test.py fix_loop_git_test.py hub_cleanup_test.py scenario_flake_retry_test.py release_prep_layers_test.py
 	@PYTHONPATH=scripts python3 scripts/lib/scenario_contract.py
 
 chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)
@@ -412,6 +413,33 @@ layer-overnight: ## Walk-away layer fix loop in tmux (LAYER=implement)
 	 SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' MODEL='$(MODEL)' \
 	 PREFER_SDK='$(PREFER_SDK)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
 	 NO_WORKTREE='$(NO_WORKTREE)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
+
+test-growth-list: ## List ranked test-growth candidates (no agent)
+	@chmod +x scripts/test-growth-loop.py
+	@python3 scripts/test-growth-loop.py --list
+
+test-growth-once: ## Single test-growth iteration (MAX_ITER=1)
+	@$(MAKE) test-growth-loop MAX_ITER=1 $(if $(DRY_RUN),DRY_RUN=1,) $(if $(NO_COMMIT),NO_COMMIT=1,) $(if $(SKIP_LIVE),SKIP_LIVE=1,) $(if $(SKIP_AGENT),SKIP_AGENT=1,)
+
+test-growth-loop: ## Test-growth loop: discover gaps → Cursor agent → verify → commit (MAX_ITER=3)
+	@chmod +x scripts/test-growth-loop.py
+	@bash -c 'source load-env.sh && python3 scripts/test-growth-loop.py \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
+		--max-iterations $${MAX_ITER:-3} \
+		$(if $(CANDIDATE_KIND),--candidate-kind "$(CANDIDATE_KIND)",) \
+		$(if $(SKIP_AGENT),--skip-agent,) \
+		$(if $(SKIP_VERIFY),--skip-verify,) \
+		$(if $(SKIP_LIVE),--skip-live,) \
+		$(if $(DRY_RUN),--dry-run,) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(MODEL),--model "$(MODEL)",) \
+		$(if $(PREFER_SDK),--prefer-sdk,) \
+		$(if $(AGENT_TIMEOUT),--agent-timeout $(AGENT_TIMEOUT),) \
+		$(if $(NO_COMMIT),--no-commit,) \
+		$(if $(GROWTH_BRANCH),--growth-branch "$(GROWTH_BRANCH)",) \
+		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",) \
+		$(if $(NO_WORKTREE),--no-worktree,--use-worktree) \
+		$(if $(STABILITY_RUNS),--stability-runs $(STABILITY_RUNS),)'
 
 release-prep-fix-loop: ## Release gate + Cursor agent fix loop (REPORT=path DRY_RUN=1 SKIP_BENCHMARK=1 MAX_ITER=3 NO_COMMIT=1)
 	@chmod +x scripts/release-prep-fix-loop.py scripts/release-prep.py

@@ -85,6 +85,13 @@ func FromTemplate(t collaboration.RunbookTemplate, source DefinitionSource) Runb
 	if id == "" {
 		id = t.Title
 	}
+	inputs := make([]RunInputSpec, 0, len(t.Inputs))
+	for _, in := range t.Inputs {
+		inputs = append(inputs, RunInputSpec{
+			Key: in.Key, Type: in.Type, Label: in.Label,
+			Default: in.Default, Required: in.Required,
+		})
+	}
 	return RunbookDefinition{
 		ID:              id,
 		Version:         1,
@@ -92,6 +99,7 @@ func FromTemplate(t collaboration.RunbookTemplate, source DefinitionSource) Runb
 		Description:     t.Description,
 		Source:          source,
 		ExecutionPolicy: t.ExecutionPolicy,
+		Inputs:          inputs,
 		Tasks:           t.Tasks,
 	}
 }

@@ -32,8 +32,8 @@ export function RunbookLibraryModal({
     setError('');
     try {
       const [list, packs] = await Promise.all([api.listRunbookDefinitions(), api.listPackRunbooks()]);
-      setDefs(list);
-      setPackRunbooks(packs);
+      setDefs(Array.isArray(list) ? list : []);
+      setPackRunbooks(Array.isArray(packs) ? packs : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -89,7 +89,7 @@ export function RunbookLibraryModal({
       >
         <div className="px-5 py-4 border-b border-slack-border">
           <h2 className="text-lg font-bold text-slack-text">Runbook library</h2>
-          <p className="text-xs text-slack-textMuted mt-1">Bundled templates and saved definitions</p>
+          <p className="text-xs text-slack-textMuted mt-1">Starter example, saved definitions, and pack runbooks</p>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {error ? <p className="text-xs text-red-400">{error}</p> : null}
@@ -108,8 +108,10 @@ export function RunbookLibraryModal({
               </div>
             </button>
           ))}
-          {defs.length === 0 && !error ? (
-            <p className="text-sm text-slack-textMuted">No definitions found.</p>
+          {defs.length === 0 && packRunbooks.length === 0 && !error ? (
+            <p className="text-sm text-slack-textMuted">
+              No saved runbooks yet. Create a new blank runbook, or install a pack that ships runbook definitions.
+            </p>
           ) : null}
           {packRunbooks.length > 0 ? (
             <div className="mt-4 pt-4 border-t border-slack-border">

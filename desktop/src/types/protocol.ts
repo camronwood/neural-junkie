@@ -731,6 +731,41 @@ export interface SlackBinding {
   enabled: boolean;
 }
 
+export interface SlackDiagnoseCheck {
+  id: string;
+  status: 'pass' | 'warn' | 'fail';
+  label: string;
+  fix?: string;
+}
+
+export interface SlackDiagnoseResult {
+  ready: boolean;
+  app_token_format_ok: boolean;
+  bot_token_format_ok: boolean;
+  auth_test_ok: boolean;
+  socket_open_ok: boolean;
+  socket_open_error?: string;
+  bridge_connected?: boolean;
+  channels_found?: number;
+  bindings_count?: number;
+  checks?: SlackDiagnoseCheck[];
+  recommendations?: string[];
+}
+
+export interface SlackSmokeCheck {
+  id: string;
+  status: string;
+  detail?: string;
+}
+
+export interface SlackSmokeResult {
+  ok: boolean;
+  checks: SlackSmokeCheck[];
+  duration_ms: number;
+  outbound_skipped: boolean;
+  channel_id?: string;
+}
+
 export interface OllamaSettings {
   endpoint: string;
   defaultModel: string;

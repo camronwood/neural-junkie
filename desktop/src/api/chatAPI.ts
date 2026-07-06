@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, ConnectorProfile, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, ConnectorProfile, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
 import {
   getHubBaseURL,
   hubAuthHeaders,
@@ -695,7 +695,8 @@ export class ChatAPI {
     if (!response.ok) {
       throw new Error(await response.text() || response.statusText);
     }
-    return response.json();
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   }
 
   async getRunbookDefinition(id: string, version?: number): Promise<RunbookDefinition> {
@@ -1371,6 +1372,34 @@ export class ChatAPI {
     if (!response.ok) {
       throw new Error(data.error || `Slack test post failed: ${response.statusText}`);
     }
+  }
+
+  async getSlackDiagnose(): Promise<SlackDiagnoseResult> {
+    const response = await this.hubFetch(`/api/slack/diagnose`);
+    if (!response.ok) {
+      throw new Error(`Slack diagnose failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async runSlackSmoke(options?: {
+    channel_id?: string;
+    outbound?: boolean;
+  }): Promise<SlackSmokeResult> {
+    const response = await this.hubFetch(`/api/slack/smoke/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel_id: options?.channel_id,
+        outbound: options?.outbound ?? false,
+        allow_outbound: options?.outbound ?? false,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok && !data.checks) {
+      throw new Error(data.error || `Slack smoke failed: ${response.statusText}`);
+    }
+    return data;
   }
 
   // Create a new channel

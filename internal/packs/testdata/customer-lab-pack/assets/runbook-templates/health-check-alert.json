@@ -1,7 +1,7 @@
 {
   "name": "health-check-alert",
   "title": "Health check and alert",
-  "description": "Starter example: HTTP health check, agent summary on success, webhook notify on failure (conditional branch).",
+  "description": "Fetch API health, summarize with an agent, notify on failure.",
   "execution_policy": {
     "blocked_upstream_policy": "block",
     "strict_task_status": true,

@@ -53,12 +53,25 @@ def resolve_agents(base: str, names: list[str]) -> list[str]:
 def run_scenario(base: str, scenario: dict, verbose: bool = False) -> None:
     channel = scenario.get("channel") or "runbook-scenarios"
     collab_id = ""
+    saved_definition_id = ""
     agent_ids = resolve_agents(base, scenario.get("agents") or ["@Assistant"])
 
     for step in scenario.get("steps") or []:
         action = step.get("action")
         if verbose:
             print(f"  step: {action}")
+
+        if action == "save_definition":
+            fixture = step.get("fixture") or step.get("path")
+            if not fixture:
+                raise RuntimeError("save_definition: fixture path required")
+            fixture_path = ROOT / fixture if not Path(fixture).is_absolute() else Path(fixture)
+            def_body = json.loads(fixture_path.read_text(encoding="utf-8"))
+            saved = api(base, "POST", "/api/runbook-definitions", def_body)
+            saved_definition_id = saved.get("id") or def_body.get("id") or ""
+            if not saved_definition_id:
+                raise RuntimeError("save_definition: missing id in response")
+            continue
 
         if action == "instantiate_definition":
             body = {
@@ -67,7 +80,9 @@ def run_scenario(base: str, scenario: dict, verbose: bool = False) -> None:
                 "agent_ids": agent_ids,
                 "inputs": step.get("inputs") or {},
             }
-            def_id = step["definition_id"]
+            def_id = step.get("definition_id") or saved_definition_id
+            if not def_id:
+                raise RuntimeError("instantiate_definition: definition_id required")
             out = api(base, "POST", f"/api/runbook-definitions/{def_id}/instantiate", body)
             collab_id = out.get("collaboration_id") or ""
             if not collab_id:

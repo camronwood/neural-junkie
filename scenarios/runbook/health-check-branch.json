@@ -5,6 +5,10 @@
   "agents": ["@Assistant"],
   "steps": [
     {
+      "action": "save_definition",
+      "fixture": "scenarios/fixtures/health-check-alert.json"
+    },
+    {
       "action": "instantiate_definition",
       "definition_id": "health-check-alert",
       "inputs": { "health_url": "https://httpbin.org/status/500" }

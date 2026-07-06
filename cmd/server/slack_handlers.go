@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 	"github.com/camronwood/neural-junkie/internal/integrations/websearch"
 	"github.com/camronwood/neural-junkie/internal/hub"
+	"github.com/camronwood/neural-junkie/internal/protocol"
 	slackapi "github.com/slack-go/slack"
 )
 
@@ -599,7 +601,17 @@ func handleSlackDiagnose(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	writeJSON(w, http.StatusOK, slackint.Diagnose(appConfig))
+	runtime := slackint.DiagnoseRuntimeContext{}
+	if slackBridge != nil {
+		st := slackBridge.Status()
+		if v, ok := st["connected"].(bool); ok {
+			runtime.BridgeConnected = v
+		}
+	}
+	if store, err := slackint.NewBindingStore(); err == nil {
+		runtime.BindingsCount = len(store.List())
+	}
+	writeJSON(w, http.StatusOK, slackint.DiagnoseWithRuntime(appConfig, runtime))
 }
 
 func slackAPIClient() *slackapi.Client {
@@ -775,4 +787,64 @@ func handleSlackInboxHumanDMDebug(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, info)
+}
+
+type hubSmokeReader struct {
+	h *hub.Hub
+}
+
+func (r hubSmokeReader) GetMessages(channelName string, limit int) ([]*protocol.Message, error) {
+	if r.h == nil {
+		return nil, fmt.Errorf("hub not ready")
+	}
+	return r.h.GetMessages(channelName, limit)
+}
+
+func handleSlackSmokeRun(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if appConfig == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "hub config not loaded"})
+		return
+	}
+	var body struct {
+		ChannelID     string `json:"channel_id"`
+		SkipInbound   bool   `json:"skip_inbound"`
+		Outbound      bool   `json:"outbound"`
+		AllowOutbound bool   `json:"allow_outbound"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && r.ContentLength > 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+	channelID := strings.TrimSpace(body.ChannelID)
+	if channelID == "" {
+		channelID = strings.TrimSpace(os.Getenv("SLACK_SMOKE_CHANNEL_ID"))
+	}
+	store, err := slackint.NewBindingStore()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	var hubClient slackint.HubClient
+	var reader slackint.HubMessageReader
+	if chatHub != nil {
+		hubClient = slackint.HubAdapter{H: chatHub}
+		reader = hubSmokeReader{h: chatHub}
+	}
+	opts := slackint.SmokeOptions{
+		ChannelID:     channelID,
+		SkipInbound:   body.SkipInbound,
+		Outbound:      body.Outbound,
+		AllowOutbound: body.AllowOutbound,
+		EnvAllow:      slackint.SmokeAllowOutboundEnv(),
+	}
+	result := slackint.RunSmoke(r.Context(), appConfig, slackAPIClient(), hubClient, slackBridge, reader, store, opts)
+	status := http.StatusOK
+	if !result.OK {
+		status = http.StatusBadRequest
+	}
+	writeJSON(w, status, result)
 }

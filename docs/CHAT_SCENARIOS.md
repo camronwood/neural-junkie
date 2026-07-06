@@ -132,6 +132,18 @@ DM scenarios use `"channel_type": "dm"` — channel created via `/api/channels/c
 3. Run `make chat-scenario SCENARIO=your-name VERBOSE=1`.
 4. Add a matching **Layer A** case in `chat_quality_router_test.go` or `chat_quality_coverage_test.go` if the bug was routing-related.
 
+### Auto-authored scenarios (test-growth loop)
+
+When `make test-growth-loop` adds or strengthens live scenarios:
+
+- Follow the same JSON patterns as manual scenarios above.
+- Always include `none_match` guardrails on regression scenarios when a known failure mode exists.
+- Pair routing-related chat scenarios with Layer A unit tests.
+- The loop rejects assertion weakening (removed `none_match`, dropped `expect_deliverables` quality bars).
+- If a new test exposes a product defect, the loop hands off to `make layer-fix-loop` instead of patching product code.
+
+See [TESTING.md](TESTING.md) for `test-growth-list`, `test-growth-loop`, and report locations under `docs/testing/test-growth-*.md`.
+
 ## Interpreting failures
 
 - Per-step ✓/✗ in stdout; last ~12 transcript lines on failure.

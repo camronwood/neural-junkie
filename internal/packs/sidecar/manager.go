@@ -43,19 +43,12 @@ func NewManager() *Manager {
 	return &Manager{instances: make(map[string]*Instance)}
 }
 
-// SidecarEnv holds overlay settings passed to the sidecar process.
-type SidecarEnv struct {
-	PackID   string
-	PackDir  string
-	Settings map[string]string
-}
-
 // Sync ensures sidecars match the given enabled pack manifests.
-func (m *Manager) Sync(ctx context.Context, enabled []SidecarEnv) error {
+func (m *Manager) Sync(ctx context.Context, enabled []packs.SidecarEnv) error {
 	if m == nil {
 		return nil
 	}
-	want := make(map[string]SidecarEnv)
+	want := make(map[string]packs.SidecarEnv)
 	for _, e := range enabled {
 		if strings.TrimSpace(e.PackID) == "" {
 			continue
@@ -147,7 +140,7 @@ func (m *Manager) ProxyHTTP(w http.ResponseWriter, r *http.Request, packID, side
 	return err
 }
 
-func (m *Manager) startLocked(ctx context.Context, env SidecarEnv) (*Instance, error) {
+func (m *Manager) startLocked(ctx context.Context, env packs.SidecarEnv) (*Instance, error) {
 	serverPath, err := packs.ResolvePackRelativePath(env.PackDir, serverRelPath)
 	if err != nil {
 		return nil, err
@@ -229,58 +222,3 @@ func healthCheck(baseURL string) error {
 	return nil
 }
 
-// CollectSidecarEnvs builds sidecar envs for enabled manifests with hub-sidecar capabilities.
-func CollectSidecarEnvs(manifests []*packs.Manifest, packDirs map[string]string, settings map[string]map[string]string) []SidecarEnv {
-	var out []SidecarEnv
-	seen := make(map[string]struct{})
-	for _, m := range manifests {
-		if m == nil {
-			continue
-		}
-		dir := packDirs[m.ID]
-		if dir == "" {
-			continue
-		}
-		hasSidecar := false
-		for _, def := range m.CapabilityDefs {
-			if def.Kind == "hub-sidecar" {
-				hasSidecar = true
-				break
-			}
-		}
-		if !hasSidecar {
-			continue
-		}
-		if _, ok := seen[m.ID]; ok {
-			continue
-		}
-		seen[m.ID] = struct{}{}
-		overlay := settings[m.ID]
-		if overlay == nil {
-			overlay = map[string]string{}
-		}
-		resolved, _ := packs.ResolveSettingsOverlay(m, dir)
-		for k, v := range resolved {
-			overlay[k] = v
-		}
-		out = append(out, SidecarEnv{
-			PackID:   m.ID,
-			PackDir:  dir,
-			Settings: overlay,
-		})
-	}
-	return out
-}
-
-// PackNeedsSidecar reports whether manifest declares any hub-sidecar capability.
-func PackNeedsSidecar(m *packs.Manifest) bool {
-	if m == nil {
-		return false
-	}
-	for _, def := range m.CapabilityDefs {
-		if def.Kind == "hub-sidecar" {
-			return true
-		}
-	}
-	return false
-}

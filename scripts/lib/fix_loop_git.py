@@ -15,6 +15,9 @@ TESTING_ARTIFACT_PREFIXES = (
     "docs/testing/hub-recovery-",
     "docs/testing/parity-stable",
     "docs/testing/model-benchmark-",
+    "docs/testing/test-growth-",
+    "docs/testing/layer-gate-",
+    "docs/testing/layer-fix-loop-",
 )
 
 BRANCH_SAFE_RE = re.compile(r"[^a-zA-Z0-9._/-]+")
@@ -24,6 +27,11 @@ WORKTREES_DIRNAME = ".worktrees"
 def default_fix_branch(stamp: str | None = None) -> str:
     ts = stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
     return f"release-prep/fix-{ts}"
+
+
+def default_test_growth_branch(stamp: str | None = None) -> str:
+    ts = stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
+    return f"test-growth/{ts}"
 
 
 def _run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -240,6 +248,51 @@ def commit_iteration_changes(
             print(f"  - {p}")
         if len(paths) > 20:
             print(f"  ... and {len(paths) - 20} more")
+        return 0, message
+
+    add = _run_git(["add", "--", *paths], cwd=cwd)
+    if add.returncode != 0:
+        err = (add.stderr or add.stdout or "").strip()
+        print(f">>> [git] add failed: {err}", flush=True)
+        return add.returncode, message
+
+    commit = _run_git(["commit", "-m", message], cwd=cwd)
+    if commit.returncode != 0:
+        err = (commit.stderr or commit.stdout or "").strip()
+        print(f">>> [git] commit failed: {err}", flush=True)
+        return commit.returncode, message
+
+    sha = _run_git(["rev-parse", "--short", "HEAD"], cwd=cwd).stdout.strip()
+    print(f">>> [git] committed {sha} on {branch} ({len(paths)} files)")
+    return 0, message
+
+
+def commit_test_growth_changes(
+    cwd: Path,
+    *,
+    branch: str,
+    iteration: int,
+    candidate_id: str,
+    dry_run: bool = False,
+) -> tuple[int, str]:
+    """Stage non-artifact test improvements and commit."""
+    if not git_available(cwd):
+        return 1, "not a git repository"
+
+    paths = list_commit_candidates(cwd)
+    if not paths:
+        print(">>> [git] no commit candidates (only testing artifacts or clean tree)")
+        return 0, ""
+
+    message = (
+        f"test(growth): iteration {iteration} — {candidate_id}\n\n"
+        "Auto-commit from test-growth-loop Cursor agent pass."
+    )
+
+    if dry_run:
+        print(f">>> [git] dry-run would commit {len(paths)} path(s) on {branch}:")
+        for p in paths[:20]:
+            print(f"  - {p}")
         return 0, message
 
     add = _run_git(["add", "--", *paths], cwd=cwd)

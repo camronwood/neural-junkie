@@ -78,3 +78,5 @@ settings_overlay:
 assets:
   workspace_guide: assets/WORKSPACE.md
   runbooks_glob: assets/runbooks/*.md
+  # Full JSON runbook definitions (customer-owned; not loaded by core app unless sideloaded):
+  # assets/runbook-templates/*.json

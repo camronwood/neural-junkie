@@ -117,3 +117,34 @@ func TestHandleSlackConfig_getPut(t *testing.T) {
 		t.Fatalf("default_policy: got %q want mention_only", appConfig.Slack.DefaultPolicy)
 	}
 }
+
+func TestHandleSlackSmokeRun_noConfig(t *testing.T) {
+	resetSlackTestGlobals(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/slack/smoke/run", nil)
+	rec := httptest.NewRecorder()
+	handleSlackSmokeRun(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status: got %d want 503", rec.Code)
+	}
+}
+
+func TestHandleSlackSmokeRun_syntheticOnly(t *testing.T) {
+	testutil.IsolateNeuralJunkieHome(t)
+	resetSlackTestGlobals(t)
+	appConfig = config.DefaultConfig()
+	body := []byte(`{"outbound":false}`)
+	req := loopbackRequest(http.MethodPost, "/api/slack/smoke/run", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handleSlackSmokeRun(rec, req)
+	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusOK {
+		t.Fatalf("status: got %d %s", rec.Code, rec.Body.String())
+	}
+	var result map[string]interface{}
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := result["checks"]; !ok {
+		t.Fatalf("expected checks in response: %+v", result)
+	}
+}

@@ -17,6 +17,7 @@ import {
   slackCanListChannelsFrom,
   updateForwardRule,
 } from './slackInboxHelpers';
+import { SlackSetupChecklist } from './slack/SlackSetupChecklist';
 import { mergeSettingsPut, openExternalLink, type SettingsTabProps } from './settingsShared';
 
 export function SlackSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
@@ -53,6 +54,7 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
     const [slackConnection, setSlackConnection] = useState<SlackConnectionResponse | null>(null);
     const [slackInbox, setSlackInbox] = useState<SlackInboxConfig>(() => defaultSlackInboxForm());
     const [slackAdvancedOpen, setSlackAdvancedOpen] = useState(false);
+    const [slackBindingAdvancedPolicy, setSlackBindingAdvancedPolicy] = useState(false);
     const [slackHubOverridesOpen, setSlackHubOverridesOpen] = useState(false);
     const [slackHubOverrides, setSlackHubOverrides] = useState({
       force_disabled: false,
@@ -161,10 +163,15 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
           clientId: cfg.oauth?.client_id ?? prev.clientId,
           redirectUrl: cfg.oauth?.redirect_url || `${hubHttp}/api/slack/oauth/callback`,
         }));
-        // New binding form: default to hub slack.default_policy (often "always"), not hardcoded mention_only.
+        // New bindings always default to mention_only (safest trigger policy).
         setSlackBindingForm((prev) =>
-          prev.slackChannelId.trim() ? prev : { ...prev, policy: defaultPolicy }
+          prev.slackChannelId.trim()
+            ? prev
+            : { ...prev, policy: 'mention_only' as SlackPolicy }
         );
+        if (connection.bridge_connected && slackCanListChannelsFrom(status, cfg)) {
+          void loadSlackChannels();
+        }
       } catch (e) {
         setTestResults((prev) => ({
           ...prev,
@@ -222,6 +229,7 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
           if (conn.bot_token_set) {
             await api.restartSlackBridge();
             await refreshSlackIntegration();
+            void loadSlackChannels();
             setTestResults((prev) => ({
               ...prev,
               slack: {
@@ -424,6 +432,13 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
     };
 
     const testSlackInboxDM = async () => {
+      if (
+        !window.confirm(
+          'Send a real test message to your Slack bot DM? Use this only in a private test setup.'
+        )
+      ) {
+        return;
+      }
       setSlackBusy(true);
       try {
         const api = new ChatAPI(hubHttp);
@@ -576,6 +591,17 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
           </p>
         </div>
       )}
+      <SlackSetupChecklist
+        hubHttp={hubHttp}
+        botTokenSet={Boolean(slackConfig?.bot_token_set)}
+        slackStatus={slackStatus}
+        slackConnection={slackConnection}
+        bindingsCount={slackBindings.length}
+        smokeChannelId={
+          slackBindingForm.slackChannelId.trim() ||
+          slackBindings.find((b) => b.enabled)?.slack_channel_id
+        }
+      />
       <div className="flex flex-wrap gap-2 mb-4">
         <button
           type="button"
@@ -831,12 +857,11 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
           </button>
         </div>
       </details>
-      <h4 className="text-sm font-semibold text-slack-text mb-2 mt-4">Personal inbox</h4>
+      <h4 className="text-sm font-semibold text-slack-text mb-2 mt-4">Mobile inbox (DM the bot)</h4>
       <p className="text-xs text-slack-textMuted mb-3">
-        DM the NJ bot from Slack while away. Forwarded channel messages get agent replies in the
-        original Slack thread.
+        DM the NJ bot from Slack mobile. Replies route to your inbox agent in Neural Junkie.
       </p>
-      <div className="p-4 mb-4 bg-slack-bgHover rounded-lg border border-slack-border space-y-3">
+      <div className="p-4 mb-6 bg-slack-bgHover rounded-lg border border-slack-border space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="font-medium text-slack-text">Enable personal inbox</div>
@@ -903,205 +928,212 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
             {slackInboxFeedback.message}
           </div>
         )}
-        <div className="border-t border-slack-border pt-3 space-y-3">
-          <div className="text-sm font-medium text-slack-text">Forwarding rules</div>
-          <label className="flex items-start gap-2 text-sm text-slack-text">
-            <input
-              type="checkbox"
-              checked={
-                slackInbox.forward_rules?.find((r) => r.type === 'mention_of_me')?.enabled ??
-                false
-              }
-              onChange={(e) =>
-                setSlackInbox((prev) =>
-                  updateForwardRule(prev, 'mentions', { enabled: e.target.checked })
-                )
-              }
-              className="mt-1"
-            />
-            <span>
-              <span className="font-medium">@mention of me</span>
-              <span className="block text-xs text-slack-textMuted">
-                Forward when someone @mentions you in watched channels
-              </span>
-            </span>
-          </label>
-          {slackChannels.length > 0 && (
-            <div className="max-h-28 overflow-y-auto border border-slack-border rounded p-2 space-y-1">
-              {slackChannels.map((c) => {
-                const mentionRule = slackInbox.forward_rules?.find(
-                  (r) => r.type === 'mention_of_me'
-                );
-                const checked = (mentionRule?.slack_channel_ids ?? []).includes(c.id);
-                return (
-                  <label key={c.id} className="flex items-center gap-2 text-xs text-slack-text">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleMentionWatchChannel(c.id)}
-                    />
-                    {c.is_private ? '🔒' : '#'}
-                    {c.name}
-                  </label>
-                );
-              })}
-            </div>
-          )}
-          <label className="flex items-start gap-2 text-sm text-slack-text">
-            <input
-              type="checkbox"
-              checked={
-                slackInbox.forward_rules?.find((r) => r.type === 'prefix')?.enabled ?? false
-              }
-              onChange={(e) =>
-                setSlackInbox((prev) =>
-                  updateForwardRule(prev, 'nj-prefix', { enabled: e.target.checked })
-                )
-              }
-              className="mt-1"
-            />
-            <span>
-              <span className="font-medium">Prefix </span>
-              <code className="text-xs bg-slack-bg px-1 rounded">nj:</code>
-              <span className="block text-xs text-slack-textMuted">
-                Start a line with nj: in any channel the bot is in
-              </span>
-            </span>
-          </label>
-          <label className="flex items-start gap-2 text-sm text-slack-text">
-            <input
-              type="checkbox"
-              checked={
-                slackInbox.forward_rules?.find((r) => r.type === 'reaction')?.enabled ?? false
-              }
-              onChange={(e) =>
-                setSlackInbox((prev) =>
-                  updateForwardRule(prev, 'robot-react', { enabled: e.target.checked })
-                )
-              }
-              className="mt-1"
-            />
-            <span className="flex-1">
-              <span className="font-medium">Reaction </span>
-              <input
-                type="text"
-                value={
-                  slackInbox.forward_rules?.find((r) => r.type === 'reaction')?.emoji ??
-                  'robot_face'
-                }
-                onChange={(e) =>
-                  setSlackInbox((prev) =>
-                    updateForwardRule(prev, 'robot-react', { emoji: e.target.value })
-                  )
-                }
-                className="ml-1 px-1 py-0.5 w-28 bg-slack-bg border border-slack-border rounded text-xs font-mono"
-              />
-              <span className="block text-xs text-slack-textMuted">
-                You react with this emoji to forward a message (watchlist same as @mentions)
-              </span>
-            </span>
-          </label>
-        </div>
-        <details className="border-t border-slack-border pt-3">
-          <summary className="text-sm font-medium text-slack-text cursor-pointer">
-            Human DM away mode
-          </summary>
-          <p className="text-xs text-slack-textMuted mt-2 mb-3">
-            When away, NJ reads your 1:1 Slack DMs locally (encrypted token) and replies in the DM as
-            &quot;Assistant (for you)&quot;. Someone must DM <strong>you</strong> directly — not note-to-self
-            (&quot;Jot Something Down&quot;) and not the NJ bot.
-          </p>
-          <div className="space-y-3">
-            <label className="flex items-center justify-between gap-3 text-sm text-slack-text">
-              <span>Enable human DM away mode</span>
-              <input
-                type="checkbox"
-                checked={slackInbox.human_dm_away?.enabled ?? false}
-                onChange={(e) =>
-                  setSlackInbox((prev) => ({
-                    ...prev,
-                    human_dm_away: { ...prev.human_dm_away, enabled: e.target.checked },
-                  }))
-                }
-                className="h-4 w-4 text-slack-accent"
-              />
-            </label>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void authorizeSlackUserDM()}
-                disabled={slackBusy || !(slackInbox.human_dm_away?.enabled ?? false)}
-                className="px-3 py-1.5 text-xs border border-slack-border rounded hover:bg-slack-bg text-slack-text disabled:opacity-50"
-              >
-                Authorize Slack DM access
-              </button>
-              <span className="text-xs text-slack-textMuted">
-                {slackInbox.human_dm_away?.user_token_set ? 'Authorized' : 'Not authorized'}
-              </span>
-            </div>
-            <label className="flex items-center justify-between gap-3 text-sm text-slack-text">
-              <span>I&apos;m away now</span>
-              <input
-                type="checkbox"
-                checked={slackInbox.human_dm_away?.away_enabled ?? false}
-                onChange={(e) =>
-                  setSlackInbox((prev) => ({
-                    ...prev,
-                    human_dm_away: { ...prev.human_dm_away, away_enabled: e.target.checked },
-                  }))
-                }
-                disabled={!(slackInbox.human_dm_away?.enabled ?? false)}
-                className="h-4 w-4 text-slack-accent disabled:opacity-50"
-              />
-            </label>
-            <label className="flex items-center justify-between gap-3 text-sm text-slack-text">
-              <span>
-                Schedule (monitor outside Mon–Fri 9am–5pm)
-              </span>
-              <input
-                type="checkbox"
-                checked={slackInbox.human_dm_away?.schedule_enabled ?? false}
-                onChange={(e) =>
-                  setSlackInbox((prev) => ({
-                    ...prev,
-                    human_dm_away: {
-                      ...prev.human_dm_away,
-                      schedule_enabled: e.target.checked,
-                    },
-                  }))
-                }
-                disabled={!(slackInbox.human_dm_away?.enabled ?? false)}
-                className="h-4 w-4 text-slack-accent disabled:opacity-50"
-              />
-            </label>
-            <label className="block text-xs text-slack-text">
-              Timezone
-              <input
-                type="text"
-                value={
-                  slackInbox.human_dm_away?.schedule_timezone ??
-                  'America/Los_Angeles'
-                }
-                onChange={(e) =>
-                  setSlackInbox((prev) => ({
-                    ...prev,
-                    human_dm_away: {
-                      ...prev.human_dm_away,
-                      schedule_timezone: e.target.value,
-                    },
-                  }))
-                }
-                disabled={!(slackInbox.human_dm_away?.enabled ?? false)}
-                className="mt-1 w-full px-2 py-1 bg-slack-bg border border-slack-border rounded font-mono text-xs disabled:opacity-50"
-              />
-            </label>
-            <p className="text-xs text-slack-textMuted">
-              Status:{' '}
-              {humanDMStatusLabel(slackInbox.human_dm_away?.monitoring_status)}
-            </p>
-          </div>
-        </details>
       </div>
+
+      <h4 className="text-sm font-semibold text-slack-text mb-2">Forwarding rules</h4>
+      <p className="text-xs text-slack-textMuted mb-3">
+        Forward selected channel messages into your personal inbox. Agent replies go to the original
+        Slack thread.
+      </p>
+      <div className="p-4 mb-6 bg-slack-bgHover rounded-lg border border-slack-border space-y-3">
+        <label className="flex items-start gap-2 text-sm text-slack-text">
+          <input
+            type="checkbox"
+            checked={
+              slackInbox.forward_rules?.find((r) => r.type === 'mention_of_me')?.enabled ?? false
+            }
+            onChange={(e) =>
+              setSlackInbox((prev) =>
+                updateForwardRule(prev, 'mentions', { enabled: e.target.checked })
+              )
+            }
+            className="mt-1"
+          />
+          <span>
+            <span className="font-medium">@mention of me</span>
+            <span className="block text-xs text-slack-textMuted">
+              Forward when someone @mentions you in watched channels
+            </span>
+          </span>
+        </label>
+        {slackChannels.length > 0 && (
+          <div className="max-h-28 overflow-y-auto border border-slack-border rounded p-2 space-y-1">
+            {slackChannels.map((c) => {
+              const mentionRule = slackInbox.forward_rules?.find((r) => r.type === 'mention_of_me');
+              const checked = (mentionRule?.slack_channel_ids ?? []).includes(c.id);
+              return (
+                <label key={c.id} className="flex items-center gap-2 text-xs text-slack-text">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleMentionWatchChannel(c.id)}
+                  />
+                  {c.is_private ? '🔒' : '#'}
+                  {c.name}
+                </label>
+              );
+            })}
+          </div>
+        )}
+        <label className="flex items-start gap-2 text-sm text-slack-text">
+          <input
+            type="checkbox"
+            checked={slackInbox.forward_rules?.find((r) => r.type === 'prefix')?.enabled ?? false}
+            onChange={(e) =>
+              setSlackInbox((prev) =>
+                updateForwardRule(prev, 'nj-prefix', { enabled: e.target.checked })
+              )
+            }
+            className="mt-1"
+          />
+          <span>
+            <span className="font-medium">Prefix </span>
+            <code className="text-xs bg-slack-bg px-1 rounded">nj:</code>
+            <span className="block text-xs text-slack-textMuted">
+              Start a line with nj: in any channel the bot is in
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-sm text-slack-text">
+          <input
+            type="checkbox"
+            checked={
+              slackInbox.forward_rules?.find((r) => r.type === 'reaction')?.enabled ?? false
+            }
+            onChange={(e) =>
+              setSlackInbox((prev) =>
+                updateForwardRule(prev, 'robot-react', { enabled: e.target.checked })
+              )
+            }
+            className="mt-1"
+          />
+          <span className="flex-1">
+            <span className="font-medium">Reaction </span>
+            <input
+              type="text"
+              value={
+                slackInbox.forward_rules?.find((r) => r.type === 'reaction')?.emoji ?? 'robot_face'
+              }
+              onChange={(e) =>
+                setSlackInbox((prev) =>
+                  updateForwardRule(prev, 'robot-react', { emoji: e.target.value })
+                )
+              }
+              className="ml-1 px-1 py-0.5 w-28 bg-slack-bg border border-slack-border rounded text-xs font-mono"
+            />
+            <span className="block text-xs text-slack-textMuted">
+              You react with this emoji to forward a message (watchlist same as @mentions)
+            </span>
+          </span>
+        </label>
+        <button
+          type="button"
+          onClick={() => void saveSlackInboxSettings()}
+          disabled={slackBusy}
+          className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50 text-sm"
+        >
+          Save forwarding rules
+        </button>
+      </div>
+
+      <h4 className="text-sm font-semibold text-slack-text mb-2">Human DM away mode</h4>
+      <p className="text-xs text-slack-textMuted mb-3">
+        When away, NJ reads your 1:1 Slack DMs locally (encrypted token) and replies in the DM as
+        &quot;Assistant (for you)&quot;. Someone must DM <strong>you</strong> directly — not
+        note-to-self (&quot;Jot Something Down&quot;) and not the NJ bot.
+      </p>
+      <div className="p-4 mb-6 bg-slack-bgHover rounded-lg border border-slack-border space-y-3">
+        <label className="flex items-center justify-between gap-3 text-sm text-slack-text">
+          <span>Enable human DM away mode</span>
+          <input
+            type="checkbox"
+            checked={slackInbox.human_dm_away?.enabled ?? false}
+            onChange={(e) =>
+              setSlackInbox((prev) => ({
+                ...prev,
+                human_dm_away: { ...prev.human_dm_away, enabled: e.target.checked },
+              }))
+            }
+            className="h-4 w-4 text-slack-accent"
+          />
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void authorizeSlackUserDM()}
+            disabled={slackBusy || !(slackInbox.human_dm_away?.enabled ?? false)}
+            className="px-3 py-1.5 text-xs border border-slack-border rounded hover:bg-slack-bg text-slack-text disabled:opacity-50"
+          >
+            Authorize Slack DM access
+          </button>
+          <span className="text-xs text-slack-textMuted">
+            {slackInbox.human_dm_away?.user_token_set ? 'Authorized' : 'Not authorized'}
+          </span>
+        </div>
+        <label className="flex items-center justify-between gap-3 text-sm text-slack-text">
+          <span>I&apos;m away now</span>
+          <input
+            type="checkbox"
+            checked={slackInbox.human_dm_away?.away_enabled ?? false}
+            onChange={(e) =>
+              setSlackInbox((prev) => ({
+                ...prev,
+                human_dm_away: { ...prev.human_dm_away, away_enabled: e.target.checked },
+              }))
+            }
+            disabled={!(slackInbox.human_dm_away?.enabled ?? false)}
+            className="h-4 w-4 text-slack-accent disabled:opacity-50"
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3 text-sm text-slack-text">
+          <span>Schedule (monitor outside Mon–Fri 9am–5pm)</span>
+          <input
+            type="checkbox"
+            checked={slackInbox.human_dm_away?.schedule_enabled ?? false}
+            onChange={(e) =>
+              setSlackInbox((prev) => ({
+                ...prev,
+                human_dm_away: {
+                  ...prev.human_dm_away,
+                  schedule_enabled: e.target.checked,
+                },
+              }))
+            }
+            disabled={!(slackInbox.human_dm_away?.enabled ?? false)}
+            className="h-4 w-4 text-slack-accent disabled:opacity-50"
+          />
+        </label>
+        <label className="block text-xs text-slack-text">
+          Timezone
+          <input
+            type="text"
+            value={slackInbox.human_dm_away?.schedule_timezone ?? 'America/Los_Angeles'}
+            onChange={(e) =>
+              setSlackInbox((prev) => ({
+                ...prev,
+                human_dm_away: {
+                  ...prev.human_dm_away,
+                  schedule_timezone: e.target.value,
+                },
+              }))
+            }
+            disabled={!(slackInbox.human_dm_away?.enabled ?? false)}
+            className="mt-1 w-full px-2 py-1 bg-slack-bg border border-slack-border rounded font-mono text-xs disabled:opacity-50"
+          />
+        </label>
+        <p className="text-xs text-slack-textMuted">
+          Status: {humanDMStatusLabel(slackInbox.human_dm_away?.monitoring_status)}
+        </p>
+        <button
+          type="button"
+          onClick={() => void saveSlackInboxSettings()}
+          disabled={slackBusy}
+          className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50 text-sm"
+        >
+          Save away mode
+        </button>
+      </div>
+
       <h4 className="text-sm font-semibold text-slack-text mb-2">Channel bindings</h4>
       <p className="text-xs text-slack-textMuted mb-3">
         Pick a channel the bot is in, or paste a channel ID (C…) from Slack → channel → About.
@@ -1138,7 +1170,7 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
               ...prev,
               slackChannelId: id,
               slackChannelName: ch?.name ?? prev.slackChannelName,
-              policy: slackForm.defaultPolicy,
+              policy: 'mention_only',
             }));
           }}
           className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text sm:col-span-2"
@@ -1195,26 +1227,36 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
             </option>
           ))}
         </select>
-        <select
-          value={slackBindingForm.policy}
-          onChange={(e) =>
-            setSlackBindingForm((prev) => ({
-              ...prev,
-              policy: e.target.value as SlackPolicy,
-            }))
+        <details
+          open={slackBindingAdvancedPolicy}
+          onToggle={(e) =>
+            setSlackBindingAdvancedPolicy((e.target as HTMLDetailsElement).open)
           }
-          className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text"
         >
-          <option value="mention_only" className="bg-slack-bg text-slack-text">
-            Mention only
-          </option>
-          <option value="questions" className="bg-slack-bg text-slack-text">
-            Questions
-          </option>
-          <option value="always" className="bg-slack-bg text-slack-text">
-            Always
-          </option>
-        </select>
+          <summary className="text-xs text-slack-textMuted cursor-pointer sm:col-span-2">
+            Advanced trigger policy (default: mention only)
+          </summary>
+          <select
+            value={slackBindingForm.policy}
+            onChange={(e) =>
+              setSlackBindingForm((prev) => ({
+                ...prev,
+                policy: e.target.value as SlackPolicy,
+              }))
+            }
+            className="mt-2 w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text"
+          >
+            <option value="mention_only" className="bg-slack-bg text-slack-text">
+              Mention only
+            </option>
+            <option value="questions" className="bg-slack-bg text-slack-text">
+              Questions
+            </option>
+            <option value="always" className="bg-slack-bg text-slack-text">
+              Always
+            </option>
+          </select>
+        </details>
         <button
           type="button"
           onClick={() => void saveSlackBinding()}

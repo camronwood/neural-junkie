@@ -44,7 +44,20 @@ sequenceDiagram
 
 1. **Settings → Integrations → Slack** → **Connect Slack**
 2. Approve the app in the browser; the hub saves the bot token and starts the bridge
-3. **Load Slack channels**, pick an agent, and save a binding
+3. Follow the **Setup checklist** (tokens, bridge, channels, binding)
+4. **Load Slack channels**, pick an agent, save a binding (`mention_only` by default)
+5. @mention the bot in that channel to talk to your agent
+
+### Quick start (three tiers)
+
+| Tier | What | When to use |
+|------|------|-------------|
+| **Core** | Connect + channel binding + @mention | Default — agent in a team channel |
+| **Mobile inbox** | DM the bot from Slack | Settings section — personal inbox |
+| **Forwarding** | Channel forward rules | Settings section — @mention, `nj:`, reaction |
+| **Away assistant** | Human DM auto-reply | Settings section — human DM away mode |
+
+Advanced BYO tokens and hub overrides stay under **Advanced** in Settings.
 
 Status and workspace name: `GET /api/slack/connection`
 
@@ -333,7 +346,8 @@ Repo, CLI, and MCP-enabled specialists can be assigned. Tool and file-change **a
 | `/api/slack/inbox/test-dm` | POST | Test message to owner bot DM |
 | `/api/slack/oauth/user-dm/start` | GET | User DM away OAuth (`?json=1` returns URL) |
 | `/api/slack/oauth/user-dm/callback` | GET | User DM away OAuth callback |
-| `/api/slack/diagnose` | GET | Troubleshooting hints |
+| `/api/slack/diagnose` | GET | Troubleshooting hints + setup checklist |
+| `/api/slack/smoke/run` | POST | Maintainer bridge test (default: synthetic inbound, no Slack posts) |
 
 ## Related
 

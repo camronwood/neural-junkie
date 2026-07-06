@@ -27,6 +27,19 @@ make layer-overnight LAYER=implement    # walk-away layer fix loop (tmux)
 
 Reports: `docs/testing/layer-gate-<layer>-*.md` and `layer-fix-loop-*.md`.
 
+**Test-growth loop** (discover gaps → add/strengthen tests → verify → commit):
+
+```bash
+make test-growth-list              # ranked candidates (no agent)
+make test-growth-once DRY_RUN=1    # preview one iteration
+make test-growth-loop              # MAX_ITER=3, branch commits per accepted iteration
+make test-growth-loop SKIP_LIVE=1  # CI/unit + scenario contract only (no hub)
+```
+
+Reports: `docs/testing/test-growth-*.md` and `test-growth-candidates.md`.
+
+Use `layer-fix-loop` when tests fail and product code needs repair. Use `test-growth-loop` when the suite is green but coverage or edge-case assertions should improve.
+
 **Breaking change:** `make chat-scenarios-regression` and `make conversation-scenarios-regression` are removed — use `make layer-gate LAYER=chat` (scripts still run internally).
 
 **One command:** Live test targets (`layer-gate`, `layer-fix-loop`, `implement-scenarios`, `release-prep`, etc.) automatically start Ollama, warm models, and boot the regression hub. No separate `ollama serve` / `make server-regression` required. Set `SKIP_BOOT=1` to skip when the stack is already up.
@@ -46,7 +59,7 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Workspace MCP tools (read/grep/glob) | `internal/mcp/workspace` | manual IDE Agent mode |
 | Everyone contributes in collab | Discussion turns, `@mention` out-of-turn | `make collab-scenarios-all`; `wait_discussion` + nudges |
 | Deliverables on real paths | Plan parser, execution sandbox | Collab regression scenarios, Phoenix with real repo |
-| Slack = same agent surface | Slack bridge → bound channel | `make slack-smoke`; optional `LIVE=1` |
+| Slack = same agent surface | Slack bridge → bound channel | `make slack-smoke`; optional `LIVE=1` (synthetic inbound, no posts); `SLACK_SMOKE_OUTBOUND=1` for gated outbound |
 | Cursor CLI on PATH | [CLI_AGENTS.md](CLI_AGENTS.md) | Optional manual `@Cursor` chat/collab (not CI) |
 | Go test failure repair | Verify loop + `go test ./...` | `go-test-failure-repair` |
 | TS compile error fix | Node verify / tsc | `typescript-compile-error-fix` |
@@ -190,7 +203,9 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 8. `make layer-gate LAYER=collab-full` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.
 9. `make learning-scenarios`
 10. Optional: `collab-scenario-matrix`, `collab-routing-matrix`, Phoenix with `NEURAL_JUNKIE_SCENARIO_REPO=/path/to/clone`
-11. Optional: `LIVE=1 make slack-smoke` (runs `scripts/slack-live-smoke.sh`)
+11. Optional Slack live smoke (maintainer, hub running with Slack connected):
+    - **Default (no Slack messages sent):** `LIVE=1 make slack-smoke` — runs `POST /api/slack/smoke/run` with synthetic inbound only
+    - **Optional outbound** (private `#nj-smoke-test`, bot + you only): `SLACK_SMOKE_ALLOW=1 SLACK_SMOKE_CHANNEL_ID=C… SLACK_SMOKE_OUTBOUND=1 LIVE=1 make slack-smoke`
 12. Optional: `@Cursor` smoke when `agent` binary on PATH
 13. **Full gate** (only after layers pass): `make release-prep` or `make overnight`
 

@@ -8,13 +8,23 @@ import (
 	"strings"
 )
 
+// TemplateInputSpec describes a run-time parameter in a bundled template JSON file.
+type TemplateInputSpec struct {
+	Key      string `json:"key"`
+	Type     string `json:"type"`
+	Label    string `json:"label,omitempty"`
+	Default  string `json:"default,omitempty"`
+	Required bool   `json:"required,omitempty"`
+}
+
 // RunbookTemplate is a reusable runbook definition stored on disk.
 type RunbookTemplate struct {
-	Name             string          `json:"name"`
-	Title            string          `json:"title"`
-	Description      string          `json:"description"`
-	ExecutionPolicy  ExecutionPolicy `json:"execution_policy,omitempty"`
-	Tasks            []CollaborationTask `json:"tasks"`
+	Name            string              `json:"name"`
+	Title           string              `json:"title"`
+	Description     string              `json:"description"`
+	ExecutionPolicy ExecutionPolicy     `json:"execution_policy,omitempty"`
+	Inputs          []TemplateInputSpec `json:"inputs,omitempty"`
+	Tasks           []CollaborationTask `json:"tasks"`
 }
 
 // ListRunbookTemplates reads JSON templates from dir (*.json).
