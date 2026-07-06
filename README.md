@@ -69,7 +69,7 @@ Main workspace — files, editor, multi-agent collaboration, and chat (same as t
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.2.0-beta.3](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.3) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.2.0-beta.5](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|

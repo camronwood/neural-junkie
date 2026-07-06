@@ -1,6 +1,6 @@
-# Download and first run (v1.2.0-beta.3)
+# Download and first run (v1.2.0-beta.5)
 
-Install Neural Junkie from [GitHub Releases — v1.2.0-beta.3](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.3) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) — no Go, Node, or Rust required for the desktop app.
+Install Neural Junkie from [GitHub Releases — v1.2.0-beta.5](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) — no Go, Node, or Rust required for the desktop app.
 
 **Auto-update:** After you install a release that includes in-app updates, Neural Junkie checks for newer builds on your channel (beta or stable) and can install them with one click. See [RELEASE_UPDATES.md](RELEASE_UPDATES.md). If you are on an older installer from before auto-update shipped, install one current release manually first.
 

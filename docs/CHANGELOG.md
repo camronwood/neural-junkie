@@ -6,9 +6,29 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.5] - 2026-07-06
+
+The release where the loops close — ReAct tools, routing trace, Runbooks v2, multi-repo workspace scope, collab hardening, LoRA v2 specialists, personal learning, Slack diagnostics, and release-engineering automation.
+
 ### Added
 - **ReAct tool wrapper** — MCP tool loops on non-native models (e.g. `gemma3:12b`) via tagged `<tool_call>` parsing, with Qwen swap fallback on iteration cap; config `ollama.react_tools_enabled` / `react_tool_models`; article [react-tools](articles/react-tools.html).
-- **Per-turn routing trace (MVP)** — live telemetry drawer, message routing badges, and post-hoc trace panel now show model tier, retrieval mode, and governance (composer mode, context scope, impl session) for chat, collab, and implementation turns.
+- **Per-turn routing trace (MVP)** — live telemetry drawer, message routing badges, and post-hoc trace panel show model tier, retrieval mode, and governance (composer mode, context scope, impl session) for chat, collab, and implementation turns.
+- **Runbooks v2** — persisted `RunbookDefinition` library, `RunExecution` history, connector profiles, pack-owned templates, and desktop library UI ([RUNBOOKS_V2.md](RUNBOOKS_V2.md)).
+- **Multi-repo workspace scope** — project sets group workspace roots; desktop **workspace scope chip**; cross-repo hints in agent context; ambient-scope scenario coverage.
+- **Connection settings** — hub URL, server/network, automation, and connectors tabs for runtime config without hand-editing JSON.
+- **LoRA v2 compound specialists** — import rows, review training JSONL, bootstrap repo indexes, compose Ollama tags from one base + adapters across chat, collab, IDE, and pack surfaces.
+- **Personal learning** — explicit user-confirmed memory scoped per expert, globally, or per collaboration; optional export into LoRA training rows.
+- **Slack setup diagnostics** — settings checklist, smoke/diagnose endpoints, clearer handler errors for OAuth and channel routing.
+- **Release engineering loops** — `make layer-gate`, `make layer-fix-loop`, and `make test-growth-loop` with artifacts in `docs/testing/`.
+- **Beta.5 release article** — [articles/beta-5.html](articles/beta-5.html) with cover image.
+
+### Changed
+- **Collaboration hardening** — plan parser uses newest agent turn's task block; planning recap timeout 240s → 90s; discussion watchdog advances timed-out discussions; turn handoff retries; approve-plan harness timeout 60s → 180s.
+- **Runtime config** — settings restart baseline avoids copying `config.Config` with embedded mutex (go vet clean).
+
+### Fixed
+- **Approve-plan test flake** — hub tracks approve-plan async work; tests drain before TempDir cleanup.
+- **Pack sidecar IDE typing** — moved sidecar env types to `internal/packs/sidecar_env.go` so gopls no longer reports invalid types in config.
 
 ## [1.2.0-beta.4] - 2026-06-28
 
