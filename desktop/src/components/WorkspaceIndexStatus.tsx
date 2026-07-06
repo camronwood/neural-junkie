@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ChatAPI } from '../api/chatAPI';
 
-interface WorkspaceIndexStatusProps {
-  repoPath: string | undefined;
-}
-
-export function WorkspaceIndexStatus({ repoPath }: WorkspaceIndexStatusProps) {
-  const [label, setLabel] = useState<string>('');
+export function useWorkspaceIndexLabel(repoPath: string | undefined): string {
+  const [label, setLabel] = useState('');
 
   useEffect(() => {
     if (!repoPath) {
@@ -38,11 +34,20 @@ export function WorkspaceIndexStatus({ repoPath }: WorkspaceIndexStatusProps) {
     };
   }, [repoPath]);
 
+  return label;
+}
+
+interface WorkspaceIndexStatusProps {
+  repoPath: string | undefined;
+}
+
+export function WorkspaceIndexStatus({ repoPath }: WorkspaceIndexStatusProps) {
+  const label = useWorkspaceIndexLabel(repoPath);
   if (!label) return null;
 
   return (
     <span
-      className="ml-2 px-2 py-0.5 text-[10px] uppercase tracking-wide rounded bg-slack-bgHover text-slack-textMuted whitespace-nowrap"
+      className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded bg-slack-bgHover text-slack-textMuted whitespace-nowrap flex-shrink-0"
       title="Semantic codebase index for @codebase and specialist consult"
     >
       {label}

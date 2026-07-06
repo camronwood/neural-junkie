@@ -46,7 +46,7 @@ import { FileNameDialog } from './FileNameDialog';
 import { WorkspaceSwitcherModal } from './WorkspaceSwitcherModal';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 import { WorkspaceTabBar } from './WorkspaceTabBar';
-import { WorkspaceIndexStatus } from './WorkspaceIndexStatus';
+import { FilesPanelMenu } from './FilesPanelMenu';
 import { WorkspaceScopeChip } from './WorkspaceScopeChip';
 import { devLog } from '../utils/devLog';
 import { qcReportRelativePath } from '../utils/panelQcUtils';
@@ -1228,9 +1228,15 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
         </div>
       
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slack-border flex items-center justify-between bg-slack-bgHover">
-        <h2 className="font-bold text-slack-text">Files</h2>
-        <div className="flex items-center gap-2">
+      <div className="px-4 py-3 border-b border-slack-border flex items-center justify-between gap-2 bg-slack-bgHover min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <h2 className="font-bold text-slack-text flex-shrink-0">Files</h2>
+          <WorkspaceScopeChip />
+          <div className="min-w-0 flex-shrink">
+            <FilesPanelMenu repoPath={getActiveWorkspace()?.path} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
           {canSwitchWorkspaces && (
             <button
               type="button"
@@ -1293,16 +1299,12 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
 
       {/* Workspace Tabs */}
       <div className="px-4 py-2 border-b border-slack-border bg-slack-bgHover flex items-center min-w-0">
-        <div className="flex-1 min-w-0">
-          <WorkspaceTabBar
-            workspaces={workspaces}
-            activeWorkspaceId={activeWorkspaceId}
-            onSelect={setActiveWorkspace}
-            onRemove={handleRemoveWorkspace}
-          />
-        </div>
-        <WorkspaceIndexStatus repoPath={getActiveWorkspace()?.path} />
-        <WorkspaceScopeChip />
+        <WorkspaceTabBar
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
+          onSelect={setActiveWorkspace}
+          onRemove={handleRemoveWorkspace}
+        />
       </div>
 
       {/* File Tree */}
