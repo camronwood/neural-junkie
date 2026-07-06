@@ -13,30 +13,38 @@ Planning document for the next generation of official domain packs.
 
 The hub and desktop app own **platform primitives** only:
 
-| Core owns | Packs own |
-|-----------|-----------|
-| Pack install, validate, upgrade, dev-link | Domain specialists, MCP tools, sidecars |
-| Capability registry + extension kinds | `capability_defs`, pack-local UI hooks |
-| Hub sidecar host + route proxy | Python/Node sidecar implementations |
-| Generic workbench shell (editor + panel host) | Domain viewers, tools, and workflows |
-| Assistant, Moderator, CLI agent auto-detect | Runbooks, scenarios, workspace guides |
-| Pack store, settings overlay merge | Model eval suites, setup scripts, assets |
 
-**Anti-pattern (v1 debt):** Domain logic embedded in `internal/mcp/*`, `builtin/*` agents, and desktop workbench components with no pack-owned counterpart. v2 migrates that logic **out** of core into pack repos over time.
+| Core owns                                     | Packs own                                |
+| --------------------------------------------- | ---------------------------------------- |
+| Pack install, validate, upgrade, dev-link     | Domain specialists, MCP tools, sidecars  |
+| Capability registry + extension kinds         | `capability_defs`, pack-local UI hooks   |
+| Hub sidecar host + route proxy                | Python/Node sidecar implementations      |
+| Generic workbench shell (editor + panel host) | Domain viewers, tools, and workflows     |
+| Assistant, Moderator, CLI agent auto-detect   | Runbooks, scenarios, workspace guides    |
+| Pack store, settings overlay merge            | Model eval suites, setup scripts, assets |
+
+
+**Anti-pattern (v1 debt):** Domain logic embedded in `internal/mcp/`*, `builtin/*` agents, and desktop workbench components with no pack-owned counterpart. v2 migrates that logic **out** of core into pack repos over time.
 
 **Reference implementation:** [music-creation](https://github.com/camronwood/neural-junkie-pack-music-creation) — `capability_defs`, hub sidecar, `WORKSPACE.md`, setup scripts, settings overlay. Customer lab packs follow the same pattern ([PACKS_CUSTOM.md](./PACKS_CUSTOM.md)).
 
 ---
 
+
+
 ## v1 → v2 pattern
 
-| v1 (today) | v2 (target) |
-|------------|-------------|
-| Thin manifest (`pack.yaml` + release scripts) | Fat bundle: assets, sidecars, runbooks, scenarios |
-| Single expert per domain pack | Specialist roster where the domain warrants it |
-| Platform capability tokens only | `capability_defs` for pack-local tools and UI |
-| Docs and evals in core repo | Pack repo owns smoke scenarios and model benchmarks |
-| Hub implements domain MCP servers | Pack sidecars + `mcp-tools` capability where needed |
+
+| v1 (today)                                    | v2 (target)                                         |
+| --------------------------------------------- | --------------------------------------------------- |
+| Thin manifest (`pack.yaml` + release scripts) | Fat bundle: assets, sidecars, runbooks, scenarios   |
+| Single expert per domain pack                 | Specialist roster where the domain warrants it      |
+| Platform capability tokens only               | `capability_defs` for pack-local tools and UI       |
+| Docs and evals in core repo                   | Pack repo owns smoke scenarios and model benchmarks |
+| Hub implements domain MCP servers             | Pack sidecars + `mcp-tools` capability where needed |
+
+
+
 
 ### Standard v2 pack layout
 
@@ -59,7 +67,11 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ---
 
+
+
 ## Pack-by-pack v2 vision
+
+
 
 ### 1. Software development (`software-development`)
 
@@ -81,6 +93,8 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ---
 
+
+
 ### 2. Life sciences (`life-sciences`)
 
 **v1 today:** Single **BiologyExpert**, OpenBioLLM chat, `analyze_sequence` + `fold_protein` (ESMFold via HF), no capability tokens. Lab scan/QC/Phoenix lives in customer sideload packs.
@@ -93,14 +107,18 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 - **Second specialist** — split sequence/QC from structure/cheminformatics (e.g. GenomicsExpert + StructuralBiologyExpert, or ChemInformaticsExpert with RDKit sidecar).
 - **Local fold path** — optional sidecar for ESMFold or ColabFold so HF token is not mandatory for every fold.
 - **Official runbook tier** — ship `sequence-review` and basic QC runbooks in the official pack; keep Phoenix/12-Plex in customer packs.
-- **`capability_defs`** — `biology-tools` sidecar for RDKit, pathway DB lookups, BLAST.
+- `capability_defs` — `biology-tools` sidecar for RDKit, pathway DB lookups, BLAST.
 - **Model refresh + eval** — newer bio LLMs with benchmark suite in pack repo (pattern: CAD `model-eval`).
 
 **North star:** v1 is one expert + two tools. v2 is **bench + runbooks + optional cheminformatics**, with customer packs still owning org-specific LIMS/Phoenix.
 
+**Implementation plan:** [LIFE_SCIENCES_V2.md](./LIFE_SCIENCES_V2.md) — specialists, sidecar, viewer, runbooks, eval, phased delivery.
+
 **Repo:** [neural-junkie-pack-life-sciences](https://github.com/camronwood/neural-junkie-pack-life-sciences)
 
 ---
+
+
 
 ### 3. CAD (`cad`)
 
@@ -121,6 +139,8 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ---
 
+
+
 ### 4. Specialist tuning (`specialist-tuning`)
 
 **v1 today:** Meta-pack — personal learning, LoRA train/compose, bootstrap adapters (`nj-security`, `nj-code-review`, `nj-backend`, `nj-biology`). No new agents. Core already ships LoRA v2 training stack.
@@ -139,6 +159,8 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 **Repo:** [neural-junkie-pack-specialist-tuning](https://github.com/camronwood/neural-junkie-pack-specialist-tuning)
 
 ---
+
+
 
 ### 5. AWS (`aws`)
 
@@ -160,6 +182,8 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ---
 
+
+
 ### 6. Incident management (`incident-management`)
 
 **v1 today:** **IncidentManager**, Jira Cloud MCP (get/search/comment/summarize). Requires software-development pack.
@@ -178,6 +202,8 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 **Repo:** [neural-junkie-pack-incident-management](https://github.com/camronwood/neural-junkie-pack-incident-management)
 
 ---
+
+
 
 ### 7. Web browser (`web-browser`)
 
@@ -198,6 +224,8 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ---
 
+
+
 ### 8. Music creation (`music-creation`)
 
 **v1 today:** Most mature pack. **MusicExpert**, ACE-Step 1.5 sidecar, lyrics via Ollama, inline player, model variants (SFT/Turbo/XL), `WORKSPACE.md`, setup scripts. Catalog version 1.0.1+.
@@ -217,20 +245,26 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ---
 
+
+
 ## Suggested sequencing
 
 Prioritized by impact vs effort and alignment with collab reliability work (Q3 2026).
 
-| Priority | Pack | Rationale |
-|----------|------|-----------|
-| 1 | **Web browser** | Collab website scenarios exist; largest gap between promise and capability |
-| 2 | **Incident management** | Natural glue for collab reliability; handoff runbooks are mostly pack assets |
-| 3 | **Life sciences** | PDB viewer unlocks visible value; v1 out-of-scope list is a ready backlog |
-| 4 | **Software development** | Manifest/model refresh + migrate MCP into pack; avoid new IDE features in core |
-| 5 | **AWS** | Typed tools + cost/security before write mode |
-| 6 | **CAD** | Manufacturing path + eval maturity |
-| 7 | **Specialist tuning** | Waits on Ollama Qwen LoRA support + training sidecar |
-| 8 | **Music** | Already strongest; v2 is polish and workbench depth |
+
+| Priority | Pack                     | Rationale                                                                      |
+| -------- | ------------------------ | ------------------------------------------------------------------------------ |
+| 1        | **Web browser**          | Collab website scenarios exist; largest gap between promise and capability     |
+| 2        | **Incident management**  | Natural glue for collab reliability; handoff runbooks are mostly pack assets   |
+| 3        | **Life sciences**        | PDB viewer unlocks visible value; v1 out-of-scope list is a ready backlog      |
+| 4        | **Software development** | Manifest/model refresh + migrate MCP into pack; avoid new IDE features in core |
+| 5        | **AWS**                  | Typed tools + cost/security before write mode                                  |
+| 6        | **CAD**                  | Manufacturing path + eval maturity                                             |
+| 7        | **Specialist tuning**    | Waits on Ollama Qwen LoRA support + training sidecar                           |
+| 8        | **Music**                | Already strongest; v2 is polish and workbench depth                            |
+
+
+
 
 ### Phased rollout
 
@@ -253,7 +287,11 @@ graph LR
   phase1 --> phase2 --> phase3
 ```
 
+
+
 ---
+
+
 
 ## Core work required (thin additions only)
 
@@ -262,10 +300,12 @@ These are platform changes that **enable** fat packs without shipping domain fea
 1. **Sidecar + MCP host contracts** — stable `NJ_PACK_SETTINGS_JSON`, health checks, route proxy, pack-owned MCP registration via `mcp-tools` capability.
 2. **Generic workbench host** — desktop loads pack-declared `file-viewer` panels without hard-coded domain components in core (migrate CAD/browser viewers to pack-registered viewers over time).
 3. **Pack scenario runner** — hub or script hook to run `scenarios/` from an installed pack for smoke/regression (optional `make pack-smoke` convention).
-4. **Agent implementation indirection** — `implementation: pack/<module>` or sidecar-backed specialists so new experts do not require core `builtin/*` entries.
+4. **Agent implementation indirection** — `implementation: pack/<module>` or sidecar-backed specialists so new experts do not require core `builtin/`* entries.
 5. **Documentation split** — per-pack v1 docs in core become **summaries**; pack repos own detailed WORKSPACE guides and release notes.
 
 ---
+
+
 
 ## What stays in core forever
 
@@ -279,6 +319,8 @@ These are platform changes that **enable** fat packs without shipping domain fea
 
 ---
 
+
+
 ## Success criteria for v2
 
 - [ ] Fresh Neural Junkie install with **zero packs** passes core smoke (chat, Assistant, collab, Pack dev studio).
@@ -288,15 +330,20 @@ These are platform changes that **enable** fat packs without shipping domain fea
 
 ---
 
+
+
 ## See also
 
-| Pack | v1 doc |
-|------|--------|
+
+| Pack                 | v1 doc                                                         |
+| -------------------- | -------------------------------------------------------------- |
 | Software development | [SOFTWARE_DEVELOPMENT_PACK.md](./SOFTWARE_DEVELOPMENT_PACK.md) |
-| Life sciences | [BIOLOGY_PACK.md](./BIOLOGY_PACK.md) |
-| CAD | [CAD_PACK.md](./CAD_PACK.md) |
-| Specialist tuning | [SPECIALIST_TUNING_PACK.md](./SPECIALIST_TUNING_PACK.md) |
-| AWS | [AWS_PACK.md](./AWS_PACK.md) |
-| Incident management | [INCIDENT_PACK.md](./INCIDENT_PACK.md) |
-| Web browser | [WEB_BROWSER_PACK.md](./WEB_BROWSER_PACK.md) |
-| Music creation | [MUSIC_CREATION_PACK.md](./MUSIC_CREATION_PACK.md) |
+| Life sciences        | [BIOLOGY_PACK.md](./BIOLOGY_PACK.md) · [LIFE_SCIENCES_V2.md](./LIFE_SCIENCES_V2.md) |
+| CAD                  | [CAD_PACK.md](./CAD_PACK.md)                                   |
+| Specialist tuning    | [SPECIALIST_TUNING_PACK.md](./SPECIALIST_TUNING_PACK.md)       |
+| AWS                  | [AWS_PACK.md](./AWS_PACK.md)                                   |
+| Incident management  | [INCIDENT_PACK.md](./INCIDENT_PACK.md)                         |
+| Web browser          | [WEB_BROWSER_PACK.md](./WEB_BROWSER_PACK.md)                   |
+| Music creation       | [MUSIC_CREATION_PACK.md](./MUSIC_CREATION_PACK.md)             |
+
+

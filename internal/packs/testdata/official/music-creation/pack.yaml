@@ -1,10 +1,11 @@
 id: music-creation
-version: "1.0.0"
+version: "2.0.0"
 title: Music creation
-description: MusicExpert — lyrics via Ollama, full songs via local ACE-Step 1.5 sidecar.
+description: MusicExpert — lyrics via Ollama, ACE-Step 1.5 sidecar, music workbench, stems export, and EP workflow.
 layout_profile: team
 capabilities:
   - music-generation
+  - music-workbench
   - music-sidecar
 capability_defs:
   music-sidecar:
@@ -23,6 +24,9 @@ capability_defs:
       - ace_step_infer_method
       - ace_step_default_seed
       - music_output_dir
+      - music_project_dir
+      - bundled_turbo_checkpoint
+      - enable_midi_export
       - python_executable
 agents:
   - type: music
@@ -49,9 +53,12 @@ mcp_agents:
 settings_overlay:
   ace_step_venv: ~/.neural-junkie/music/acestep-venv
   ace_step_project: ~/.neural-junkie/music/ACE-Step-1.5
-  ace_step_checkpoint: ~/.neural-junkie/music/checkpoints/acestep-v15-sft
-  ace_step_model_variant: sft
+  ace_step_checkpoint: ~/.neural-junkie/music/checkpoints/acestep-v15-turbo
+  ace_step_model_variant: turbo
   music_output_dir: ~/.neural-junkie/music/output
+  music_project_dir: music
+  bundled_turbo_checkpoint: assets/checkpoints/acestep-v15-turbo
+  enable_midi_export: false
   python_executable: python3
 assets:
   workspace_guide: assets/WORKSPACE.md

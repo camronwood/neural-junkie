@@ -37,4 +37,4 @@ func TestResolveGeneratorLazySidecar(t *testing.T) {
 
 type stubGen struct{}
 
-func (stubGen) Generate(context.Context, Request) (string, string, error) { return "", "", nil }
+func (stubGen) Generate(context.Context, Request) (Result, error) { return Result{}, nil }

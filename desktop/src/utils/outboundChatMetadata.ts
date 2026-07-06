@@ -22,7 +22,7 @@ import {
   type LinkedWorkspaceContext,
 } from '../constants/promptMetadata';
 import { buildFileTreeString } from './workspaceContext';
-import type { ScanSummaryContext, ScanAnalysisContext, CadContext, WorkspaceContext } from './workspaceContext';
+import type { ScanSummaryContext, ScanAnalysisContext, CadContext, StructureContext, MusicContext, WorkspaceContext } from './workspaceContext';
 import { concentrationAt, validationAt, isScanAnalysisResultsPath, scanAnalysisDirFromResultsPath, isScanAnalysisSummaryCSVPath } from './scanAnalysis';
 import { scanAnalysisDirFromCsvPath } from './scanAnalysisCsv';
 import {
@@ -105,6 +105,25 @@ function buildCadContext(tab: EditorTab | undefined): CadContext | undefined {
     scad_path: scadPath,
     project_id: tab.cadProjectId,
     note: 'CAD workbench tab is active. Use this scad_path with write_openscad, render_openscad, and list_openscad_params.',
+  };
+}
+
+function buildStructureContext(tab: EditorTab | undefined): StructureContext | undefined {
+  if (!tab || tab.viewMode !== 'structure-workbench') return undefined;
+  const structurePath = tab.structurePath ?? tab.path;
+  if (!structurePath) return undefined;
+  return {
+    structure_path: structurePath,
+    note: 'Structure workbench tab is active. Use structure_metadata for confidence summary; discuss fold results with the user.',
+  };
+}
+
+function buildMusicContext(tab: EditorTab | undefined): MusicContext | undefined {
+  if (!tab || tab.viewMode !== 'music-workbench') return undefined;
+  return {
+    music_path: tab.musicPath,
+    project_path: tab.musicProjectPath ?? (tab.path.endsWith('.nj-music.json') ? tab.path : undefined),
+    note: 'Music workbench tab is active. Prefer updating project.nj-music.json sections; use generate_music or extract_stems for audio.',
   };
 }
 
@@ -344,6 +363,8 @@ function loadScopedWorkspaceContext(): {
     scan_summary: buildScanSummaryContext(activeTab),
     scan_analysis: buildScanAnalysisContext(activeTab),
     cad: buildCadContext(activeTab),
+    structure: buildStructureContext(activeTab),
+    music: buildMusicContext(activeTab),
     active_editor: activeTab
       ? {
           path: activeTab.path,

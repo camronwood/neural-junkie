@@ -3,6 +3,7 @@ package music
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -34,19 +35,27 @@ type ACEStepPaths struct {
 	SetupScript string `json:"setup_script,omitempty"`
 }
 
+// InstallProgress is written by setup-acestep.sh during install.
+type InstallProgress struct {
+	Phase     string `json:"phase"`
+	Detail    string `json:"detail"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+}
+
 // ACEStepStatus reports whether ACE-Step is ready for music generation.
 type ACEStepStatus struct {
-	Ready           bool   `json:"ready"`
-	DemoMode        bool   `json:"demo_mode"`
-	Installing      bool   `json:"installing"`
-	PythonOK        bool   `json:"python_ok"`
-	VenvReady       bool   `json:"venv_ready"`
-	ProjectReady    bool   `json:"project_ready"`
-	CheckpointReady bool   `json:"checkpoint_ready"`
-	ModelVariant    string `json:"model_variant,omitempty"`
-	PythonVersion   string `json:"python_version,omitempty"`
-	LastError       string `json:"last_error,omitempty"`
-	Paths           ACEStepPaths `json:"paths"`
+	Ready           bool            `json:"ready"`
+	DemoMode        bool            `json:"demo_mode"`
+	Installing      bool            `json:"installing"`
+	PythonOK        bool            `json:"python_ok"`
+	VenvReady       bool            `json:"venv_ready"`
+	ProjectReady    bool            `json:"project_ready"`
+	CheckpointReady bool            `json:"checkpoint_ready"`
+	ModelVariant    string          `json:"model_variant,omitempty"`
+	PythonVersion   string          `json:"python_version,omitempty"`
+	LastError       string          `json:"last_error,omitempty"`
+	InstallProgress *InstallProgress `json:"install_progress,omitempty"`
+	Paths           ACEStepPaths    `json:"paths"`
 }
 
 // DefaultACEStepPaths returns default install locations with home expanded.
@@ -138,7 +147,26 @@ func ACEStepStatusFromSettings(settings map[string]string, packDir string) ACESt
 		st.PythonOK = findACEStepPython() != ""
 	}
 	st.Ready = st.DemoMode || (st.VenvReady && st.ProjectReady && st.CheckpointReady)
+	st.InstallProgress = readInstallProgress(paths.MusicRoot)
 	return st
+}
+
+func readInstallProgress(musicRoot string) *InstallProgress {
+	if musicRoot == "" {
+		musicRoot = ExpandHomePath(defaultMusicRoot)
+	}
+	raw, err := os.ReadFile(filepath.Join(musicRoot, "install-progress.json"))
+	if err != nil {
+		return nil
+	}
+	var p InstallProgress
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return nil
+	}
+	if strings.TrimSpace(p.Phase) == "" {
+		return nil
+	}
+	return &p
 }
 
 // InstallACEStep runs the pack setup script (clone, venv, weights download).

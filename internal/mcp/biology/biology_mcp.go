@@ -19,7 +19,15 @@ type BiologyMCP struct {
 
 // NewBiologyMCP creates a new Biology MCP server.
 func NewBiologyMCP() (*BiologyMCP, error) {
-	config := mcp.GetMCPServerConfig("BIOLOGY")
+	config := mcp.GetMCPServerConfig("biology")
+	if cfg := mcp.AppConfig(); cfg != nil && !config.Enabled {
+		for _, t := range []string{"genomics", "structural-biology", "cheminformatics"} {
+			if cfg.MCPEnabledForAgent(t) {
+				config.Enabled = true
+				break
+			}
+		}
+	}
 
 	mcpServer, httpServer, err := mcp.NewMCPServer(config)
 	if err != nil {
@@ -33,6 +41,7 @@ func NewBiologyMCP() (*BiologyMCP, error) {
 	}
 
 	b.registerTools()
+	b.registerSidecarTools()
 	return b, nil
 }
 

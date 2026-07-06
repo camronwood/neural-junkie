@@ -2,17 +2,21 @@ package agent
 
 import (
 	"log"
+	"sync"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	"github.com/camronwood/neural-junkie/internal/mcp/biology"
 	"github.com/camronwood/neural-junkie/internal/mcp/cad"
+	"github.com/camronwood/neural-junkie/internal/mcp/manufacturing"
 	"github.com/camronwood/neural-junkie/internal/mcp/aws"
 	"github.com/camronwood/neural-junkie/internal/mcp/incident"
 	"github.com/camronwood/neural-junkie/internal/mcp/browser"
 	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+var sharedBiologyMCPStartOnce sync.Once
 
 func attachWorkspaceTools(agent *Agent, srv MCPServerInterface) {
 	if agent == nil || srv == nil {
@@ -247,7 +251,7 @@ func NewDataMLAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return agent
 }
 
-// NewBiologyAgent creates a life-sciences agent with Bio MCP tools.
+// NewBiologyAgent creates a life-sciences agent with Bio MCP tools (v1 compat — all tools).
 func NewBiologyAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	expertise := []string{
 		"Molecular Biology", "Genomics", "Protein Biochemistry",
@@ -256,15 +260,62 @@ func NewBiologyAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	}
 
 	agent := NewAgent(protocol.AgentTypeBiology, name, expertise, ai, hub)
+	attachSharedBiologyMCP(agent, "Biology", "biology")
+	return agent
+}
 
-	bioMCP, err := biology.NewBiologyMCP()
+// NewGenomicsAgent creates a sequence-focused life-sciences specialist.
+func NewGenomicsAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Genomics", "Sequence Analysis", "FASTA", "Mutations",
+		"Pathway Context", "DNA", "RNA", "Research Literature",
+	}
+	agent := NewAgent(protocol.AgentTypeGenomics, name, expertise, ai, hub)
+	attachSharedBiologyMCP(agent, "Genomics", "genomics")
+	return agent
+}
+
+// NewStructuralBiologyAgent creates a structure-focused life-sciences specialist.
+func NewStructuralBiologyAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Protein Structure", "ESMFold", "PDB", "Structure Prediction",
+		"pLDDT", "Structural Biology", "Research Literature",
+	}
+	agent := NewAgent(protocol.AgentTypeStructuralBiology, name, expertise, ai, hub)
+	attachSharedBiologyMCP(agent, "StructuralBiology", "structural-biology")
+	return agent
+}
+
+// NewCheminformaticsAgent creates a small-molecule cheminformatics specialist.
+func NewCheminformaticsAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"SMILES", "RDKit", "Molecular Descriptors", "Cheminformatics",
+		"Medicinal Chemistry Triage", "Research Literature",
+	}
+	agent := NewAgent(protocol.AgentTypeCheminformatics, name, expertise, ai, hub)
+	attachSharedBiologyMCP(agent, "Cheminformatics", "cheminformatics")
+	return agent
+}
+
+func attachSharedBiologyMCP(agent *Agent, label, agentType string) {
+	bioMCP, err := biology.SharedBiologyMCP()
 	if err != nil {
 		log.Printf("Failed to create Biology MCP server: %v", err)
-	} else {
-		startAgentMCP(agent, "Biology", bioMCP)
+		return
 	}
-
-	return agent
+	if allowlist := biology.ToolAllowlistForAgentType(agentType); allowlist != nil {
+		agent.MCPToolAllowlist = allowlist
+	}
+	agent.MCPServer = bioMCP
+	attachWorkspaceTools(agent, bioMCP)
+	sharedBiologyMCPStartOnce.Do(func() {
+		attachContextCompressTools(bioMCP)
+		if err := bioMCP.Start(); err != nil {
+			log.Printf("Failed to start %s MCP server: %v", label, err)
+		} else {
+			log.Printf("Biology MCP server started (shared)")
+		}
+	})
 }
 
 // NewCADAgent creates a CAD agent with OpenSCAD MCP tools.
@@ -281,6 +332,26 @@ func NewCADAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 		log.Printf("Failed to create CAD MCP server: %v", err)
 	} else {
 		startDomainAgentMCP(agent, "CAD", cadMCP)
+	}
+
+	return agent
+}
+
+// NewManufacturingAgent creates a manufacturing agent with print/export MCP tools.
+func NewManufacturingAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"FDM 3D Printing", "Printability", "Overhangs", "Wall Thickness",
+		"Mesh Repair", "Slicer Presets", "PrusaSlicer", "Orca Slicer",
+		"G-code", "STEP Export", "Technical Drawings",
+	}
+
+	agent := NewAgent(protocol.AgentTypeManufacturing, name, expertise, ai, hub)
+
+	mfgMCP, err := manufacturing.NewManufacturingMCP()
+	if err != nil {
+		log.Printf("Failed to create Manufacturing MCP server: %v", err)
+	} else {
+		startDomainAgentMCP(agent, "Manufacturing", mfgMCP)
 	}
 
 	return agent
@@ -397,8 +468,16 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewDataMLAgent(name, ai, hub), nil
 	case protocol.AgentTypeBiology:
 		return NewBiologyAgent(name, ai, hub), nil
+	case protocol.AgentTypeGenomics:
+		return NewGenomicsAgent(name, ai, hub), nil
+	case protocol.AgentTypeStructuralBiology:
+		return NewStructuralBiologyAgent(name, ai, hub), nil
+	case protocol.AgentTypeCheminformatics:
+		return NewCheminformaticsAgent(name, ai, hub), nil
 	case protocol.AgentTypeCAD:
 		return NewCADAgent(name, ai, hub), nil
+	case protocol.AgentTypeManufacturing:
+		return NewManufacturingAgent(name, ai, hub), nil
 	case protocol.AgentTypeAWS:
 		return NewAWSAgent(name, ai, hub), nil
 	case protocol.AgentTypeIncident:

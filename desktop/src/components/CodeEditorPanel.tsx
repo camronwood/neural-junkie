@@ -15,7 +15,9 @@ import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
 import { ScanSummaryViewer } from './ScanSummaryViewer';
 import { CadWorkbench } from './CadWorkbench';
+import { StructureWorkbench } from './StructureWorkbench';
 import { HtmlBrowserWorkbench } from './HtmlBrowserWorkbench';
+import { MusicWorkbench } from './MusicWorkbench';
 import { ScanAnalysisViewer } from './ScanAnalysisViewer';
 import { ComparatorAnalysisViewer } from './ComparatorAnalysisViewer';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -171,11 +173,13 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   const isScanSummaryTab = activeTab?.viewMode === 'scan-summary';
   const isScanAnalysisTab = activeTab?.viewMode === 'scan-analysis';
   const isCadWorkbenchTab = activeTab?.viewMode === 'cad-workbench';
+  const isStructureWorkbenchTab = activeTab?.viewMode === 'structure-workbench';
+  const isMusicWorkbenchTab = activeTab?.viewMode === 'music-workbench';
   const isCsvTableTab = activeTab?.viewMode === 'csv-table';
   const isMarkdownPreviewTab = activeTab?.viewMode === 'markdown-preview';
   const isCsvFileTab = activeTab ? isEditableCsvPath(activeTab.path) : false;
   const isMarkdownFileTab = activeTab ? isMarkdownPath(activeTab.path) : false;
-  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab;
+  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab || isStructureWorkbenchTab || isMusicWorkbenchTab;
 
   useEffect(() => {
     if (!activeTabId) {
@@ -224,7 +228,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'html-preview') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -302,7 +306,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
   const handleSave = useCallback(async () => {
     const tab = useEditorStore.getState().getActiveTab();
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || useEditorStore.getState().saving) return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || useEditorStore.getState().saving) return;
 
     const success = await saveTab(tab.id);
     if (success) {
@@ -429,7 +433,9 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   const getTabIcon = (tab: EditorTab) => {
     if (tab.viewMode === 'image') return '🖼️';
     if (tab.viewMode === 'cad-workbench') return '📐';
+    if (tab.viewMode === 'structure-workbench') return '🧬';
     if (tab.viewMode === 'html-preview') return '🌐';
+    if (tab.viewMode === 'music-workbench') return '🎵';
     if (tab.viewMode === 'scan-summary') return '🔬';
     if (tab.viewMode === 'scan-analysis') return '📊';
     if (tab.viewMode === 'comparator-analysis') return '📈';
@@ -642,6 +648,14 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               initialWell={activeTab.scanSummaryInitialWell ?? 'A1'}
               linkedAnalysisDir={activeTab.linkedAnalysisDir}
             />
+          ) : activeTab.viewMode === 'music-workbench' ? (
+            <MusicWorkbench
+              key={`${activeTab.id}:${activeTab.musicPath ?? activeTab.musicProjectPath ?? activeTab.path}`}
+              workspaceId={activeTab.workspaceId}
+              audioPath={activeTab.musicPath}
+              projectPath={activeTab.musicProjectPath}
+              tabId={activeTab.id}
+            />
           ) : activeTab.viewMode === 'html-preview' && activeTab.htmlPath ? (
             <HtmlBrowserWorkbench
               key={`${activeTab.id}:${activeTab.htmlPath}`}
@@ -658,6 +672,14 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               scadPath={activeTab.cadScadPath}
               initialContent={activeTab.content}
               projectId={activeTab.cadProjectId}
+              tabId={activeTab.id}
+            />
+          ) : activeTab.viewMode === 'structure-workbench' && activeTab.structurePath ? (
+            <StructureWorkbench
+              key={`${activeTab.id}:${activeTab.structurePath}`}
+              workspaceId={activeTab.workspaceId}
+              structurePath={activeTab.structurePath}
+              initialContent={activeTab.content}
               tabId={activeTab.id}
             />
           ) : activeTab.viewMode === 'csv-table' ? (
@@ -710,7 +732,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
             <span>{activeTab.path}</span>
             {isPreviewTab ? (
               <span className="px-2 py-1 bg-slack-bg rounded text-xs">
-                {isCadWorkbenchTab ? 'CAD workbench' : isScanAnalysisTab ? 'Scan analysis' : isScanSummaryTab ? 'Scan summary' : 'Preview only'}
+                {isCadWorkbenchTab ? 'CAD workbench' : isStructureWorkbenchTab ? 'Structure workbench' : isScanAnalysisTab ? 'Scan analysis' : isScanSummaryTab ? 'Scan summary' : 'Preview only'}
               </span>
             ) : isCsvTableTab ? (
               <span className="px-2 py-1 bg-slack-bg rounded text-xs">CSV table</span>

@@ -11,12 +11,25 @@ export interface WorkspaceContext {
   scan_summary?: ScanSummaryContext;
   scan_analysis?: ScanAnalysisContext;
   cad?: CadContext;
+  structure?: StructureContext;
+  music?: MusicContext;
   active_editor?: ActiveEditorContext;
 }
 
 export interface CadContext {
   scad_path: string;
   project_id?: string;
+  note: string;
+}
+
+export interface MusicContext {
+  music_path?: string;
+  project_path?: string;
+  note: string;
+}
+
+export interface StructureContext {
+  structure_path: string;
   note: string;
 }
 

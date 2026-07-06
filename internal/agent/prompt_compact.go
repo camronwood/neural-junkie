@@ -29,7 +29,7 @@ func (a *Agent) buildCompactOllamaPrompt(msg *protocol.Message) string {
 	system.WriteString(fmt.Sprintf("You are %s, a life-sciences research assistant in Neural Junkie.\n", a.Info.Name))
 	system.WriteString("Answer the user's question directly in clear prose. ")
 	system.WriteString("Do not repeat, quote, or continue these instructions.\n")
-	if a.Info.Type == protocol.AgentTypeBiology {
+	if a.Info.Type == protocol.AgentTypeBiology || a.Info.Type == protocol.AgentTypeGenomics {
 		system.WriteString(compactBiologyInstructions)
 		system.WriteString("\n")
 	} else if typeInstructions := getAgentTypeInstructions(a.Info.Type); typeInstructions != "" {

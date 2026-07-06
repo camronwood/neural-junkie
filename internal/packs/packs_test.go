@@ -79,6 +79,21 @@ func TestLifeSciencesNoLoRAAdapters(t *testing.T) {
 	}
 }
 
+func TestLifeSciencesPackCapabilities(t *testing.T) {
+	m := officialTestManifest(t, "life-sciences")
+	for _, cap := range []string{"biology-api", "biology-workbench", "biology-sidecar"} {
+		if !m.HasCapability(cap) {
+			t.Fatalf("expected capability %s", cap)
+		}
+	}
+	if _, ok := m.CapabilityDefs["biology-sidecar"]; !ok {
+		t.Fatal("expected biology-sidecar capability_defs")
+	}
+	if _, ok := m.CapabilityDefs["structure-viewer"]; !ok {
+		t.Fatal("expected structure-viewer capability_defs")
+	}
+}
+
 func TestCADPackCapabilities(t *testing.T) {
 	m := officialTestManifest(t, "cad")
 	if len(m.LoRAAdapters) != 0 {
@@ -99,7 +114,7 @@ func TestCADPackCapabilities(t *testing.T) {
 
 func TestMusicCreationPackCapabilities(t *testing.T) {
 	m := officialTestManifest(t, "music-creation")
-	for _, cap := range []string{"music-generation", "music-sidecar"} {
+	for _, cap := range []string{"music-generation", "music-workbench", "music-sidecar"} {
 		if !m.HasCapability(cap) {
 			t.Fatalf("expected capability %s", cap)
 		}

@@ -662,7 +662,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				msg.From.Type == protocol.AgentTypeRust ||
 				msg.From.Type == protocol.AgentTypeArchitecture ||
 				msg.From.Type == protocol.AgentTypeCodeReview ||
-				msg.From.Type == protocol.AgentTypeBiology ||
+				protocol.IsLifeSciencesAgentType(msg.From.Type) ||
 				msg.From.Type == protocol.AgentTypeDevOps ||
 				msg.From.Type == protocol.AgentTypeRepo ||
 				msg.From.Type == protocol.AgentTypeExpert ||
@@ -706,7 +706,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			msg.From.Type == protocol.AgentTypeRust ||
 			msg.From.Type == protocol.AgentTypeArchitecture ||
 			msg.From.Type == protocol.AgentTypeCodeReview ||
-			msg.From.Type == protocol.AgentTypeBiology ||
+			protocol.IsLifeSciencesAgentType(msg.From.Type) ||
 			msg.From.Type == protocol.AgentTypeDevOps ||
 			msg.From.Type == protocol.AgentTypeRepo ||
 			msg.From.Type == protocol.AgentTypeExpert ||
@@ -760,7 +760,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		msg.From.Type == protocol.AgentTypeRust ||
 		msg.From.Type == protocol.AgentTypeArchitecture ||
 		msg.From.Type == protocol.AgentTypeCodeReview ||
-		msg.From.Type == protocol.AgentTypeBiology ||
+		protocol.IsLifeSciencesAgentType(msg.From.Type) ||
 		msg.From.Type == protocol.AgentTypeDevOps ||
 		msg.From.Type == protocol.AgentTypeRepo ||
 		msg.From.Type == protocol.AgentTypeExpert ||
@@ -800,7 +800,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 						repliedToMsg.From.Type == protocol.AgentTypeRust ||
 						repliedToMsg.From.Type == protocol.AgentTypeArchitecture ||
 						repliedToMsg.From.Type == protocol.AgentTypeCodeReview ||
-						repliedToMsg.From.Type == protocol.AgentTypeBiology ||
+						protocol.IsLifeSciencesAgentType(repliedToMsg.From.Type) ||
 						repliedToMsg.From.Type == protocol.AgentTypeDevOps ||
 						repliedToMsg.From.Type == protocol.AgentTypeRepo ||
 						repliedToMsg.From.Type == protocol.AgentTypeExpert ||
@@ -955,7 +955,7 @@ func (a *Agent) getTypeKeywords() []string {
 		return []string{"architecture", "architect", "system design", "design", "scalability", "reliability", "tradeoff", "migration", "service boundary", "integration"}
 	case protocol.AgentTypeCodeReview:
 		return []string{"review", "code review", "correctness", "maintainability", "testing", "refactor", "regression", "readability", "quality"}
-	case protocol.AgentTypeBiology:
+	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		return []string{"biology", "protein", "gene", "genome", "dna", "rna", "sequence", "assay", "crispr", "enzyme", "mutation", "pathway", "cell", "lab", "protocol"}
 	default:
 		return []string{}
@@ -1120,7 +1120,7 @@ func isAgentType(t protocol.AgentType) bool {
 		t == protocol.AgentTypeRust ||
 		t == protocol.AgentTypeArchitecture ||
 		t == protocol.AgentTypeCodeReview ||
-		t == protocol.AgentTypeBiology ||
+		protocol.IsLifeSciencesAgentType(t) ||
 		t == protocol.AgentTypeDevOps ||
 		t == protocol.AgentTypeRepo ||
 		t == protocol.AgentTypeExpert ||

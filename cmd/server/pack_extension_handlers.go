@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/cadcsidecar"
 	"github.com/camronwood/neural-junkie/internal/browser"
 	"github.com/camronwood/neural-junkie/internal/awssidecar"
+	"github.com/camronwood/neural-junkie/internal/biologysidecar"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/incidentsidecar"
 	"github.com/camronwood/neural-junkie/internal/music"
@@ -58,6 +60,28 @@ func initAWSSidecarClient() {
 	awssidecar.DefaultSidecarClient = awssidecar.NewSidecarClient(baseURL)
 }
 
+func initCADSidecarClient() {
+	baseURL := func() string {
+		if packSidecarMgr == nil {
+			return ""
+		}
+		return packSidecarMgr.BaseURL(config.PackCAD)
+	}
+	cadcsidecar.SidecarBaseURL = baseURL
+	cadcsidecar.DefaultSidecarClient = cadcsidecar.NewSidecarClient(baseURL)
+}
+
+func initBiologySidecarClient() {
+	baseURL := func() string {
+		if packSidecarMgr == nil {
+			return ""
+		}
+		return packSidecarMgr.BaseURL(config.PackLifeSciences)
+	}
+	biologysidecar.SidecarBaseURL = baseURL
+	biologysidecar.DefaultSidecarClient = biologysidecar.NewSidecarClient(baseURL)
+}
+
 func syncPackSidecars() {
 	if appConfig == nil || packSidecarMgr == nil {
 		return
@@ -97,7 +121,7 @@ func handlePackExtensionRoute(w http.ResponseWriter, r *http.Request) {
 
 func packExtensionRoutePrefix(path string) string {
 	path = strings.TrimSpace(path)
-	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music", "/api/browser", "/api/aws", "/api/lora/sidecar"} {
+	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music", "/api/browser", "/api/aws", "/api/biology", "/api/cad", "/api/lora/sidecar"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return prefix
 		}
@@ -121,6 +145,10 @@ func routeCapabilityForRoute(prefix string) string {
 		return "browser-sidecar"
 	case "/api/aws":
 		return "aws-sidecar"
+	case "/api/biology":
+		return "biology-sidecar"
+	case "/api/cad":
+		return "cad-sidecar"
 	default:
 		return ""
 	}
@@ -148,6 +176,38 @@ func handleAWSRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Error(w, "AWS API requires the AWS pack", http.StatusForbidden)
+}
+
+func handleCADRoute(w http.ResponseWriter, r *http.Request) {
+	if appConfig != nil && appConfig.RouteOwnerPackID("/api/cad") != "" {
+		handlePackExtensionRoute(w, r)
+		return
+	}
+	path := r.URL.Path
+	switch path {
+	case "/api/cad/render":
+		handleCADRender(w, r)
+	case "/api/cad/mesh":
+		handleCADMesh(w, r)
+	case "/api/cad/params":
+		handleCADParams(w, r)
+	case "/api/cad/versions":
+		handleCADVersions(w, r)
+	case "/api/cad/versions/restore":
+		handleCADVersionRestore(w, r)
+	case "/api/cad/test-openscad":
+		handleCADTestOpenSCAD(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func handleBiologyRoute(w http.ResponseWriter, r *http.Request) {
+	if appConfig != nil && appConfig.RouteOwnerPackID("/api/biology") != "" {
+		handlePackExtensionRoute(w, r)
+		return
+	}
+	http.Error(w, "Biology API requires the Life sciences pack", http.StatusForbidden)
 }
 
 func handlePhoenixRoute(w http.ResponseWriter, r *http.Request) {

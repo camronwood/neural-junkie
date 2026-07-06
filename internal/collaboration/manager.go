@@ -1619,7 +1619,7 @@ func SuggestRole(agentType protocol.AgentType, expertise []string) string {
 		return "Architecture, API & Doc Standards (not implementation)"
 	case protocol.AgentTypeCodeReview:
 		return "Code Review & Regression Analysis"
-	case protocol.AgentTypeBiology:
+	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		return "Molecular Biology & Lab Research"
 	case protocol.AgentTypeBackend:
 		return "Backend Architecture & API Design"

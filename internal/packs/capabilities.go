@@ -37,7 +37,11 @@ var OfficialDomainCapabilityTokens = []string{
 	"web-browser",
 	"web-preview",
 	"web-browser-workbench",
+	"biology-api",
+	"biology-workbench",
+	"biology-sidecar",
 	"music-generation",
+	"music-workbench",
 	"music-sidecar",
 	"lora-training-sidecar",
 }

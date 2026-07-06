@@ -146,6 +146,14 @@ func (c countingHub) MusicGenerationEnabled() bool { return c.inner.MusicGenerat
 func (c countingHub) GenerateAndPostMusic(ctx context.Context, channel string, from protocol.AgentInfo, req MusicGenerateRequest) error {
 	return c.inner.GenerateAndPostMusic(ctx, channel, from, req)
 }
+func (c countingHub) ExtractAndPostMusicStems(ctx context.Context, channel string, from protocol.AgentInfo, req MusicExtractRequest) error {
+	if h, ok := c.inner.(interface {
+		ExtractAndPostMusicStems(context.Context, string, protocol.AgentInfo, MusicExtractRequest) error
+	}); ok {
+		return h.ExtractAndPostMusicStems(ctx, channel, from, req)
+	}
+	return nil
+}
 func (c countingHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }

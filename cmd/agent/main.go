@@ -387,6 +387,9 @@ func (h *httpHubClient) MusicGenerationEnabled() bool {
 func (h *httpHubClient) GenerateAndPostMusic(ctx context.Context, channel string, from protocol.AgentInfo, req agent.MusicGenerateRequest) error {
 	return fmt.Errorf("music generation requires an in-process hub connection")
 }
+func (h *httpHubClient) ExtractAndPostMusicStems(ctx context.Context, channel string, from protocol.AgentInfo, req agent.MusicExtractRequest) error {
+	return fmt.Errorf("music stem extraction requires an in-process hub connection")
+}
 
 func (h *httpHubClient) AskUserQuestion(agentID, agentName, channel, question string, options []string) (string, error) {
 	body, err := json.Marshal(map[string]interface{}{
@@ -456,7 +459,10 @@ func main() {
 		protocol.AgentTypeRust:         true,
 		protocol.AgentTypeArchitecture: true,
 		protocol.AgentTypeCodeReview:   true,
-		protocol.AgentTypeBiology:      true,
+		protocol.AgentTypeBiology:           true,
+		protocol.AgentTypeGenomics:          true,
+		protocol.AgentTypeStructuralBiology: true,
+		protocol.AgentTypeCheminformatics:   true,
 		protocol.AgentTypeRepo:         true,
 		protocol.AgentTypeAssistant:    true,
 	}

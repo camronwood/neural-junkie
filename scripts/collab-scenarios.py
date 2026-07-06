@@ -58,6 +58,7 @@ class ScenarioContext:
         self.workspace_root = ""
         self.extra_collabs: list[dict] = []
         self.last_failure = ""
+        self.last_music_path = ""
 
     def log(self, msg: str) -> None:
         if self.verbose:
@@ -1124,6 +1125,44 @@ def _browser_post(base: str, path: str, body: dict) -> tuple[int, dict]:
         return exc.code, data if isinstance(data, dict) else {"error": str(data)}
 
 
+def _cad_post(base: str, path: str, body: dict) -> tuple[int, dict]:
+    url = f"{base.rstrip('/')}{path}"
+    raw = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=raw, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return resp.status, data if isinstance(data, dict) else {}
+    except urllib.error.HTTPError as exc:
+        try:
+            data = json.loads(exc.read().decode("utf-8"))
+        except Exception:
+            data = {"error": exc.reason or str(exc)}
+        return exc.code, data if isinstance(data, dict) else {"error": str(data)}
+
+
+def step_assert_cad_render(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
+    pack_dir = (step.get("pack_dir") or os.environ.get("NJ_PACK_DIR") or "").strip()
+    fixture = (step.get("fixture_scad") or step.get("path") or "").strip()
+    if not fixture:
+        return False, "fixture_scad or path required"
+    scad_path = fixture
+    if pack_dir and not Path(fixture).is_absolute():
+        scad_path = str((Path(pack_dir) / fixture).resolve())
+    elif ctx.workspace_root and not Path(fixture).is_absolute():
+        scad_path = str((Path(ctx.workspace_root) / fixture).resolve())
+    params = step.get("params") if isinstance(step.get("params"), dict) else {}
+    body = {"path": scad_path, "params": params, "cad_sidecar_dry_run": True}
+    code, data = _cad_post(ctx.base, "/api/cad/render", body)
+    if code != 200:
+        return False, data.get("error") or f"cad render HTTP {code}"
+    b64 = (data.get("content_base64") or "").strip()
+    min_bytes = int(step.get("min_stl_b64_bytes", 80))
+    if len(b64) < min_bytes:
+        return False, f"stl b64 len {len(b64)} < {min_bytes}"
+    return True, f"cad render ok ({len(b64)} b64 bytes)"
+
+
 def step_assert_browser_screenshot(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     ws_root = ctx.workspace_root or ctx.resolve_workspace_root()
     if not ws_root:
@@ -1201,6 +1240,68 @@ def step_assert_browser_screenshot(ctx: ScenarioContext, step: dict) -> tuple[bo
     return True, f"screenshot ok ({data.get('width')}x{data.get('height')})"
 
 
+def _music_post(base: str, path: str, body: dict) -> tuple[int, dict]:
+    url = f"{base.rstrip('/')}{path}"
+    raw = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=raw, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return resp.status, data if isinstance(data, dict) else {}
+    except urllib.error.HTTPError as exc:
+        try:
+            data = json.loads(exc.read().decode("utf-8"))
+        except Exception:
+            data = {"error": exc.reason or str(exc)}
+        return exc.code, data if isinstance(data, dict) else {"error": str(data)}
+
+
+def step_assert_music_generate(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
+    style = (step.get("style_tags") or "lo-fi").strip()
+    duration = int(step.get("duration_sec") or 10)
+    body = {
+        "style_tags": style,
+        "lyrics": step.get("lyrics") or "[Instrumental]",
+        "duration_sec": duration,
+        "instrumental": bool(step.get("instrumental", True)),
+    }
+    code, data = _music_post(ctx.base, "/api/music/generate", body)
+    if code != 200:
+        return False, data.get("error") or f"generate HTTP {code}"
+    b64 = (data.get("data") or "").strip()
+    min_bytes = int(step.get("min_wav_bytes", 100))
+    try:
+        import base64
+
+        raw = base64.standard_b64decode(b64)
+    except Exception as exc:
+        return False, f"decode audio: {exc}"
+    if len(raw) < min_bytes:
+        return False, f"wav bytes {len(raw)} < {min_bytes}"
+    ctx.last_music_path = data.get("path")
+    return True, f"generated {len(raw)} bytes"
+
+
+def step_assert_music_extract(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
+    audio_path = (step.get("audio_path") or ctx.last_music_path or "").strip()
+    if not audio_path:
+        if step.get("skip_if_unavailable"):
+            return True, "extract skipped (no audio path)"
+        return False, "audio_path required (run assert_music_generate first)"
+    tracks = step.get("tracks") or ["vocals"]
+    code, data = _music_post(ctx.base, "/api/music/extract", {"audio_path": audio_path, "tracks": tracks})
+    if code == 409 and not step.get("requires_sft", True):
+        return True, "extract skipped (turbo variant)"
+    if code != 200:
+        if step.get("skip_if_unavailable"):
+            return True, f"extract skipped ({data.get('error') or code})"
+        return False, data.get("error") or f"extract HTTP {code}"
+    stems = data.get("stems") or []
+    if not stems:
+        return False, "no stems returned"
+    return True, f"extracted {len(stems)} stem(s)"
+
+
 def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
     action = (step.get("action") or step.get("type") or "").strip()
     handlers = {
@@ -1220,6 +1321,9 @@ def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
         "assert_deliverable_stubs": step_assert_deliverable_stubs,
         "setup_pack": step_setup_pack,
         "assert_browser_screenshot": step_assert_browser_screenshot,
+        "assert_cad_render": step_assert_cad_render,
+        "assert_music_generate": step_assert_music_generate,
+        "assert_music_extract": step_assert_music_extract,
     }
     fn = handlers.get(action)
     if not fn:

@@ -40,7 +40,7 @@ func (a *Agent) DescribeToolCapabilities() protocol.AgentToolCapabilities {
 
 	for _, td := range a.agentToolDefinitions(nil) {
 		source := "mcp"
-		if td.Name == generateImageToolName || td.Name == generateMusicToolName {
+		if td.Name == generateImageToolName || td.Name == generateMusicToolName || td.Name == extractStemsToolName {
 			source = "builtin"
 		}
 		out.Tools = append(out.Tools, protocol.AgentToolDefinition{

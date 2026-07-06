@@ -1,0 +1,27 @@
+{
+  "name": "basic-qc",
+  "title": "Basic in-silico QC",
+  "description": "Validate a sequence or FASTA, flag composition anomalies, and optionally review structure confidence. Not plate-assay QC. Research use only.",
+  "execution_policy": {
+    "blocked_upstream_policy": "block",
+    "strict_task_status": true,
+    "max_concurrent_tasks": 2
+  },
+  "tasks": [
+    {
+      "title": "Validate input",
+      "description": "Run analyze_sequence on the provided sequence or FASTA. Flag length and composition anomalies.",
+      "kind": "agent"
+    },
+    {
+      "title": "Structure check (protein)",
+      "description": "If protein and length allows, optionally fold_protein and summarize PDB path. Open in structure workbench when available.",
+      "kind": "agent"
+    },
+    {
+      "title": "Document limitations",
+      "description": "Clearly separate in silico checks from experimental QC. Note this is not 12-Plex or plate assay QC.",
+      "kind": "agent"
+    }
+  ]
+}

@@ -39,6 +39,9 @@ func (h *imageGenTestHub) MusicGenerationEnabled() bool { return false }
 func (h *imageGenTestHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
 	return nil
 }
+func (h *imageGenTestHub) ExtractAndPostMusicStems(context.Context, string, protocol.AgentInfo, MusicExtractRequest) error {
+	return nil
+}
 func (h *imageGenTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }

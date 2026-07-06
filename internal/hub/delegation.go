@@ -175,8 +175,10 @@ func (ch *CommandHandler) providerForConsult(
 		return nil, fmt.Errorf("no provider for agent %q", acfg.Name)
 	}
 	copy := *p
-	if agentType == protocol.AgentTypeBiology && intent == delegation.IntentDomainReasoning {
-		copy.Model = ch.appConfig.BiologyChatModelOrDefault()
+	if agentType == protocol.AgentTypeBiology || agentType == protocol.AgentTypeGenomics {
+		if intent == delegation.IntentDomainReasoning {
+			copy.Model = ch.appConfig.BiologyChatModelOrDefault()
+		}
 	}
 	if ch.providerCache != nil {
 		return ch.providerCache.GetForProviderRow(ch.appConfig, &copy)

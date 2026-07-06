@@ -70,7 +70,7 @@ func typeKeywords(t protocol.AgentType) []string {
 		return []string{"architecture", "architect", "system", "design", "scalability", "reliability", "tradeoff", "migration", "boundary", "integration"}
 	case protocol.AgentTypeCodeReview:
 		return []string{"review", "code", "correctness", "maintainability", "testing", "refactor", "regression", "readability", "quality"}
-	case protocol.AgentTypeBiology:
+	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		return []string{"biology", "protein", "gene", "genome", "dna", "rna", "sequence", "assay", "crispr",
 			"enzyme", "mutation", "pathway", "cell", "lab", "protocol", "peptide", "amino", "fold", "esm"}
 	case protocol.AgentTypeAWS:

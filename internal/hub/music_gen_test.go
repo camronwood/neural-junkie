@@ -12,8 +12,8 @@ import (
 
 type stubMusicGen struct{}
 
-func (stubMusicGen) Generate(_ context.Context, req music.Request) (string, string, error) {
-	return "audio/wav", "UklGRg==", nil
+func (stubMusicGen) Generate(_ context.Context, req music.Request) (music.Result, error) {
+	return music.Result{Mime: "audio/wav", Data: "UklGRg=="}, nil
 }
 
 func TestMusicGenerationAvailableRequiresPackCapabilityOnly(t *testing.T) {

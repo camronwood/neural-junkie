@@ -19,9 +19,9 @@ func domainToolFallbackModel(agentType protocol.AgentType) string {
 		}
 	}
 	switch agentType {
-	case protocol.AgentTypeCAD:
+	case protocol.AgentTypeCAD, protocol.AgentTypeManufacturing:
 		return config.CadOllamaToolModel
-	case protocol.AgentTypeBiology:
+	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		return config.BioOllamaToolModel
 	default:
 		return ai.OllamaBiologyFallbackModel

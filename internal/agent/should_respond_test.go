@@ -30,6 +30,9 @@ func (shouldRespondTestHub) MusicGenerationEnabled() bool { return false }
 func (shouldRespondTestHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
 	return nil
 }
+func (shouldRespondTestHub) ExtractAndPostMusicStems(context.Context, string, protocol.AgentInfo, MusicExtractRequest) error {
+	return nil
+}
 func (shouldRespondTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }

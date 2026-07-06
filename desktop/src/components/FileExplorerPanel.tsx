@@ -99,13 +99,15 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     clearError,
   } = useFileExplorerStore();
 
-  const { openFile, openScanSummary, openScanAnalysis, openCadWorkbench, openHtmlBrowser, openComparatorAnalysis, setPanelQCReport } =
+  const { openFile, openScanSummary, openScanAnalysis, openCadWorkbench, openStructureWorkbench, openHtmlBrowser, openMusicWorkbench, openComparatorAnalysis, setPanelQCReport } =
     useEditorStore();
   const hasScanSummary = usePacksStore((s) => s.hasCapability('scan-summary-viewer'));
   const hasScanAnalysis = usePacksStore((s) => s.hasCapability('scan-analysis-viewer'));
   const hasSecondaryAnalysis = usePacksStore((s) => s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_VIEWER));
   const hasCadWorkbench = usePacksStore((s) => s.hasCapability('cad-workbench'));
+  const hasStructureWorkbench = usePacksStore((s) => s.hasCapability('biology-workbench'));
   const hasHtmlBrowserWorkbench = usePacksStore((s) => s.hasCapability(PACK_CAP.WEB_BROWSER_WORKBENCH));
+  const hasMusicWorkbench = usePacksStore((s) => s.hasCapability(PACK_CAP.MUSIC_WORKBENCH));
   const addToBasket = useSecondaryAnalysisStore((s) => s.addToBasket);
   const setPanelOpen = useSecondaryAnalysisStore((s) => s.setPanelOpen);
   const { addToast } = useToastStore();
@@ -576,9 +578,26 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           setSelectedPath(file.path);
           return;
         }
+        if (hasStructureWorkbench && !file.is_dir && /\.(pdb|cif|mmcif)$/i.test(file.path)) {
+          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
+          openStructureWorkbench(activeWorkspace.id, file.path, content);
+          if (onFileOpen) onFileOpen();
+          setSelectedPath(file.path);
+          return;
+        }
         if (hasHtmlBrowserWorkbench && !file.is_dir && /\.html?$/i.test(file.path)) {
           const content = await api.fetchFileContent(activeWorkspace.id, file.path);
           openHtmlBrowser(activeWorkspace.id, file.path, content);
+          if (onFileOpen) onFileOpen();
+          setSelectedPath(file.path);
+          return;
+        }
+        if (hasMusicWorkbench && !file.is_dir && (/\.(wav|mp3|flac|aiff?)$/i.test(file.path) || /\.nj-music\.json$/i.test(file.path) || file.path.endsWith('project.nj-music.json'))) {
+          let content = '';
+          if (/\.nj-music\.json$/i.test(file.path) || file.path.endsWith('project.nj-music.json')) {
+            content = await api.fetchFileContent(activeWorkspace.id, file.path);
+          }
+          openMusicWorkbench(activeWorkspace.id, file.path, content);
           if (onFileOpen) onFileOpen();
           setSelectedPath(file.path);
           return;

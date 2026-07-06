@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/biologysidecar"
 	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/mcp"
 )
@@ -39,7 +40,7 @@ func bioArtifactsDir() (string, error) {
 	return dir, os.MkdirAll(dir, 0755)
 }
 
-// foldProteinSequence calls HF Inference for ESMFold and writes a PDB file.
+// foldProteinSequence calls the pack sidecar when available, else HF Inference for ESMFold.
 func foldProteinSequence(ctx context.Context, raw string) (string, error) {
 	seq := normalizeSequence(raw)
 	if seq == "" {
@@ -52,6 +53,10 @@ func foldProteinSequence(ctx context.Context, raw string) (string, error) {
 	maxLen := maxFoldLength()
 	if len(seq) > maxLen {
 		return "", fmt.Errorf("sequence length %d exceeds max %d for folding", len(seq), maxLen)
+	}
+
+	if client := biologysidecar.DefaultSidecarClient; client != nil && client.Available() {
+		return client.FoldProtein(ctx, seq, maxLen)
 	}
 
 	token := hfhub.TokenFromConfig(mcp.AppConfig())

@@ -1,10 +1,77 @@
 id: life-sciences
-version: "1.0.0"
+version: "2.0.0"
 title: Life sciences
-description: OpenBioLLM chat (koesn), BiologyExpert, sequence analysis, and ESMFold structure prediction. Research use only.
+description: OpenBioLLM chat, GenomicsExpert, StructuralBiologyExpert, structure viewer workbench, biology sidecar, and official runbooks. Research use only.
 layout_profile: team
-capabilities: []
+capabilities:
+  - biology-api
+  - biology-workbench
+  - biology-sidecar
+capability_defs:
+  biology-sidecar:
+    kind: hub-sidecar
+    routes:
+      - /api/biology
+    sidecar:
+      module: assets/hub/server.py
+    settings:
+      - biology_artifacts_dir
+      - biology_fold_backend
+      - biology_fold_local_url
+      - biology_blast_db_dir
+      - biology_rdkit_enabled
+      - python_executable
+  structure-viewer:
+    kind: file-viewer
+    match_glob: "**/*.{pdb,cif,mmcif}"
+    viewer: nj.structure
+  biology-tools:
+    kind: mcp-tools
+    mcp_tools:
+      - validate_smiles
+      - mol_descriptors
+      - blast_search
+      - pathway_lookup
+    mcp_tools_path: assets/hub/routes/cheminformatics.py
+settings_overlay:
+  biology_artifacts_dir: ~/.neural-junkie/bio
+  biology_fold_backend: hf
+  biology_rdkit_enabled: false
+  python_executable: ~/.neural-junkie/biology/venv/bin/python3
 agents:
+  - type: genomics
+    name: GenomicsExpert
+    ollama_model: koesn/llama3-openbiollm-8b:latest
+    implementation: builtin/genomics
+    compose:
+      chat_model: koesn/llama3-openbiollm-8b:latest
+      tool_model: qwen3.5:9b
+      lora_tag: nj-biology:8b
+      consult_triggers:
+        - biology
+        - genomics
+        - sequence
+        - dna
+        - rna
+        - genome
+        - mutation
+        - pathway
+        - fasta
+  - type: structural-biology
+    name: StructuralBiologyExpert
+    ollama_model: koesn/llama3-openbiollm-8b:latest
+    implementation: builtin/structural-biology
+    compose:
+      chat_model: koesn/llama3-openbiollm-8b:latest
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - protein
+        - fold
+        - structure
+        - pdb
+        - esmfold
+        - peptide
+        - structure prediction
   - type: biology
     name: BiologyExpert
     ollama_model: koesn/llama3-openbiollm-8b:latest
@@ -20,6 +87,19 @@ agents:
         - dna
         - rna
         - peptide
+  - type: cheminformatics
+    name: ChemInformaticsExpert
+    ollama_model: koesn/llama3-openbiollm-8b:latest
+    implementation: builtin/cheminformatics
+    compose:
+      chat_model: koesn/llama3-openbiollm-8b:latest
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - smiles
+        - rdkit
+        - molecule
+        - compound
+        - cheminformatics
 models_to_ensure:
   - koesn/llama3-openbiollm-8b:latest
   - qwen3.5:9b
@@ -28,4 +108,11 @@ ollama_model: koesn/llama3-openbiollm-8b:latest
 expert_slug: biology
 expert_label: Biology / Life sciences
 mcp_agents:
+  - genomics
+  - structural-biology
   - biology
+  - cheminformatics
+assets:
+  workspace_guide: assets/WORKSPACE.md
+  runbooks_glob: assets/runbooks/*.md
+  runbook_templates_glob: assets/runbook-templates/*.json

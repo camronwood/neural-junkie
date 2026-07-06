@@ -62,6 +62,9 @@ func (h *captureHub) MusicGenerationEnabled() bool { return false }
 func (h *captureHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
 	return nil
 }
+func (h *captureHub) ExtractAndPostMusicStems(context.Context, string, protocol.AgentInfo, MusicExtractRequest) error {
+	return nil
+}
 func (h *captureHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }

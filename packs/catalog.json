@@ -76,13 +76,13 @@
     },
     {
       "id": "music-creation",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "title": "Music creation",
-      "description": "MusicExpert — Ollama lyrics and style tags, full songs via local ACE-Step 1.5 sidecar.",
+      "description": "MusicExpert — Ollama lyrics, ACE-Step 1.5 sidecar, music workbench, stems export, and EP workflow.",
       "icon_key": "music",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-music-creation/releases/download/v1.0.1/music-creation-1.0.1.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-music-creation/releases/download/v2.0.0/music-creation-2.0.0.zip"
     }
   ]
 }

@@ -188,7 +188,7 @@ func (a *Agent) recentUserMessages(channel string, limit int) []*protocol.Messag
 // tryBiologyScanToolShortcut runs scan MCP tools directly when the user refers to the open
 // scan viewer or names the tool — without asking the LLM for a path.
 func (a *Agent) tryBiologyScanToolShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
-	if a.Info.Type != protocol.AgentTypeBiology {
+	if a.Info.Type != protocol.AgentTypeBiology && a.Info.Type != protocol.AgentTypeGenomics {
 		return "", false
 	}
 	toolName := a.resolveBiologyScanToolForTurn(msg)

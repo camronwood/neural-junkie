@@ -11,6 +11,7 @@ import (
 )
 
 const generateMusicToolName = "generate_music"
+const extractStemsToolName = "extract_stems"
 
 var generateMusicToolSchema = json.RawMessage(`{
   "type": "object",
@@ -34,9 +35,34 @@ var generateMusicToolSchema = json.RawMessage(`{
     "seed": {
       "type": "integer",
       "description": "Optional random seed for reproducible output (-1 or omit for random)"
+    },
+    "export_stems": {
+      "type": "boolean",
+      "description": "When true, also extract stems (requires SFT variant)"
+    },
+    "stem_tracks": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Stem tracks to export when export_stems is true (e.g. vocals, drums, bass)"
     }
   },
   "required": ["style_tags"]
+}`)
+
+var extractStemsToolSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "audio_path": {
+      "type": "string",
+      "description": "Absolute or workspace path to the mixed WAV file"
+    },
+    "tracks": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Tracks to extract (e.g. vocals, drums, bass). Default: vocals and drums"
+    }
+  },
+  "required": ["audio_path"]
 }`)
 
 func generateMusicToolDefinition() ai.ClaudeToolDefinition {
@@ -44,6 +70,14 @@ func generateMusicToolDefinition() ai.ClaudeToolDefinition {
 		Name:        generateMusicToolName,
 		Description: "Generate a song or instrumental from style tags and optional lyrics. Posts audio to the current channel. Requires the Music creation pack and ACE-Step sidecar.",
 		InputSchema: generateMusicToolSchema,
+	}
+}
+
+func extractStemsToolDefinition() ai.ClaudeToolDefinition {
+	return ai.ClaudeToolDefinition{
+		Name:        extractStemsToolName,
+		Description: "Extract vocals, drums, bass, or other stems from a mixed audio file for DAW handoff. Requires SFT variant. Posts stems to the channel.",
+		InputSchema: extractStemsToolSchema,
 	}
 }
 
@@ -116,6 +150,8 @@ func appendMusicGenerationPrompt(system *strings.Builder) {
 	system.WriteString("For vocals, use section markers in lyrics: [Verse], [Chorus], [Bridge], [Outro]. Keep lines rhythmic (roughly 4–8 syllables per line).\n")
 	system.WriteString("For instrumentals set instrumental=true and lyrics=\"[Instrumental]\"; emphasize instrumentation and mood in style_tags.\n")
 	system.WriteString("Draft or refine lyrics in chat first when helpful; default duration_sec=30 unless the user asks longer. Offer to iterate with a new seed or revised tags.\n")
+	system.WriteString("For DAW handoff, use extract_stems with audio_path (requires SFT variant) or generate_music with export_stems=true.\n")
+	system.WriteString("When a music workbench project is open, prefer updating project.nj-music.json sections before generating.\n")
 	system.WriteString("After success, briefly confirm — audio is posted automatically.\n\n")
 }
 
@@ -167,11 +203,13 @@ func (a *Agent) executeGenerateMusicTool(ctx context.Context, msg *protocol.Mess
 		return "", fmt.Errorf("generate_music is not available during implementation or code-editing sessions")
 	}
 	var args struct {
-		StyleTags    string `json:"style_tags"`
-		Lyrics       string `json:"lyrics"`
-		DurationSec  int    `json:"duration_sec"`
-		Instrumental bool   `json:"instrumental"`
-		Seed         int    `json:"seed"`
+		StyleTags    string   `json:"style_tags"`
+		Lyrics       string   `json:"lyrics"`
+		DurationSec  int      `json:"duration_sec"`
+		Instrumental bool     `json:"instrumental"`
+		Seed         int      `json:"seed"`
+		ExportStems  bool     `json:"export_stems"`
+		StemTracks   []string `json:"stem_tracks"`
 	}
 	if len(input) > 0 {
 		if err := json.Unmarshal(input, &args); err != nil {
@@ -188,9 +226,38 @@ func (a *Agent) executeGenerateMusicTool(ctx context.Context, msg *protocol.Mess
 		DurationSec:  args.DurationSec,
 		Instrumental: args.Instrumental,
 		Seed:         args.Seed,
+		ExportStems:  args.ExportStems,
+		StemTracks:   args.StemTracks,
 	}
 	if err := a.generateAndPostMusicWithProgress(ctx, msg, StreamMessageIDFromContext(ctx), req, false); err != nil {
 		return "", err
 	}
 	return "Song generated and posted to the channel.", nil
+}
+
+func (a *Agent) executeExtractStemsTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
+	if messageSuppressesImageGeneration(msg) {
+		return "", fmt.Errorf("extract_stems is not available during implementation or code-editing sessions")
+	}
+	var args struct {
+		AudioPath string   `json:"audio_path"`
+		Tracks    []string `json:"tracks"`
+	}
+	if len(input) > 0 {
+		if err := json.Unmarshal(input, &args); err != nil {
+			return "", fmt.Errorf("invalid extract_stems input: %w", err)
+		}
+	}
+	args.AudioPath = strings.TrimSpace(args.AudioPath)
+	if args.AudioPath == "" {
+		return "", fmt.Errorf("extract_stems requires audio_path")
+	}
+	req := MusicExtractRequest{
+		AudioPath: args.AudioPath,
+		Tracks:    args.Tracks,
+	}
+	if err := a.Hub.ExtractAndPostMusicStems(ctx, msg.Channel, a.Info, req); err != nil {
+		return "", err
+	}
+	return "Stems extracted and posted to the channel.", nil
 }

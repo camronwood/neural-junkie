@@ -56,7 +56,7 @@ func TestAppendMCPToolsPromptCADGreetingGuidance(t *testing.T) {
 	startDomainAgentMCP(agent, "CAD", cadMCP)
 
 	var system strings.Builder
-	appendMCPToolsPrompt(&system, mcpServerFromInterface(agent.MCPServer), protocol.AgentTypeCAD)
+	appendMCPToolsPrompt(&system, mcpServerFromInterface(agent.MCPServer), protocol.AgentTypeCAD, nil)
 	prompt := system.String()
 	if !strings.Contains(prompt, "without calling tools") {
 		t.Fatalf("expected greeting guidance in CAD tools prompt, got:\n%s", prompt)

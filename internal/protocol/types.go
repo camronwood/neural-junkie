@@ -50,8 +50,12 @@ const (
 	AgentTypeSRE          AgentType = "sre"
 	AgentTypeMobile       AgentType = "mobile"
 	AgentTypeDataML       AgentType = "data-ml"
-	AgentTypeBiology      AgentType = "biology"
-	AgentTypeCAD          AgentType = "cad"
+	AgentTypeBiology            AgentType = "biology"
+	AgentTypeGenomics           AgentType = "genomics"
+	AgentTypeStructuralBiology  AgentType = "structural-biology"
+	AgentTypeCheminformatics    AgentType = "cheminformatics"
+	AgentTypeCAD                AgentType = "cad"
+	AgentTypeManufacturing      AgentType = "manufacturing"
 	AgentTypeAWS          AgentType = "aws"
 	AgentTypeIncident     AgentType = "incident"
 	AgentTypeBrowser      AgentType = "browser"
@@ -64,6 +68,16 @@ const (
 	AgentTypeConfluence   AgentType = "confluence" // Confluence documentation agents
 	AgentTypeCLI          AgentType = "cli"        // CLI-backed agents (Cursor, Claude CLI, etc.)
 )
+
+// IsLifeSciencesAgentType reports whether t is a life-sciences pack specialist.
+func IsLifeSciencesAgentType(t AgentType) bool {
+	switch t {
+	case AgentTypeBiology, AgentTypeGenomics, AgentTypeStructuralBiology, AgentTypeCheminformatics:
+		return true
+	default:
+		return false
+	}
+}
 
 // AIProviderType defines the AI provider being used
 type AIProviderType string

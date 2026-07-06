@@ -30,7 +30,7 @@ func mcpServerFromInterface(m MCPServerInterface) *server.MCPServer {
 }
 
 // claudeToolsFromMCPServer maps registered MCP tools to Anthropic tool definitions.
-func claudeToolsFromMCPServer(mcpServer *server.MCPServer) []ai.ClaudeToolDefinition {
+func claudeToolsFromMCPServer(mcpServer *server.MCPServer, allowlist []string) []ai.ClaudeToolDefinition {
 	if mcpServer == nil {
 		return nil
 	}
@@ -38,6 +38,9 @@ func claudeToolsFromMCPServer(mcpServer *server.MCPServer) []ai.ClaudeToolDefini
 	out := make([]ai.ClaudeToolDefinition, 0, len(tools))
 	for _, st := range tools {
 		if st == nil {
+			continue
+		}
+		if len(allowlist) > 0 && !toolInAllowlist(st.Tool.Name, allowlist) {
 			continue
 		}
 		schema, err := json.Marshal(st.Tool.InputSchema)
@@ -51,6 +54,15 @@ func claudeToolsFromMCPServer(mcpServer *server.MCPServer) []ai.ClaudeToolDefini
 		})
 	}
 	return out
+}
+
+func toolInAllowlist(name string, allowlist []string) bool {
+	for _, t := range allowlist {
+		if t == name {
+			return true
+		}
+	}
+	return false
 }
 
 // executeMCPTool invokes a tool handler in-process on the agent's MCP server.
@@ -150,7 +162,7 @@ func agentFromContext(ctx context.Context) *Agent {
 }
 
 // appendMCPToolsPrompt adds dynamic tool descriptions to the system prompt.
-func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, agentType protocol.AgentType) {
+func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, agentType protocol.AgentType, allowlist []string) {
 	if mcpServer == nil {
 		return
 	}
@@ -162,13 +174,18 @@ func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, 
 	switch agentType {
 	case protocol.AgentTypeCAD:
 		system.WriteString("You have access to the following OpenSCAD tools:\n")
-	case protocol.AgentTypeBiology:
+	case protocol.AgentTypeManufacturing:
+		system.WriteString("You have access to the following manufacturing tools:\n")
+	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		system.WriteString("You have access to the following life-sciences analysis tools:\n")
 	default:
 		system.WriteString("You have access to the following diagnostic and analysis tools:\n")
 	}
 	for _, st := range tools {
 		if st == nil {
+			continue
+		}
+		if len(allowlist) > 0 && !toolInAllowlist(st.Tool.Name, allowlist) {
 			continue
 		}
 		system.WriteString(fmt.Sprintf("- %s: %s\n", st.Tool.Name, st.Tool.Description))
@@ -179,7 +196,10 @@ func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, 
 		system.WriteString("When the user asks to create or write an .scad file, call write_openscad immediately — do not paste SCAD-only replies without calling the tool.\n")
 		system.WriteString("Never print tool-call JSON or pseudo tool syntax in chat; use native tool calling only.\n")
 		system.WriteString("For greetings, questions, and general chat, respond conversationally without calling tools.\n\n")
-	case protocol.AgentTypeBiology:
+	case protocol.AgentTypeManufacturing:
+		system.WriteString("\nUse manufacturing tools when the user asks about printability, mesh repair, slicer export, G-code, or STEP/drawings.\n")
+		system.WriteString("Run check_printability on STL paths before recommending print.\n\n")
+	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		system.WriteString("\nUse biology tools when the user asks about sequences, structures, or scan data.\n")
 		system.WriteString("When workspace context includes scan paths, call the matching summarize tool immediately.\n\n")
 	default:
@@ -216,7 +236,7 @@ func (a *Agent) generateWithMCPTools(
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}
 
-	tools := claudeToolsFromMCPServer(mcpServer)
+	tools := claudeToolsFromMCPServer(mcpServer, a.MCPToolAllowlist)
 	if len(tools) == 0 {
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}

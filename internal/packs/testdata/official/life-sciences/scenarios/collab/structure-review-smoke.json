@@ -1,0 +1,7 @@
+{
+  "name": "structure-review-smoke",
+  "description": "Run sequence-review runbook with GenomicsExpert",
+  "runbook": "sequence-review",
+  "agent": "GenomicsExpert",
+  "fixture_sequence": "MKTAYIAKQRQISFVKSHFSRQ"
+}

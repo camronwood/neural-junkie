@@ -38,6 +38,9 @@ func (h *musicGenTestHub) GenerateAndPostMusic(_ context.Context, _ string, _ pr
 	h.style = req.StyleTags
 	return nil
 }
+func (h *musicGenTestHub) ExtractAndPostMusicStems(context.Context, string, protocol.AgentInfo, MusicExtractRequest) error {
+	return nil
+}
 func (h *musicGenTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }

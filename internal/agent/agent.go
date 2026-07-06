@@ -41,6 +41,9 @@ type Agent struct {
 	// MCP server for tool execution (optional)
 	MCPServer MCPServerInterface
 
+	// MCPToolAllowlist restricts which MCP tools are exposed (empty = all).
+	MCPToolAllowlist []string
+
 	// Provider switching
 	providerMutex sync.RWMutex
 
@@ -127,6 +130,7 @@ type HubClient interface {
 	// Music generation (music-creation pack + ACE-Step sidecar).
 	MusicGenerationEnabled() bool
 	GenerateAndPostMusic(ctx context.Context, channel string, from protocol.AgentInfo, req MusicGenerateRequest) error
+	ExtractAndPostMusicStems(ctx context.Context, channel string, from protocol.AgentInfo, req MusicExtractRequest) error
 	// AskUserQuestion blocks until the user answers or the question times out.
 	AskUserQuestion(agentID, agentName, channel, question string, options []string) (string, error)
 	// RequestToolApproval gates mutating MCP tool calls (returns true if approved).
@@ -138,11 +142,19 @@ type MusicGenerateRequest struct {
 	StyleTags      string
 	Lyrics         string
 	DurationSec    int
-	Instrumental bool
+	Instrumental   bool
 	Seed           int
 	InferenceSteps int
 	GuidanceScale  float64
 	InferMethod    string
+	ExportStems    bool
+	StemTracks     []string
+}
+
+// MusicExtractRequest is input for stem extraction.
+type MusicExtractRequest struct {
+	AudioPath string
+	Tracks    []string
 }
 
 // CollaborationClient is the subset of CollaborationManager that agents

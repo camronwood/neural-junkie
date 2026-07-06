@@ -11,7 +11,7 @@ import { isMarkdownPath } from '../utils/markdownFile';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench' | 'html-preview';
+export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench' | 'structure-workbench' | 'html-preview' | 'music-workbench';
 
 export interface EditorTab {
   id: string;
@@ -47,9 +47,14 @@ export interface EditorTab {
   /** CAD workbench: relative .scad path in workspace. */
   cadScadPath?: string;
   cadProjectId?: string;
+  /** Structure workbench: relative .pdb/.cif path in workspace. */
+  structurePath?: string;
   /** HTML browser workbench: relative .html path in workspace. */
   htmlPath?: string;
   htmlPreviewUrl?: string;
+  /** Music workbench: relative audio or project path. */
+  musicPath?: string;
+  musicProjectPath?: string;
 }
 
 export interface OpenFileOptions {
@@ -115,11 +120,22 @@ interface EditorState {
     content: string,
     options?: { projectId?: string }
   ) => void;
+  openStructureWorkbench: (
+    workspaceId: string,
+    structurePath: string,
+    content: string
+  ) => void;
   openHtmlBrowser: (
     workspaceId: string,
     htmlPath: string,
     content: string,
     options?: { previewUrl?: string }
+  ) => void;
+  openMusicWorkbench: (
+    workspaceId: string,
+    filePath: string,
+    content?: string,
+    options?: { projectPath?: string; audioPath?: string }
   ) => void;
   linkScanToAnalysisTab: (tabId: string, scanDir: string) => void;
   linkAnalysisToScanTab: (tabId: string, analysisDir: string) => void;
@@ -183,7 +199,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content,
       isDirty: false,
       contentSyncKey: 0,
-      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'html-preview' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'structure-workbench' || viewMode === 'html-preview' || viewMode === 'music-workbench' ? undefined : language,
       viewMode,
       imageSrc,
       scanSummaryDir: options?.scanSummaryDir,
@@ -425,6 +441,76 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  openStructureWorkbench: (workspaceId, structurePath, content) => {
+    const state = get();
+    const normalized = structurePath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+    const existingTab = state.tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'structure-workbench' &&
+        (t.structurePath ?? t.path).replace(/\\/g, '/').replace(/^\/+/, '') === normalized
+    );
+    if (existingTab) {
+      set({
+        activeTabId: existingTab.id,
+        tabs: state.tabs.map((t) =>
+          t.id === existingTab.id
+            ? { ...t, path: normalized, structurePath: normalized, content, isDirty: false }
+            : t
+        ),
+      });
+      return;
+    }
+
+    const activeTab = state.activeTabId
+      ? state.tabs.find((t) => t.id === state.activeTabId)
+      : null;
+    if (
+      activeTab?.viewMode === 'structure-workbench' &&
+      activeTab.workspaceId === workspaceId &&
+      (activeTab.structurePath ?? activeTab.path).replace(/\\/g, '/').replace(/^\/+/, '') !== normalized
+    ) {
+      set({
+        activeTabId: activeTab.id,
+        tabs: state.tabs.map((t) =>
+          t.id === activeTab.id
+            ? {
+                ...t,
+                path: normalized,
+                structurePath: normalized,
+                content,
+                isDirty: false,
+                contentSyncKey: (t.contentSyncKey ?? 0) + 1,
+              }
+            : t
+        ),
+      });
+      return;
+    }
+
+    const staleTextTab = state.tabs.find(
+      (t) => t.workspaceId === workspaceId && t.viewMode === 'text' && t.path.replace(/\\/g, '/').replace(/^\/+/, '') === normalized
+    );
+    const tabId =
+      staleTextTab?.id ?? `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTab: EditorTab = {
+      id: tabId,
+      workspaceId,
+      path: normalized,
+      content,
+      isDirty: false,
+      viewMode: 'structure-workbench',
+      structurePath: normalized,
+    };
+    set({
+      tabs: staleTextTab
+        ? state.tabs.map((t) => (t.id === staleTextTab.id ? newTab : t))
+        : [...state.tabs, newTab],
+      activeTabId: tabId,
+    });
+  },
+
   openHtmlBrowser: (workspaceId, htmlPath, content, options) => {
     const state = get();
     const normalized = htmlPath.replace(/\\/g, '/').replace(/^\/+/, '');
@@ -464,6 +550,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       viewMode: 'html-preview',
       htmlPath: normalized,
       htmlPreviewUrl: options?.previewUrl,
+    };
+    set({
+      tabs: [...state.tabs, newTab],
+      activeTabId: tabId,
+    });
+  },
+
+  openMusicWorkbench: (workspaceId, filePath, content = '', options) => {
+    const state = get();
+    const normalized = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+    const isProject = normalized.endsWith('.nj-music.json') || normalized.includes('project.nj-music.json');
+
+    const existingTab = state.tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'music-workbench' &&
+        (t.musicPath ?? t.musicProjectPath ?? t.path).replace(/\\/g, '/').replace(/^\/+/, '') === normalized,
+    );
+    if (existingTab) {
+      set({ activeTabId: existingTab.id });
+      return;
+    }
+
+    const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTab: EditorTab = {
+      id: tabId,
+      workspaceId,
+      path: normalized,
+      content,
+      isDirty: false,
+      viewMode: 'music-workbench',
+      musicPath: isProject ? undefined : normalized,
+      musicProjectPath: isProject ? normalized : options?.projectPath,
     };
     set({
       tabs: [...state.tabs, newTab],
@@ -591,7 +710,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((tab) => {
         if (tab.id !== tabId) return tab;
-        if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'html-preview') {
+        if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench') {
           return tab.content === content ? tab : { ...tab, content, isDirty: false };
         }
         if (tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
@@ -637,7 +756,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     const tab = state.getTabById(tabId);
     if (!tab) return false;
-    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis' || tab.viewMode === 'cad-workbench') return true;
+    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'music-workbench') return true;
 
     set({ saving: true, error: null });
 
@@ -666,7 +785,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveAllTabs: async () => {
     const state = get();
     const dirtyTabs = state.tabs.filter(
-      (tab) => tab.isDirty && tab.viewMode !== 'image' && tab.viewMode !== 'scan-summary' && tab.viewMode !== 'scan-analysis' && tab.viewMode !== 'comparator-analysis' && tab.viewMode !== 'cad-workbench'
+      (tab) => tab.isDirty && tab.viewMode !== 'image' && tab.viewMode !== 'scan-summary' && tab.viewMode !== 'scan-analysis' && tab.viewMode !== 'comparator-analysis' && tab.viewMode !== 'cad-workbench' && tab.viewMode !== 'structure-workbench' && tab.viewMode !== 'music-workbench'
     );
     
     if (dirtyTabs.length === 0) return true;
@@ -717,7 +836,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
 
-    if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'html-preview') {
+    if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench') {
       try {
         const latestContent = await api.fetchFileContent(workspaceId, path);
         set(current => ({
@@ -767,6 +886,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
         const next: EditorTab = { ...tab, path: newPath };
         if (tab.cadScadPath === oldPath) next.cadScadPath = newPath;
+        if (tab.structurePath === oldPath) next.structurePath = newPath;
         if (tab.htmlPath === oldPath) next.htmlPath = newPath;
         return next;
       }),
@@ -823,7 +943,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const matches = state.tabs.filter(
       (tab) =>
         tab.workspaceId === workspaceId &&
-        (tab.path === normalized || tab.cadScadPath === normalized)
+        (tab.path === normalized || tab.cadScadPath === normalized || tab.structurePath === normalized)
     );
     if (matches.length === 0) return null;
     return matches.find((t) => t.viewMode === 'scan-summary') ?? matches[0];

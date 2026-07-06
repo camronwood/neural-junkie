@@ -26,8 +26,13 @@ const VARIANT_DEFAULTS: Record<string, { steps: number; guidance: string }> = {
 function statusLabel(st: ACEStepStatus | null): string {
   if (!st) return 'Checking…';
   if (st.demo_mode) return 'Demo mode (NJ_MUSIC_DEMO=1)';
-  if (st.installing) return 'Installing ACE-Step…';
-  if (st.ready) return `Ready (${st.model_variant ?? 'sft'})`;
+  if (st.installing) {
+    const phase = st.install_progress?.phase;
+    const detail = st.install_progress?.detail;
+    if (phase) return `Installing ACE-Step (${phase}${detail ? `: ${detail}` : ''})…`;
+    return 'Installing ACE-Step…';
+  }
+  if (st.ready) return `Ready (${st.model_variant ?? 'turbo'})`;
   return 'Weights not installed for selected model';
 }
 
@@ -40,7 +45,7 @@ function statusClass(st: ACEStepStatus | null): string {
 
 export function MusicCreationToolsPanel({ hubHttp, isActive, packEnabled = true }: MusicCreationToolsPanelProps) {
   const [status, setStatus] = useState<ACEStepStatus | null>(null);
-  const [modelVariant, setModelVariant] = useState('sft');
+  const [modelVariant, setModelVariant] = useState('turbo');
   const [inferenceSteps, setInferenceSteps] = useState('50');
   const [guidanceScale, setGuidanceScale] = useState('7');
   const [inferMethod, setInferMethod] = useState<'ode' | 'sde'>('ode');
@@ -56,7 +61,7 @@ export function MusicCreationToolsPanel({ hubHttp, isActive, packEnabled = true 
     if (!r.ok) return;
     const cfg = await r.json();
     const music = (cfg.mcp?.music ?? {}) as Record<string, unknown>;
-    const variant = String(music.ace_step_model_variant || 'sft');
+    const variant = String(music.ace_step_model_variant || 'turbo');
     setModelVariant(variant);
     const defs = VARIANT_DEFAULTS[variant] ?? VARIANT_DEFAULTS.sft;
     setInferenceSteps(String(music.inference_steps ?? defs.steps));

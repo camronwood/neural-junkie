@@ -183,6 +183,41 @@ function MessageGeneratedAudio({
       <audio controls preload="metadata" className="w-full max-w-md" src={src}>
         Your browser does not support audio playback.
       </audio>
+      <MessageGeneratedStems metadata={metadata} messageId={messageId} channelName={channelName} />
+    </div>
+  );
+}
+
+function MessageGeneratedStems({
+  metadata,
+  messageId,
+  channelName,
+}: {
+  metadata?: Record<string, unknown>;
+  messageId?: string;
+  channelName?: string;
+}) {
+  const g = metadata?.generated_audio as Record<string, unknown> | undefined;
+  const stems = g?.stems as Array<Record<string, unknown>> | undefined;
+  if (!stems?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {stems.map((stem) => {
+        const track = String(stem.track || 'stem');
+        const stemMeta = { generated_audio: stem };
+        const stemSrc = generatedAudioSrc(stemMeta, { messageId, channel: channelName });
+        if (!stemSrc) return null;
+        return (
+          <a
+            key={track}
+            href={stemSrc}
+            download={`${track}.wav`}
+            className="text-xs px-2 py-1 rounded border border-slack-border bg-slack-bgHover text-slack-text hover:text-white"
+          >
+            {track}
+          </a>
+        );
+      })}
     </div>
   );
 }

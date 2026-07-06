@@ -1,6 +1,8 @@
-# Life Sciences / Biology Pack (v1)
+# Life Sciences / Biology Pack
 
-Neural Junkie includes a **Life sciences** setup path with a domain-tuned model and **BiologyExpert** agent.
+Neural Junkie includes a **Life sciences** domain pack (v2) with OpenBioLLM chat, **GenomicsExpert**, **StructuralBiologyExpert**, structure viewer workbench, biology sidecar, and official runbooks.
+
+**v2 implementation plan:** [LIFE_SCIENCES_V2.md](./LIFE_SCIENCES_V2.md) · **Pack workspace:** see `WORKSPACE.md` in the [pack repo](https://github.com/camronwood/neural-junkie-pack-life-sciences).
 
 ## One pack at a time
 
@@ -13,10 +15,14 @@ Install and enable this pack from **Settings → Domain packs → Pack store**. 
 | **OpenBioLLM 8B (chat)** | `koesn/llama3-openbiollm-8b:latest` — recommended Ollama Hub pull (Llama 3 template) |
 | **Tool runner** | `qwen2.5:7b` — hub uses this for MCP `analyze_sequence` / `fold_protein` when the chat model has no native tools |
 | **nj-bio:8b (optional)** | HF GGUF import with Llama 3 template (branded tag) |
-| **BiologyExpert** | Preset agent with bio MCP tools |
+| **BiologyExpert** | v1 compat agent (all bio MCP tools) |
+| **GenomicsExpert** | Sequence analysis, BLAST, pathway lookup |
+| **StructuralBiologyExpert** | Folding, structure metadata, structure workbench |
+| **ChemInformaticsExpert** | RDKit tools when sidecar + RDKit enabled |
+| **Structure workbench** | Open `.pdb` / `.cif` / `.mmcif` in-app (3D + text) |
 | **analyze_sequence** | DNA/RNA/protein checks, length, reverse complement |
-| **fold_protein** | ESMFold via Hugging Face Inference → PDB under `~/.neural-junkie/bio/` |
-| **Sequence review runbook** | Available from your **customer lab pack** (not shipped in core app) |
+| **fold_protein** | ESMFold via biology sidecar (HF or local backend) → PDB under `~/.neural-junkie/bio/` |
+| **sequence-review** / **basic-qc** runbooks | Shipped in official pack zip |
 
 Phoenix scan viewers, 12-Plex QC, comparator, and other lab workflows ship in a **customer sideload pack** (not Life sciences). See [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
@@ -110,13 +116,14 @@ Covers Phoenix TIM import, scan summary/analysis viewers, 12-Plex QC, comparator
 1. Life sciences wizard → Ollama → enable BiologyExpert.
 2. **Clear message history** on an old Biology DM if replies were echoing instructions.
 3. DM with BiologyExpert: paste a short peptide → ask to analyze sequence.
-4. Ask to fold the same sequence (HF hub token saved in Settings) → confirm PDB path in reply.
-5. Runbook library → import **sequence-review** from your customer lab pack → instantiate with BiologyExpert → start execution.
-6–15. Scan viewers, Phoenix import, 12-Plex QC, comparator — enable your **customer lab pack**; see [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
+4. Ask to fold the same sequence (HF hub token or local biology sidecar) → confirm PDB path in reply.
+5. Double-click the PDB in file explorer → confirm **structure workbench** opens in-app.
+6. Runbook library → import **sequence-review** from the Life sciences pack → instantiate with GenomicsExpert → start execution.
+7–15. Scan viewers, Phoenix import, 12-Plex QC, comparator — enable your **customer lab pack**; see [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
-## Out of scope (v1)
+## Out of scope (v2)
 
-- SMILES validation (RDKit)
 - scRNA / h5ad
 - ESM3, ProtGPT2, GenSLMs
-- In-app PDB viewer
+- Org-specific Phoenix / 12-Plex in the official pack (customer sideload)
+- Clinical decision support

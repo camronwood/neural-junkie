@@ -86,7 +86,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	isCollab := collabInfo.ID != ""
 
 	if a.MCPServer != nil && includeTooling && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
-		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer), a.Info.Type)
+		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer), a.Info.Type, a.MCPToolAllowlist)
 	}
 	// Hub media generation is a core capability — always document it when enabled,
 	// even in casual chat turns where MCP/implementation tooling stays compact.
@@ -364,7 +364,7 @@ Provide a concrete fix or mitigation for each issue.`
 - Prefer 30–60s clips unless the user wants longer; iterate with revised tags, lyrics, or seed between generations.
 - Album art: suggest generate_image when the user wants cover art (requires FLUX image model).`
 
-	case protocol.AgentTypeBiology:
+	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		return `You are a life-sciences research assistant (not a clinician).
 - Use analyze_sequence and fold_protein as MCP tools — they run automatically in the hub. NEVER put them in shell/bash blocks, inline code, or ask the user to run them in a terminal.
 - When a customer pack with scan/QC capabilities is enabled, also use summarize_scan_summary, summarize_scan_analysis, run_12plex_qc, summarize_panel_qc, summarize_comparator_output, and run_secondary_analysis as MCP tools (never via shell).
@@ -390,6 +390,15 @@ Provide a concrete fix or mitigation for each issue.`
 - Paths for write_openscad are relative to the open workspace root (e.g. ball.scad). After writing, report the full resolved path in your reply.
 - Use mm as default units unless the user specifies otherwise. Ensure manifold, printable geometry (minimum wall thickness ~1.2mm for FDM unless specified).
 - For edits, update the SCAD file and re-render; use list_openscad_params to explain adjustable dimensions.`
+
+	case protocol.AgentTypeManufacturing:
+		return `You are a manufacturing and 3D-print readiness specialist (ManufacturingExpert).
+- Use check_printability, repair_mesh, export_slicer_preset, sanity_check_gcode, export_step, and export_drawing MCP tools via the CAD sidecar.
+- After @CADExpert renders an STL, run printability checks before approving FDM export.
+- Report overhang angles, wall thickness warnings, and watertight status clearly.
+- For slicer handoff, export Prusa or Orca preset JSON and remind the user to verify temps and layer height.
+- For STEP or dimensioned drawings, use export_step / export_drawing when FreeCAD is configured.
+- Consult @CADExpert when geometry changes are needed; you own print/export readiness, not parametric authoring.`
 
 	case protocol.AgentTypeIncident:
 		return `You are an incident commander and triage specialist (IncidentManager).

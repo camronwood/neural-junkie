@@ -53,6 +53,9 @@ func (m *MockHubClient) MusicGenerationEnabled() bool { return false }
 func (m *MockHubClient) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
 	return nil
 }
+func (m *MockHubClient) ExtractAndPostMusicStems(context.Context, string, protocol.AgentInfo, agent.MusicExtractRequest) error {
+	return nil
+}
 func (m *MockHubClient) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }

@@ -42,7 +42,21 @@ export function CadWorkbench({
   const [versions, setVersions] = useState<Array<{ id: string; label: string; created_at: string }>>([]);
   const [versionLabel, setVersionLabel] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerTab, setDrawerTab] = useState<'params' | 'printability' | 'assembly'>('params');
   const [loadedPath, setLoadedPath] = useState<string | null>(null);
+  const [lastStlPath, setLastStlPath] = useState<string | null>(null);
+  const [printability, setPrintability] = useState<{
+    printable?: boolean;
+    warnings?: string[];
+    overhang?: { max_angle_deg?: number; faces_over_limit?: number };
+    estimated_min_wall_mm?: number;
+  } | null>(null);
+  const [assemblyReport, setAssemblyReport] = useState<{
+    ok?: boolean;
+    bom?: Array<{ part_id: string; name: string }>;
+    fit_issues?: unknown[];
+  } | null>(null);
+  const [checkingPrint, setCheckingPrint] = useState(false);
   const [contentRevision, setContentRevision] = useState(0);
   const { addToast } = useToastStore();
 
@@ -130,6 +144,9 @@ export function CadWorkbench({
       });
       if (result.params) {
         setParams(result.params as CadParam[]);
+      }
+      if (result.stl_path) {
+        setLastStlPath(result.stl_path);
       }
       loadMeshFromBase64(result.content_base64);
       useEditorStore.getState().updateTabContent(tabId, scadContent);
@@ -239,6 +256,45 @@ export function CadWorkbench({
     };
   }, [paramOverrides, runRender]);
 
+  const runPrintabilityCheck = useCallback(async () => {
+    const stl = lastStlPath ?? scadPath.replace(/\.scad$/i, '.stl');
+    if (!stl) return;
+    setCheckingPrint(true);
+    try {
+      const report = await api.checkCADPrintability({ stl_path: stl });
+      setPrintability(report);
+      setDrawerTab('printability');
+      addToast({
+        type: report.printable ? 'success' : 'warning',
+        title: 'Printability',
+        message: report.printable ? 'Looks printable' : (report.warnings?.[0] ?? 'Review warnings'),
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Printability',
+        message: err instanceof Error ? err.message : 'Check failed',
+      });
+    } finally {
+      setCheckingPrint(false);
+    }
+  }, [lastStlPath, scadPath, addToast]);
+
+  const runAssemblyCheck = useCallback(async () => {
+    const manifest = scadPath.replace(/[^/]+\.scad$/i, 'cad.project.json');
+    try {
+      const report = await api.validateCADAssembly({ manifest_path: manifest });
+      setAssemblyReport(report);
+      setDrawerTab('assembly');
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Assembly',
+        message: err instanceof Error ? err.message : 'Validation failed',
+      });
+    }
+  }, [scadPath, addToast]);
+
   const saveVersion = async () => {
     try {
       await api.saveFileContent(workspaceId, scadPath, scadContent);
@@ -321,12 +377,37 @@ export function CadWorkbench({
           className="w-full px-3 py-1.5 flex items-center justify-between gap-2 text-xs font-medium text-slack-text hover:bg-slack-bg transition-colors"
           aria-expanded={drawerOpen}
         >
-          <span>Parameters &amp; versions</span>
+          <span>Parameters, printability &amp; versions</span>
           <span className="text-slack-textMuted">{drawerOpen ? '▼' : '▲'}</span>
         </button>
         {drawerOpen && (
-          <div className="px-3 pb-3 pt-1 max-h-[220px] overflow-y-auto">
+          <div className="px-3 pb-3 pt-1 max-h-[260px] overflow-y-auto">
+            <div className="flex gap-2 mb-2 text-xs">
+              <button
+                type="button"
+                className={`px-2 py-0.5 rounded ${drawerTab === 'params' ? 'bg-slack-accent text-white' : 'bg-slack-bgHover'}`}
+                onClick={() => setDrawerTab('params')}
+              >
+                Params
+              </button>
+              <button
+                type="button"
+                className={`px-2 py-0.5 rounded ${drawerTab === 'printability' ? 'bg-slack-accent text-white' : 'bg-slack-bgHover'}`}
+                onClick={() => setDrawerTab('printability')}
+              >
+                Print
+              </button>
+              <button
+                type="button"
+                className={`px-2 py-0.5 rounded ${drawerTab === 'assembly' ? 'bg-slack-accent text-white' : 'bg-slack-bgHover'}`}
+                onClick={() => setDrawerTab('assembly')}
+              >
+                Assembly
+              </button>
+            </div>
             <div className="flex flex-wrap gap-x-8 gap-y-4 items-start">
+              {drawerTab === 'params' && (
+              <>
               <section className="min-w-[200px] flex-1">
                 <h3 className="font-semibold text-slack-text mb-2 text-sm">Parameters</h3>
                 {params.length === 0 ? (
@@ -403,11 +484,74 @@ export function CadWorkbench({
 
               <section className="min-w-[160px] max-w-[240px]">
                 <h3 className="font-semibold text-slack-text mb-1 text-sm">Export</h3>
-                <p className="text-xs text-slack-textMuted">
-                  STL via Render. STEP requires FreeCAD (optional in Settings). Save SCAD from the editor and use Render
-                  for STL.
+                <p className="text-xs text-slack-textMuted mb-2">
+                  STL via Render. STEP and slicer presets via @ManufacturingExpert.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => void runPrintabilityCheck()}
+                  disabled={checkingPrint}
+                  className="text-xs px-2 py-1 rounded bg-slack-bgHover"
+                >
+                  {checkingPrint ? 'Checking…' : 'Printability check'}
+                </button>
               </section>
+              </>
+              )}
+              {drawerTab === 'printability' && (
+              <section className="min-w-[240px] flex-1">
+                <h3 className="font-semibold text-slack-text mb-2 text-sm">Printability</h3>
+                {!printability ? (
+                  <p className="text-xs text-slack-textMuted">Render STL, then run printability check.</p>
+                ) : (
+                  <ul className="text-xs space-y-1 text-slack-text">
+                    <li>Printable: {printability.printable ? 'yes' : 'review'}</li>
+                    {printability.estimated_min_wall_mm != null && (
+                      <li>Est. min wall: {printability.estimated_min_wall_mm}mm</li>
+                    )}
+                    {printability.overhang?.max_angle_deg != null && (
+                      <li>Max overhang: {printability.overhang.max_angle_deg}°</li>
+                    )}
+                    {(printability.warnings ?? []).map((w) => (
+                      <li key={w} className="text-amber-400">{w}</li>
+                    ))}
+                  </ul>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void runPrintabilityCheck()}
+                  disabled={checkingPrint}
+                  className="mt-2 text-xs px-2 py-1 rounded bg-slack-bgHover"
+                >
+                  Re-check
+                </button>
+              </section>
+              )}
+              {drawerTab === 'assembly' && (
+              <section className="min-w-[240px] flex-1">
+                <h3 className="font-semibold text-slack-text mb-2 text-sm">Assembly</h3>
+                <p className="text-xs text-slack-textMuted mb-2">
+                  Add <code className="font-mono">cad.project.json</code> beside your SCAD files.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void runAssemblyCheck()}
+                  className="text-xs px-2 py-1 rounded bg-slack-bgHover"
+                >
+                  Validate fit
+                </button>
+                {assemblyReport && (
+                  <ul className="mt-2 text-xs space-y-1">
+                    {(assemblyReport.bom ?? []).map((p) => (
+                      <li key={p.part_id}>{p.name || p.part_id}</li>
+                    ))}
+                    {(assemblyReport.fit_issues ?? []).length > 0 && (
+                      <li className="text-amber-400">{(assemblyReport.fit_issues ?? []).length} fit issue(s)</li>
+                    )}
+                  </ul>
+                )}
+              </section>
+              )}
             </div>
           </div>
         )}

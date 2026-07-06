@@ -134,6 +134,7 @@ export interface ACEStepStatus {
   model_variant?: string;
   python_version?: string;
   last_error?: string;
+  install_progress?: { phase: string; detail: string; updated_at?: string };
   paths: ACEStepPaths;
 }
 
@@ -2342,6 +2343,41 @@ export class ChatAPI {
     });
     const data = (await response.json()) as { ok: boolean; message: string };
     return data;
+  }
+
+  async checkCADPrintability(body: {
+    stl_path: string;
+    min_wall_mm?: number;
+  }): Promise<{
+    printable?: boolean;
+    warnings?: string[];
+    overhang?: { max_angle_deg?: number; faces_over_limit?: number };
+    estimated_min_wall_mm?: number;
+  }> {
+    const response = await this.hubFetch('/api/cad/printability', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  }
+
+  async validateCADAssembly(body: {
+    manifest_path: string;
+    clearance_mm?: number;
+  }): Promise<{ ok?: boolean; bom?: Array<{ part_id: string; name: string }>; fit_issues?: unknown[] }> {
+    const response = await this.hubFetch('/api/cad/assembly/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
   }
 
   async createFile(workspaceId: string, path: string, content: string = '', isDir = false): Promise<void> {

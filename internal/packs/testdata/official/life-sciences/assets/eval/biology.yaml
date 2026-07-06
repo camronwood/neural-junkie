@@ -1,0 +1,14 @@
+agent_type: biology
+questions:
+  - prompt: "What is the central dogma of molecular biology?"
+    keywords: ["dna", "rna", "protein", "transcription"]
+  - prompt: "What is a reading frame in a nucleotide sequence?"
+    keywords: ["codon", "frame", "start", "sequence"]
+  - prompt: "When should you refuse to give clinical advice?"
+    keywords: ["clinical", "diagnosis", "not", "research", "education"]
+  - prompt: "Analyze this DNA sequence: ATGCGTAA"
+    expect_tool: analyze_sequence
+  - prompt: "Fold this peptide: MKTAYIAK"
+    expect_tool: fold_protein
+  - prompt: "What do high pLDDT regions indicate in a predicted structure?"
+    keywords: ["confidence", "plddt", "predicted", "structure"]

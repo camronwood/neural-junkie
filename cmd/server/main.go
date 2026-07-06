@@ -263,6 +263,8 @@ func main() {
 	initBrowserSidecarClient()
 	initIncidentSidecarClient()
 	initAWSSidecarClient()
+	initCADSidecarClient()
+	initBiologySidecarClient()
 	syncPackSidecars()
 
 	log.Printf("Chat Hub Server starting on %s", *addr)

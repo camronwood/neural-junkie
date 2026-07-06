@@ -145,7 +145,7 @@ func (h *Hub) GenerateAndPostMusic(ctx context.Context, channel string, from pro
 		}
 	}
 
-	mime, b64, err := gen.Generate(ctx, music.Request{
+	result, err := gen.Generate(ctx, music.Request{
 		StyleTags:      req.StyleTags,
 		Lyrics:         req.Lyrics,
 		DurationSec:    req.DurationSec,
@@ -154,6 +154,8 @@ func (h *Hub) GenerateAndPostMusic(ctx context.Context, channel string, from pro
 		InferenceSteps: req.InferenceSteps,
 		GuidanceScale:  req.GuidanceScale,
 		InferMethod:    req.InferMethod,
+		ExportStems:    req.ExportStems,
+		StemTracks:     req.StemTracks,
 	})
 	if err != nil {
 		return err
@@ -161,17 +163,84 @@ func (h *Hub) GenerateAndPostMusic(ctx context.Context, channel string, from pro
 
 	out := protocol.NewMessage(protocol.MessageTypeChat, channel, from, protocol.GeneratedAudioDeliveryContent)
 	meta := map[string]interface{}{
-		"mime":       mime,
-		"data":       b64,
+		"mime":       result.Mime,
+		"data":       result.Data,
 		"style_tags": req.StyleTags,
 	}
 	if req.Lyrics != "" {
 		meta["lyrics"] = req.Lyrics
 	}
-	if path, err := saveGeneratedAudioFile(out.ID, mime, b64); err != nil {
+	if result.GenerationID != "" {
+		meta["generation_id"] = result.GenerationID
+	}
+	if len(result.Stems) > 0 {
+		stemsMeta := make([]map[string]interface{}, 0, len(result.Stems))
+		for _, stem := range result.Stems {
+			entry := map[string]interface{}{
+				"track": stem.Track,
+				"mime":  stem.Mime,
+				"data":  stem.Data,
+			}
+			if stem.Path != "" {
+				entry["path"] = stem.Path
+			}
+			stemsMeta = append(stemsMeta, entry)
+		}
+		meta["stems"] = stemsMeta
+	}
+	if path, err := saveGeneratedAudioFile(out.ID, result.Mime, result.Data); err != nil {
 		log.Printf("[hub] generated audio file save failed (inline only): %v", err)
 	} else {
 		meta["path"] = path
+	}
+	out.Metadata["generated_audio"] = meta
+	return h.SendMessage(out)
+}
+
+// ExtractAndPostMusicStems extracts stems from an audio file and posts to the channel.
+func (h *Hub) ExtractAndPostMusicStems(ctx context.Context, channel string, from protocol.AgentInfo, req agent.MusicExtractRequest) error {
+	if !h.MusicGenerationAvailable() {
+		return fmt.Errorf("music generation disabled (install and enable the Music creation pack)")
+	}
+	gen := music.ResolveGenerator()
+	sg, ok := gen.(*music.SidecarGenerator)
+	if !ok {
+		return fmt.Errorf("stem extraction requires the music pack sidecar")
+	}
+	req.AudioPath = strings.TrimSpace(req.AudioPath)
+	if req.AudioPath == "" {
+		return fmt.Errorf("audio_path required")
+	}
+	if len(req.Tracks) == 0 {
+		req.Tracks = []string{"vocals", "drums"}
+	}
+	result, err := sg.ExtractStems(ctx, req.AudioPath, req.Tracks)
+	if err != nil {
+		return err
+	}
+	out := protocol.NewMessage(protocol.MessageTypeChat, channel, from, protocol.GeneratedAudioDeliveryContent+" (stems)")
+	meta := map[string]interface{}{
+		"mime": result.Mime,
+		"data": result.Data,
+		"path": req.AudioPath,
+	}
+	if result.GenerationID != "" {
+		meta["generation_id"] = result.GenerationID
+	}
+	if len(result.Stems) > 0 {
+		stemsMeta := make([]map[string]interface{}, 0, len(result.Stems))
+		for _, stem := range result.Stems {
+			entry := map[string]interface{}{
+				"track": stem.Track,
+				"mime":  stem.Mime,
+				"data":  stem.Data,
+			}
+			if stem.Path != "" {
+				entry["path"] = stem.Path
+			}
+			stemsMeta = append(stemsMeta, entry)
+		}
+		meta["stems"] = stemsMeta
 	}
 	out.Metadata["generated_audio"] = meta
 	return h.SendMessage(out)

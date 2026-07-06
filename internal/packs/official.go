@@ -9,7 +9,7 @@ var OfficialPackIDs = []string{"software-development", "life-sciences", "special
 var KnownSpecialistAgentTypes = []string{
 	"backend", "frontend", "devops", "security", "architecture", "code-review", "database",
 	"rust", "sre", "mobile", "data-ml",
-	"biology", "cad", "aws", "incident", "browser", "music",
+	"biology", "genomics", "structural-biology", "cheminformatics", "cad", "manufacturing", "aws", "incident", "browser", "music",
 }
 
 // SoftwareDevelopmentExpertSlugs are /create-expert slugs from the software-development pack.
@@ -34,9 +34,9 @@ func PackIDForAgentType(agentType string) string {
 	switch strings.ToLower(strings.TrimSpace(agentType)) {
 	case "backend", "frontend", "devops", "security", "architecture", "code-review", "database", "rust", "sre", "mobile", "data-ml":
 		return "software-development"
-	case "biology":
+	case "biology", "genomics", "structural-biology", "cheminformatics":
 		return "life-sciences"
-	case "cad":
+	case "cad", "manufacturing":
 		return "cad"
 	case "aws":
 		return "aws"

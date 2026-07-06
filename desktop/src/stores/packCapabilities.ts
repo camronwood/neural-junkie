@@ -27,8 +27,12 @@ export const PACK_PLATFORM_CAP = {
   WEB_PREVIEW: 'web-preview',
   WEB_BROWSER_WORKBENCH: 'web-browser-workbench',
   MUSIC_GENERATION: 'music-generation',
+  MUSIC_WORKBENCH: 'music-workbench',
   MUSIC_SIDECAR: 'music-sidecar',
   BROWSER_SIDECAR: 'browser-sidecar',
+  BIOLOGY_API: 'biology-api',
+  BIOLOGY_WORKBENCH: 'biology-workbench',
+  BIOLOGY_SIDECAR: 'biology-sidecar',
 } as const;
 
 /**

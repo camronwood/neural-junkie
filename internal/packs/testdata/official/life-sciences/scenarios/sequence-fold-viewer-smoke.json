@@ -1,0 +1,10 @@
+{
+  "name": "sequence-fold-viewer-smoke",
+  "description": "Manual smoke: analyze_sequence → fold_protein → open PDB in structure workbench",
+  "steps": [
+    "Enable life-sciences pack v2",
+    "DM GenomicsExpert: analyze MKTAYIAKQRQISFVKSHFSRQ",
+    "DM StructuralBiologyExpert: fold the same peptide",
+    "Open PDB from ~/.neural-junkie/bio/ in structure workbench"
+  ]
+}

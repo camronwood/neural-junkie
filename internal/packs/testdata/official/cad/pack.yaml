@@ -1,16 +1,49 @@
 id: cad
-version: "1.0.0"
+version: "2.0.0"
 title: CAD
-description: CADExpert, OpenSCAD parametric modeling, 3D preview workbench, and export.
+description: CADExpert and ManufacturingExpert — parametric OpenSCAD design through print-ready export.
 layout_profile: team
 capabilities:
   - cad-api
   - cad-viewer
   - cad-workbench
+  - cad-sidecar
+capability_defs:
+  cad-sidecar:
+    kind: hub-sidecar
+    routes:
+      - /api/cad
+    sidecar:
+      module: assets/hub/server.py
+    settings:
+      - openscad_path
+      - freecad_path
+      - cad_artifacts_dir
+      - cad_sidecar_dry_run
+      - python_executable
+      - cad_venv
+  manufacturing-tools:
+    kind: mcp-tools
+    mcp_tools:
+      - check_printability
+      - repair_mesh
+      - export_slicer_preset
+      - sanity_check_gcode
+      - export_step
+      - export_drawing
+settings_overlay:
+  cad_artifacts_dir: ~/.neural-junkie/cad
+  cad_venv: ~/.neural-junkie/cad/venv
+  python_executable: ~/.neural-junkie/cad/venv/bin/python3
 agents:
   - type: cad
     name: CADExpert
     implementation: builtin/cad
+    ollama_model: qwen3.5:27b
+  - type: manufacturing
+    name: ManufacturingExpert
+    implementation: builtin/manufacturing
+    ollama_model: qwen3.5:27b
 models_to_ensure:
   - qwen3.5:27b
   - qwen3.5:9b
@@ -20,3 +53,4 @@ expert_slug: cad
 expert_label: CAD / Mechanical design
 mcp_agents:
   - cad
+  - manufacturing

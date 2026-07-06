@@ -34,11 +34,17 @@ Related docs: [PACKS.md](./PACKS.md), [PACKS_CUSTOM.md](./PACKS_CUSTOM.md), [PAC
 
 ---
 
-## Life sciences base (`life-sciences`)
+## Life sciences (`life-sciences`) — v2
 
-The official Life sciences pack declares **no capability tokens** (`capabilities: []`). It enables **BiologyExpert**, sequence/fold MCP tools, and models via `agents` / `mcp_agents` — not via capability flags.
+| Token | What it enables |
+|-------|-----------------|
+| `biology-api` | Hub biology REST proxy to pack sidecar |
+| `biology-workbench` | Structure viewer workbench for `.pdb` / `.cif` / `.mmcif` |
+| `biology-sidecar` | Pack Python sidecar (`/api/biology/*`) for fold, BLAST, pathway, optional RDKit |
 
-Lab scan/QC/Phoenix UI is provided by **customer sideload packs** (below).
+Pack-local `capability_defs`: `structure-viewer`, `biology-tools`. See [LIFE_SCIENCES_V2.md](./LIFE_SCIENCES_V2.md).
+
+Lab scan/QC/Phoenix UI remains in **customer sideload packs** (below).
 
 ---
 
@@ -122,7 +128,8 @@ Requires **software-development** pack.
 | Token | What it enables |
 |-------|-----------------|
 | `music-generation` | **MusicExpert** agent, `generate_music` tool, `/generate-music`. See [MUSIC_CREATION_PACK.md](./MUSIC_CREATION_PACK.md). |
-| `music-sidecar` | Pack-local hub sidecar; ACE-Step inference at `/api/music/generate`. |
+| `music-workbench` | File explorer: open `.wav`, `.mp3`, or `project.nj-music.json` in the **music workbench** (waveform, loop regions, A/B compare, stems). |
+| `music-sidecar` | Pack-local hub sidecar; ACE-Step inference at `/api/music/*`. |
 
 ---
 
@@ -140,6 +147,7 @@ Requires **software-development** pack.
 | CAD workbench (`.scad`) | `cad-workbench` |
 | HTML preview workbench | `web-browser-workbench` |
 | Inline song player in chat | `music-generation` |
+| Music workbench (audio / project) | `music-workbench` |
 | AWS integrations settings | `aws-sso` |
 | Jira integrations settings | `jira-integration` |
 | Memory / LoRA training settings | `personal-learning`, `lora-training` |

@@ -150,10 +150,10 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 		tools = append(tools, generateImageToolDefinition())
 	}
 	if a.musicGenerationToolsEnabledForMessage(msg) {
-		tools = append(tools, generateMusicToolDefinition())
+		tools = append(tools, generateMusicToolDefinition(), extractStemsToolDefinition())
 	}
 	if a.MCPServer != nil {
-		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer))...)
+		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), a.MCPToolAllowlist)...)
 	}
 	if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
 		tools = append(tools, fileEditToolDefinitions()...)
@@ -197,6 +197,9 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	}
 	if name == generateMusicToolName {
 		return a.executeGenerateMusicTool(ctx, msg, input)
+	}
+	if name == extractStemsToolName {
+		return a.executeExtractStemsTool(ctx, msg, input)
 	}
 	if name == proposeFileEditToolName {
 		return a.executeProposeFileEditTool(ctx, msg, input)

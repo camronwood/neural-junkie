@@ -21,7 +21,7 @@ func (c *Config) ChatModelForAgent(agentType string, agentModel string) string {
 	}
 	// User MCP/delegation overrides win over pack compose defaults.
 	switch agentType {
-	case "biology":
+	case "biology", "genomics", "structural-biology", "cheminformatics":
 		if c.IsPackEnabled(PackLifeSciences) {
 			if m := c.biologyChatModelUnlocked(); m != "" {
 				return m
@@ -40,7 +40,7 @@ func (c *Config) ChatModelForAgent(agentType string, agentModel string) string {
 		}
 	}
 	switch agentType {
-	case "biology":
+	case "biology", "genomics", "structural-biology", "cheminformatics":
 		if c.IsPackEnabled(PackLifeSciences) {
 			return BioOllamaChatModel
 		}
@@ -109,7 +109,7 @@ func (c *Config) ToolModelForAgent(agentType string) string {
 		}
 	}
 	switch agentType {
-	case "biology":
+	case "biology", "genomics", "structural-biology", "cheminformatics":
 		return c.BiologyToolModelOrDefault()
 	case "cad":
 		return c.CadMCPSettings().ToolModelOrDefault()

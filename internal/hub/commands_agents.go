@@ -636,7 +636,10 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 				protocol.AgentTypeSecurity:     "SecurityReviewer",
 				protocol.AgentTypeArchitecture: "SoftwareArchitect",
 				protocol.AgentTypeCodeReview:   "CodeReviewer",
-				protocol.AgentTypeBiology:      "BiologyExpert",
+				protocol.AgentTypeBiology:            "BiologyExpert",
+				protocol.AgentTypeGenomics:           "GenomicsExpert",
+				protocol.AgentTypeStructuralBiology:  "StructuralBiologyExpert",
+				protocol.AgentTypeCheminformatics:    "ChemInformaticsExpert",
 				protocol.AgentTypeAssistant:    "Assistant",
 			}
 			name = defaults[spec.AgentType]
