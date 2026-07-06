@@ -382,9 +382,32 @@ func (c *Config) ResolvedSlackDisabled() bool {
 	return false
 }
 
+// SettingsRestartBaseline captures resolved settings compared for restart hints.
+type SettingsRestartBaseline struct {
+	Server       ServerConfig
+	Debug        DebugSettings
+	MCPResources MCPResourcesConfig
+	Session      SessionConfig
+	Security     SecurityConfig
+}
+
+// CaptureSettingsRestartBaseline snapshots restart-sensitive resolved settings without copying Config's mutex.
+func (c *Config) CaptureSettingsRestartBaseline() SettingsRestartBaseline {
+	if c == nil {
+		return SettingsRestartBaseline{}
+	}
+	return SettingsRestartBaseline{
+		Server:       c.ResolvedServer(),
+		Debug:        c.ResolvedDebug(),
+		MCPResources: c.ResolvedMCPResources(),
+		Session:      c.ResolvedSession(),
+		Security:     c.ResolvedSecurity(),
+	}
+}
+
 // SettingsRestartReasons lists config keys that require a hub process restart when changed.
-func SettingsRestartReasons(before, after *Config) []string {
-	if before == nil || after == nil {
+func SettingsRestartReasons(before SettingsRestartBaseline, after *Config) []string {
+	if after == nil {
 		return nil
 	}
 	var reasons []string
@@ -393,22 +416,22 @@ func SettingsRestartReasons(before, after *Config) []string {
 			reasons = append(reasons, key)
 		}
 	}
-	bs, as := before.ResolvedServer(), after.ResolvedServer()
+	bs, as := before.Server, after.ResolvedServer()
 	add("server.host", bs.Host != as.Host)
 	add("server.port", bs.Port != as.Port)
 	add("server.listen_all", bs.ListenAll != as.ListenAll)
 	add("server.cors_any", bs.CorsAny != as.CorsAny)
-	bd, ad := before.ResolvedDebug(), after.ResolvedDebug()
+	bd, ad := before.Debug, after.ResolvedDebug()
 	add("debug.enabled", bd.Enabled != ad.Enabled)
 	add("debug.pprof_addr", bd.PprofAddr != ad.PprofAddr)
-	bm, am := before.ResolvedMCPResources(), after.ResolvedMCPResources()
+	bm, am := before.MCPResources, after.ResolvedMCPResources()
 	add("mcp_resources.enabled", bm.Enabled != am.Enabled)
 	add("mcp_resources.port", bm.Port != am.Port)
-	bsess, asess := before.ResolvedSession(), after.ResolvedSession()
+	bsess, asess := before.Session, after.ResolvedSession()
 	add("session.restore_on_startup", bsess.RestoreOnStartup != asess.RestoreOnStartup)
 	add("session.skip_restore_once", bsess.SkipRestoreOnce != asess.SkipRestoreOnce)
 	add("session.force_restore_large", bsess.ForceRestoreLarge != asess.ForceRestoreLarge)
-	bsec, asec := before.ResolvedSecurity(), after.ResolvedSecurity()
+	bsec, asec := before.Security, after.ResolvedSecurity()
 	add("security.session_ttl_hours", bsec.SessionTTLHours != asec.SessionTTLHours)
 	return reasons
 }

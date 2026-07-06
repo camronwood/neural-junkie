@@ -44,7 +44,7 @@ func TestResolvedCLIAgentsFromConfig(t *testing.T) {
 }
 
 func TestSettingsRestartReasonsListenAll(t *testing.T) {
-	prev := DefaultConfig()
+	prev := DefaultConfig().CaptureSettingsRestartBaseline()
 	next := DefaultConfig()
 	next.Server.ListenAll = true
 	reasons := SettingsRestartReasons(prev, next)

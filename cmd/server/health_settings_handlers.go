@@ -65,7 +65,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		config.PreserveRedactedSecrets(&incoming, appConfig)
 
 		prevMusic := appConfig.MCP.Music
-		prevSnapshot := *appConfig
+		prevBaseline := appConfig.CaptureSettingsRestartBaseline()
 		appConfig.Server = incoming.Server
 		appConfig.AI = incoming.AI
 		appConfig.Agents = incoming.Agents
@@ -115,7 +115,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.EnsureMCPDefaults()
 		appConfig.SyncAgentsFromPacks()
 		syncMCPFromConfig()
-		applyRuntimeConfigSideEffects(&prevSnapshot)
+		applyRuntimeConfigSideEffects(nil)
 
 		globalProviderCache.Clear()
 		if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok {
@@ -134,7 +134,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		reconcileConfiguredSpecialists()
 
-		restartReasons := config.SettingsRestartReasons(&prevSnapshot, appConfig)
+		restartReasons := config.SettingsRestartReasons(prevBaseline, appConfig)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":           "saved",

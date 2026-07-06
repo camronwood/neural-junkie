@@ -74,7 +74,7 @@ func handleSystemSecurity(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
-		prev := *appConfig
+		prevBaseline := appConfig.CaptureSettingsRestartBaseline()
 		if body.Security != nil {
 			in := *body.Security
 			config.PreserveRedactedSecrets(&config.Config{Security: in}, appConfig)
@@ -114,13 +114,13 @@ func handleSystemSecurity(w http.ResponseWriter, r *http.Request) {
 		if body.SessionSummary != nil {
 			appConfig.SessionSummary = *body.SessionSummary
 		}
-		applyRuntimeConfigSideEffects(&prev)
+		applyRuntimeConfigSideEffects(nil)
 		if err := appConfig.Save(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		config.SetAppConfig(appConfig)
-		restartReasons := config.SettingsRestartReasons(&prev, appConfig)
+		restartReasons := config.SettingsRestartReasons(prevBaseline, appConfig)
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"status":           "saved",
 			"requires_restart": len(restartReasons) > 0,
