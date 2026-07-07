@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Green Tests Aren&#x27;t Enough: Fix Loops and Growth Loops for Agent Platforms — Neural Junkie</title>
+  <meta name="description" content="My collab suite was red for weeks. Click-testing a 3-hour multi-agent sweep doesn&#x27;t scale. So I wired three release loops: gate → fix → grow. Here&#x27;s what each one does, and why you need both repair *and* test growth." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Green Tests Aren&#x27;t Enough: Fix Loops and Growth Loops for Agent Platforms
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Green Tests Aren&#x27;t Enough: Fix Loops and Growth Loops for Agent Platforms</h1>
+      <p class="article-lead">My collab suite was red for weeks. Click-testing a 3-hour multi-agent sweep doesn&#x27;t scale. So I wired three release loops: gate → fix → grow. Here&#x27;s what each one does, and why you need both repair *and* test growth.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">testing</span><span class="article-tag">agenticcoding</span><span class="article-tag">multiagent</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-fix-growth-loops-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>I already wrote about the <strong>NJ Fix Loop</strong> — platform policy that stops agents from running <code>make start-all</code> eight times without touching the Makefile. That loop lives <em>inside</em> the product: it repairs <strong>your repo</strong> when boot-fix sessions go sideways.</p>
+<p>This article is about the loops <em>around</em> the product — the release engineering that keeps Neural Junkie shippable when live scenarios fail at 2am and you're not manually triaging fifteen collab regressions.</p>
+<p><strong>Platform loops</strong> enforce outcomes for users. <strong>Release loops</strong> enforce outcomes for the team building the platform. You need both.</p>
+<h2>The wall after the harness</h2>
+<p>Neural Junkie has a three-layer conversational test harness: deterministic Go tests for orchestrator logic, CI smoke for the collab pipeline, and JSON scenarios with real Ollama agents for conversation quality. That architecture works. It tells you <em>what</em> broke.</p>
+<p>It does not tell you what to do at 11pm when <code>collab-full</code> returns 7/20 PASS and the failures cluster around plan parsing, execution timeouts, and workspace binding.</p>
+<p>Click-testing a three-hour multi-agent sweep doesn't scale. Weakening assertions to greenwash flakes doesn't ship honest betas. And "I'll fix it tomorrow" doesn't survive weekly model and prompt churn.</p>
+<p>So I wired three release loops.</p>
+<h2>The stack at a glance</h2>
+<pre class="mermaid">flowchart LR
+    LG["layer-gate\n(know what broke)"]
+    LFL["layer-fix-loop\n(repair product code)"]
+    TGL["test-growth-loop\n(strengthen the contract)"]
+
+    LG -->|fail| LFL
+    LG -->|pass + gaps| TGL
+    LFL --> LG
+    TGL --> LG</pre>
+<p>Same hub. Same scenario harness. Different loops for different jobs.</p>
+<h2>Loop 1 — layer-gate: know what broke</h2>
+<p><strong>Problem:</strong> <code>make release-prep</code> is a ~30-hour full gate. When it fails on hour 18, you don't know whether chat routing regressed, collab planning broke, or implement scenarios flaked — you just know something is red.</p>
+<p><strong>What we built:</strong> Layered gates — test one surface at a time before climbing to the full release:</p>
+<pre><code class="language-bash">make layer-list                         # layers in order + time estimates
+make layer-gate LAYER=ci                # fast CI smoke (no hub)
+make layer-gate LAYER=implement         # implement-scenarios (20/20)
+make layer-gate LAYER=chat              # chat + conversation regression
+make layer-gate LAYER=collab            # collab edge-case regression (~11)
+make layer-gate LAYER=collab-full       # full collab sweep (~15–20, 1–3h)
+make layer-climb                        # run layers in order until first failure
+</code></pre>
+<p>Each run writes a markdown report: <code>docs/testing/layer-gate-&lt;layer&gt;-&lt;stamp&gt;.md</code> with per-scenario pass/fail, log paths, and failure excerpts.</p>
+<p><strong>Why layers, not one big gate:</strong> Fail fast. Know <em>which</em> surface broke. Fix collab without re-running implement. Climb layers in order during release prep so you don't burn a day on a chat flake when collab is the real problem.</p>
+<h2>Loop 2 — layer-fix-loop: repair product code</h2>
+<p><strong>Problem:</strong> The gate failed. Now what? Manually reading logs, opening Cursor, fixing, re-running the full layer — that's a full evening per iteration.</p>
+<p><strong>What we built:</strong> An automated fix loop:</p>
+<pre><code class="language-bash">make layer-fix-loop LAYER=collab-full   # DRY_RUN=1 MAX_ITER=3 by default
+make layer-overnight LAYER=implement    # walk-away fix loop (tmux)
+</code></pre>
+<p>The loop:</p>
+<ol>
+<li>Run <code>layer-gate</code> for one layer</li>
+<li>If PASS → done</li>
+<li>If FAIL → build an agent brief from the gate report (failed scenarios, log excerpts, targeted rerun commands)</li>
+<li>Run Cursor agent in an <strong>isolated git worktree</strong> on a <code>release-prep/layer-&lt;name&gt;-&lt;stamp&gt;</code> branch</li>
+<li>Commit iteration changes</li>
+<li><strong>Targeted verification</strong> — rerun only the scenarios that failed, not the full layer</li>
+<li>Repeat until PASS or <code>MAX_ITER</code> exhausted</li>
+</ol>
+<p>Reports land in <code>docs/testing/layer-fix-loop-&lt;layer&gt;-&lt;stamp&gt;-iterN.md</code>.</p>
+<p><strong>Real example — collab-full, July 2026:</strong></p>
+<p>A fix-loop iteration hit CI blockers first, then the dominant collab failure mode:</p>
+<ul>
+<li><strong>Test isolation bug</strong> — <code>project_sets_test.go</code> loaded the developer's real <code>~/.neural-junkie/project-sets.json</code> instead of tmp storage. Fixed with <code>t.Setenv("HOME", tmpHome)</code>.</li>
+<li><strong>Judge provider resolution</strong> — deliverable judge baked hub automation mode at import time. Fixed to resolve at runtime so cloud judge fallback tests pass.</li>
+<li><strong>Ollama HTTP timeout</strong> — collab planning used a 360s client timeout against a 480s discussion budget. Raised to 540s. Planning participation scenarios went from timing out to passing.</li>
+</ul>
+<p>Result: <strong>7/20 scenarios PASS</strong> on that iteration — not a full green sweep, but CI green, planning participation improved, and the next iteration had a clear target list (workspace binding, plan parsing, execution dispatch). No assertions weakened.</p>
+<p><strong>Why isolated worktrees:</strong> The fix agent edits product code. You don't want uncommitted hub changes mixed with your feature branch. Each iteration gets a clean branch you can review, cherry-pick, or discard.</p>
+<h2>Loop 3 — test-growth-loop: strengthen the contract</h2>
+<p><strong>Problem:</strong> The suite is green, but you <em>know</em> there are gaps. A scenario passed once and never got tightened. A failure class from last month's logs isn't captured in JSON assertions.</p>
+<p><strong>What we built:</strong> A growth loop — discover gaps → agent adds/strengthens tests → verify → commit:</p>
+<pre><code class="language-bash">make test-growth-list              # ranked candidates (no agent)
+make test-growth-once DRY_RUN=1    # preview one iteration
+make test-growth-loop              # MAX_ITER=3, branch commits per accepted iteration
+make test-growth-loop SKIP_LIVE=1  # CI/unit + scenario contract only (no hub)
+</code></pre>
+<p>Candidates are mined from layer-gate failure logs — scenarios that failed, assertion classes that slipped through, edge cases the harness should have caught earlier. The agent proposes new or strengthened scenario JSON, contract tests, or assertion helpers. Verification runs before accept. Reports: <code>docs/testing/test-growth-*.md</code>.</p>
+<p><strong>When to use which:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Loop</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tests fail, product code needs repair</td>
+<td><code>layer-fix-loop</code></td>
+</tr>
+<tr>
+<td>Suite is green but coverage should improve</td>
+<td><code>test-growth-loop</code></td>
+</tr>
+<tr>
+<td>You don't know what's broken yet</td>
+<td><code>layer-gate</code> first</td>
+</tr>
+</tbody>
+</table>
+<p>Fix loop closes <strong>today's</strong> failures. Growth loop prevents <strong>tomorrow's</strong> regressions from slipping through. One without the other is whack-a-mole or over-fitted tests.</p>
+<h2>How this differs from the NJ Fix Loop</h2>
+<p>Easy to confuse — same word, different layer:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>NJ Fix Loop (product)</th>
+<th>layer-fix-loop (release)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Repairs</strong></td>
+<td>User's repo (Makefile, tests, boot scripts)</td>
+<td>Neural Junkie platform code</td>
+</tr>
+<tr>
+<td><strong>Trigger</strong></td>
+<td>Boot-fix / fix-like implementation session</td>
+<td>Layer gate failure</td>
+</tr>
+<tr>
+<td><strong>Agent</strong></td>
+<td>Specialist in IDE Agent mode</td>
+<td>Cursor agent in isolated worktree</td>
+</tr>
+<tr>
+<td><strong>Policy</strong></td>
+<td>Circuit breaker, grounding gates, playbooks</td>
+<td>Gate report → brief → targeted rerun</td>
+</tr>
+</tbody>
+</table>
+<p>The product Fix Loop is policy on the tool loop. The release fix loop is automation on the test loop. Both enforce closed outcomes — read before retry, verify before claim success, always report what happened.</p>
+<h2>What I run overnight</h2>
+<pre><code class="language-bash">make layer-overnight LAYER=collab-full
+# or
+make overnight NJ_OVERNIGHT_TARGET=release-prep-fix-loop
+</code></pre>
+<p>Boot Ollama, warm models, start regression hub, run gate → fix → verify in tmux. Wake up to markdown reports and branch commits — not a Slack message that says "collab might be broken."</p>
+<h2>What we didn't solve</h2>
+<ul>
+<li><strong>Model variance</strong> — same scenario can pass on retry. We log flakes; we don't hide them.</li>
+<li><strong>Full green in one iteration</strong> — 7/20 → 15/20 → 20/20 is normal. Partial wins are still wins.</li>
+<li><strong>Human judgment on product direction</strong> — loops repair and strengthen; they don't decide what collab should <em>be</em>.</li>
+</ul>
+<p>The bet: <strong>release loops beat hero debugging</strong> for a platform tested by conversations, not unit tests alone.</p>
+<h2>Try it</h2>
+<pre><code class="language-bash">make layer-list
+make layer-gate LAYER=chat
+make layer-fix-loop LAYER=chat DRY_RUN=1
+make test-growth-list
+</code></pre>
+<p>Docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/TESTING.md">TESTING.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ROADMAP-Q3-2026.md">ROADMAP-Q3-2026.md</a></p>
+<p>Download: https://camronwood.github.io/neural-junkie/download.html</p>
+<hr />
+<p><em>Neural Junkie is a personal open-source project. Feedback and scenario failures welcome on GitHub.</em></p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/FIX-GROWTH-LOOPS-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="fix-growth-loops.html">Green Tests Aren&#x27;t Enough: Fix Loops and Growth Loops for Agent Platforms</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+</body>
+</html>

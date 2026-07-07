@@ -1,16 +1,32 @@
 # LinkedIn article — LoRA v2 upgrade (publish copy)
 
+**Format:** LinkedIn **Article** (long-form). Use the cover image below when publishing.
+
+**LinkedIn paste tips:** Copy from **"PASTE START"** through **"PASTE END"** only. Do not include `---` lines — LinkedIn renders them as awkward rules with huge gaps. Use LinkedIn's title field for the headline; skip the first `#` line if the editor duplicates it. One blank line between paragraphs is enough.
+
 **Cover image:** `assets/neural-junkie-lora-v2-1200.png` (1200×627)
 
 **Feed ad:** `assets/neural-junkie-lora-v2-ad-1080.png` (1080×1080)
 
 **Regenerate:** `./scripts/compose-lora-v2-article.sh`
 
-**Suggested title:** LoRA v2: When Your Repo Expert Starts Compounding
+**Suggested title (pick one):**
+- LoRA v2: When Your Repo Expert Starts Compounding
+- Train Once, Compound Forever: LoRA v2 in Neural Junkie
+- From One-Shot Adapters to Specialists That Keep Learning
+
+**Feed post teaser:**
+> LoRA v1 let you train a specialist from chat history and assign an Ollama tag. It worked — but it felt like a sidecar. LoRA v2 closes the loop: incremental refresh, dual-tag profiles, unified routing, MLX on Apple Silicon, and team sharing via MCP + Hugging Face.
+
+**Hashtags:** `#AI #LoRA #LocalAI #DeveloperTools #OpenSource #FineTuning`
+
+**Link:** https://github.com/camronwood/neural-junkie/releases/latest
 
 **Website:** https://camronwood.github.io/neural-junkie/articles/lora-v2.html
 
-**Related:** [LoRA v1](LORA-LINKEDIN.md) · [Two-tier LoRA](TWO-TIER-LORA-LINKEDIN.md) · [MCP + LoRA](MCP-LORA-LINKEDIN.md) · [Personal learning v2](PERSONAL-LEARNING-LINKEDIN.md)
+**Download CTA:** https://camronwood.github.io/neural-junkie/download.html
+
+**Related articles:** [LoRA v1](LORA-LINKEDIN.md) · [Two-tier LoRA](TWO-TIER-LORA-LINKEDIN.md) · [MCP + LoRA](MCP-LORA-LINKEDIN.md) · [Personal learning](PERSONAL-LEARNING-LINKEDIN.md)
 
 ---
 
@@ -67,6 +83,10 @@ Enable **Specialist tuning** → train or refresh from agent info → Model libr
 
 Docs: [LORA_V2.md](https://github.com/camronwood/neural-junkie/blob/main/docs/LORA_V2.md)
 
-Camron Wood — Neural Junkie (personal project)
+Download: https://camronwood.github.io/neural-junkie/download.html
+
+---
+
+*Neural Junkie is a personal open-source project. Feedback welcome on GitHub.*
 
 ## PASTE END

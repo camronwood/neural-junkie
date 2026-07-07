@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-06T00:12:23Z",
-  "count": 16,
+  "updated": "2026-07-07T12:05:07Z",
+  "count": 19,
   "items": [
     {
       "slug": "beta-5",
@@ -158,6 +158,25 @@
       "href": "fix-loop.html"
     },
     {
+      "slug": "fix-growth-loops",
+      "title": "Green Tests Aren't Enough: Fix Loops and Growth Loops for Agent Platforms",
+      "teaser": "My collab suite was red for weeks. Click-testing a 3-hour multi-agent sweep doesn't scale. So I wired three release loops: gate \u2192 fix \u2192 grow. Here's what each one does, and why you need both repair *and* test growth.",
+      "cover": "assets/neural-junkie-fix-growth-loops-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-fix-growth-loops-1200.png",
+      "topic": "testing",
+      "tags": [
+        "ai",
+        "developertools",
+        "opensource",
+        "testing",
+        "agenticcoding",
+        "multiagent"
+      ],
+      "sourceFile": "FIX-GROWTH-LOOPS-LINKEDIN.md",
+      "sourcePath": "docs/marketing/FIX-GROWTH-LOOPS-LINKEDIN.md",
+      "href": "fix-growth-loops.html"
+    },
+    {
       "slug": "ide-v4",
       "title": "Build the IDE You Actually Own",
       "teaser": "IDE v4 adds Monaco LSP, remote SSH via nj-remote, dev containers, and tree-sitter symbols \u2014 local-first and open source, for when the IDE you loved has a new owner.",
@@ -234,6 +253,25 @@
       "href": "lora.html"
     },
     {
+      "slug": "lora-v2",
+      "title": "LoRA v2: When Your Repo Expert Starts Compounding",
+      "teaser": "LoRA v1 let you train a specialist from chat history and assign an Ollama tag. It worked \u2014 but it felt like a sidecar. LoRA v2 closes the loop: incremental refresh, dual-tag profiles, unified routing, MLX on Apple Silicon, and team sharing via MCP + Hugging Face.",
+      "cover": "assets/neural-junkie-lora-v2-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-lora-v2-1200.png",
+      "topic": "lora",
+      "tags": [
+        "ai",
+        "lora",
+        "localai",
+        "developertools",
+        "opensource",
+        "finetuning"
+      ],
+      "sourceFile": "LORA-V2-LINKEDIN.md",
+      "sourcePath": "docs/marketing/LORA-V2-LINKEDIN.md",
+      "href": "lora-v2.html"
+    },
+    {
       "slug": "two-tier-lora",
       "title": "Why We Split Inference and LoRA Into Two Tiers",
       "teaser": "We wanted one Qwen base + tiny LoRA adapters for every specialist. Ollama said no \u2014 safetensors LoRA only works on Llama/Mistral/Gemma. Here's how Neural Junkie split inference (Qwen) from train/compose (Llama) without breaking the hub.",
@@ -289,6 +327,25 @@
       "sourceFile": "COLLABORATION-LINKEDIN.md",
       "sourcePath": "docs/marketing/COLLABORATION-LINKEDIN.md",
       "href": "collaboration.html"
+    },
+    {
+      "slug": "solo-vs-collab-parity",
+      "title": "When Does Multi-Agent Actually Help?",
+      "teaser": "`/collaborate` looks impressive in demos. But when does two agents actually beat one specialist on the same deliverable? I built a parity scenario \u2014 same repo, same findings.md task, solo DM vs. structured collab \u2014 so we can measure it instead of debating it.",
+      "cover": "assets/neural-junkie-solo-vs-collab-parity-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-solo-vs-collab-parity-1200.png",
+      "topic": "collaboration",
+      "tags": [
+        "ai",
+        "softwareengineering",
+        "developertools",
+        "opensource",
+        "multiagent",
+        "agenticcoding"
+      ],
+      "sourceFile": "SOLO-VS-COLLAB-PARITY-LINKEDIN.md",
+      "sourcePath": "docs/marketing/SOLO-VS-COLLAB-PARITY-LINKEDIN.md",
+      "href": "solo-vs-collab-parity.html"
     },
     {
       "slug": "conversational-test-harness",

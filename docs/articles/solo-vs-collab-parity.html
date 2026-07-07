@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>When Does Multi-Agent Actually Help? — Neural Junkie</title>
+  <meta name="description" content="`/collaborate` looks impressive in demos. But when does two agents actually beat one specialist on the same deliverable? I built a parity scenario — same repo, same findings.md task, solo DM vs. structured collab — so we can measure it instead of debating it." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · When Does Multi-Agent Actually Help?
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>When Does Multi-Agent Actually Help?</h1>
+      <p class="article-lead">`/collaborate` looks impressive in demos. But when does two agents actually beat one specialist on the same deliverable? I built a parity scenario — same repo, same findings.md task, solo DM vs. structured collab — so we can measure it instead of debating it.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">softwareengineering</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">multiagent</span><span class="article-tag">agenticcoding</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-solo-vs-collab-parity-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>Multi-agent collaboration is easy to demo and hard to justify.</p>
+<p>You run <code>/collaborate @SoftwareArchitect @BackendEngineer</code>, get a planning thread, approve a plan, and watch tasks execute. It <em>looks</em> like a team. But teams have overhead — discussion budgets, plan parsing, approval gates, turn-taking rules. A single <code>@BackendEngineer</code> DM might finish the same job in half the time.</p>
+<p>So when does multi-agent actually help?</p>
+<p>I got tired of arguing from screenshots. I built a <strong>parity scenario</strong> that runs the same deliverable two ways on the same fixture repo — and compares outcomes with the same assertions.</p>
+<h2>The question in one sentence</h2>
+<p><strong>Does structured collaboration produce a better grounded deliverable than a solo specialist — or just more chat?</strong></p>
+<h2>The setup</h2>
+<p>Fixture: <code>minimal-repo</code> — a tiny workspace with <code>README.md</code> and <code>core/sample/main.go</code>. Nothing else. No React boilerplate to hallucinate.</p>
+<p>Task: write <code>findings.md</code> with three bullet findings about <strong>this repo only</strong> — grounded in README and main.go.</p>
+<p>Two legs, same assertions:</p>
+<table>
+<thead>
+<tr>
+<th>Leg</th>
+<th>How</th>
+<th>Channel</th>
+<th>Agents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Solo</strong></td>
+<td>DM <code>@BackendEngineer</code> directly</td>
+<td><code>collab-scenarios-solo</code></td>
+<td>BackendEngineer</td>
+</tr>
+<tr>
+<td><strong>Collab</strong></td>
+<td><code>/collaborate</code> with planning → approve → execute</td>
+<td><code>collab-scenarios</code></td>
+<td>BackendEngineer + SoftwareArchitect</td>
+</tr>
+</tbody>
+</table>
+<p>The collab goal is intentionally minimal — one task, one owner:</p>
+<pre><code>@BackendEngineer Plan one task: @BackendEngineer writes collabs/&lt;collab-id&gt;/findings.md
+with three bullet findings about this repo (README.md and core/sample/main.go only).
+</code></pre>
+<p>Bounded: <code>--rounds 1 --messages 3</code>. We're not testing infinite planning theater. We're testing whether the <strong>collab pipeline</strong> can land the same file a solo DM would.</p>
+<h2>What we assert (both legs)</h2>
+<p>Hard checks, not vibes:</p>
+<ul>
+<li><code>findings.md</code> exists with ≥ 40 bytes</li>
+<li>Content references <code>main.go</code>, <code>core/sample</code>, or <code>minimal</code></li>
+<li>Content does <strong>not</strong> hallucinate <code>index.js</code>, <code>utils.js</code>, <code>app.js</code>, or generic "data handling module" boilerplate</li>
+<li>LLM judge on collab leg: <em>"PASS if findings summarize this minimal-repo fixture. FAIL for hallucinated paths."</em></li>
+</ul>
+<p>This is the failure mode that hurts most in production — agents that sound confident while writing about files that don't exist in your workspace.</p>
+<h2>Why parity, not just collab regression</h2>
+<p>Collab regression scenarios answer: <em>"Does the pipeline work?"</em> — phases advance, tasks complete, files land on disk.</p>
+<p>Parity scenarios answer: <em>"Is collab worth the overhead for this class of work?"</em></p>
+<p>If solo passes and collab fails → the pipeline is the problem (plan parsing, workspace binding, execution dispatch).</p>
+<p>If both fail the same way → the specialist or workspace context is the problem, not multi-agent orchestration.</p>
+<p>If collab passes and solo fails → rare, but interesting — structured planning might help grounding.</p>
+<p>If both pass → collab isn't <em>worse</em> for this task. Whether it's <em>better</em> depends on whether architect input improved the findings — the judge catches qualitative gaps the regex assertions miss.</p>
+<h2>What we've learned so far</h2>
+<p>Early runs surfaced real platform issues, not scenario bugs:</p>
+<p><strong>Solo leg failures</strong> often mean workspace binding — the agent describes the Neural Junkie desktop repo instead of the scenario fixture. That's a context injection problem, not "BackendEngineer can't write markdown."</p>
+<p><strong>Collab leg failures</strong> cluster differently:</p>
+<ul>
+<li><strong>Plan parsing</strong> — <code>assert_plan</code> finds 0 tasks or too many (parser explosion on prose-heavy plans)</li>
+<li><strong>Execution stalls</strong> — <code>wait_tasks</code> timeouts after planning looked fine</li>
+<li><strong>Participation gaps</strong> — <code>@BackendEngineer</code> silent during planning while architect talks</li>
+<li><strong>Generation errors</strong> — Ollama HTTP timeout before discussion budget completes (we fixed one class by raising client timeout from 360s → 540s)</li>
+</ul>
+<p><code>solo-vs-collab-parity</code> failed on the solo leg in a recent <code>collab-full</code> fix-loop iteration — while planning-participation scenarios improved after the timeout fix. That's exactly the signal parity is designed to produce: <strong>don't assume collab is the bottleneck.</strong></p>
+<h2>When multi-agent is worth it (and when it isn't)</h2>
+<p><strong>Worth it</strong> when:</p>
+<ul>
+<li>Tasks have real dependencies across specialists (security review before implementation)</li>
+<li>Planning quality matters — architect shapes scope before execution burns tokens</li>
+<li>You need audit trail — phases, approvals, task graph on disk</li>
+<li>The deliverable benefits from cross-domain synthesis</li>
+</ul>
+<p><strong>Probably not worth it</strong> when:</p>
+<ul>
+<li>One specialist owns the entire task end-to-end</li>
+<li>The "collab" is really one agent with an audience</li>
+<li>Planning overhead exceeds execution time</li>
+<li>Workspace context is already clear and bounded</li>
+</ul>
+<p>The parity scenario uses the <strong>minimal</strong> case on purpose. If collab can't match solo here, it won't magically excel on harder work without fixing the pipeline first.</p>
+<h2>How it fits the test harness</h2>
+<p><code>solo-vs-collab-parity</code> lives in <code>scenarios/collab/</code> and runs as part of <code>make layer-gate LAYER=collab-full</code>. It's Layer 3 of the conversational harness — live JSON scenarios with real Ollama agents.</p>
+<p>It composes with release engineering loops:</p>
+<pre><code class="language-bash">make layer-gate LAYER=collab-full
+make layer-fix-loop LAYER=collab-full
+</code></pre>
+<p>When parity fails, the fix-loop brief includes targeted rerun commands for both legs. No weakening assertions to greenwash — if solo passes and collab doesn't, the hub has work to do.</p>
+<h2>The scenario shape (simplified)</h2>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;solo-vs-collab-parity&quot;,
+  &quot;workspace&quot;: { &quot;fixture&quot;: &quot;minimal-repo&quot; },
+  &quot;solo_leg&quot;: {
+    &quot;message&quot;: &quot;@BackendEngineer Create collabs/parity-solo/findings.md …&quot;,
+    &quot;any_match&quot;: [&quot;main\\.go&quot;, &quot;core/sample&quot;],
+    &quot;none_match&quot;: [&quot;index\\.js&quot;, &quot;utils\\.js&quot;]
+  },
+  &quot;collaborate&quot;: {
+    &quot;goal&quot;: &quot;@BackendEngineer Plan one task: …&quot;,
+    &quot;flags&quot;: [&quot;--workspace&quot;, &quot;--rounds&quot;, &quot;1&quot;, &quot;--messages&quot;, &quot;3&quot;]
+  },
+  &quot;expect_deliverables&quot;: [
+    { &quot;path&quot;: &quot;collabs/&lt;collab-id&gt;/findings.md&quot;, &quot;llm_judge&quot;: { … } }
+  ]
+}
+</code></pre>
+<p>Full scenario: <code>scenarios/collab/solo-vs-collab-parity.json</code></p>
+<h2>What we didn't try to solve</h2>
+<ul>
+<li>Proving collab is <em>always</em> better — parity measures equivalence and grounding, not creativity scores</li>
+<li>Subjective "was the architect's input valuable?" — the judge catches hallucination; human review catches insight</li>
+<li>Every task type — this is one deliverable class. Website builds and security refactors need their own parity scenarios</li>
+</ul>
+<p>The bet: <strong>measure collaboration overhead</strong> instead of demoing it.</p>
+<h2>Try it</h2>
+<pre><code class="language-bash">make collab-scenario SCENARIO=solo-vs-collab-parity
+make layer-gate LAYER=collab-full
+</code></pre>
+<p>Docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">COLLABORATION.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/TESTING.md">TESTING.md</a></p>
+<p>Download: https://camronwood.github.io/neural-junkie/download.html</p>
+<hr />
+<p><em>Neural Junkie is a personal open-source project. Feedback and scenario failures welcome on GitHub.</em></p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/SOLO-VS-COLLAB-PARITY-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="solo-vs-collab-parity.html">When Does Multi-Agent Actually Help?</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+</body>
+</html>
