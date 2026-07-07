@@ -13,8 +13,9 @@
     "outline": true,
     "file_tree": "README.md\ncore/sample/main.go\n"
   },
-  "solo_leg": {
+    "solo_leg": {
     "channel": "collab-scenarios-solo",
+    "required_agents": ["BackendEngineer"],
     "output_rel": "collabs/parity-solo/findings.md",
     "timeout": "300s",
     "min_bytes": 40,

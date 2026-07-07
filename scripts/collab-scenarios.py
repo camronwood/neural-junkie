@@ -1386,10 +1386,10 @@ def run_setup_blocker(ctx: ScenarioContext, setup: dict, agents: str) -> bool:
     return True
 
 
-def _solo_last_assistant_chat(msgs: list[dict], *, skip_status: bool = True) -> dict | None:
+def _solo_last_agent_chat(msgs: list[dict], agent: str, *, skip_status: bool = True) -> dict | None:
     pool = hub.chat_agent_messages(msgs)
     for msg in reversed(pool):
-        if (msg.get("from") or {}).get("name") != "Assistant":
+        if (msg.get("from") or {}).get("name") != agent:
             continue
         content = (msg.get("content") or "").strip()
         if skip_status and content and _solo_is_status_chat(content):
@@ -1455,13 +1455,23 @@ def _materialize_solo_findings(
     workspace_root: str,
     output_rel: str,
     min_bytes: int,
+    *,
+    agent: str | None = None,
 ) -> str | None:
-    """Write solo output from Assistant chat when hub file-change approval misses."""
+    """Write solo output from agent chat when hub file-change approval misses."""
     proposal_body = _solo_proposal_content_from_messages(msgs, output_rel)
     if proposal_body and len(proposal_body.encode()) >= min_bytes:
         return _write_solo_findings_file(workspace_root, output_rel, proposal_body)
 
-    last = _solo_last_assistant_chat(msgs)
+    if agent:
+        last = _solo_last_agent_chat(msgs, agent)
+    else:
+        last = None
+        for msg in reversed(hub.chat_agent_messages(msgs)):
+            content = (msg.get("content") or "").strip()
+            if content and not _solo_is_status_chat(content):
+                last = msg
+                break
     if not last:
         return None
     content = (last.get("content") or "").strip()
@@ -1522,6 +1532,7 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
     solo_agents = solo.get("required_agents") or ["Assistant"]
     if isinstance(solo_agents, str):
         solo_agents = [solo_agents]
+    solo_agent = str(solo_agents[0]).strip().lstrip("@")
     ok_join, failed = hub.ensure_channel_with_agents(
         ctx.base,
         channel,
@@ -1558,7 +1569,7 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
     min_bytes = int(solo.get("min_bytes", 40))
     allow_fallback = bool(solo.get("allow_discussion_fallback", True))
     baseline = hub.count_chat_agent_messages(
-        hub.list_messages(ctx.base, channel, 200), from_agent="Assistant"
+        hub.list_messages(ctx.base, channel, 200), from_agent=solo_agent
     )
     failure_retried = False
     ok_reply = False
@@ -1567,14 +1578,14 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
         ok_reply, reply_detail = hub.wait_chat_reply(
             ctx.base,
             channel,
-            from_agent="Assistant",
+            from_agent=solo_agent,
             baseline_count=baseline,
             timeout=reply_timeout,
         )
         if ok_reply:
             break
         msgs = hub.list_messages(ctx.base, channel, 200)
-        last = _solo_last_assistant_chat(msgs)
+        last = _solo_last_agent_chat(msgs, solo_agent)
         if (
             not failure_retried
             and last
@@ -1587,9 +1598,9 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
             if code != 200:
                 print(f"  FAIL [solo]: retry send ({code})", file=sys.stderr)
                 return False
-            baseline = hub.count_chat_agent_messages(msgs, from_agent="Assistant")
+            baseline = hub.count_chat_agent_messages(msgs, from_agent=solo_agent)
             continue
-        print(f"  FAIL [solo]: no Assistant reply ({reply_detail})", file=sys.stderr)
+        print(f"  FAIL [solo]: no {solo_agent} reply ({reply_detail})", file=sys.stderr)
         return False
     ctx.log(f"  solo leg: {reply_detail}")
     path_needle = Path(output_rel).parent.name or "parity-solo"
@@ -1605,7 +1616,7 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
     if allow_fallback and (not full.is_file() or full.stat().st_size < min_bytes):
         msgs = hub.list_messages(ctx.base, channel, 200)
         written = _materialize_solo_findings(
-            msgs, ctx.workspace_root, output_rel, min_bytes
+            msgs, ctx.workspace_root, output_rel, min_bytes, agent=solo_agent
         )
         if written and ctx.verbose:
             print(f"  solo leg: materialized findings {written}")
@@ -1629,7 +1640,7 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
             if allow_fallback and (not full.is_file() or full.stat().st_size < min_bytes):
                 msgs = hub.list_messages(ctx.base, channel, 200)
                 written = _materialize_solo_findings(
-                    msgs, ctx.workspace_root, output_rel, min_bytes
+                    msgs, ctx.workspace_root, output_rel, min_bytes, agent=solo_agent
                 )
                 if written and ctx.verbose:
                     print(f"  solo leg: materialized findings {written}")
