@@ -29,7 +29,7 @@ DEFAULT_ROSTER = [
     "SecurityReviewer",
 ]
 GEMINI_SCENARIOS: tuple[str, ...] = ()  # no live collab scenarios require @Gemini (quota/flake)
-EXPECTED_SCENARIO_COUNT = 24
+EXPECTED_SCENARIO_COUNT = 25
 HUB_LOG = Path("/tmp/nj-hub.log")
 OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 
