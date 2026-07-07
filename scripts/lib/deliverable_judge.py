@@ -114,7 +114,7 @@ def throttle_gemini_judge() -> None:
 
 
 def _default_judge_provider() -> str:
-    p = DEFAULT_JUDGE_PROVIDER
+    p = env_or_automation("NJ_DELIVERABLE_JUDGE_PROVIDER", "deliverable_judge_provider", "claude").lower()
     return p if p in ("gemini", "cursor", "claude", "ollama") else "claude"
 
 
@@ -208,14 +208,13 @@ def _judge_spec_provider(spec: dict[str, Any] | bool | None) -> str:
             return p
     mode = os.environ.get("NJ_DELIVERABLE_JUDGE_MODE", "").strip().lower()
     if mode in ("cli", "hub", "ollama"):
-        if mode == "cli":
-            return (
-                DEFAULT_JUDGE_PROVIDER
-                if DEFAULT_JUDGE_PROVIDER in ("gemini", "cursor", "claude")
-                else "claude"
-            )
         if mode == "ollama":
             return "ollama"
+        cloud = env_or_automation("NJ_DELIVERABLE_JUDGE_PROVIDER", "deliverable_judge_provider", "claude").lower()
+        if mode == "hub":
+            return cloud if cloud in ("gemini", "cursor", "claude") else "claude"
+        if mode == "cli":
+            return cloud if cloud in ("gemini", "cursor", "claude") else "claude"
     return _default_judge_provider()
 
 

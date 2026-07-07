@@ -51,7 +51,8 @@ func ollamaHTTPTimeout(model string) time.Duration {
 		return 600 * time.Second
 	}
 	if ollamaModelNeedsCollabTimeout(m) {
-		return 360 * time.Second
+		// Match agent collab discussion deadline (480s) with headroom for HTTP round-trip.
+		return 540 * time.Second
 	}
 	return 120 * time.Second
 }

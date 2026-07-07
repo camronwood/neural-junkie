@@ -7,10 +7,10 @@ import (
 
 func TestOllamaHTTPTimeout_collabModels(t *testing.T) {
 	cases := map[string]time.Duration{
-		"qwen3.5:9b":         360 * time.Second,
-		"gemma3:12b":         360 * time.Second,
-		"qwen2.5-coder:14b":  360 * time.Second,
-		"devstral:24b":       360 * time.Second,
+		"qwen3.5:9b":         540 * time.Second,
+		"gemma3:12b":         540 * time.Second,
+		"qwen2.5-coder:14b":  540 * time.Second,
+		"devstral:24b":       540 * time.Second,
 		"llama3.1":           120 * time.Second,
 		"qwen3.5:27b":        600 * time.Second,
 	}

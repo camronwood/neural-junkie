@@ -6,7 +6,9 @@ import (
 )
 
 func TestProjectSetManager_CreateListDelete(t *testing.T) {
-	t.Parallel()
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
 	wm, err := NewWorkspaceManager()
 	if err != nil {
 		t.Fatal(err)
