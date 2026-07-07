@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -73,41 +74,42 @@ def apply_dot_grid(canvas: Image.Image, step: int = 32) -> Image.Image:
     return Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
 
 
-def draw_compound_layer(
+def draw_stack_row(
     draw: ImageDraw.ImageDraw,
-    cx: int,
+    x0: int,
+    x1: int,
     y0: int,
-    bw: int,
-    bh: int,
+    height: int,
     label: str,
     sub: str,
     accent: tuple[int, int, int],
     *,
-    offset: int = 0,
+    indent: int = 0,
 ) -> None:
-    x0 = cx - bw // 2 + offset
-    x1 = x0 + bw
-    y1 = y0 + bh
-    draw.rounded_rectangle((x0, y0, x1, y1), radius=10, fill=PANEL, outline=accent, width=2)
-    draw.rounded_rectangle((x0 + 3, y0 + 4, x0 + 7, y1 - 4), radius=2, fill=accent)
-    draw.text((x0 + 16, y0 + 10), label, fill=accent, font=font(True, 11), anchor="lt")
-    draw.text((x0 + 16, y0 + 28), sub, fill=MUTED, font=font(False, 9, mono=True), anchor="lt")
+    ix0 = x0 + indent
+    y1 = y0 + height
+    draw.rounded_rectangle((ix0, y0, x1, y1), radius=8, fill=PANEL, outline=accent, width=2)
+    draw.rounded_rectangle((ix0 + 2, y0 + 4, ix0 + 6, y1 - 4), radius=2, fill=accent)
+    draw.text((ix0 + 14, y0 + 8), label, fill=accent, font=font(True, 10), anchor="lt")
+    if sub:
+        draw.text((ix0 + 14, y0 + 24), sub, fill=MUTED, font=font(False, 8, mono=True), anchor="lt")
 
 
-def draw_refresh_arc(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, accent: tuple[int, int, int]) -> None:
-    bbox = (cx - r, cy - r, cx + r, cy + r)
-    draw.arc(bbox, start=200, end=340, fill=accent, width=3)
-    # arrow head
-    ax, ay = cx + int(r * 0.64), cy - int(r * 0.77)
-    draw.polygon([(ax, ay), (ax - 8, ay + 4), (ax - 2, ay + 10)], fill=accent)
+def draw_loop_node(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, label: str, accent: tuple[int, int, int]) -> None:
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(20, 28, 44), outline=accent, width=2)
+    for i, line in enumerate(wrap(draw, label, font(True, 8), r * 2 - 8)):
+        draw.text((cx, cy - 6 + i * 10), line, fill=accent, font=font(True, 8), anchor="mm")
 
 
-def draw_growth_dots(draw: ImageDraw.ImageDraw, x0: int, y0: int, accent: tuple[int, int, int]) -> None:
-    sizes = [4, 6, 8, 10, 12]
-    for i, s in enumerate(sizes):
-        x = x0 + i * 18
-        y = y0 - i * 6
-        draw.ellipse((x - s, y - s, x + s, y + s), fill=accent if i >= 3 else (accent[0] // 2, accent[1] // 2, accent[2] // 2))
+def draw_loop_arrow(draw: ImageDraw.ImageDraw, x0: int, y0: int, x1: int, y1: int, color=ARROW) -> None:
+    draw.line([(x0, y0), (x1, y1)], fill=color, width=2)
+    # simple arrowhead toward (x1, y1)
+    if abs(x1 - x0) > abs(y1 - y0):
+        tip = (x1 - 6 if x1 > x0 else x1 + 6, y1)
+        draw.polygon([(x1, y1), (tip[0], y1 - 4), (tip[0], y1 + 4)], fill=color)
+    else:
+        tip = (x1, y1 - 6 if y1 > y0 else y1 + 6)
+        draw.polygon([(x1, y1), (x1 - 4, tip[1]), (x1 + 4, tip[1])], fill=color)
 
 
 def render_article_cover(out: Path, gallery: Path | None = None) -> None:
@@ -118,89 +120,119 @@ def render_article_cover(out: Path, gallery: Path | None = None) -> None:
     canvas = apply_dot_grid(canvas)
     draw = ImageDraw.Draw(canvas)
 
-    lx = margin
-    lw = 480
+    # ── Left column ──
+    lx, lw = margin, 500
     draw.rounded_rectangle((lx, 32, lx + 200, 58), radius=6, fill=(20, 28, 40), outline=TEAL, width=1)
     draw.text((lx + 100, 45), "OPEN SOURCE · LORA V2", fill=TEAL, font=font(True, 10), anchor="mm")
 
     hy = 78
-    draw.text((lx, hy), "TRAIN ONCE.", fill=TEXT, font=font(True, 42), anchor="lt")
-    draw.text((lx, hy + 50), "COMPOUND", fill=GREEN, font=font(True, 44), anchor="lt")
-    draw.text((lx, hy + 102), "FOREVER.", fill=AMBER, font=font(True, 40), anchor="lt")
+    draw.text((lx, hy), "TRAIN ONCE.", fill=TEXT, font=font(True, 40), anchor="lt")
+    draw.text((lx, hy + 46), "COMPOUND", fill=GREEN, font=font(True, 42), anchor="lt")
+    draw.text((lx, hy + 96), "FOREVER.", fill=AMBER, font=font(True, 38), anchor="lt")
 
-    sy = hy + 158
-    fsub = font(False, 14)
+    sy = hy + 144
     for line in wrap(
         draw,
-        "Incremental refresh, dual-tag profiles, unified routing, MLX training, and team sharing — weights that keep learning.",
-        fsub,
+        "Incremental refresh, dual-tag profiles, unified routing, MLX training, and team sharing.",
+        font(False, 14),
         lw,
     ):
-        draw.text((lx, sy), line, fill=(200, 205, 220), font=fsub, anchor="lt")
+        draw.text((lx, sy), line, fill=(200, 205, 220), font=font(False, 14), anchor="lt")
         sy += 20
 
-    pills = [
-        ("refresh", GREEN),
-        ("rollback", TEAL),
-        ("eval gate", AMBER),
-        ("MCP + HF", PINK),
+    pillars = [
+        ("Compound refresh loop", GREEN),
+        ("Dual-tag model profiles", TEAL),
+        ("Post-train eval gate", AMBER),
+        ("MCP + Hugging Face sharing", PINK),
     ]
-    px = lx
-    for label, accent in pills:
-        tw = int(draw.textlength(label, font=font(True, 9))) + 18
-        draw.rounded_rectangle((px, sy, px + tw, sy + 22), radius=11, fill=(20, 28, 44), outline=accent, width=1)
-        draw.text((px + tw // 2, sy + 11), label, fill=accent, font=font(True, 9), anchor="mm")
-        px += tw + 8
+    for text, accent in pillars:
+        draw.text((lx, sy), "▸", fill=accent, font=font(True, 13), anchor="lt")
+        draw.text((lx + 18, sy), text, fill=MUTED, font=font(False, 12), anchor="lt")
+        sy += 22
 
     draw.rounded_rectangle((lx, 520, lx + lw, 572), radius=12, fill=GREEN)
-    draw.text((lx + lw // 2, 546), "github.com/camronwood/neural-junkie · LORA_V2.md", fill=TEXT, font=font(True, 13), anchor="mm")
+    draw.text((lx + lw // 2, 546), "github.com/camronwood/neural-junkie", fill=TEXT, font=font(True, 14), anchor="mm")
+    draw.text((lx + lw // 2, h - 16), "Prompt-time memory + weight-time compounding", fill=DIM, font=font(False, 10), anchor="ms")
 
-    # Right — compound stack + loop
+    # ── Right column — full panel with stack + loop + profile ──
     rx = 560
-    stack_cx = rx + (w - margin - rx) // 2
-    stack_top = 56
+    rw = w - margin - rx
+    panel_x0, panel_x1 = rx, rx + rw
+    panel_y0, panel_y1 = 36, 580
 
-    draw.text((rx, 40), "COMPOUND STACK", fill=AMBER, font=font(True, 12), anchor="lt")
+    draw.rounded_rectangle((panel_x0, panel_y0, panel_x1, panel_y1), radius=14, fill=(12, 16, 30), outline=TEAL, width=2)
+    draw.text((panel_x0 + 16, panel_y0 + 14), "COMPOUND LEARNING LOOP", fill=AMBER, font=font(True, 11), anchor="lt")
 
+    # Adapter stack (left side of panel)
+    stack_x0 = panel_x0 + 16
+    stack_x1 = panel_x0 + rw // 2 + 20
+    stack_y = panel_y0 + 40
+    row_h = 38
+    row_gap = 6
     layers = [
-        ("BASE WEIGHTS", "llama3.2:3b · compose tier", MUTED, 0, 52),
-        ("LORA Δ v1", "repo sessions · 10+ turns", TEAL, 8, 44),
-        ("LORA Δ v2", "incremental refresh", GREEN, 16, 44),
-        ("LORA Δ v3", "curated delta rows", GREEN, 24, 44),
-        ("COMPOSED TAG", "nj-repo-* · one UI tag", PINK, 32, 48),
+        ("BASE WEIGHTS", "llama3.2:3b", MUTED, 0),
+        ("LORA Δ v1", "initial train", TEAL, 6),
+        ("LORA Δ v2", "incremental refresh", GREEN, 12),
+        ("LORA Δ v3", "curated delta rows", GREEN, 18),
+        ("COMPOSED TAG", "nj-repo-* in Ollama", PINK, 24),
     ]
-    y = stack_top
-    for label, sub, accent, offset, bh in layers:
-        draw_compound_layer(draw, stack_cx, y, 280, bh, label, sub, accent, offset=offset)
-        if y + bh < h - 120:
-            draw.text((stack_cx + 150, y + bh + 2), "+", fill=ARROW, font=font(True, 14), anchor="mm")
-        y += bh + 14
+    for label, sub, accent, indent in layers:
+        draw_stack_row(draw, stack_x0, stack_x1, stack_y, row_h, label, sub, accent, indent=indent)
+        if stack_y + row_h < panel_y1 - 160:
+            draw.text((stack_x1 - 8, stack_y + row_h + 1), "+", fill=ARROW, font=font(True, 10), anchor="lt")
+        stack_y += row_h + row_gap
 
-    # Refresh loop arc beside stack
-    arc_cx = stack_cx + 168
-    arc_cy = stack_top + 120
-    draw_refresh_arc(draw, arc_cx, arc_cy, 52, GREEN)
-    draw.text((arc_cx + 58, arc_cy - 8), "refresh", fill=GREEN, font=font(True, 9), anchor="lt")
-
-    # Dual-tag profile row
-    prof_y = 430
-    draw.rounded_rectangle((rx, prof_y, w - margin, prof_y + 72), radius=12, fill=(16, 22, 38), outline=TEAL, width=2)
-    draw.text((rx + 16, prof_y + 12), "model_profile", fill=TEAL, font=font(True, 10, mono=True), anchor="lt")
-
-    tag_specs = [
-        ("inference", "qwen3.5:9b", TEAL, rx + 20),
-        ("compose", "llama3.2:3b", AMBER, rx + 200),
-        ("tools", "qwen fallback", PINK, rx + 360),
+    # Cyclic loop diagram (right side of panel)
+    loop_cx = panel_x0 + rw * 3 // 4
+    loop_cy = panel_y0 + 200
+    loop_r = 88
+    draw.ellipse(
+        (loop_cx - loop_r - 20, loop_cy - loop_r - 20, loop_cx + loop_r + 20, loop_cy + loop_r + 20),
+        outline=(40, 48, 72),
+        width=1,
+    )
+    nodes = [
+        (loop_cx, loop_cy - loop_r + 10, "learn", PINK),
+        (loop_cx + loop_r - 10, loop_cy, "refresh", GREEN),
+        (loop_cx, loop_cy + loop_r - 10, "eval", AMBER),
+        (loop_cx - loop_r + 10, loop_cy, "assign", TEAL),
     ]
-    for title, tag, accent, tx in tag_specs:
-        draw.rounded_rectangle((tx, prof_y + 34, tx + 150, prof_y + 62), radius=8, fill=PANEL, outline=accent, width=1)
-        draw.text((tx + 10, prof_y + 40), title, fill=accent, font=font(True, 8), anchor="lt")
-        draw.text((tx + 10, prof_y + 52), tag, fill=MUTED, font=font(False, 8, mono=True), anchor="lt")
+    for i, (nx, ny, label, accent) in enumerate(nodes):
+        draw_loop_node(draw, nx, ny, 28, label, accent)
+        nxt = nodes[(i + 1) % len(nodes)]
+        draw_loop_arrow(draw, nx + 20, ny, nxt[0] - 20, nxt[1], ARROW)
 
-    # Growth curve
-    draw_growth_dots(draw, rx + 20, prof_y - 24, GREEN)
+    draw.text((loop_cx, loop_cy), "↻", fill=GREEN, font=font(True, 28), anchor="mm")
 
-    draw.text((w // 2, h - 14), "Prompt-time memory + weight-time compounding", fill=DIM, font=font(False, 10), anchor="ms")
+    # v1 → v2 callout
+    callout_x0 = stack_x1 + 8
+    callout_y0 = panel_y0 + 130
+    callout_x1 = loop_cx - loop_r - 28
+    callout_y1 = callout_y0 + 56
+    if callout_x1 > callout_x0 + 60:
+        draw.rounded_rectangle((callout_x0, callout_y0, callout_x1, callout_y1), radius=8, fill=(16, 22, 38), outline=AMBER, width=1)
+        draw.text((callout_x0 + 10, callout_y0 + 10), "v1 → v2", fill=AMBER, font=font(True, 9), anchor="lt")
+        draw.text((callout_x0 + 10, callout_y0 + 26), "one-shot → compound", fill=MUTED, font=font(False, 8), anchor="lt")
+        draw.text((callout_x0 + 10, callout_y0 + 40), "rollback anytime", fill=MUTED, font=font(False, 8), anchor="lt")
+
+    # model_profile footer inside panel
+    prof_y0 = panel_y1 - 88
+    prof_y1 = panel_y1 - 16
+    draw.rounded_rectangle((panel_x0 + 16, prof_y0, panel_x1 - 16, prof_y1), radius=10, fill=(16, 22, 38), outline=TEAL, width=2)
+    draw.text((panel_x0 + 28, prof_y0 + 12), "model_profile", fill=TEAL, font=font(True, 10, mono=True), anchor="lt")
+
+    tag_w = (rw - 64) // 3
+    for i, (title, tag, accent) in enumerate([
+        ("inference", "qwen3.5:9b", TEAL),
+        ("compose", "llama3.2:3b", AMBER),
+        ("tools", "qwen fallback", PINK),
+    ]):
+        tx0 = panel_x0 + 24 + i * (tag_w + 8)
+        tx1 = tx0 + tag_w - 8
+        draw.rounded_rectangle((tx0, prof_y0 + 30, tx1, prof_y1 - 12), radius=8, fill=PANEL, outline=accent, width=1)
+        draw.text((tx0 + 10, prof_y0 + 38), title, fill=accent, font=font(True, 8), anchor="lt")
+        draw.text((tx0 + 10, prof_y0 + 50), tag, fill=MUTED, font=font(False, 8, mono=True), anchor="lt")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(out, "PNG")
@@ -225,18 +257,28 @@ def render_square_ad(out: Path) -> None:
 
     stack_x = margin
     stack_y = margin + 180
-    for i, (label, accent) in enumerate([
+    for label, accent in [
         ("base weights", MUTED),
         ("+ adapter v1", TEAL),
         ("+ delta v2", GREEN),
         ("→ composed tag", PINK),
-    ]):
+    ]:
         bh = 44
         draw.rounded_rectangle((stack_x, stack_y, stack_x + 420, stack_y + bh), radius=10, fill=PANEL, outline=accent, width=2)
         draw.text((stack_x + 16, stack_y + 14), label, fill=accent, font=font(True, 14), anchor="lt")
         stack_y += bh + 10
 
-    draw_refresh_arc(draw, stack_x + 460, margin + 280, 70, GREEN)
+    loop_cx, loop_cy, loop_r = stack_x + 520, margin + 300, 70
+    for i, (angle, label, accent) in enumerate([
+        (270, "learn", PINK),
+        (0, "refresh", GREEN),
+        (90, "eval", AMBER),
+        (180, "assign", TEAL),
+    ]):
+        rad = math.radians(angle)
+        nx = loop_cx + int(loop_r * math.sin(rad))
+        ny = loop_cy - int(loop_r * math.cos(rad))
+        draw_loop_node(draw, nx, ny, 26, label, accent)
 
     pillars = ["Incremental refresh", "Dual-tag profiles", "MLX on Mac", "Post-train eval", "Team adapters"]
     py = margin + 400
