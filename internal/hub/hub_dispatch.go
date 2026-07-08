@@ -592,6 +592,15 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 		} else {
 			h.syncRunbookRunIndex(snap)
 			h.cancelCollaborationRecaps(collabID)
+			// Stop any in-flight work now that the collaboration is cancelled.
+			if h.commandHandler != nil {
+				cancelChannel := strings.TrimSpace(snap.Channel)
+				if cancelChannel == "" {
+					cancelChannel = msg.Channel
+				}
+				h.commandHandler.AbortRuntimeAgentsOnChannel(cancelChannel)
+				h.broadcastChannelInterjectAbort(cancelChannel)
+			}
 		}
 		h.broadcastCollabSystem(msg.Channel, collabID, "🚫 **Run stopped:** "+effects.FailRunReason)
 		return

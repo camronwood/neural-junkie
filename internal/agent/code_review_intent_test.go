@@ -79,12 +79,12 @@ type deferRepoTestHub struct {
 	pending map[string]bool
 }
 
-func (h *deferRepoTestHub) SendMessage(*protocol.Message) error { return nil }
+func (h *deferRepoTestHub) SendMessage(*protocol.Message) error       { return nil }
 func (h *deferRepoTestHub) BroadcastDirect(string, *protocol.Message) {}
 func (h *deferRepoTestHub) Subscribe(string) (chan *protocol.Message, error) {
 	return make(chan *protocol.Message), nil
 }
-func (h *deferRepoTestHub) GetMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
+func (h *deferRepoTestHub) GetMessages(string, int) ([]*protocol.Message, error)  { return nil, nil }
 func (h *deferRepoTestHub) GetChannelAgents(string) ([]protocol.AgentInfo, error) { return nil, nil }
 func (h *deferRepoTestHub) GetThreadParentAuthor(string) string                   { return "" }
 func (h *deferRepoTestHub) GetCommandHandler() CommandHandlerInterface {
@@ -98,7 +98,7 @@ func (h *deferRepoTestHub) GetChannelSessionSummary(string) string { return "" }
 func (h *deferRepoTestHub) GetThreadMessages(string, int) ([]*protocol.Message, error) {
 	return nil, nil
 }
-func (h *deferRepoTestHub) IsChannelHeld(string) bool { return false }
+func (h *deferRepoTestHub) IsChannelHeld(string) bool    { return false }
 func (h *deferRepoTestHub) ImageGenerationEnabled() bool { return false }
 func (h *deferRepoTestHub) GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error {
 	return nil
@@ -113,8 +113,9 @@ func (h *deferRepoTestHub) ExtractAndPostMusicStems(context.Context, string, pro
 func (h *deferRepoTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
-
-
+func (h *deferRepoTestHub) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}
 
 type deferRepoCommandHandler struct {
 	pending map[string]bool

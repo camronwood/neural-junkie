@@ -97,6 +97,11 @@ def invoke_cursor_agent(
     chunks: list[str] = []
     log_file = log_path.open("w", encoding="utf-8") if log_path else None
 
+    # Fail fast on auth issues so overnight fix loops don't burn hours before
+    # discovering Cursor needs re-login. Opt-out with NJ_SKIP_CURSOR_AGENT_AUTH_PREFLIGHT=1.
+    auth_preflight = os.environ.get("NJ_SKIP_CURSOR_AGENT_AUTH_PREFLIGHT", "").strip().lower() not in ("1", "true", "yes")
+    auth_failed = False
+
     def _drain() -> None:
         assert proc.stdout is not None
         for line in proc.stdout:
@@ -106,6 +111,15 @@ def invoke_cursor_agent(
             if log_file:
                 log_file.write(line)
                 log_file.flush()
+            nonlocal auth_failed
+            if auth_preflight and not auth_failed:
+                low = line.lower()
+                if "actionrequirederror" in low or ("authentication error" in low and "try logging out" in low):
+                    auth_failed = True
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
 
     reader = threading.Thread(target=_drain, daemon=True)
     reader.start()
@@ -133,6 +147,8 @@ def invoke_cursor_agent(
 
     out = "".join(chunks)
     rc = proc.returncode if proc.returncode is not None else rc
+    if auth_failed:
+        return 2, out.strip() or "ActionRequiredError: authentication error (log out/in to Cursor)"
     if rc != 0 and not out.strip():
         out = f"agent {agent_exit_label(rc)} with no stdout captured"
     return rc, out

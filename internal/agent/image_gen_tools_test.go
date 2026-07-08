@@ -15,21 +15,25 @@ type imageGenTestHub struct {
 	prompt  string
 }
 
-func (h *imageGenTestHub) SendMessage(msg *protocol.Message) error { return nil }
+func (h *imageGenTestHub) SendMessage(msg *protocol.Message) error   { return nil }
 func (h *imageGenTestHub) BroadcastDirect(string, *protocol.Message) {}
 func (h *imageGenTestHub) Subscribe(string) (chan *protocol.Message, error) {
 	return make(chan *protocol.Message), nil
 }
-func (h *imageGenTestHub) GetMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
+func (h *imageGenTestHub) GetMessages(string, int) ([]*protocol.Message, error)  { return nil, nil }
 func (h *imageGenTestHub) GetChannelAgents(string) ([]protocol.AgentInfo, error) { return nil, nil }
 func (h *imageGenTestHub) GetThreadParentAuthor(string) string                   { return "" }
 func (h *imageGenTestHub) GetCommandHandler() CommandHandlerInterface            { return nil }
-func (h *imageGenTestHub) GetAgentChannels(string) []string                        { return nil }
-func (h *imageGenTestHub) GetChannelType(string) protocol.ChannelType              { return protocol.ChannelTypePublic }
-func (h *imageGenTestHub) GetChannelSessionSummary(string) string                 { return "" }
-func (h *imageGenTestHub) GetThreadMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
-func (h *imageGenTestHub) IsChannelHeld(string) bool                            { return false }
-func (h *imageGenTestHub) ImageGenerationEnabled() bool                            { return h.enabled }
+func (h *imageGenTestHub) GetAgentChannels(string) []string                      { return nil }
+func (h *imageGenTestHub) GetChannelType(string) protocol.ChannelType {
+	return protocol.ChannelTypePublic
+}
+func (h *imageGenTestHub) GetChannelSessionSummary(string) string { return "" }
+func (h *imageGenTestHub) GetThreadMessages(string, int) ([]*protocol.Message, error) {
+	return nil, nil
+}
+func (h *imageGenTestHub) IsChannelHeld(string) bool    { return false }
+func (h *imageGenTestHub) ImageGenerationEnabled() bool { return h.enabled }
 func (h *imageGenTestHub) GenerateAndPostImage(_ context.Context, _ string, _ protocol.AgentInfo, prompt, _ string) error {
 	h.posted = true
 	h.prompt = prompt
@@ -45,8 +49,9 @@ func (h *imageGenTestHub) ExtractAndPostMusicStems(context.Context, string, prot
 func (h *imageGenTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
-
-
+func (h *imageGenTestHub) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}
 
 func TestAgentToolDefinitionsIncludesGenerateImage(t *testing.T) {
 	hub := &imageGenTestHub{enabled: true}

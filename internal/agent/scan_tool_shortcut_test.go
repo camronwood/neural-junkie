@@ -200,8 +200,8 @@ func (h *scanShortcutHistoryHub) GetChannelSessionSummary(string) string { retur
 func (h *scanShortcutHistoryHub) GetThreadMessages(string, int) ([]*protocol.Message, error) {
 	return nil, nil
 }
-func (h *scanShortcutHistoryHub) IsChannelHeld(string) bool            { return false }
-func (h *scanShortcutHistoryHub) ImageGenerationEnabled() bool         { return false }
+func (h *scanShortcutHistoryHub) IsChannelHeld(string) bool    { return false }
+func (h *scanShortcutHistoryHub) ImageGenerationEnabled() bool { return false }
 func (h *scanShortcutHistoryHub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
@@ -215,5 +215,6 @@ func (h *scanShortcutHistoryHub) ExtractAndPostMusicStems(context.Context, strin
 func (h *scanShortcutHistoryHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
-
-
+func (h *scanShortcutHistoryHub) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}

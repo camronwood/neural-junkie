@@ -805,6 +805,15 @@ func (ch *CommandHandler) handleCancelPlan(ctx context.Context, msg *protocol.Me
 	ch.hub.syncRunbookRunIndex(snap)
 	ch.hub.cancelCollaborationRecaps(collabID)
 
+	// Abort any in-flight agent generations on the collaboration channel so cancelled
+	// runs don't keep consuming Ollama/CLI capacity and cascading timeouts.
+	cancelChannel := strings.TrimSpace(snap.Channel)
+	if cancelChannel == "" {
+		cancelChannel = msg.Channel
+	}
+	ch.AbortRuntimeAgentsOnChannel(cancelChannel)
+	ch.hub.broadcastChannelInterjectAbort(cancelChannel)
+
 	out := ch.systemResponse(msg.Channel, fmt.Sprintf("🛑 **Collaboration Cancelled** (`%s`)", collabID[:8]))
 	out.SetCollaborationID(collabID)
 	return out, nil

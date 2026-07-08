@@ -10,11 +10,38 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+var ollamaGlobalSem = newOllamaGlobalSemaphore()
+
+func newOllamaGlobalSemaphore() chan struct{} {
+	// Default to 1 concurrent Ollama request across all in-process agents.
+	// This prevents saturation/queueing inside Ollama that manifests as
+	// "context deadline exceeded" and "silent" agent failures in collab.
+	raw := strings.TrimSpace(os.Getenv("NJ_OLLAMA_MAX_CONCURRENCY"))
+	if raw == "" {
+		raw = "1"
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 {
+		n = 1
+	}
+	return make(chan struct{}, n)
+}
+
+func acquireOllamaSlot(ctx context.Context) (release func(), err error) {
+	select {
+	case ollamaGlobalSem <- struct{}{}:
+		return func() { <-ollamaGlobalSem }, nil
+	case <-ctx.Done():
+		return func() {}, ctx.Err()
+	}
+}
 
 // OllamaProvider implements AI responses using Ollama local LLM
 type OllamaProvider struct {
@@ -219,6 +246,12 @@ func (o *OllamaProvider) GenerateResponse(ctx context.Context, prompt string, co
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	release, err := acquireOllamaSlot(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+
 	resp, err := o.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
@@ -278,6 +311,12 @@ func (o *OllamaProvider) GenerateMultimodal(ctx context.Context, prompt string, 
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	release, err := acquireOllamaSlot(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
 
 	resp, err := o.httpClient.Do(req)
 	if err != nil {
@@ -346,19 +385,26 @@ func (o *OllamaProvider) GenerateResponseStream(ctx context.Context, prompt stri
 
 	// No client timeout: reasoning models may think for minutes; ctx cancels.
 	client := &http.Client{}
+	release, err := acquireOllamaSlot(ctx)
+	if err != nil {
+		return nil, err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
+		release()
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		release()
 		return nil, fmt.Errorf("Ollama API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	ch := make(chan StreamToken, 64)
 	go func() {
+		defer release()
 		defer close(ch)
 		defer resp.Body.Close()
 

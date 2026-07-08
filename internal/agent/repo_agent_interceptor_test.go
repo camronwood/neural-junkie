@@ -40,14 +40,14 @@ func (h *captureHub) SendMessage(msg *protocol.Message) error {
 func (h *captureHub) Subscribe(string) (chan *protocol.Message, error) {
 	return make(chan *protocol.Message), nil
 }
-func (h *captureHub) GetMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
+func (h *captureHub) GetMessages(string, int) ([]*protocol.Message, error)  { return nil, nil }
 func (h *captureHub) GetChannelAgents(string) ([]protocol.AgentInfo, error) { return nil, nil }
-func (h *captureHub) GetThreadParentAuthor(string) string                     { return "" }
-func (h *captureHub) GetCommandHandler() CommandHandlerInterface              { return nil }
-func (h *captureHub) BroadcastDirect(string, *protocol.Message)                 {}
-func (h *captureHub) GetAgentChannels(string) []string                          { return nil }
-func (h *captureHub) GetChannelType(string) protocol.ChannelType                { return protocol.ChannelTypePublic }
-func (h *captureHub) GetChannelSessionSummary(string) string                    { return "" }
+func (h *captureHub) GetThreadParentAuthor(string) string                   { return "" }
+func (h *captureHub) GetCommandHandler() CommandHandlerInterface            { return nil }
+func (h *captureHub) BroadcastDirect(string, *protocol.Message)             {}
+func (h *captureHub) GetAgentChannels(string) []string                      { return nil }
+func (h *captureHub) GetChannelType(string) protocol.ChannelType            { return protocol.ChannelTypePublic }
+func (h *captureHub) GetChannelSessionSummary(string) string                { return "" }
 func (h *captureHub) GetThreadMessages(string, int) ([]*protocol.Message, error) {
 	return nil, nil
 }
@@ -68,8 +68,9 @@ func (h *captureHub) ExtractAndPostMusicStems(context.Context, string, protocol.
 func (h *captureHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
-
-
+func (h *captureHub) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}
 
 func TestRepoAgentInterceptorInjectsIndexIntoPrompt(t *testing.T) {
 	testutil.IsolateNeuralJunkieHome(t)

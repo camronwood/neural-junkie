@@ -134,16 +134,16 @@ func (hubStub) Subscribe(string) (chan *protocol.Message, error) {
 	ch := make(chan *protocol.Message, 1)
 	return ch, nil
 }
-func (hubStub) GetMessages(string, int) ([]*protocol.Message, error)  { return nil, nil }
-func (hubStub) GetChannelAgents(string) ([]protocol.AgentInfo, error) { return nil, nil }
-func (hubStub) GetThreadParentAuthor(string) string                   { return "" }
-func (hubStub) GetCommandHandler() CommandHandlerInterface            { return nil }
-func (hubStub) GetAgentChannels(string) []string                      { return nil }
-func (hubStub) GetChannelType(string) protocol.ChannelType            { return protocol.ChannelTypePublic }
-func (hubStub) GetChannelSessionSummary(string) string                { return "" }
+func (hubStub) GetMessages(string, int) ([]*protocol.Message, error)       { return nil, nil }
+func (hubStub) GetChannelAgents(string) ([]protocol.AgentInfo, error)      { return nil, nil }
+func (hubStub) GetThreadParentAuthor(string) string                        { return "" }
+func (hubStub) GetCommandHandler() CommandHandlerInterface                 { return nil }
+func (hubStub) GetAgentChannels(string) []string                           { return nil }
+func (hubStub) GetChannelType(string) protocol.ChannelType                 { return protocol.ChannelTypePublic }
+func (hubStub) GetChannelSessionSummary(string) string                     { return "" }
 func (hubStub) GetThreadMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
-func (hubStub) IsChannelHeld(string) bool                               { return false }
-func (hubStub) ImageGenerationEnabled() bool                          { return false }
+func (hubStub) IsChannelHeld(string) bool                                  { return false }
+func (hubStub) ImageGenerationEnabled() bool                               { return false }
 func (hubStub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
@@ -157,5 +157,6 @@ func (hubStub) ExtractAndPostMusicStems(context.Context, string, protocol.AgentI
 func (hubStub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
-
-
+func (hubStub) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}

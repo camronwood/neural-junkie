@@ -358,6 +358,11 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			if errors.Is(err, ai.ErrOllamaNoContent) && attempt+1 < maxAttempts {
 				continue
 			}
+			// Reasoning-only is a retryable Ollama failure mode (model streamed thinking but no
+			// visible answer). Retry before surfacing as a "silent" turn in collab.
+			if errors.Is(err, ai.ErrOllamaReasoningOnly) && attempt+1 < maxAttempts {
+				continue
+			}
 			break
 		}
 		if (looksLikeOllamaPromptLeak(text) || looksLikeContextStackEcho(msg, text)) && attempt+1 < maxAttempts {

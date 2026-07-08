@@ -34,7 +34,7 @@ func TestClaudeToolsFromMCPServer(t *testing.T) {
 		}, nil
 	})
 
-	tools := claudeToolsFromMCPServer(srv)
+	tools := claudeToolsFromMCPServer(srv, nil)
 	if len(tools) != 1 {
 		t.Fatalf("expected 1 tool, got %d", len(tools))
 	}

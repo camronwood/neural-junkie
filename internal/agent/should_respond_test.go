@@ -21,8 +21,8 @@ func (shouldRespondTestHub) Subscribe(string) (chan *protocol.Message, error) {
 func (shouldRespondTestHub) GetMessages(string, int) ([]*protocol.Message, error)  { return nil, nil }
 func (shouldRespondTestHub) GetChannelAgents(string) ([]protocol.AgentInfo, error) { return nil, nil }
 func (shouldRespondTestHub) GetThreadParentAuthor(string) string                   { return "" }
-func (shouldRespondTestHub) GetCommandHandler() CommandHandlerInterface { return nil }
-func (shouldRespondTestHub) ImageGenerationEnabled() bool             { return false }
+func (shouldRespondTestHub) GetCommandHandler() CommandHandlerInterface            { return nil }
+func (shouldRespondTestHub) ImageGenerationEnabled() bool                          { return false }
 func (shouldRespondTestHub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
@@ -36,7 +36,7 @@ func (shouldRespondTestHub) ExtractAndPostMusicStems(context.Context, string, pr
 func (shouldRespondTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
-func (shouldRespondTestHub) GetAgentChannels(string) []string                      { return nil }
+func (shouldRespondTestHub) GetAgentChannels(string) []string { return nil }
 func (h shouldRespondTestHub) GetChannelType(channel string) protocol.ChannelType {
 	if channel == h.dmChannel {
 		return protocol.ChannelTypeDM
@@ -47,7 +47,10 @@ func (shouldRespondTestHub) GetChannelSessionSummary(string) string { return "" 
 func (shouldRespondTestHub) GetThreadMessages(string, int) ([]*protocol.Message, error) {
 	return nil, nil
 }
-func (shouldRespondTestHub) IsChannelHeld(string) bool             { return false }
+func (shouldRespondTestHub) IsChannelHeld(string) bool { return false }
+func (shouldRespondTestHub) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}
 
 type shouldRespondTestCollab struct{}
 
@@ -61,12 +64,12 @@ func (shouldRespondTestCollab) GetCollaborationForAgent(string) CollaborationInf
 func (shouldRespondTestCollab) GetCollaboration(string, string) CollaborationInfo {
 	return CollaborationInfo{}
 }
-func (shouldRespondTestCollab) GetCollaborationWorkingDirectory(string) string    { return "" }
-func (shouldRespondTestCollab) RecordMessage(string, *protocol.Message) error     { return nil }
-func (shouldRespondTestCollab) AnalyzeConsensus(string, *protocol.Message) string { return "" }
+func (shouldRespondTestCollab) GetCollaborationWorkingDirectory(string) string     { return "" }
+func (shouldRespondTestCollab) RecordMessage(string, *protocol.Message) error      { return nil }
+func (shouldRespondTestCollab) AnalyzeConsensus(string, *protocol.Message) string  { return "" }
 func (shouldRespondTestCollab) AgentOutOfTurnMentionAllowed(string) bool           { return true }
 func (shouldRespondTestCollab) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
-func (shouldRespondTestCollab) ParticipantTurnCount(string, string) int { return 0 }
+func (shouldRespondTestCollab) ParticipantTurnCount(string, string) int            { return 0 }
 
 type dmSlugHubStub struct{ shouldRespondTestHub }
 
@@ -113,9 +116,9 @@ func (collabSystemTurnStub) RecordMessage(string, *protocol.Message) error  { re
 func (collabSystemTurnStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }
-func (collabSystemTurnStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
+func (collabSystemTurnStub) AgentOutOfTurnMentionAllowed(string) bool           { return true }
 func (collabSystemTurnStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
-func (collabSystemTurnStub) ParticipantTurnCount(string, string) int { return 0 }
+func (collabSystemTurnStub) ParticipantTurnCount(string, string) int            { return 0 }
 
 func TestShouldRespond_CollabInternalHandoffWakesMentionedAgent(t *testing.T) {
 	const agentID = "gemini-cli-id"
@@ -286,9 +289,9 @@ func (collabTaskAssigneeStub) RecordMessage(string, *protocol.Message) error  { 
 func (collabTaskAssigneeStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }
-func (collabTaskAssigneeStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
+func (collabTaskAssigneeStub) AgentOutOfTurnMentionAllowed(string) bool           { return true }
 func (collabTaskAssigneeStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
-func (collabTaskAssigneeStub) ParticipantTurnCount(string, string) int { return 0 }
+func (collabTaskAssigneeStub) ParticipantTurnCount(string, string) int            { return 0 }
 
 type collabMultiActiveStub struct {
 	agentID string
@@ -321,14 +324,14 @@ func (collabMultiActiveStub) RecordMessage(string, *protocol.Message) error  { r
 func (collabMultiActiveStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }
-func (collabMultiActiveStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
+func (collabMultiActiveStub) AgentOutOfTurnMentionAllowed(string) bool           { return true }
 func (collabMultiActiveStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
-func (collabMultiActiveStub) ParticipantTurnCount(string, string) int { return 0 }
+func (collabMultiActiveStub) ParticipantTurnCount(string, string) int            { return 0 }
 
 type collabPlanningTurnStub struct{}
 
 func (collabPlanningTurnStub) IsParticipant(string, string) bool { return true }
-func (collabPlanningTurnStub) IsAgentTurn(string, string) bool    { return false }
+func (collabPlanningTurnStub) IsAgentTurn(string, string) bool   { return false }
 func (collabPlanningTurnStub) IsActive(string) bool              { return true }
 func (collabPlanningTurnStub) GetCurrentTurnAgent(string) (string, error) {
 	return "gemini-id", nil
@@ -344,9 +347,9 @@ func (collabPlanningTurnStub) RecordMessage(string, *protocol.Message) error  { 
 func (collabPlanningTurnStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }
-func (collabPlanningTurnStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
+func (collabPlanningTurnStub) AgentOutOfTurnMentionAllowed(string) bool           { return true }
 func (collabPlanningTurnStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
-func (collabPlanningTurnStub) ParticipantTurnCount(string, string) int { return 0 }
+func (collabPlanningTurnStub) ParticipantTurnCount(string, string) int            { return 0 }
 
 func TestShouldRespond_PlanningCollabIgnoresOtherExecutingCollab(t *testing.T) {
 	const agentID = "agent-multi"
@@ -404,7 +407,7 @@ func (s collabExhaustedMentionStub) IsParticipant(_collabID, agentID string) boo
 	return agentID == s.agentID
 }
 func (collabExhaustedMentionStub) IsAgentTurn(string, string) bool { return false }
-func (collabExhaustedMentionStub) IsActive(string) bool             { return true }
+func (collabExhaustedMentionStub) IsActive(string) bool            { return true }
 func (collabExhaustedMentionStub) GetCurrentTurnAgent(string) (string, error) {
 	return "", nil
 }
@@ -415,13 +418,13 @@ func (collabExhaustedMentionStub) GetCollaboration(string, string) Collaboration
 	return CollaborationInfo{}
 }
 func (collabExhaustedMentionStub) GetCollaborationWorkingDirectory(string) string { return "" }
-func (collabExhaustedMentionStub) RecordMessage(string, *protocol.Message) error { return nil }
+func (collabExhaustedMentionStub) RecordMessage(string, *protocol.Message) error  { return nil }
 func (collabExhaustedMentionStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }
-func (collabExhaustedMentionStub) AgentOutOfTurnMentionAllowed(string) bool { return false }
+func (collabExhaustedMentionStub) AgentOutOfTurnMentionAllowed(string) bool           { return false }
 func (collabExhaustedMentionStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
-func (collabExhaustedMentionStub) ParticipantTurnCount(string, string) int { return 0 }
+func (collabExhaustedMentionStub) ParticipantTurnCount(string, string) int            { return 0 }
 
 func TestShouldRespond_CollaborationMentionIgnoredWhenDiscussionExhausted(t *testing.T) {
 	const agentID = "agent-xyz"
@@ -488,10 +491,10 @@ func TestShouldRespond_SlashCommandIgnoresIdeRoute(t *testing.T) {
 		"/create-expert ios SwiftExpert ollama gemma3:12b",
 	)
 	msg.Metadata = map[string]interface{}{
-		protocol.IdeMetaRouteAgentType:     "frontend",
-		protocol.MetadataSlashCommand:      true,
-		"implementation_session":           true,
-		protocol.IdeMetaEditorMode:         "agent",
+		protocol.IdeMetaRouteAgentType: "frontend",
+		protocol.MetadataSlashCommand:  true,
+		"implementation_session":       true,
+		protocol.IdeMetaEditorMode:     "agent",
 	}
 
 	if frontend.shouldRespond(msg) {

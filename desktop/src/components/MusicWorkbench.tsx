@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChatAPI } from '../../api/chatAPI';
-import { getHubBaseURL } from '../../config/hubUrl';
-import { useEditorStore } from '../../stores/editorStore';
-import { useToastStore } from '../../stores/toastStore';
-import { MusicCreationToolsPanel } from '../MusicCreationToolsPanel';
+import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
+import { useEditorStore } from '../stores/editorStore';
+import { useToastStore } from '../stores/toastStore';
+import { MusicCreationToolsPanel } from './MusicCreationToolsPanel';
 import {
   musicExtract,
   musicGenerate,
@@ -12,7 +12,7 @@ import {
   musicWaveform,
   type MusicGenerationRecord,
   type WaveformPeaks,
-} from './musicSidecarApi';
+} from './music/musicSidecarApi';
 
 const api = new ChatAPI(getHubBaseURL());
 

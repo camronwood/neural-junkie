@@ -227,7 +227,12 @@ def prepare_claude_for_collab(*, scenario_names: list[str], require: bool = Fals
     from lib.claude_judge_auth import ensure_claude_for_testing  # noqa: E402
 
     print("\n>>> Claude preflight...", flush=True)
+    # Claude CLI can occasionally flake on first probe (e.g. transient auth/IPC hiccup).
+    # Retry once so required @Claude scenarios don't fail at sweep start.
     sel = ensure_claude_for_testing(timeout_s=45.0)
+    if not sel.ok:
+        time.sleep(2.0)
+        sel = ensure_claude_for_testing(timeout_s=45.0)
     _claude_probe_ok = sel.ok
     _claude_probe_detail = sel.detail
     if sel.ok:

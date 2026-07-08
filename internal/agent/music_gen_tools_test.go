@@ -19,16 +19,20 @@ func (h *musicGenTestHub) BroadcastDirect(string, *protocol.Message) {}
 func (h *musicGenTestHub) Subscribe(string) (chan *protocol.Message, error) {
 	return make(chan *protocol.Message), nil
 }
-func (h *musicGenTestHub) GetMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
+func (h *musicGenTestHub) GetMessages(string, int) ([]*protocol.Message, error)  { return nil, nil }
 func (h *musicGenTestHub) GetChannelAgents(string) ([]protocol.AgentInfo, error) { return nil, nil }
 func (h *musicGenTestHub) GetThreadParentAuthor(string) string                   { return "" }
 func (h *musicGenTestHub) GetCommandHandler() CommandHandlerInterface            { return nil }
-func (h *musicGenTestHub) GetAgentChannels(string) []string                        { return nil }
-func (h *musicGenTestHub) GetChannelType(string) protocol.ChannelType              { return protocol.ChannelTypePublic }
-func (h *musicGenTestHub) GetChannelSessionSummary(string) string                 { return "" }
-func (h *musicGenTestHub) GetThreadMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
-func (h *musicGenTestHub) IsChannelHeld(string) bool                            { return false }
-func (h *musicGenTestHub) ImageGenerationEnabled() bool                         { return false }
+func (h *musicGenTestHub) GetAgentChannels(string) []string                      { return nil }
+func (h *musicGenTestHub) GetChannelType(string) protocol.ChannelType {
+	return protocol.ChannelTypePublic
+}
+func (h *musicGenTestHub) GetChannelSessionSummary(string) string { return "" }
+func (h *musicGenTestHub) GetThreadMessages(string, int) ([]*protocol.Message, error) {
+	return nil, nil
+}
+func (h *musicGenTestHub) IsChannelHeld(string) bool    { return false }
+func (h *musicGenTestHub) ImageGenerationEnabled() bool { return false }
 func (h *musicGenTestHub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
@@ -44,7 +48,9 @@ func (h *musicGenTestHub) ExtractAndPostMusicStems(context.Context, string, prot
 func (h *musicGenTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
-
+func (h *musicGenTestHub) RequestToolApproval(string, string, string, string, map[string]interface{}) (bool, error) {
+	return true, nil
+}
 
 func TestAgentToolDefinitionsIncludesGenerateMusic(t *testing.T) {
 	hub := &musicGenTestHub{enabled: true}

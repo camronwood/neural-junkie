@@ -127,13 +127,19 @@ func (c countingHub) GetMessages(channelName string, limit int) ([]*protocol.Mes
 func (c countingHub) GetChannelAgents(channelName string) ([]protocol.AgentInfo, error) {
 	return c.inner.GetChannelAgents(channelName)
 }
-func (c countingHub) GetThreadParentAuthor(threadID string) string { return c.inner.GetThreadParentAuthor(threadID) }
-func (c countingHub) GetCommandHandler() CommandHandlerInterface   { return c.inner.GetCommandHandler() }
-func (c countingHub) GetAgentChannels(agentID string) []string     { return c.inner.GetAgentChannels(agentID) }
+func (c countingHub) GetThreadParentAuthor(threadID string) string {
+	return c.inner.GetThreadParentAuthor(threadID)
+}
+func (c countingHub) GetCommandHandler() CommandHandlerInterface { return c.inner.GetCommandHandler() }
+func (c countingHub) GetAgentChannels(agentID string) []string {
+	return c.inner.GetAgentChannels(agentID)
+}
 func (c countingHub) GetChannelType(channelName string) protocol.ChannelType {
 	return c.inner.GetChannelType(channelName)
 }
-func (c countingHub) GetChannelSessionSummary(channel string) string { return c.inner.GetChannelSessionSummary(channel) }
+func (c countingHub) GetChannelSessionSummary(channel string) string {
+	return c.inner.GetChannelSessionSummary(channel)
+}
 func (c countingHub) GetThreadMessages(threadID string, limit int) ([]*protocol.Message, error) {
 	return c.inner.GetThreadMessages(threadID, limit)
 }
@@ -147,15 +153,11 @@ func (c countingHub) GenerateAndPostMusic(ctx context.Context, channel string, f
 	return c.inner.GenerateAndPostMusic(ctx, channel, from, req)
 }
 func (c countingHub) ExtractAndPostMusicStems(ctx context.Context, channel string, from protocol.AgentInfo, req MusicExtractRequest) error {
-	if h, ok := c.inner.(interface {
-		ExtractAndPostMusicStems(context.Context, string, protocol.AgentInfo, MusicExtractRequest) error
-	}); ok {
-		return h.ExtractAndPostMusicStems(ctx, channel, from, req)
-	}
-	return nil
+	return c.inner.ExtractAndPostMusicStems(ctx, channel, from, req)
 }
 func (c countingHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }
-
-
+func (c countingHub) RequestToolApproval(agentID, agentName, channel, toolName string, toolInput map[string]interface{}) (bool, error) {
+	return c.inner.RequestToolApproval(agentID, agentName, channel, toolName, toolInput)
+}
