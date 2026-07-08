@@ -83,6 +83,16 @@
       "publisher": "Neural Junkie",
       "builtin": true,
       "download_url": "https://github.com/camronwood/neural-junkie-pack-music-creation/releases/download/v2.0.0/music-creation-2.0.0.zip"
+    },
+    {
+      "id": "room-chat",
+      "version": "1.0.0",
+      "title": "Room chat",
+      "description": "Same-room LAN chat with ephemeral rooms and full access to the host's agents (no cloud hub).",
+      "icon_key": "users",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-room-chat/releases/download/v1.0.0/room-chat-1.0.0.zip"
     }
   ]
 }

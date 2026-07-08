@@ -98,6 +98,12 @@ func (rl *RateLimiter) Allow(r *http.Request) bool {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
 		limit = rl.mutMax
 	}
+	// Sensitive endpoints may override the global budgets.
+	if r.URL != nil && strings.HasPrefix(r.URL.Path, "/api/room/join") {
+		// Guests do not have a session yet, so the key is often RemoteAddr.
+		// Keep this conservative to discourage brute-forcing 6-char join codes.
+		limit = 20
+	}
 	key := rl.clientKey(r)
 	now := time.Now()
 	cutoff := now.Add(-rl.window)

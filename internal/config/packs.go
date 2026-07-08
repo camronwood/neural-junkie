@@ -17,6 +17,7 @@ const (
 	PackIncidentManagement  = "incident-management"
 	PackWebBrowser          = "web-browser"
 	PackMusicCreation       = "music-creation"
+	PackRoomChat            = "room-chat"
 )
 
 // DevOllamaCodeModel is the default local model for software-development specialists and live regression.

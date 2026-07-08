@@ -235,6 +235,7 @@ const (
 	ChannelTypeDM            ChannelType = "dm"            // 1:1 user-to-agent direct message
 	ChannelTypeCustom        ChannelType = "custom"        // User-created channel with curated agents
 	ChannelTypeCollaboration ChannelType = "collaboration" // Auto-created room for one /collaborate session
+	ChannelTypeRoom          ChannelType = "room"          // Ephemeral human room (LAN sessions)
 )
 
 // Channel represents a chat channel/room
@@ -244,12 +245,14 @@ type Channel struct {
 	DisplayName  string      `json:"display_name,omitempty"` // Human label (e.g. Slack #cursor-test); Name stays the hub id
 	Description  string      `json:"description"`
 	Project      string      `json:"project,omitempty"`
+	RoomID       string      `json:"room_id,omitempty"` // Links channels to a room session (ChannelTypeRoom)
 	Type         ChannelType `json:"type"`
 	CreatedBy    string      `json:"created_by,omitempty"`
 	Created      time.Time   `json:"created"`
 	Agents       []AgentInfo `json:"agents"`
 	Members      []string    `json:"members,omitempty"`       // Explicitly added agent IDs
 	HumanMembers []string    `json:"human_members,omitempty"` // Usernames allowed on private custom channels
+	AgentsMuted  bool        `json:"agents_muted,omitempty"`  // When true, agents should not respond in this channel unless explicitly addressed
 	Tags         []string    `json:"tags,omitempty"`
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -71,6 +72,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	// Room presence: mark the current session as connected while this WS is open.
+	sess := hub.SessionFromRequest(r, hubSessions)
+	var roomPresence []struct {
+		roomID   string
+		channel  string
+		username string
+	}
+
 	// Subscribe to thread or channel
 	if threadID != "" {
 		msgCh, err := chatHub.SubscribeToThread(threadID)
@@ -120,11 +129,39 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Subscribe %q: %v", name, err)
 			continue
 		}
+		if sess != nil {
+			if ch, cerr := chatHub.GetChannel(name); cerr == nil && ch != nil && ch.Type == protocol.ChannelTypeRoom && ch.RoomID != "" {
+				roomPresence = append(roomPresence, struct {
+					roomID   string
+					channel  string
+					username string
+				}{roomID: ch.RoomID, channel: name, username: sess.Username})
+			}
+		}
 		subs = append(subs, wsSub{name: name, ch: msgCh})
 	}
 	if len(subs) == 0 {
 		return
 	}
+
+	// Apply presence connect and broadcast for each unique room.
+	roomSeen := make(map[string]struct{}, len(roomPresence))
+	for _, p := range roomPresence {
+		if _, ok := roomSeen[p.roomID]; ok {
+			continue
+		}
+		roomSeen[p.roomID] = struct{}{}
+		if chatHub.SetRoomMemberConnected(p.roomID, p.username, true) {
+			broadcastRoomPresence(p.channel, p.roomID, p.username, true)
+		}
+	}
+	defer func() {
+		for _, p := range roomPresence {
+			if chatHub.SetRoomMemberConnected(p.roomID, p.username, false) {
+				broadcastRoomPresence(p.channel, p.roomID, p.username, false)
+			}
+		}
+	}()
 
 	out := make(chan *protocol.Message, 256)
 	ctx, cancel := context.WithCancel(r.Context())
@@ -164,4 +201,25 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+}
+
+func broadcastRoomPresence(channel, roomID, username string, connected bool) {
+	if chatHub == nil {
+		return
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeAgentStatus,
+		channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"",
+	)
+	msg.Timestamp = time.Now()
+	if msg.Metadata == nil {
+		msg.Metadata = make(map[string]interface{})
+	}
+	msg.Metadata["presence"] = true
+	msg.Metadata["room_id"] = roomID
+	msg.Metadata["username"] = username
+	msg.Metadata["connected"] = connected
+	chatHub.BroadcastDirect(channel, msg)
 }

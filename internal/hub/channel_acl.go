@@ -49,6 +49,23 @@ func (h *Hub) CanUserAccessChannel(username, channelName string) bool {
 			}
 		}
 		return false
+	case protocol.ChannelTypeRoom:
+		if ch.RoomID == "" {
+			return false
+		}
+		room, ok := h.GetRoom(ch.RoomID)
+		if !ok || room == nil {
+			return false
+		}
+		if strings.EqualFold(slugUsername(room.HostUser), user) {
+			return true
+		}
+		for _, m := range room.Members {
+			if strings.EqualFold(slugUsername(m.Username), user) {
+				return true
+			}
+		}
+		return false
 	default:
 		return true
 	}

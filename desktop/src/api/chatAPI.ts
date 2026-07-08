@@ -402,6 +402,84 @@ export class ChatAPI {
     return data;
   }
 
+  async createRoom(params?: {
+    name?: string;
+    ttl_hours?: number;
+    max_members?: number;
+  }): Promise<{ room: any; channel: any }> {
+    const response = await this.hubFetch('/api/room/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: params?.name ?? '',
+        ttl_hours: params?.ttl_hours ?? 0,
+        max_members: params?.max_members ?? 0,
+      }),
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to create room: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async leaveRoom(roomId: string): Promise<void> {
+    const response = await this.hubFetch('/api/room/leave', {
+      method: 'POST',
+      body: JSON.stringify({ room_id: roomId }),
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to leave room: ${response.statusText}`);
+    }
+  }
+
+  async endRoom(roomId: string): Promise<void> {
+    const response = await this.hubFetch('/api/room/end', {
+      method: 'POST',
+      body: JSON.stringify({ room_id: roomId }),
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to end room: ${response.statusText}`);
+    }
+  }
+
+  async getRoom(roomId: string): Promise<any> {
+    const response = await this.hubFetch(`/api/room/${encodeURIComponent(roomId)}`);
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to fetch room: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getRoomPresence(roomId: string): Promise<{ room_id: string; members: any[] }> {
+    const response = await this.hubFetch(`/api/room/${encodeURIComponent(roomId)}/presence`);
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to fetch room presence: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async joinRoom(
+    hostHubUrl: string,
+    joinCode: string,
+    username: string
+  ): Promise<{ room: any; session: { token: string; username: string }; hub_url: string; hub_token: string; room_channel: string }> {
+    const base = normalizeHubBaseURL(hostHubUrl);
+    const response = await fetch(`${base}/api/room/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ join_code: joinCode, username }),
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to join room: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
   /** Mint an admin session using the hub bootstrap secret (API keys, ACL admin). */
   async createAdminSession(
     username: string,

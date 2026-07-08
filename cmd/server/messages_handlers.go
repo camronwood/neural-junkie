@@ -30,6 +30,22 @@ func defaultHumanSender() (id string, name string, agentType protocol.AgentType)
 	return "human-user", "Human User", protocol.AgentTypeGeneral
 }
 
+func slugifyHumanID(name string) string {
+	s := strings.ToLower(strings.TrimSpace(name))
+	s = strings.ReplaceAll(s, " ", "-")
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	out := b.String()
+	if out == "" {
+		out = "anonymous"
+	}
+	return out
+}
+
 func handleMessages(w http.ResponseWriter, r *http.Request) {
 	channel := r.URL.Query().Get("channel")
 	if channel == "" {
@@ -166,6 +182,14 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	senderID, senderName, senderType := defaultHumanSender()
+	if sess != nil && strings.TrimSpace(sess.Username) != "" {
+		// Always bind the sender identity to the authenticated hub session when present.
+		// This prevents confusing presence/@mention behavior when NEURAL_JUNKIE_HUMAN_NAME differs
+		// across machines, and keeps LAN room membership auditable.
+		senderName = sess.Username
+		senderID = "human-" + slugifyHumanID(sess.Username)
+		senderType = protocol.AgentType("human")
+	}
 
 	// Ignore client-supplied sender unless a hub token is configured (prevents browser/extension spoofing on loopback).
 	if req.From != nil && hub.HubTokenConfigured() {

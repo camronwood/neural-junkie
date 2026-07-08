@@ -7,7 +7,7 @@ import (
 )
 
 func TestChannelWSURL(t *testing.T) {
-	got, err := channelWSURL("http://localhost:18765", "general", []string{"dev", "collab-1"})
+	got, err := channelWSURL("http://localhost:18765", "general", []string{"dev", "collab-1"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

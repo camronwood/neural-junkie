@@ -1,0 +1,23 @@
+id: room-chat
+version: "1.0.0"
+title: Room chat
+description: Same-room LAN chat with ephemeral rooms and full access to the host's agents (no cloud hub).
+layout_profile: team
+capabilities:
+  - room-chat
+capability_defs:
+  room-chat:
+    kind: toolbar-chip
+    ui:
+      toolbar: { id: room, label: Room, icon: assets/icons/room.svg }
+      modal: room-chat
+    settings:
+      - room_chat_default_ttl_hours
+      - room_chat_max_members
+      - room_chat_persist_history
+settings_overlay:
+  room_chat_default_ttl_hours: "8"
+  room_chat_max_members: "20"
+  room_chat_persist_history: "false"
+assets:
+  workspace_guide: assets/WORKSPACE.md

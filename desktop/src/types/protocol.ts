@@ -451,7 +451,7 @@ export function isToolStepStreamDelta(metadata?: Record<string, unknown>): boole
   return typeof metadata?.tool_step === 'string';
 }
 
-export type ChannelType = 'public' | 'dm' | 'custom' | 'collaboration';
+export type ChannelType = 'public' | 'dm' | 'custom' | 'collaboration' | 'room';
 
 export interface Channel {
   id: string;
@@ -460,12 +460,14 @@ export interface Channel {
   display_name?: string;
   description: string;
   project?: string;
+  room_id?: string;
   type: ChannelType;
   created_by?: string;
   created: string; // ISO date string
   agents: AgentInfo[];
   members?: string[]; // Explicitly added agent IDs
   human_members?: string[]; // Usernames allowed on private custom channels
+  agents_muted?: boolean;
   tags?: string[];
 }
 

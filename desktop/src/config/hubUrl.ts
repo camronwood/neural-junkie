@@ -48,6 +48,11 @@ export function setHubConnectionOverride(url: string, token: string): void {
   connectionHubToken = token?.trim() || undefined;
 }
 
+export function clearHubConnectionOverride(): void {
+  connectionHubUrl = undefined;
+  connectionHubToken = undefined;
+}
+
 export function getHubBaseURL(): string {
   if (connectionHubUrl) {
     return normalizeHubBaseURL(connectionHubUrl);
@@ -98,8 +103,12 @@ export function getHubWebSocketURL(): string {
     const u = new URL(getHubBaseURL());
     const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
     const token = getHubAccessToken();
-    const qs = token ? `?hub_token=${encodeURIComponent(token)}` : '';
-    return `${wsProto}//${u.host}/ws${qs}`;
+    const sess = getHubSessionToken();
+    const q = new URLSearchParams();
+    if (token) q.set('hub_token', token);
+    if (sess) q.set('nj_session', sess);
+    const qs = q.toString();
+    return `${wsProto}//${u.host}/ws${qs ? `?${qs}` : ''}`;
   } catch {
     return 'ws://127.0.0.1:18765/ws';
   }

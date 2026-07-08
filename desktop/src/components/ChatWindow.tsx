@@ -98,6 +98,7 @@ import { useSecondaryAnalysisStore } from '../stores/secondaryAnalysisStore';
 import { ModelLibraryModal } from './ModelLibraryModal';
 import { DomainPacksModal } from './DomainPacksModal';
 import { PhoenixBrowserModal } from './PhoenixBrowserModal';
+import { RoomChatModal } from './RoomChatModal';
 import { LearningProposalModal } from './LearningProposalModal';
 import type { LearningProposalAction } from '../api/chatAPI';
 import type { LoraTrainPrefill } from './LoraTrainingPanel';
@@ -159,6 +160,7 @@ import { resolveWorkspaceScope, scopedRepoPaths } from '../utils/workspaceScope'
 import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
 import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
+import { useRoomStore } from '../stores/roomStore';
 import {
   agentsToCollaborationAgents,
   showRunbookBuilderForCollab,
@@ -205,6 +207,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const channelHeld = useChatStore((s) => s.channelHeld.get(s.channel) === true, shallow);
 
+  const roomMode = useRoomStore((s) => s.mode);
+  const activeRoomId = useRoomStore((s) => s.room?.id ?? null);
+  const roomPresenceMembers = useRoomStore((s) => s.presenceMembers);
+  const refreshRoomPresence = useRoomStore((s) => s.refreshPresence);
+
   const hasStreamingOnChannel = useChatStore(
     (s) => {
       const ch = s.channel;
@@ -226,6 +233,31 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   useSidebarAutoUnhide(agents, channels);
 
+  useEffect(() => {
+    if (roomMode !== 'guest' || !activeRoomId) return;
+    void refreshRoomPresence();
+    const id = window.setInterval(() => {
+      void refreshRoomPresence();
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [roomMode, activeRoomId, refreshRoomPresence]);
+
+  const visibleChannels = useMemo(() => {
+    if (roomMode === 'guest' && activeRoomId) {
+      return channels.filter((c) => c.type === 'room' && c.room_id === activeRoomId);
+    }
+    return channels;
+  }, [channels, roomMode, activeRoomId]);
+
+  const currentChannelType = useMemo(() => {
+    return channels.find((c) => c.name === channel)?.type ?? null;
+  }, [channels, channel]);
+
+  const connectedRoomMembers = useMemo(() => {
+    if (currentChannelType !== 'room') return [];
+    return (roomPresenceMembers ?? []).filter((m: any) => m?.connected === true);
+  }, [currentChannelType, roomPresenceMembers]);
+
   // State for tracking counts
   const [totalAgentsCount, setTotalAgentsCount] = useState(0);
 
@@ -239,6 +271,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [gitModalOpen, setGitModalOpen] = useState(false);
   const [activePackModal, setActivePackModal] = useState<string | null>(null);
   const phoenixModalOpen = activePackModal === 'phoenix-import';
+  const roomChatModalOpen = activePackModal === 'room-chat';
   const layoutProfile = usePacksStore((s) => s.layoutProfile);
   const hasIdeV2 = usePacksStore((s) => s.hasCapability('ide-v2'));
   const softwareDevPackActive = usePacksStore((s) => s.softwareDevelopmentPackActive());
@@ -2722,7 +2755,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {/* Channel Sidebar */}
         {channelSidebarOpen && (
           <ChannelSidebar
-            channels={channels}
+            channels={visibleChannels}
             agents={agents}
             searchInputRef={channelSearchRef}
             onSwitchChannel={handleSwitchChannel}
@@ -2811,6 +2844,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         )}
 
         <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
+
+        {currentChannelType === 'room' && (
+          <div className="shrink-0 border-b border-slack-border px-3 py-2 text-xs text-gray-400 flex items-center justify-between">
+            <div className="min-w-0">
+              <span className="text-gray-500">Room</span>
+              {activeRoomId ? (
+                <>
+                  <span className="text-gray-600"> · </span>
+                  <span className="font-mono text-gray-300">{activeRoomId.slice(0, 8)}</span>
+                </>
+              ) : null}
+            </div>
+            <div className="shrink-0">
+              <span className="text-gray-500">Online:</span>{' '}
+              <span className="text-gray-200">{connectedRoomMembers.length}</span>
+            </div>
+          </div>
+        )}
 
         <ChatMessageList
           channel={channel}
@@ -3190,6 +3241,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       />
 
       <PhoenixBrowserModal isOpen={phoenixModalOpen} onClose={() => setActivePackModal(null)} />
+      <RoomChatModal isOpen={roomChatModalOpen} onClose={() => setActivePackModal(null)} />
 
       <LearningProposalModal
         isOpen={learningProposalOpen}

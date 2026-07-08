@@ -22,6 +22,10 @@ type Hub struct {
 	agents   map[string]*protocol.AgentInfo
 	messages map[string][]*protocol.Message // channel -> messages
 
+	// Ephemeral room sessions (LAN room chat)
+	rooms      map[string]*Room // room_id -> room
+	roomsByCode map[string]string // join_code -> room_id
+
 	// Thread management
 	threads             map[string][]*protocol.Message      // thread ID -> thread messages
 	threadMetadata      map[string]*protocol.ThreadMetadata // thread ID -> metadata
@@ -98,6 +102,8 @@ func NewHub() *Hub {
 		channels:                   make(map[string]*protocol.Channel),
 		agents:                     make(map[string]*protocol.AgentInfo),
 		messages:                   make(map[string][]*protocol.Message),
+		rooms:                      make(map[string]*Room),
+		roomsByCode:                make(map[string]string),
 		threads:                    make(map[string][]*protocol.Message),
 		threadMetadata:             make(map[string]*protocol.ThreadMetadata),
 		threadParentAuthors:        make(map[string]string),
@@ -163,6 +169,9 @@ func NewHub() *Hub {
 		}
 		return hub.userRulesStore.Resolve(username)
 	})
+
+	// Room expiry sweeper (best-effort; rooms are ephemeral).
+	go hub.runRoomExpiryLoop()
 
 	return hub
 }

@@ -25,11 +25,31 @@ func Subscribe(serverHTTPBase, channelName string, stop <-chan struct{}) (chan *
 	if channelName == "" {
 		return nil, fmt.Errorf("channel name required")
 	}
-	wsURL, err := channelWSURL(serverHTTPBase, channelName, nil)
+	wsURL, err := channelWSURL(serverHTTPBase, channelName, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
+	out := make(chan *protocol.Message, 512)
+	go runSubscribeLoop(wsURL, stop, out, nil)
+	return out, nil
+}
+
+// SubscribeWithAuth opens a WebSocket to the hub using hub token and/or session query params.
+// This is needed for browser-style clients (and LAN guests) that cannot set custom headers.
+func SubscribeWithAuth(serverHTTPBase, channelName, hubToken, sessionToken string, stop <-chan struct{}) (chan *protocol.Message, error) {
+	channelName = strings.TrimSpace(channelName)
+	if channelName == "" {
+		return nil, fmt.Errorf("channel name required")
+	}
+	auth := &wsAuth{
+		hubToken:     strings.TrimSpace(hubToken),
+		sessionToken: strings.TrimSpace(sessionToken),
+	}
+	wsURL, err := channelWSURL(serverHTTPBase, channelName, nil, auth)
+	if err != nil {
+		return nil, err
+	}
 	out := make(chan *protocol.Message, 512)
 	go runSubscribeLoop(wsURL, stop, out, nil)
 	return out, nil
@@ -50,7 +70,12 @@ func SubscribeAgent(serverHTTPBase, agentID string, stop <-chan struct{}, onHold
 	return out, nil
 }
 
-func channelWSURL(serverHTTPBase, channel string, extra []string) (string, error) {
+type wsAuth struct {
+	hubToken     string
+	sessionToken string
+}
+
+func channelWSURL(serverHTTPBase, channel string, extra []string, auth *wsAuth) (string, error) {
 	base := strings.TrimRight(strings.TrimSpace(serverHTTPBase), "/")
 	u, err := url.Parse(base)
 	if err != nil {
@@ -70,6 +95,14 @@ func channelWSURL(serverHTTPBase, channel string, extra []string) (string, error
 	q.Set("channel", channel)
 	if len(extra) > 0 {
 		q.Set("extra", strings.Join(extra, ","))
+	}
+	if auth != nil {
+		if auth.hubToken != "" {
+			q.Set("hub_token", auth.hubToken)
+		}
+		if auth.sessionToken != "" {
+			q.Set("nj_session", auth.sessionToken)
+		}
 	}
 	u.RawQuery = q.Encode()
 	return u.String(), nil
