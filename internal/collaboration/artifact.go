@@ -710,8 +710,7 @@ func parseNumberedBoldOverviewTask(lines []string, i int, agents map[string]Coll
 		}
 		if subAssigneeBulletRe.MatchString(sub) {
 			for _, mention := range agentMentionRe.FindAllStringSubmatch(sub, -1) {
-				name := strings.ToLower(mention[1])
-				if agent, ok := agents[name]; ok {
+				if agent, ok := agentFromMentionToken(mention[1], agents); ok {
 					assignedTo = agent.AgentID
 					assignedName = agent.AgentName
 					break
@@ -756,16 +755,14 @@ func parseMarkdownNumberedBoldTask(line string, agents map[string]CollaborationA
 	assignedTo := ""
 	assignedName := ""
 	if pm := assigneeParenRe.FindStringSubmatch(tail); len(pm) > 1 {
-		name := strings.ToLower(pm[1])
-		if agent, ok := agents[name]; ok {
+		if agent, ok := agentFromMentionToken(pm[1], agents); ok {
 			assignedTo = agent.AgentID
 			assignedName = agent.AgentName
 		}
 	}
 	if assignedTo == "" {
 		for _, mention := range agentMentionRe.FindAllStringSubmatch(tail, -1) {
-			name := strings.ToLower(mention[1])
-			if agent, ok := agents[name]; ok {
+			if agent, ok := agentFromMentionToken(mention[1], agents); ok {
 				assignedTo = agent.AgentID
 				assignedName = agent.AgentName
 				break
@@ -811,13 +808,21 @@ func collectTaskHeadingContext(lines []string, start int) []string {
 
 var agentMentionRe = regexp.MustCompile(`@([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)`)
 
+func agentFromMentionToken(name string, agents map[string]CollaborationAgent) (CollaborationAgent, bool) {
+	name = strings.ToLower(name)
+	if protocol.IsCollabTemplateMentionToken(name) {
+		return CollaborationAgent{}, false
+	}
+	agent, ok := agents[name]
+	return agent, ok
+}
+
 func parseTaskLine(line string, agents map[string]CollaborationAgent, now time.Time) *CollaborationTask {
 	mentions := agentMentionRe.FindAllStringSubmatch(line, -1)
 	assignedTo := ""
 	assignedName := ""
 	for _, m := range mentions {
-		name := strings.ToLower(m[1])
-		if agent, ok := agents[name]; ok {
+		if agent, ok := agentFromMentionToken(m[1], agents); ok {
 			assignedTo = agent.AgentID
 			assignedName = agent.AgentName
 			break
@@ -856,8 +861,7 @@ func parseTaskHeading(line string, context []string, agents map[string]Collabora
 	assignedTo := ""
 	assignedName := ""
 	for _, m := range mentions {
-		name := strings.ToLower(m[1])
-		if agent, ok := agents[name]; ok {
+		if agent, ok := agentFromMentionToken(m[1], agents); ok {
 			assignedTo = agent.AgentID
 			assignedName = agent.AgentName
 			break
@@ -867,8 +871,7 @@ func parseTaskHeading(line string, context []string, agents map[string]Collabora
 		for _, ctx := range context {
 			mentions = agentMentionRe.FindAllStringSubmatch(ctx, -1)
 			for _, m := range mentions {
-				name := strings.ToLower(m[1])
-				if agent, ok := agents[name]; ok {
+				if agent, ok := agentFromMentionToken(m[1], agents); ok {
 					assignedTo = agent.AgentID
 					assignedName = agent.AgentName
 					break

@@ -140,3 +140,47 @@ func TestPlanningDiscussionTimeoutElapsed_graceBeforeFirstRecordedMessage(t *tes
 		t.Fatal("expected timeout after first-reply grace")
 	}
 }
+
+func TestRecordMessage_generationErrorDoesNotConsumeTurn(t *testing.T) {
+	t.Parallel()
+	h := newRunbookMockHub()
+	h.addAgent("arch-id", "SoftwareArchitect", protocol.AgentTypeArchitecture, nil)
+	h.addAgent("be-id", "BackendEngineer", protocol.AgentTypeBackend, nil)
+	cm := NewCollaborationManager(h)
+	collab, err := cm.CreateCollaboration(
+		"plan",
+		[]string{"arch-id", "be-id"},
+		"collab-plan",
+		"tester",
+		DiscussionConfig{MaxRounds: 1, MaxTotalMessages: 4},
+		CreateOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	errMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		collab.Channel,
+		protocol.AgentInfo{ID: "be-id", Name: "BackendEngineer"},
+		"**BackendEngineer** could not complete this turn: timeout",
+	)
+	errMsg.Metadata = map[string]interface{}{"generation_error": true}
+	if err := cm.RecordMessage(collab.ID, errMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	cm.mu.RLock()
+	d := collab.Discussion
+	cm.mu.RUnlock()
+	if d.TotalMessageCount != 0 {
+		t.Fatalf("generation_error should not consume message budget, got %d", d.TotalMessageCount)
+	}
+	if d.TurnsThisRound["be-id"] != 0 {
+		t.Fatalf("generation_error should not consume turn budget, got %d", d.TurnsThisRound["be-id"])
+	}
+	silent := cm.SilentPlanningParticipantIDs(collab.ID)
+	if len(silent) != 2 {
+		t.Fatalf("expected both participants still silent for quorum, got %v", silent)
+	}
+}

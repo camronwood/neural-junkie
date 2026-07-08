@@ -37,7 +37,7 @@
       "required_agents": [
         "BackendEngineer",
         "SoftwareArchitect",
-        "PlatformEngineer"
+        "Claude"
       ],
       "timeout": "240s",
       "retries": 1,

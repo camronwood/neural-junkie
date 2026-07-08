@@ -48,6 +48,32 @@ func TestParseMentionsIgnoresScopedPathSyntax(t *testing.T) {
 	}
 }
 
+func TestIsCollabTemplateMentionToken(t *testing.T) {
+	if !IsCollabTemplateMentionToken("agentname") {
+		t.Fatal("expected agentname template token")
+	}
+	if !IsCollabTemplateMentionToken("agent") {
+		t.Fatal("expected agent template token")
+	}
+	if IsCollabTemplateMentionToken("backendengineer") {
+		t.Fatal("real agent name should not be template token")
+	}
+}
+
+func TestParseMentionsKeepsAgentNameProtocolContract(t *testing.T) {
+	got := ParseMentions("@AgentName hello")
+	if len(got) != 1 || got[0] != "agentname" {
+		t.Fatalf("expected agentname mention for protocol contract, got %v", got)
+	}
+}
+
+func TestFilterCollabTemplateMentions(t *testing.T) {
+	got := FilterCollabTemplateMentions([]string{"agentname", "backendengineer", "agent"})
+	if len(got) != 1 || got[0] != "backendengineer" {
+		t.Fatalf("expected only backendengineer, got %v", got)
+	}
+}
+
 func TestSlackSenderSkipsMentionParsing(t *testing.T) {
 	msg := NewMessage(
 		MessageTypeQuestion,

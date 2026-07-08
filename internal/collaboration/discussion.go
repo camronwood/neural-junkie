@@ -9,6 +9,17 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+func isDiscussionGenerationError(msg *protocol.Message) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	if v, ok := msg.Metadata["generation_error"].(bool); ok && v {
+		return true
+	}
+	_, hasCode := msg.Metadata["error_code"]
+	return hasCode
+}
+
 func (cm *CollaborationManager) postDiscussionLimitNotice(collabID string) {
 	go func() {
 		cm.mu.RLock()
@@ -94,6 +105,12 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 	enforced := c.DiscussionBudgetEnforced()
 
 	d.Messages = append(d.Messages, msg)
+	if isDiscussionGenerationError(msg) {
+		cm.advanceTurn(c)
+		c.UpdatedAt = time.Now()
+		cm.mu.Unlock()
+		return nil
+	}
 	d.TotalMessageCount++
 	d.TurnsThisRound[msg.From.ID]++
 
@@ -319,25 +336,7 @@ func (cm *CollaborationManager) SilentPlanningParticipantIDs(collabID string) []
 	if c.Discussion.Status != DiscussionActive {
 		return nil
 	}
-	spoken := make(map[string]bool, len(c.Discussion.Participants))
-	for _, m := range c.Discussion.Messages {
-		if m == nil {
-			continue
-		}
-		id := strings.TrimSpace(m.From.ID)
-		if id == "" || id == "system" {
-			continue
-		}
-		spoken[id] = true
-	}
-	var silent []string
-	for _, pid := range c.Discussion.Participants {
-		if pid == "" || spoken[pid] {
-			continue
-		}
-		silent = append(silent, pid)
-	}
-	return silent
+	return silentParticipantIDsLocked(c.Discussion)
 }
 
 // ParticipantAgentName resolves the display name for a collaboration participant ID.
@@ -381,7 +380,7 @@ func silentParticipantIDsLocked(d *DiscussionSession) []string {
 	}
 	spoken := make(map[string]bool, len(d.Participants))
 	for _, m := range d.Messages {
-		if m == nil {
+		if m == nil || isDiscussionGenerationError(m) {
 			continue
 		}
 		id := strings.TrimSpace(m.From.ID)
@@ -441,7 +440,7 @@ func participationQuorumMet(d *DiscussionSession) bool {
 	}
 	spoken := make(map[string]bool, len(d.Participants))
 	for _, m := range d.Messages {
-		if m == nil || m.From.ID == "" {
+		if m == nil || m.From.ID == "" || isDiscussionGenerationError(m) {
 			continue
 		}
 		spoken[m.From.ID] = true

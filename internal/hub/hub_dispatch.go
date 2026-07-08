@@ -43,6 +43,9 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	allowMentionValidationErrors := protocol.ShouldParseMentions(msg.Type, msg.From)
 	if allowMentionValidationErrors || h.shouldParseCollaborationMentions(msg) {
 		mentionStrings = protocol.ParseMentions(msg.Content)
+		if h.shouldParseCollaborationMentions(msg) {
+			mentionStrings = protocol.FilterCollabTemplateMentions(mentionStrings)
+		}
 	}
 	hasInvalidMentions := false
 	isDMInbound := protocol.IsUserLikeSender(msg.From) && h.isChannelDM(msg.Channel)

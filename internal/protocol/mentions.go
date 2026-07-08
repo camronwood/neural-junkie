@@ -34,7 +34,7 @@ func ParseMentions(content string) []string {
 			continue
 		}
 		mention := strings.ToLower(content[match[2]:match[3]])
-		if IsSlackMentionToken(mention) || isCollabTemplateMentionToken(mention) {
+		if IsSlackMentionToken(mention) {
 			continue
 		}
 		if !seen[mention] {
@@ -46,14 +46,30 @@ func ParseMentions(content string) []string {
 	return mentions
 }
 
-// isCollabTemplateMentionToken reports @placeholders in plan prose (not real agents).
-func isCollabTemplateMentionToken(mention string) bool {
+// IsCollabTemplateMentionToken reports @placeholders in plan prose (not real agents).
+// Filter these at collab routing/task-parse time — not in ParseMentions, which is the
+// general protocol contract (see test/mentions_protocol_test.go).
+func IsCollabTemplateMentionToken(mention string) bool {
 	switch strings.ToLower(strings.TrimSpace(mention)) {
 	case "agentname", "agent":
 		return true
 	default:
 		return false
 	}
+}
+
+// FilterCollabTemplateMentions removes plan-template @tokens before hub resolution.
+func FilterCollabTemplateMentions(mentions []string) []string {
+	if len(mentions) == 0 {
+		return mentions
+	}
+	out := make([]string, 0, len(mentions))
+	for _, m := range mentions {
+		if !IsCollabTemplateMentionToken(m) {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // IsSlackMentionToken reports @tokens that look like Slack IDs (U0B5MLY2N2E → u0b5mly2n2e).

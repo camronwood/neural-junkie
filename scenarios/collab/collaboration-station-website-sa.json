@@ -75,12 +75,12 @@
       "required_agents": [
         "FrontendEngineer",
         "SoftwareArchitect",
-        "PlatformEngineer"
+        "Claude"
       ],
       "timeout": "360s",
       "retries": 1,
       "nudge_agents": [
-        "PlatformEngineer"
+        "Claude"
       ]
     },
     {

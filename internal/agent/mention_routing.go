@@ -6,6 +6,26 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+// mentionTokensForRouting returns @mention name tokens used for agent wake/routing.
+func mentionTokensForRouting(msg *protocol.Message) []string {
+	if msg == nil {
+		return nil
+	}
+	if protocol.ShouldParseMentions(msg.Type, msg.From) {
+		return protocol.ParseMentions(msg.Content)
+	}
+	if msg.IsFromSystem() {
+		return nil
+	}
+	switch msg.Type {
+	case protocol.MessageTypeCollabDiscussion, protocol.MessageTypeCollabPlan, protocol.MessageTypeCollabTask:
+		if msg.GetCollaborationID() != "" {
+			return protocol.FilterCollabTemplateMentions(protocol.ParseMentions(msg.Content))
+		}
+	}
+	return nil
+}
+
 // exclusiveMentionTokens returns @mention name tokens from user-authored actionable messages.
 func exclusiveMentionTokens(msg *protocol.Message) []string {
 	if msg == nil || !protocol.ShouldParseMentions(msg.Type, msg.From) {
@@ -40,7 +60,7 @@ func (a *Agent) backfillMentionsFromContent(msg *protocol.Message) {
 	if msg == nil || msg.HasMentions() || a.Hub == nil {
 		return
 	}
-	tokens := exclusiveMentionTokens(msg)
+	tokens := mentionTokensForRouting(msg)
 	if len(tokens) == 0 {
 		return
 	}
