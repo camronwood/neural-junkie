@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Domain packs — Neural Junkie</title>
+  <meta name="description" content="Official Neural Junkie domain packs: software development, life sciences, CAD, AWS, incident management, web browser, music creation, and specialist tuning. Install from the pack store and link to each pack repository." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="index.html#pillars">Product</a>
+        <a class="btn btn-primary" href="packs.html" aria-current="page">Packs</a>
+        <a class="btn btn-ghost" href="features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="security.html">Security</a>
+        <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Home</a> · Domain packs
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Domain packs</h1>
+      <p class="feature-deep-lead">
+        Neural Junkie ships lean — <strong>Moderator</strong>, <strong>Assistant</strong>, and CLI agents only. Install official <strong>domain packs</strong> to add specialists, models, MCP tools, workbenches, and layout presets for the work you actually do. Each pack is open source in its own GitHub repository and installs from the in-app pack store.
+      </p>
+      <p class="release-landing-actions" style="margin-top: 1rem;">
+        <a class="btn btn-primary" href="download.html">Download Neural Junkie</a>
+        <a class="btn btn-ghost" href="features/domain-packs.html">Pack Dev Studio guide</a>
+      </p>
+    </header>
+
+    <figure class="screenshot-frame" style="margin-bottom: 2rem;">
+      <img
+        src="media/gallery/ads/neural-junkie-domain-packs-ad-1080.png"
+        alt="Domain packs store in Neural Junkie"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+
+    <article class="feature-prose">
+      <h2 id="install">How to install packs</h2>
+      <p>Packs install from GitHub release zips. The hub downloads, validates <code>pack.yaml</code>, and extracts to <code>~/.neural-junkie/packs/&lt;pack-id&gt;/</code>. First install requires network; already-installed packs work offline.</p>
+      <ol>
+        <li>Open <strong>Domain packs</strong> from the toolbar chip (<strong>⌘⇧K</strong> on macOS, <strong>Ctrl+Shift+K</strong> on Windows/Linux).</li>
+        <li>Go to the <strong>Store</strong> tab and click <strong>Install</strong> on a pack. The hub fetches the official catalog and downloads the release zip from GitHub.</li>
+        <li>Toggle the pack <strong>on</strong>. You can enable <strong>multiple packs</strong> at once — choose which enabled pack controls IDE vs team layout in the Store tab.</li>
+        <li>When a newer version is published, the store shows an <strong>Update</strong> badge. Use <strong>Update</strong> or <strong>Update all</strong> to upgrade in place.</li>
+      </ol>
+
+      <h3>Alternative install methods</h3>
+      <ul>
+        <li><strong>Sideload zip</strong> — Domain packs → <strong>Install zip</strong>, or <code>POST /api/packs/install-zip</code> for customer bundles. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS_CUSTOM.md">PACKS_CUSTOM.md</a>.</li>
+        <li><strong>Dev-link</strong> — Domain packs → <strong>Develop</strong> tab → point at a local pack folder while authoring <code>pack.yaml</code> in Pack Dev Studio.</li>
+        <li><strong>API</strong> — <code>POST /api/packs/{id}/install</code> then <code>PUT /api/packs/{id}</code> to enable. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS.md">PACKS.md</a>.</li>
+      </ul>
+
+      <h3>After enabling</h3>
+      <p>Some packs need one-time setup or integrations:</p>
+      <ul>
+        <li><strong>AWS</strong> and <strong>Incident management</strong> — configure credentials under <strong>Settings → Integrations</strong> (AWS SSO, Jira, Linear, PagerDuty, Sentry).</li>
+        <li><strong>CAD</strong> — install OpenSCAD on PATH; optional FreeCAD for STEP export.</li>
+        <li><strong>Web browser</strong> — run the pack’s Playwright setup script for browser binaries.</li>
+        <li><strong>Music creation</strong> — one-time ACE-Step setup under <strong>Domain packs → Tools</strong>.</li>
+        <li><strong>Specialist tuning</strong> — optional LoRA training venv via the pack setup script.</li>
+      </ul>
+
+      <h2 id="catalog">Official packs (8)</h2>
+      <p>Jump to a pack for specialists, capabilities, repository links, and setup notes.</p>
+
+      <nav class="packs-grid packs-grid--eight packs-toc" aria-label="Pack catalog">
+        <a class="pack-card pack-card--dev" href="#software-development">
+          <h3 class="pack-card-title">Software development</h3>
+          <p class="pack-card-blurb">11 engineering specialists, IDE v4, MCP sidecar</p>
+        </a>
+        <a class="pack-card pack-card--bio" href="#life-sciences">
+          <h3 class="pack-card-title">Life sciences</h3>
+          <p class="pack-card-blurb">Genomics, structural biology, chemistry</p>
+        </a>
+        <a class="pack-card pack-card--cad" href="#cad">
+          <h3 class="pack-card-title">CAD</h3>
+          <p class="pack-card-blurb">OpenSCAD design, manufacturing export</p>
+        </a>
+        <a class="pack-card pack-card--aws" href="#aws">
+          <h3 class="pack-card-title">AWS</h3>
+          <p class="pack-card-blurb">Account-aware SRE copilot, boto3 tools</p>
+        </a>
+        <a class="pack-card pack-card--incident" href="#incident-management">
+          <h3 class="pack-card-title">Incident management</h3>
+          <p class="pack-card-blurb">Ticketing, triage, postmortems</p>
+        </a>
+        <a class="pack-card pack-card--browser" href="#web-browser">
+          <h3 class="pack-card-title">Web browser</h3>
+          <p class="pack-card-blurb">Fetch, search, Playwright QA</p>
+        </a>
+        <a class="pack-card pack-card--music" href="#music-creation">
+          <h3 class="pack-card-title">Music creation</h3>
+          <p class="pack-card-blurb">Lyrics, ACE-Step generation, stems</p>
+        </a>
+        <a class="pack-card pack-card--lora" href="#specialist-tuning">
+          <h3 class="pack-card-title">Specialist tuning</h3>
+          <p class="pack-card-blurb">LoRA training and adapter compose</p>
+        </a>
+      </nav>
+
+      <section class="pack-detail pack-detail--dev" id="software-development" aria-labelledby="pack-software-development">
+        <header class="pack-detail-header">
+          <h2 id="pack-software-development">Software development</h2>
+          <span class="pack-detail-badge">v2.0.0</span>
+        </header>
+        <p>Engineering specialists with a pack-owned MCP sidecar, IDE capabilities, and Qwen 3.5 models. This is the foundation pack — required by <a href="#incident-management">Incident management</a> and <a href="#web-browser">Web browser</a>.</p>
+        <h3>Specialists</h3>
+        <p>BackendEngineer, FrontendEngineer, PlatformEngineer, SecurityReviewer, SoftwareArchitect, CodeReviewer, DatabaseSpecialist, RustExpert, SREObservabilityEngineer, MobileEngineer, DataMLEngineer.</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>IDE v4</strong> — full LSP, remote SSH, dev containers, <code>@codebase</code>. See <a href="features/ide-v4.html">IDE v4 guide</a>.</li>
+          <li><strong>Pack-owned MCP sidecar</strong> — Go binary with tools for all engineering specialists.</li>
+          <li><strong>Git in the app</strong> — branches, commits, and diffs without leaving the workspace.</li>
+          <li><strong>Implementation sessions</strong> — structured multi-file changes with approval gates.</li>
+        </ul>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-software-development">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="features/ide-v4.html">IDE v4 guide</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SOFTWARE_DEVELOPMENT_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <section class="pack-detail pack-detail--bio" id="life-sciences" aria-labelledby="pack-life-sciences">
+        <header class="pack-detail-header">
+          <h2 id="pack-life-sciences">Life sciences</h2>
+          <span class="pack-detail-badge">v2.0.0</span>
+        </header>
+        <p>OpenBioLLM chat, genomics and structural biology specialists, a structure viewer workbench, biology sidecar, and official runbooks. <strong>Research use only</strong> — not for clinical or diagnostic decisions.</p>
+        <h3>Specialists</h3>
+        <p>GenomicsExpert, StructuralBiologyExpert, ChemInformaticsExpert, BiologyExpert.</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>Structure viewer workbench</strong> — PDB/mmCIF files in the desktop shell.</li>
+          <li><strong>Biology sidecar</strong> — optional local fold, BLAST, pathway lookup, RDKit (<code>/api/biology</code>).</li>
+          <li><strong>MCP tools</strong> — <code>validate_smiles</code>, <code>mol_descriptors</code>, <code>blast_search</code>, <code>pathway_lookup</code>.</li>
+          <li><strong>Runbooks</strong> — sequence-review, basic-qc workflows.</li>
+          <li><strong>Models</strong> — <code>koesn/llama3-openbiollm-8b:latest</code>, <code>nj-biology:8b</code> LoRA.</li>
+        </ul>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-life-sciences">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="features/life-sciences.html">Lab workflows guide</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <section class="pack-detail pack-detail--cad" id="cad" aria-labelledby="pack-cad">
+        <header class="pack-detail-header">
+          <h2 id="pack-cad">CAD</h2>
+          <span class="pack-detail-badge">v2.0.0</span>
+        </header>
+        <p>CADExpert and ManufacturingExpert — parametric OpenSCAD design through print-ready export, local-first.</p>
+        <h3>Specialists</h3>
+        <p>CADExpert (OpenSCAD authoring, assembly, version history), ManufacturingExpert (printability, mesh repair, slicer export).</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>CAD viewer/workbench</strong> — param sliders, Three.js STL preview, OpenSCAD compile loop.</li>
+          <li><strong>CAD sidecar</strong> — hub routes at <code>/api/cad</code>.</li>
+          <li><strong>MCP tools</strong> — <code>check_printability</code>, <code>repair_mesh</code>, <code>export_slicer_preset</code>, <code>sanity_check_gcode</code>, <code>export_step</code>, <code>export_drawing</code>.</li>
+          <li><strong>Domain LoRA</strong> — <code>nj-cad:27b</code> for CAD-tuned responses.</li>
+        </ul>
+        <p><strong>Setup:</strong> OpenSCAD on PATH (required). Optional FreeCAD for STEP and 2D drawing export. Run <code>make setup</code> in the pack repo for the trimesh venv.</p>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-cad">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CAD_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <section class="pack-detail pack-detail--aws" id="aws" aria-labelledby="pack-aws">
+        <header class="pack-detail-header">
+          <h2 id="pack-aws">AWS</h2>
+          <span class="pack-detail-badge">v2.0.0</span>
+        </header>
+        <p>AWSExpert — account-aware SRE copilot with typed boto3 tools, IaC drift detection, cost and security lenses, and gated writes.</p>
+        <h3>Specialists</h3>
+        <p>AWSExpert.</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>AWS sidecar</strong> — boto3 tools at <code>/api/aws</code>.</li>
+          <li><strong>Multi-account allowlists</strong> — scope queries to approved accounts.</li>
+          <li><strong>Read-only mode</strong> — safe exploration by default; gated writes with audit log.</li>
+          <li><strong>Runbooks</strong> — cost review, security review, alarm-to-Jira handoff, AWS vs platform engineer.</li>
+          <li><strong>SSO integration</strong> — configure profiles under <strong>Settings → Integrations</strong>.</li>
+        </ul>
+        <p><strong>Setup:</strong> Run <code>make setup</code> in the pack repo for the boto3 venv, then configure AWS SSO in Integrations.</p>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-aws">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/AWS_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <section class="pack-detail pack-detail--incident" id="incident-management" aria-labelledby="pack-incident-management">
+        <header class="pack-detail-header">
+          <h2 id="pack-incident-management">Incident management</h2>
+          <span class="pack-detail-badge">v2.0.0 · requires software-development</span>
+        </header>
+        <p>IncidentManager — multi-provider ticketing, severity rubric, handoff runbooks, stack trace ingestion, and postmortem workflows.</p>
+        <h3>Specialists</h3>
+        <p>IncidentManager.</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>Integrations</strong> — Jira, GitHub Issues, Linear, PagerDuty, Sentry.</li>
+          <li><strong>Incident sidecar</strong> — triage, stack traces, postmortem drafts at <code>/api/incident</code>.</li>
+          <li><strong>Severity rubric</strong> — consistent triage and handoff to engineering specialists.</li>
+          <li><strong>Gated writes</strong> — <code>incident_write_mode: false</code> by default; approve before ticket updates.</li>
+        </ul>
+        <p><strong>Setup:</strong> Install and enable <a href="#software-development">Software development</a> first. Configure Jira and other providers in <strong>Settings → Integrations</strong>.</p>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-incident-management">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/INCIDENT_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <section class="pack-detail pack-detail--browser" id="web-browser" aria-labelledby="pack-web-browser">
+        <header class="pack-detail-header">
+          <h2 id="pack-web-browser">Web browser</h2>
+          <span class="pack-detail-badge">v2.0.0 · requires software-development</span>
+        </header>
+        <p>WebBrowserExpert with fetch, web search, HTML preview workbench, and Playwright QA — screenshots, accessibility audits, visual regression, and performance checks.</p>
+        <h3>Specialists</h3>
+        <p>WebBrowserExpert.</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>MCP tools</strong> — <code>fetch_url</code>, <code>web_search</code>.</li>
+          <li><strong>HTML browser workbench</strong> — preview workspace <code>.html</code> files and local dev servers.</li>
+          <li><strong>Playwright sidecar</strong> — screenshots, a11y audits, visual diff, perf at <code>/api/browser</code>.</li>
+          <li><strong>Visual baselines</strong> — stored in <code>.nj/browser-baselines</code>.</li>
+        </ul>
+        <p><strong>Setup:</strong> Install and enable <a href="#software-development">Software development</a> first. Run <code>./scripts/setup-playwright.sh</code> in the pack repo for browser binaries.</p>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-web-browser">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/WEB_BROWSER_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <section class="pack-detail pack-detail--music" id="music-creation" aria-labelledby="pack-music-creation">
+        <header class="pack-detail-header">
+          <h2 id="pack-music-creation">Music creation</h2>
+          <span class="pack-detail-badge">v2.0.0</span>
+        </header>
+        <p>MusicExpert — lyrics via Ollama, ACE-Step 1.5 sidecar, music workbench, stems export, and EP workflow.</p>
+        <h3>Specialists</h3>
+        <p>MusicExpert.</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>Music workbench</strong> — waveform, loop regions, A/B compare, stems export, multi-section projects.</li>
+          <li><strong>ACE-Step 1.5 sidecar</strong> — generate, extract stems, repaint, render arrangement, optional MIDI export.</li>
+          <li><strong>Commands</strong> — <code>/generate-music</code> and MCP tools <code>generate_music</code>, <code>extract_stems</code>.</li>
+          <li><strong>Turbo weights bundled</strong> — default variant ships in the release zip (no Hugging Face download).</li>
+          <li><strong>Demo mode</strong> — <code>NJ_MUSIC_DEMO=1</code> for GPU-free preview.</li>
+        </ul>
+        <p><strong>Setup:</strong> One-time ACE-Step install under <strong>Domain packs → Tools → Install ACE-Step</strong>. Requires Python 3.11 or 3.12, ~8 GB+ disk; GPU recommended.</p>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-music-creation">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/MUSIC_CREATION_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <section class="pack-detail pack-detail--lora" id="specialist-tuning" aria-labelledby="pack-specialist-tuning">
+        <header class="pack-detail-header">
+          <h2 id="pack-specialist-tuning">Specialist tuning</h2>
+          <span class="pack-detail-badge">v2.0.0</span>
+        </header>
+        <p>Train LoRA adapters from chat, collabs, and repo experts; compose Hugging Face adapters in Ollama. Pairs with <a href="features/personal-learning.html">Personal learning</a>.</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>LoRA training sidecar</strong> — Unsloth/MLX subprocess at <code>/api/lora/sidecar</code>.</li>
+          <li><strong>Cross-pack adapters</strong> — tune specialists across software dev, biology, CAD, AWS, incident, browser, and music packs.</li>
+          <li><strong>Eval gates</strong> — per-domain probes in <code>assets/eval/</code>; adapters require passing eval before assignment.</li>
+          <li><strong>Sharpen loop</strong> — suggest training after N turns, refresh after delta.</li>
+          <li><strong>Personal learning</strong> — scoped memory opt-in for training data.</li>
+        </ul>
+        <p><strong>Setup:</strong> Optional <code>./scripts/setup-lora-deps.sh</code> for the training venv. Set <code>NJ_LORA_QWEN_COMPOSE=1</code> on the hub for Qwen-native LoRA compose.</p>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-specialist-tuning">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="features/personal-learning.html">Personal learning guide</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SPECIALIST_TUNING_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <h2 id="custom-packs">Custom and customer packs</h2>
+      <p><strong>Pack Dev Studio</strong> (Domain packs → <strong>Develop</strong> tab) lets you author <code>pack.yaml</code>, live-validate YAML, dev-link a folder, and test overlays before sideloading a zip. Organizations can ship private bundles for instrument-specific QC, internal APIs, or compliance workflows.</p>
+      <ul>
+        <li><a href="features/domain-packs.html">Domain packs guide</a> — Pack Dev Studio walkthrough.</li>
+        <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS_CUSTOM.md">PACKS_CUSTOM.md</a> — sideload zip format and customer context.</li>
+        <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACK_CAPABILITIES.md">PACK_CAPABILITIES.md</a> — capability token registry.</li>
+      </ul>
+
+      <h2 id="universal">What stays universal</h2>
+      <p>Moderator, Assistant, Slack Connect, collaboration, and custom experts via <code>/create-expert</code> work regardless of which packs you enable. Packs add depth — they do not gate the core chat experience.</p>
+
+      <aside class="repo-links">
+        <h2>Repository docs</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS.md">PACKS.md</a> — catalog URLs, install API, and update flow.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/packs/catalog.json">packs/catalog.json</a> — official catalog source of truth.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS_V2_ROADMAP.md">PACKS_V2_ROADMAP.md</a> — v2 direction.</li>
+          <li><a href="release-notes.html#v1-0-0-beta-19">Release notes → beta.19</a> — pack store launch.</li>
+        </ul>
+      </aside>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="packs.html" aria-current="page">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="articles/index.html">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

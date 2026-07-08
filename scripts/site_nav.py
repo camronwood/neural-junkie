@@ -19,6 +19,7 @@ ANALYTICS_END = "<!-- NJ-SITE-ANALYTICS:END -->"
 NAV_ITEMS: tuple[dict, ...] = (
     {"id": "start-here", "label": "Start here", "path": "start-here.html"},
     {"id": "product", "label": "Product", "path": "index.html#pillars", "landing_path": "#pillars"},
+    {"id": "packs", "label": "Packs", "path": "packs.html"},
     {"id": "guides", "label": "Guides", "path": "features/index.html"},
     {"id": "articles", "label": "Articles", "path": "articles/index.html"},
     {"id": "benchmarks", "label": "Benchmarks", "path": "benchmarks/index.html"},
@@ -37,6 +38,7 @@ NAV_ITEMS: tuple[dict, ...] = (
 
 FOOTER_EXPLORE_ITEMS: tuple[dict, ...] = (
     {"id": "start-here", "label": "Start here", "path": "start-here.html"},
+    {"id": "packs", "label": "Packs", "path": "packs.html"},
     {"id": "security", "label": "Security", "path": "security.html"},
     {"id": "guides", "label": "Guides", "path": "features/index.html"},
     {"id": "articles", "label": "Articles", "path": "articles/index.html"},
@@ -160,6 +162,8 @@ def detect_active_nav(html_path: Path) -> str | None:
     rel = html_path.relative_to(DOCS).as_posix()
     if rel == "start-here.html":
         return "start-here"
+    if rel == "packs.html":
+        return "packs"
     if rel == "security.html":
         return "security"
     if rel == "known-issues.html":
@@ -185,6 +189,8 @@ def detect_active_footer(html_path: Path) -> str | None:
     rel = html_path.relative_to(DOCS).as_posix()
     if rel == "start-here.html":
         return "start-here"
+    if rel == "packs.html":
+        return "packs"
     if rel == "security.html":
         return "security"
     if rel == "known-issues.html":

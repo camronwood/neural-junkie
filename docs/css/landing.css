@@ -963,11 +963,20 @@ section h2 {
   box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.08);
 }
 
+.pack-card--music {
+  border-color: rgba(236, 72, 153, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(236, 72, 153, 0.08);
+}
+
 .packs-grid--quad {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .packs-grid--seven {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.packs-grid--eight {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -978,6 +987,10 @@ section h2 {
 
   .packs-grid--seven {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .packs-grid--eight {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -1038,6 +1051,89 @@ section h2 {
   font-size: 0.9rem;
   color: var(--text-muted);
   margin-top: 0.5rem;
+}
+
+.packs-toc .pack-card {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.packs-toc .pack-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.pack-detail {
+  margin: 2.5rem 0;
+  padding: 1.5rem 1.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  scroll-margin-top: 5rem;
+}
+
+.pack-detail--dev {
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.pack-detail--bio {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.pack-detail--cad {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.pack-detail--lora {
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.pack-detail--aws {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.pack-detail--incident {
+  border-color: rgba(244, 63, 94, 0.35);
+}
+
+.pack-detail--browser {
+  border-color: rgba(20, 184, 166, 0.35);
+}
+
+.pack-detail--music {
+  border-color: rgba(236, 72, 153, 0.35);
+}
+
+.pack-detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.pack-detail-header h2 {
+  margin: 0;
+}
+
+.pack-detail-badge {
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.pack-detail-actions {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .spotlight-art--packs {
