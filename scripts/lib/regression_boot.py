@@ -22,6 +22,7 @@ from lib.hub_regression import (  # noqa: E402
     stop_hub,
     wait_for_hub,
 )
+from lib.regression_models import enforce_regression_agent_models  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env, provision_hub_automation_key, release_prep_env  # noqa: E402
 
 DEFAULT_OLLAMA_HEALTH_URL = "http://127.0.0.1:11434/api/tags"
@@ -162,6 +163,17 @@ def wait_for_roster(hub_url: str) -> bool:
     return True
 
 
+def pin_regression_models(hub_url: str, root: Path) -> bool:
+    """Switch in-process agents to ≤14B models (hub config may point at 27B+)."""
+    print(">>> Pinning regression agent models (≤14B)...")
+    ok, detail = enforce_regression_agent_models(hub_url.rstrip("/"), root)
+    if not ok:
+        print(f"FAIL: {detail}", file=sys.stderr)
+        return False
+    print(f"OK: {detail}")
+    return True
+
+
 def hub_hygiene(root: Path, hub_url: str, *, label: str) -> bool:
     print(">>> Hub hygiene (pending file changes + scenario channels)...")
     if not clean_hub_for_regression(root, hub_url.rstrip("/"), label=label):
@@ -226,6 +238,8 @@ def boot_regression_stack(
         return False
     if roster and not wait_for_roster(hub_url):
         return False
+    if hub and not pin_regression_models(hub_url, root):
+        return False
     if hygiene and not hub_hygiene(root, hub_url, label=label):
         return False
     if ready_smoke and not run_release_prep_ready(root, hub_url):
@@ -251,6 +265,8 @@ def restart_hub_for_live_run(root: Path, hub_url: str, *, label: str = "live reg
         print("FAIL: hub not healthy after restart", file=sys.stderr)
         return False
     if not wait_for_roster(base):
+        return False
+    if not pin_regression_models(base, root):
         return False
     if not hub_hygiene(root, base, label=label):
         return False

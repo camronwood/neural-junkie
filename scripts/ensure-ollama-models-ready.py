@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
+import os
 import subprocess
 import sys
 import time
@@ -31,14 +31,9 @@ OLLAMA_BASE = "http://127.0.0.1:11434"
 
 
 def _load_expected_agent_models() -> list[str]:
-    spec = importlib.util.spec_from_file_location(
-        "collab_preflight", SCRIPTS_DIR / "collab-preflight.py"
-    )
-    if spec is None or spec.loader is None:
-        return ["qwen3.5:9b"]
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.load_expected_ollama_models()
+    from lib.regression_models import regression_ollama_warm_tags
+
+    return regression_ollama_warm_tags(ROOT)
 
 
 def _ollama_get(path: str, *, timeout: float = 10.0) -> dict | list | None:

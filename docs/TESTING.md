@@ -40,6 +40,8 @@ Reports: `docs/testing/test-growth-*.md` and `test-growth-candidates.md`.
 
 Use `layer-fix-loop` when tests fail and product code needs repair. Use `test-growth-loop` when the suite is green but coverage or edge-case assertions should improve.
 
+**Model cap (14B):** Live regression (`layer-gate`, `layer-fix-loop`, `collab-full`, `release-prep`) never runs specialists above **14B**. Boot calls `POST /api/agents/switch-all-providers` to pin agents to `OLLAMA_CODE_MODEL` from `env.local` when ≤14B (default `qwen2.5-coder:14b`), skips warming oversized tags like `qwen3.5:27b` from hub config, and unloads loaded models above the cap. Override with `NJ_REGRESSION_AGENT_MODEL=qwen2.5-coder:14b` if needed.
+
 **Breaking change:** `make chat-scenarios-regression` and `make conversation-scenarios-regression` are removed — use `make layer-gate LAYER=chat` (scripts still run internally).
 
 **One command:** Live test targets (`layer-gate`, `layer-fix-loop`, `implement-scenarios`, `release-prep`, etc.) automatically start Ollama, warm models, and boot the regression hub. No separate `ollama serve` / `make server-regression` required. Set `SKIP_BOOT=1` to skip when the stack is already up.

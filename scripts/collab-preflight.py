@@ -47,45 +47,10 @@ def _ok(msg: str) -> None:
 
 
 def load_expected_ollama_models() -> list[str]:
-    """Models required for live regression (env.local + hub config defaults)."""
-    models: list[str] = []
-    env_local = ROOT / "env.local"
-    if env_local.is_file():
-        for line in env_local.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if line.startswith("OLLAMA_MODEL=") or line.startswith("OLLAMA_CODE_MODEL="):
-                _, _, val = line.partition("=")
-                val = val.strip().strip('"').strip("'")
-                if val and val not in models:
-                    models.append(val)
+    """Models required for live regression (≤14B; see regression_models.py)."""
+    from lib.regression_models import regression_ollama_warm_tags
 
-    cfg_path = Path.home() / ".neural-junkie" / "config.json"
-    if cfg_path.is_file():
-        try:
-            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            cfg = {}
-        impl = cfg.get("implementation") if isinstance(cfg.get("implementation"), dict) else {}
-        tool = (impl.get("local_tool_model") or "").strip()
-        if tool and tool not in models:
-            models.append(tool)
-        for prov in cfg.get("ai", {}).get("providers") or []:
-            if not isinstance(prov, dict) or prov.get("type") != "ollama":
-                continue
-            tag = (prov.get("model") or "").strip()
-            if tag and tag not in models:
-                models.append(tag)
-
-    for default in ("qwen3.5:9b",):
-        if default not in models:
-            models.append(default)
-
-    summary_model = (os.environ.get("NJ_SESSION_SUMMARY_MODEL") or "qwen2.5:3b").strip()
-    if summary_model and summary_model not in models:
-        models.append(summary_model)
-    return models
+    return regression_ollama_warm_tags(ROOT)
 
 
 def check_hub(base: str) -> bool:
@@ -280,6 +245,30 @@ def check_deliverable_judge(base: str, *, skip_smoke: bool = False) -> bool:
     return True
 
 
+def check_regression_agent_models(base: str) -> bool:
+    from lib.regression_models import (
+        MAX_REGRESSION_PARAMS_B,
+        agents_over_regression_cap,
+        enforce_regression_agent_models,
+        resolve_regression_agent_model,
+    )
+
+    over = agents_over_regression_cap(base)
+    if over:
+        _warn(f"agents above {int(MAX_REGRESSION_PARAMS_B)}B — switching: {', '.join(over)}")
+        ok, detail = enforce_regression_agent_models(base, ROOT)
+        if not ok:
+            _fail(detail)
+            return False
+        over = agents_over_regression_cap(base)
+        if over:
+            _fail(f"agents still above {int(MAX_REGRESSION_PARAMS_B)}B: {', '.join(over)}")
+            return False
+    model = resolve_regression_agent_model(ROOT)
+    _ok(f"regression agent model ≤{int(MAX_REGRESSION_PARAMS_B)}B ({model})")
+    return True
+
+
 def check_agents(base: str, *, require_gemini: bool) -> bool:
     ok, missing = hub.verify_agents_online(base, DEFAULT_ROSTER)
     if not ok:
@@ -350,6 +339,7 @@ def main() -> int:
         check_ollama(load_expected_ollama_models()),
         check_gemini_for_testing(require=args.require_gemini),
         check_claude_for_testing(require=False),
+        check_regression_agent_models(base),
         check_agents(base, require_gemini=args.require_gemini),
         check_deliverable_judge(base, skip_smoke=args.skip_judge_smoke),
         check_scenario_list(),

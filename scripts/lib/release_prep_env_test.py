@@ -36,6 +36,13 @@ class TestReleasePrepEnv(unittest.TestCase):
         self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_MODEL"), "qwen2.5-coder:14b")
         self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S"), "13")
 
+    def test_release_prep_env_pins_regression_models(self) -> None:
+        env = release_prep_env(SCRIPTS_DIR.parent)
+        self.assertEqual(env.get("NJ_REGRESSION"), "1")
+        self.assertEqual(env.get("NJ_REGRESSION_MAX_PARAMS_B"), "14")
+        self.assertEqual(env.get("OLLAMA_CODE_MODEL"), "qwen3.5:9b")
+        self.assertTrue(env.get("NJ_REGRESSION_AGENT_MODEL"))
+
     def test_load_gemini_from_file_when_env_empty(self) -> None:
         key_path = SCRIPTS_DIR.parent / ".gemini-api-key"
         if not key_path.is_file():

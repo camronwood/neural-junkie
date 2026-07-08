@@ -1,6 +1,6 @@
 {
-  "description": "Local coder models for NJ live benchmarks. Release gates use max_params_b=24 (nothing larger than 24B).",
-  "max_params_b_default": 24,
+  "description": "Local coder models for NJ live benchmarks. Release gates use max_params_b=14 (nothing larger than 14B).",
+  "max_params_b_default": 14,
   "models": [
     {
       "id": "qwen2.5-coder-14b",

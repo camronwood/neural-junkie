@@ -248,7 +248,7 @@ def main() -> int:
         "--max-params-b",
         type=float,
         default=None,
-        help="Cap benchmark roster to this size in billions of params (default: suite max_params_b or 24)",
+        help="Cap benchmark roster to this size in billions of params (default: suite max_params_b or 14)",
     )
     p.add_argument(
         "--allow-large-models",

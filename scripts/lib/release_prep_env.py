@@ -129,6 +129,13 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
     except ImportError:
         pass
 
+    try:
+        from lib.regression_models import apply_regression_model_env
+
+        apply_regression_model_env(env, root)
+    except ImportError:
+        pass
+
     return env
 
 
