@@ -140,15 +140,16 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	// Join hub membership and subscribe so agents receive collab messages (DM-spawned
 	// agents disable channel discovery and would otherwise never hear this channel).
 	var setupFailures []string
-	for _, participantID := range agentIDs {
-		if err := ch.hub.AddAgentToChannel(participantID, collabChannelName); err != nil {
-			setupFailures = append(setupFailures, fmt.Sprintf("join %s: %v", shortID(participantID), err))
-			log.Printf("[Collaboration] Warning: failed to add participant %s to channel %s: %v", participantID, collabChannelName, err)
+	for _, participant := range collab.Agents {
+		liveID := ch.resolveLiveAgentID(participant.AgentID, participant.AgentName, participant.AgentType)
+		if err := ch.hub.AddAgentToChannel(liveID, collabChannelName); err != nil {
+			setupFailures = append(setupFailures, fmt.Sprintf("join %s: %v", shortID(liveID), err))
+			log.Printf("[Collaboration] Warning: failed to add participant %s to channel %s: %v", liveID, collabChannelName, err)
 			continue
 		}
-		if err := ch.EnsureAgentSubscribedToChannel(ctx, participantID, collabChannelName); err != nil {
-			setupFailures = append(setupFailures, fmt.Sprintf("subscribe %s: %v", shortID(participantID), err))
-			log.Printf("[Collaboration] Warning: failed to subscribe participant %s to %s: %v", participantID, collabChannelName, err)
+		if err := ch.ensureAgentSubscribedToChannel(ctx, liveID, participant.AgentName, participant.AgentType, collabChannelName); err != nil {
+			setupFailures = append(setupFailures, fmt.Sprintf("subscribe %s: %v", shortID(liveID), err))
+			log.Printf("[Collaboration] Warning: failed to subscribe participant %s to %s: %v", liveID, collabChannelName, err)
 		}
 	}
 	if len(setupFailures) > 0 {
@@ -221,7 +222,8 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	// Set the Collab field on participating agents so they can check collaboration state
 	collabClient := ch.hub.NewCollaborationClientAdapter()
 	for _, a := range collab.Agents {
-		ch.setCollabClientOnAgent(a.AgentID, a.AgentName, collabClient)
+		liveID := ch.resolveLiveAgentID(a.AgentID, a.AgentName, a.AgentType)
+		ch.setCollabClientOnAgent(liveID, a.AgentName, collabClient)
 	}
 
 	if len(collab.Agents) == 0 {
@@ -423,53 +425,38 @@ func (ch *CommandHandler) handleRunbookRun(ctx context.Context, msg *protocol.Me
 // setCollabClientOnAgent sets the CollaborationClient on any agent type
 // that embeds the base Agent struct. It searches known agent registries.
 
-// setCollabClientOnAgent sets the CollaborationClient on any agent type
-// that embeds the base Agent struct. It searches known agent registries.
-func (ch *CommandHandler) lookupRuntimeAgent(agentID string) *agent.Agent {
-	if ch == nil || agentID == "" {
-		return nil
+func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, client agent.CollaborationClient) {
+	liveID := ch.resolveLiveAgentID(agentID, agentName, protocol.AgentType(""))
+	if ch.setCollabClientOnAgentID(liveID, client) {
+		return
+	}
+	log.Printf("[Collaboration] Warning: could not set collab client on agent %s (%s)", agentName, shortID(liveID))
+}
+
+func (ch *CommandHandler) setCollabClientOnAgentID(agentID string, client agent.CollaborationClient) bool {
+	if a := ch.findAgentByID(agentID); a != nil {
+		a.SetCollabClient(client)
+		return true
 	}
 	ch.agentsMu.RLock()
 	defer ch.agentsMu.RUnlock()
-	return ch.runtimeAgents[agentID]
-}
-
-func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, client agent.CollaborationClient) {
-	if runtimeAgent := ch.lookupRuntimeAgent(agentID); runtimeAgent != nil {
-		runtimeAgent.SetCollabClient(client)
-		return
-	}
 	if ch.assistantAgent != nil && ch.assistantAgent.Info.ID == agentID {
 		ch.assistantAgent.SetCollabClient(client)
-		return
+		return true
 	}
 	for _, ra := range ch.repoAgents {
-		if ra.GetAgentInfo().ID == agentID {
+		if ra != nil && ra.GetAgentInfo().ID == agentID {
 			ra.SetCollabClient(client)
-			return
-		}
-	}
-	for _, ca := range ch.cliAgents {
-		if ca.Info.ID == agentID {
-			ca.SetCollabClient(client)
-			return
+			return true
 		}
 	}
 	for _, ca := range ch.confluenceAgents {
-		if ca.GetAgentInfo().ID == agentID && ca.Agent != nil {
+		if ca != nil && ca.GetAgentInfo().ID == agentID && ca.Agent != nil {
 			ca.Agent.SetCollabClient(client)
-			return
+			return true
 		}
 	}
-	if ch.hub != nil && strings.TrimSpace(agentName) != "" {
-		if info := ch.hub.FindLiveAgentByDisplayName(agentName, ""); info != nil {
-			if runtimeAgent := ch.lookupRuntimeAgent(info.ID); runtimeAgent != nil {
-				runtimeAgent.SetCollabClient(client)
-				return
-			}
-		}
-	}
-	log.Printf("[Collaboration] Warning: could not set collab client on agent %s (%s)", agentName, shortID(agentID))
+	return false
 }
 
 func (ch *CommandHandler) handleSubmitPlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {

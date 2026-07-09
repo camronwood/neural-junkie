@@ -436,6 +436,15 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 				if collabPhase == "planning" || collabPhase == "reviewing" {
 					clearResponded()
 					a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
+					if collabPhase == "planning" && a.Collab.IsActive(collabID) {
+						if nextID, nerr := a.Collab.GetCurrentTurnAgent(collabID); nerr == nil {
+							nextID = strings.TrimSpace(nextID)
+							if nextID != "" {
+								turnCount := a.Collab.ParticipantTurnCount(collabID, nextID)
+								a.scheduleCollaborationTurnHandoffRetry(msg, collabID, nextID, turnCount)
+							}
+						}
+					}
 					return
 				}
 			} else {

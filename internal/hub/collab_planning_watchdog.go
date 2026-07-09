@@ -65,14 +65,21 @@ func (h *Hub) tickPlanningDiscussionWatchdog(c *collaboration.Collaboration, now
 	h.collabWatchdogPlanningHandoff[c.ID] = now
 	h.collabWatchdogMu.Unlock()
 
-	targetID := silent[0]
-	if turnID, err := h.collabManager.GetCurrentTurnAgent(c.ID); err == nil && strings.TrimSpace(turnID) != "" {
+	// Only prompt the current turn holder when they are still silent. Picking silent[0]
+	// can target the wrong agent after a generation_error (turn not advanced), which
+	// causes RecordMessage to reject their reply and planning stalls.
+	targetID := ""
+	if turnID, err := h.collabManager.GetCurrentTurnAgent(c.ID); err == nil {
+		turnID = strings.TrimSpace(turnID)
 		for _, pid := range silent {
 			if pid == turnID {
 				targetID = turnID
 				break
 			}
 		}
+	}
+	if targetID == "" {
+		return
 	}
 
 	if h.sendPlanningTurnHandoff(c, targetID) {

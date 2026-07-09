@@ -1347,38 +1347,76 @@ func (ch *CommandHandler) StopAndUnregisterRuntimeAgent(agentID string) {
 	}
 }
 
-// EnsureAgentSubscribedToChannel starts the agent's hub subscription on channelName.
-// JoinChannel alone only updates membership; DM-spawned agents disable channel discovery
-// and must be subscribed explicitly (e.g. collaboration rooms).
+// findAgentByID returns an in-process *agent.Agent for collab/chat subscriptions.
+func (ch *CommandHandler) findAgentByID(agentID string) *agent.Agent {
+	if ch == nil || agentID == "" {
+		return nil
+	}
+	ch.agentsMu.RLock()
+	defer ch.agentsMu.RUnlock()
+	if a := ch.runtimeAgents[agentID]; a != nil {
+		return a
+	}
+	for _, ca := range ch.cliAgents {
+		if ca != nil && ca.Info.ID == agentID {
+			return ca
+		}
+	}
+	if ch.assistantAgent != nil && ch.assistantAgent.Agent != nil && ch.assistantAgent.Info.ID == agentID {
+		return ch.assistantAgent.Agent
+	}
+	for _, ca := range ch.confluenceAgents {
+		if ca != nil && ca.Agent != nil && ca.GetAgentInfo().ID == agentID {
+			return ca.Agent
+		}
+	}
+	return nil
+}
+
+// resolveLiveAgentID returns the registered hub agent ID for a collaboration participant.
+func (ch *CommandHandler) resolveLiveAgentID(agentID, agentName string, agentType protocol.AgentType) string {
+	if ch == nil {
+		return agentID
+	}
+	if a := ch.findAgentByID(agentID); a != nil {
+		return agentID
+	}
+	if ch.hub != nil && strings.TrimSpace(agentName) != "" {
+		if info := ch.hub.FindLiveAgentByDisplayName(agentName, agentType); info != nil {
+			return info.ID
+		}
+	}
+	return agentID
+}
 
 // EnsureAgentSubscribedToChannel starts the agent's hub subscription on channelName.
 // JoinChannel alone only updates membership; DM-spawned agents disable channel discovery
 // and must be subscribed explicitly (e.g. collaboration rooms).
 func (ch *CommandHandler) EnsureAgentSubscribedToChannel(ctx context.Context, agentID, channelName string) error {
-	if ch == nil || agentID == "" || channelName == "" {
+	return ch.ensureAgentSubscribedToChannel(ctx, agentID, "", protocol.AgentType(""), channelName)
+}
+
+func (ch *CommandHandler) ensureAgentSubscribedToChannel(
+	ctx context.Context,
+	agentID, agentName string,
+	agentType protocol.AgentType,
+	channelName string,
+) error {
+	if ch == nil || channelName == "" {
 		return nil
 	}
-	if runtimeAgent, ok := ch.runtimeAgents[agentID]; ok && runtimeAgent != nil {
-		return runtimeAgent.AddChannel(ctx, channelName)
+	agentID = ch.resolveLiveAgentID(agentID, agentName, agentType)
+	if agentID == "" {
+		return nil
 	}
-	for _, ca := range ch.cliAgents {
-		if ca != nil && ca.Info.ID == agentID {
-			return ca.AddChannel(ctx, channelName)
-		}
+	if a := ch.findAgentByID(agentID); a != nil {
+		return a.AddChannel(ctx, channelName)
 	}
+	ch.agentsMu.RLock()
+	defer ch.agentsMu.RUnlock()
 	for _, ra := range ch.repoAgents {
 		if ra != nil && ra.GetAgentInfo().ID == agentID {
 			return ra.AddChannel(ctx, channelName)
-		}
-	}
-	if ch.assistantAgent != nil && ch.assistantAgent.Agent != nil && ch.assistantAgent.Info.ID == agentID {
-		return ch.assistantAgent.AddChannel(ctx, channelName)
-	}
-	for _, ca := range ch.confluenceAgents {
-		if ca != nil && ca.GetAgentInfo().ID == agentID {
-			if ca.Agent != nil {
-				return ca.Agent.AddChannel(ctx, channelName)
-			}
 		}
 	}
 	return nil
