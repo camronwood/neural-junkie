@@ -216,7 +216,8 @@ func summarizeActiveCollaborations(collabs map[string]*Collaboration) string {
 }
 
 // GetByChannel returns the collaboration bound to channelName, if any.
-// When multiple match (unusual), returns the most recently updated.
+// When multiple match (shared scenario channels), prefers active collaborations
+// over completed/cancelled, then the most recently updated.
 func (cm *CollaborationManager) GetByChannel(channelName string) *Collaboration {
 	channelName = strings.TrimSpace(channelName)
 	if channelName == "" {
@@ -231,7 +232,19 @@ func (cm *CollaborationManager) GetByChannel(channelName string) *Collaboration 
 			continue
 		}
 		t := c.UpdatedAt
-		if best == nil || t.After(bestTime) {
+		if best == nil {
+			best = c
+			bestTime = t
+			continue
+		}
+		bestActive := !isTerminalCollabPhase(best.Phase)
+		curActive := !isTerminalCollabPhase(c.Phase)
+		if curActive && !bestActive {
+			best = c
+			bestTime = t
+			continue
+		}
+		if curActive == bestActive && t.After(bestTime) {
 			best = c
 			bestTime = t
 		}
@@ -244,6 +257,10 @@ func (cm *CollaborationManager) GetByChannel(channelName string) *Collaboration 
 		return nil
 	}
 	return cloned
+}
+
+func isTerminalCollabPhase(phase CollaborationPhase) bool {
+	return phase == PhaseCompleted || phase == PhaseCancelled
 }
 
 // ListActive returns all non-terminal collaborations.

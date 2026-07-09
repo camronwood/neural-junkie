@@ -408,6 +408,10 @@ func (h *Hub) processCollaborationLifecycle(msg *protocol.Message) {
 		}
 	}
 
+	if protocol.IsUserLikeSender(msg.From) && !msg.IsFromSystem() {
+		h.maybeKickPlanningDiscussionOnHumanMessage(collabID)
+	}
+
 	h.maybeIngestPlanArtifact(msg, collabID)
 	h.maybeSyncTaskStatusFromPlanHandoff(msg, collabID)
 	h.maybeUpdateTaskStatus(msg, collabID)

@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -55,8 +55,9 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  ci            test-all + conversation-contract"
 	@echo "  implement     implement-scenarios (20/20)"
 	@echo "  chat          chat + conversation regression"
-	@echo "  collab        collab edge-case regression (~11)"
-	@echo "  collab-full   all collab scenarios (~15)"
+	@echo "  collab        collab edge-case regression (~13)"
+	@echo "  collab-core   participation/planning core (~8; fix-loop target)"
+	@echo "  collab-full   all collab scenarios (25)"
 	@echo "  bundle        implement + chat + conversation"
 	@echo "  parity        3x implement with hub restart"
 	@echo ""
@@ -187,7 +188,13 @@ collab-scenarios: ## Run all live collab scenarios (hub should use make server-r
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(REQUIRE_GEMINI),--require-gemini,)
 
-collab-scenarios-all: collab-scenarios ## Alias: full collab sweep (15 scenarios; PROFILE does not shorten timeouts)
+collab-scenarios-all: collab-scenarios ## Alias: full collab sweep (25 scenarios; PROFILE does not shorten timeouts)
+
+collab-scenarios-core: ## Collab core participation/planning (~8 scenarios; hub restart between)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 NJ_RESTART_HUB_BETWEEN_SCENARIOS=1 python3 scripts/collab-scenarios.py --core \
+		$(if $(PROFILE),--profile $(PROFILE),) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(KEEP),--keep,)
 
 collab-sweep-serial: ## Run collab scenarios one-by-one; stop on FAIL (RESUME=1 skips PASS in docs/testing/collab-matrix.tsv)
 	@chmod +x scripts/collab-sweep-serial.sh
@@ -376,7 +383,7 @@ layer-climb: ## Run layers in order until one fails (ci → implement → chat �
 	done; \
 	echo "=== layer-climb: all layers PASS ==="
 
-layer-gate: ## Run one layer gate (LAYER=ci|implement|chat|collab|collab-full|bundle|parity)
+layer-gate: ## Run one layer gate (LAYER=ci|implement|chat|collab|collab-core|collab-full|bundle|parity)
 	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-gate LAYER=implement [VERBOSE=1] [NO_RESTART_HUB=1]"; $(MAKE) layer-list; exit 1; fi
 	@chmod +x scripts/layer-gate.py
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/layer-gate.py \
@@ -405,7 +412,7 @@ layer-fix-loop: ## Layer gate + Cursor agent fix loop (LAYER=implement MAX_ITER=
 		$(if $(NO_COMMIT),--no-commit,) \
 		$(if $(FIX_BRANCH),--fix-branch "$(FIX_BRANCH)",) \
 		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",) \
-		$(if $(NO_WORKTREE),--no-worktree,--use-worktree)'
+		$(if $(USE_WORKTREE),--use-worktree,--no-worktree)'
 
 layer-overnight: ## Walk-away layer fix loop in tmux (LAYER=implement)
 	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-overnight LAYER=implement"; $(MAKE) layer-list; exit 1; fi
@@ -414,7 +421,7 @@ layer-overnight: ## Walk-away layer fix loop in tmux (LAYER=implement)
 	 REPORT='$(REPORT)' SKIP_GATE='$(SKIP_GATE)' SKIP_AGENT='$(SKIP_AGENT)' \
 	 SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' MODEL='$(MODEL)' \
 	 PREFER_SDK='$(PREFER_SDK)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
-	 NO_WORKTREE='$(NO_WORKTREE)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
+	 USE_WORKTREE='$(USE_WORKTREE)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
 
 test-growth-list: ## List ranked test-growth candidates (no agent)
 	@chmod +x scripts/test-growth-loop.py
@@ -440,7 +447,7 @@ test-growth-loop: ## Test-growth loop: discover gaps → Cursor agent → verify
 		$(if $(NO_COMMIT),--no-commit,) \
 		$(if $(GROWTH_BRANCH),--growth-branch "$(GROWTH_BRANCH)",) \
 		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",) \
-		$(if $(NO_WORKTREE),--no-worktree,--use-worktree) \
+		$(if $(USE_WORKTREE),--use-worktree,--no-worktree) \
 		$(if $(STABILITY_RUNS),--stability-runs $(STABILITY_RUNS),)'
 
 release-prep-fix-loop: ## Release gate + Cursor agent fix loop (REPORT=path DRY_RUN=1 SKIP_BENCHMARK=1 MAX_ITER=3 NO_COMMIT=1)
@@ -464,7 +471,7 @@ release-prep-fix-loop: ## Release gate + Cursor agent fix loop (REPORT=path DRY_
 		$(if $(NO_COMMIT),--no-commit,) \
 		$(if $(FIX_BRANCH),--fix-branch "$(FIX_BRANCH)",) \
 		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",) \
-		$(if $(NO_WORKTREE),--no-worktree,--use-worktree)'
+		$(if $(USE_WORKTREE),--use-worktree,--no-worktree)'
 
 overnight-release-prep-fix-loop:
 	@$(MAKE) overnight NJ_OVERNIGHT_TARGET=release-prep-fix-loop \
@@ -472,7 +479,7 @@ overnight-release-prep-fix-loop:
 	 SKIP_AGENT='$(SKIP_AGENT)' SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' \
 	 MODEL='$(MODEL)' PREFER_SDK='$(PREFER_SDK)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
 	 NO_COMMIT='$(NO_COMMIT)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
-	 NO_WORKTREE='$(NO_WORKTREE)' \
+	 USE_WORKTREE='$(USE_WORKTREE)' \
 	 SKIP_LIVE='$(SKIP_LIVE)' SKIP_PARITY='$(SKIP_PARITY)' SKIP_BENCHMARK='$(SKIP_BENCHMARK)' \
 	 NO_FULL='$(NO_FULL)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
 
@@ -552,6 +559,7 @@ ensure-ollama-bundle: ## Fetch Ollama runtime for Tauri bundle when missing (fir
 
 gui: ensure-sidecar ensure-ollama-bundle ensure-ollama ensure-lora-deps ## Start GUI desktop app (Tauri + React)
 	@echo "🖥️  Starting desktop app with React..."
+	@lsof -ti :1420 2>/dev/null | xargs kill -9 2>/dev/null || true
 	@cd desktop && npm run tauri:dev
 
 ensure-sidecar: ## Build sidecar binary if missing (needed for Tauri dev)

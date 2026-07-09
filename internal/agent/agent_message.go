@@ -416,6 +416,21 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		}
 	}
 
+	// Record planning/review discussion turns before broadcast so peers see updated turn order.
+	var collabID string
+	var collabPhase string
+	if cid := responseMsg.GetCollaborationID(); cid != "" && a.Collab != nil && msg.Type != protocol.MessageTypeCollabRecap {
+		collabPhase = a.Collab.GetCollaboration(cid, a.Info.ID).Phase
+		if collabPhase != "executing" {
+			collabID = cid
+			if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
+				log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
+			} else {
+				a.Collab.AnalyzeConsensus(collabID, responseMsg)
+			}
+		}
+	}
+
 	log.Printf("[%s] 📤 Sending response msg ID %s (replying to %s)...", a.Info.Name, responseMsg.ID[:8], msg.ID[:8])
 	if streamMsgID != "" {
 		a.broadcastStreamEnd(msg, streamMsgID)
@@ -432,19 +447,8 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	a.MaybePostHubGeneratedImageForCLI(msg, responseHasImage)
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
 
-	// Record planning/review discussion turns; execution is task-driven (no round-robin).
-	if collabID := responseMsg.GetCollaborationID(); collabID != "" && a.Collab != nil && msg.Type != protocol.MessageTypeCollabRecap {
-		collabPhase := a.Collab.GetCollaboration(collabID, a.Info.ID).Phase
-		if collabPhase != "executing" {
-			if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
-				log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
-			} else {
-				a.Collab.AnalyzeConsensus(collabID, responseMsg)
-			}
-			if collabPhase == "planning" {
-				a.promptNextCollaborationTurn(responseMsg, collabID)
-			}
-		}
+	if collabID != "" && collabPhase == "planning" {
+		a.promptNextCollaborationTurn(responseMsg, collabID)
 	}
 }
 
@@ -513,6 +517,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	if a.Hub != nil && a.Hub.IsChannelHeld(msg.Channel) {
 		return false
 	}
+	// Repopulate Mentions before collab turn-prompt routing (history replay may drop them).
+	a.backfillMentionsFromContent(msg)
 	// Slack bridge policy routing (e.g. always → Assistant on every line).
 	if routed := msg.SlackRoutedAgentID(); routed != "" {
 		return routed == a.Info.ID

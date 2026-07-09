@@ -75,7 +75,15 @@ func (h *Hub) rejectClosedCollaborationChannel(msg *protocol.Message) error {
 	if ch == "" {
 		return nil
 	}
-	snap := h.collabManager.GetByChannel(ch)
+	var snap *collaboration.Collaboration
+	if collabID := strings.TrimSpace(msg.GetCollaborationID()); collabID != "" {
+		if fresh, err := h.collabManager.GetCollaborationSnapshot(collabID); err == nil && fresh != nil {
+			snap = fresh
+		}
+	}
+	if snap == nil {
+		snap = h.collabManager.GetByChannel(ch)
+	}
 	if snap == nil {
 		return nil
 	}

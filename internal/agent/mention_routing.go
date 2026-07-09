@@ -15,6 +15,11 @@ func mentionTokensForRouting(msg *protocol.Message) []string {
 		return protocol.ParseMentions(msg.Content)
 	}
 	if msg.IsFromSystem() {
+		// System turn prompts carry @Agent in content; Mentions may be dropped on replay.
+		if msg.Type == protocol.MessageTypeCollabDiscussion && msg.GetCollaborationID() != "" &&
+			isCollabTurnHandoffContent(msg.Content) {
+			return protocol.FilterCollabTemplateMentions(protocol.ParseMentions(msg.Content))
+		}
 		return nil
 	}
 	switch msg.Type {

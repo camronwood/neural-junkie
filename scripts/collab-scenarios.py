@@ -1701,6 +1701,25 @@ def ensure_hub_ready(base: str, context: str) -> bool:
     return False
 
 
+def _restart_hub_between_scenarios_enabled(*, core: bool) -> bool:
+    raw = os.environ.get("NJ_RESTART_HUB_BETWEEN_SCENARIOS", "").strip().lower()
+    if raw in ("0", "false", "no"):
+        return False
+    if raw in ("1", "true", "yes"):
+        return True
+    return core
+
+
+def restart_hub_between_scenarios(base: str, *, label: str, core: bool) -> bool:
+    """Clear in-process agent/collab state between batch scenarios (reduces Ollama contention)."""
+    if not _restart_hub_between_scenarios_enabled(core=core):
+        return True
+    from lib.regression_boot import restart_hub_for_live_run
+
+    print(f"\n>>> Hub restart between scenarios ({label})...")
+    return restart_hub_for_live_run(ROOT, base, label=label)
+
+
 def run_scenario(
     base: str,
     name: str,
@@ -1864,6 +1883,11 @@ def main() -> int:
     p.add_argument("--list", action="store_true", help="List scenario names")
     p.add_argument("--scenario", help="Scenario name (without .json)")
     p.add_argument("--all", action="store_true", help="Run all scenarios")
+    p.add_argument(
+        "--core",
+        action="store_true",
+        help="Run collab-core scenarios only (participation/planning; default hub restart between)",
+    )
     p.add_argument("--hub", default=hub.DEFAULT_HUB)
     p.add_argument("--profile", choices=["fast", "realistic"], default=None)
     p.add_argument("--agents", default=None, help="Override agent mentions")
@@ -1893,8 +1917,20 @@ def main() -> int:
             print(name)
         return 0
 
+    if args.all and args.core:
+        p.error("use only one of --all or --core")
+    if args.core and args.scenario:
+        p.error("use only one of --scenario or --core")
+
     base = args.hub.rstrip("/")
-    scenario_names = list_scenarios() if args.all else ([args.scenario] if args.scenario else [])
+    if args.core:
+        from lib.collab_core_scenarios import collab_core_scenarios
+
+        scenario_names = collab_core_scenarios()
+    elif args.all:
+        scenario_names = list_scenarios()
+    else:
+        scenario_names = [args.scenario] if args.scenario else []
     if scenario_names and not prepare_gemini_for_collab(
         scenario_names=scenario_names,
         require=args.require_gemini,
@@ -1907,13 +1943,29 @@ def main() -> int:
         return 1
     if not maybe_boot_regression(base, root=ROOT, label="collab-scenarios"):
         return 1
-    if args.all:
-        preflight_regression_run(ROOT, base, label="collab-scenarios preflight")
-        names = list_scenarios()
+    if args.all or args.core:
+        label = "collab-scenarios-core" if args.core else "collab-scenarios preflight"
+        preflight_regression_run(ROOT, base, label=label)
+        names = scenario_names
         if not names:
             print("No scenarios found", file=sys.stderr)
             return 1
-        failed = [n for n in names if not run_scenario(base, n, profile=args.profile, agents_override=args.agents, verbose=args.verbose, keep=args.keep)]
+        failed: list[str] = []
+        for i, n in enumerate(names):
+            if i > 0 and not restart_hub_between_scenarios(
+                base, label=f"after {names[i - 1]}", core=args.core
+            ):
+                print("FAIL: hub restart between scenarios failed", file=sys.stderr)
+                return 1
+            if not run_scenario(
+                base,
+                n,
+                profile=args.profile,
+                agents_override=args.agents,
+                verbose=args.verbose,
+                keep=args.keep,
+            ):
+                failed.append(n)
         return 1 if failed else 0
 
     if not args.scenario:

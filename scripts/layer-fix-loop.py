@@ -83,6 +83,7 @@ def run_layer_gate(
         cmd.append("--no-restart-hub")
     if verbose:
         cmd.append("--verbose")
+    cmd.extend(["--cwd", str(cwd.resolve())])
     rc, _ = run_cmd(cmd, cwd=cwd)
     summary = testing_dir / f"layer-gate-{layer}-{stamp}.md"
     return rc, summary
@@ -124,6 +125,8 @@ def effective_max_verify_scenarios(*, layer: str, agent_rc: int | None, configur
         return configured
     if layer == "collab-full":
         return 5
+    if layer == "collab-core":
+        return 8
     if agent_rc is not None and agent_rc != 0:
         return 3
     return 0
@@ -212,8 +215,8 @@ def main() -> int:
     p.add_argument("--no-commit", action="store_true")
     p.add_argument("--fix-branch", help="Git branch for fixes")
     p.add_argument("--base-branch", help="Base ref when creating fix branch")
-    p.add_argument("--use-worktree", action="store_true", default=True, help="Run fixes in .worktrees/<branch> (default)")
-    p.add_argument("--no-worktree", action="store_false", dest="use_worktree", help="Checkout fix branch in --cwd instead")
+    p.add_argument("--use-worktree", action="store_true", default=False, help="Run fixes in .worktrees/<branch>")
+    p.add_argument("--no-worktree", action="store_true", help="Apply fixes on --cwd checkout (default for collab layers)")
     p.add_argument("--list", action="store_true")
     args = p.parse_args()
 
@@ -241,6 +244,15 @@ def main() -> int:
     hub_url = args.hub.rstrip("/")
     layer = spec.name
 
+    use_worktree = bool(args.use_worktree) and not args.no_worktree
+    if layer in ("collab-core", "collab-full") and not args.use_worktree:
+        use_worktree = False
+        print(
+            ">>> [git] collab layer: fixing on --cwd checkout (gate/hub use same tree); "
+            "pass --use-worktree to isolate in .worktrees/",
+            flush=True,
+        )
+
     if args.dry_run:
         args.skip_agent = True
         args.skip_verify = True
@@ -256,14 +268,14 @@ def main() -> int:
             repo_root,
             branch=fix_branch,
             base_branch=args.base_branch,
-            use_worktree=args.use_worktree,
+            use_worktree=use_worktree,
             no_commit=args.no_commit,
             dry_run=args.dry_run,
         )
         if git_rc != 0:
             print("Git branch/worktree setup failed; use --no-commit to skip.", file=sys.stderr)
             return git_rc
-    elif args.use_worktree:
+    elif use_worktree:
         print(">>> [git] worktree skipped (--no-commit or --dry-run); using repo checkout", flush=True)
 
     for iteration in range(1, args.max_iterations + 1):

@@ -44,14 +44,16 @@ def run_cmd(cmd: list[str], *, env: dict | None = None, cwd: Path = ROOT) -> tup
     return proc.returncode, out
 
 
-def ensure_hub_for_layer(hub_url: str, *, no_restart: bool, layer: str = "") -> bool:
-    if layer == "implement" and not no_restart:
+def ensure_hub_for_layer(hub_url: str, *, no_restart: bool, layer: str = "", cwd: Path = ROOT) -> bool:
+    restart_layers = {"implement", "collab", "collab-core", "collab-full"}
+    if layer in restart_layers and not no_restart:
         from lib.regression_boot import restart_hub_for_live_run
 
-        return restart_hub_for_live_run(ROOT, hub_url, label="layer-gate-implement")
+        label = f"layer-gate-{layer}"
+        return restart_hub_for_live_run(cwd.resolve(), hub_url, label=label)
     return maybe_boot_regression(
         hub_url,
-        root=ROOT,
+        root=cwd.resolve(),
         label="layer-gate",
         no_restart_hub=no_restart,
     )
@@ -122,6 +124,7 @@ def main() -> int:
     p.add_argument("--log-dir", default=str(DEFAULT_TESTING_DIR))
     p.add_argument("--stamp", help="UTC stamp for report filenames (default: now)")
     p.add_argument("--no-restart-hub", action="store_true", help="Use healthy hub; skip restart")
+    p.add_argument("--cwd", type=Path, default=ROOT, help="Repo root for hub boot and stage commands")
     p.add_argument("--verbose", action="store_true")
     p.add_argument("--list", action="store_true", help="List layers and exit")
     args = p.parse_args()
@@ -140,12 +143,15 @@ def main() -> int:
 
     apply_release_prep_env(ROOT)
     hub_url = args.hub.rstrip("/")
+    repo_cwd = args.cwd.resolve()
     testing_dir = Path(args.log_dir)
     testing_dir.mkdir(parents=True, exist_ok=True)
     stamp = args.stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
     summary_path, log_path = layer_report_paths(testing_dir, spec.name, stamp)
 
-    if spec.requires_hub and not ensure_hub_for_layer(hub_url, no_restart=args.no_restart_hub, layer=spec.name):
+    if spec.requires_hub and not ensure_hub_for_layer(
+        hub_url, no_restart=args.no_restart_hub, layer=spec.name, cwd=repo_cwd
+    ):
         return 1
 
     log_lines: list[str] = [
@@ -164,7 +170,7 @@ def main() -> int:
         log_lines.append(f">>> {' '.join(cmd)}")
         log_lines.append("")
         t0 = time.time()
-        rc, out = run_cmd(cmd, env={"NEURAL_JUNKIE_HUB_URL": hub_url})
+        rc, out = run_cmd(cmd, env={"NEURAL_JUNKIE_HUB_URL": hub_url}, cwd=repo_cwd)
         duration = time.time() - t0
         log_lines.append(out.rstrip())
         log_lines.append("")

@@ -23,6 +23,7 @@ LAYER_ORDER: tuple[str, ...] = (
     "implement",
     "chat",
     "collab",
+    "collab-core",
     "collab-full",
     "bundle",
     "parity",
@@ -99,11 +100,21 @@ LAYERS: dict[str, LayerSpec] = {
         stages=(
             LayerStage("collab-scenario-regression", ["make", "collab-scenario-regression"]),
         ),
+        next_layer="collab-core",
+    ),
+    "collab-core": LayerSpec(
+        name="collab-core",
+        description="Collab participation + planning core (~8 scenarios, ~45–90m; hub restart between)",
+        requires_hub=True,
+        est_minutes=75,
+        stages=(
+            LayerStage("collab-scenarios-core", ["make", "collab-scenarios-core"]),
+        ),
         next_layer="collab-full",
     ),
     "collab-full": LayerSpec(
         name="collab-full",
-        description="Full collab-scenarios sweep (~15 scenarios, 1–3h)",
+        description="Full collab-scenarios sweep (25 scenarios, ~2–4h)",
         requires_hub=True,
         est_minutes=120,
         stages=(

@@ -141,6 +141,7 @@ SCRIPT_HARNESS = {
 STAGE_HARNESS = {
     "implement-scenarios": "implement",
     "collab-scenarios-all": "collab",
+    "collab-scenarios-core": "collab",
     "collab-scenario-regression": "collab",
     "chat-scenarios-regression": "chat",
     "conversation-scenarios-regression": "chat",
@@ -344,7 +345,7 @@ def _parse_test_everything(path: Path, hub_url: str) -> list[ParsedFailure]:
             ]
         elif not cmd and stage in ("conversation-scenarios-regression",):
             cmd = ["python3", "scripts/conversation-scenarios-regression.py"]
-        elif not cmd and stage in ("collab-scenario-regression", "collab-scenarios-all"):
+        elif not cmd and stage in ("collab-scenario-regression", "collab-scenarios-all", "collab-scenarios-core"):
             cmd = []  # filled from scenario-level parse below
         failures.append(
             ParsedFailure(

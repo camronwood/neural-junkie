@@ -11,7 +11,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-const collabPlanningHandoffRedispatchAfter = 25 * time.Second
+const collabPlanningHandoffRedispatchAfter = 15 * time.Second
 
 // KickPlanningDiscussionWatchdog clears handoff throttle and re-sends turn prompts for silent participants.
 func (h *Hub) KickPlanningDiscussionWatchdog(collabID string) {
@@ -79,6 +79,36 @@ func (h *Hub) tickPlanningDiscussionWatchdog(c *collaboration.Collaboration, now
 		name := h.collabManager.ParticipantAgentName(c.ID, targetID)
 		log.Printf("[Collaboration] Watchdog planning handoff for @%s (collab %s, silent=%d)",
 			name, c.ID[:8], len(silent))
+	}
+}
+
+// maybeKickPlanningDiscussionOnHumanMessage re-dispatches turn handoffs when the user
+// steers planning mid-discussion so silent participants are not stuck behind throttle.
+func (h *Hub) maybeKickPlanningDiscussionOnHumanMessage(collabID string) {
+	if h == nil || h.collabManager == nil || strings.TrimSpace(collabID) == "" {
+		return
+	}
+	for _, c := range h.collabManager.ListActive() {
+		if c == nil || c.ID != collabID {
+			continue
+		}
+		if c.Phase != collaboration.PhasePlanning || c.Discussion == nil {
+			return
+		}
+		if c.Discussion.Status != collaboration.DiscussionActive {
+			return
+		}
+		if len(h.collabManager.SilentPlanningParticipantIDs(c.ID)) == 0 {
+			return
+		}
+		h.collabWatchdogMu.Lock()
+		if h.collabWatchdogPlanningHandoff == nil {
+			h.collabWatchdogPlanningHandoff = make(map[string]time.Time)
+		}
+		delete(h.collabWatchdogPlanningHandoff, c.ID)
+		h.collabWatchdogMu.Unlock()
+		h.tickPlanningDiscussionWatchdog(c, time.Now())
+		return
 	}
 }
 
