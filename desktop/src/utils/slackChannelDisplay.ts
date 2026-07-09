@@ -50,13 +50,43 @@ export function isSlackMirrorChannelName(name: string): boolean {
   return name.startsWith('slack:');
 }
 
+/** Parse room-{id}-general hub channel slug. */
+export function parseRoomChannelSlug(name: string): string | null {
+  const m = (name ?? '').trim().match(/^room-(.+)-general$/);
+  return m?.[1] ?? null;
+}
+
+/** Human label for an ephemeral LAN room channel row. */
+export function roomChannelSidebarLabel(ch: Channel): string {
+  const display = (ch.display_name || '').trim();
+  if (display) {
+    return display.length > 48 ? `${display.slice(0, 45)}…` : display;
+  }
+  const desc = (ch.description || '').trim();
+  if (desc && desc !== ch.name && desc !== 'Room chat' && !desc.startsWith('room-')) {
+    return desc.length > 48 ? `${desc.slice(0, 45)}…` : desc;
+  }
+  const roomId = (ch.room_id || parseRoomChannelSlug(ch.name) || '').trim();
+  if (roomId) {
+    return `Room · ${roomId.slice(0, 8)}`;
+  }
+  return 'Room chat';
+}
+
 /** Sidebar / header label for any channel type. */
-export function channelSidebarLabel(ch: Channel, collaborationLabel?: (c: Channel) => string): string {
+export function channelSidebarLabel(
+  ch: Channel,
+  collaborationLabel?: (c: Channel) => string,
+  roomLabel?: (c: Channel) => string,
+): string {
   if (isSlackHubChannelName(ch.name)) {
     return slackChannelDisplayName(ch);
   }
   if (ch.type === 'collaboration' && collaborationLabel) {
     return collaborationLabel(ch);
+  }
+  if (ch.type === 'room') {
+    return roomLabel ? roomLabel(ch) : roomChannelSidebarLabel(ch);
   }
   return ch.name;
 }

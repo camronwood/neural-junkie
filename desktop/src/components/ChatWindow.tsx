@@ -209,6 +209,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const roomMode = useRoomStore((s) => s.mode);
   const activeRoomId = useRoomStore((s) => s.room?.id ?? null);
+  const activeRoomJoinCode = useRoomStore((s) => s.joinCode);
+  const activeRoomName = useRoomStore((s) => s.room?.name ?? null);
   const roomPresenceMembers = useRoomStore((s) => s.presenceMembers);
   const refreshRoomPresence = useRoomStore((s) => s.refreshPresence);
 
@@ -248,6 +250,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
     return channels;
   }, [channels, roomMode, activeRoomId]);
+
+  const activeRoomSidebarMeta = useMemo(() => {
+    if (!activeRoomId) return null;
+    return {
+      id: activeRoomId,
+      joinCode: activeRoomJoinCode || undefined,
+      name: activeRoomName || undefined,
+    };
+  }, [activeRoomId, activeRoomJoinCode, activeRoomName]);
 
   const currentChannelType = useMemo(() => {
     return channels.find((c) => c.name === channel)?.type ?? null;
@@ -830,22 +841,25 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // Load channels
   const loadChannels = useCallback(async () => {
     try {
-      const channelList = await api.fetchChannels();
+      const channelList = await new ChatAPI(getHubBaseURL()).fetchChannels();
       useChatStore.getState().setChannels(channelList);
     } catch (error) {
       console.error('Failed to load channels:', error);
     }
-  }, [api]);
+  }, []);
 
   // Pick up new Slack inbox peer channels for background WS watch.
   useEffect(() => {
     void loadChannels();
     const onSlackInboxUpdated = () => void loadChannels();
+    const onRoomChannelsUpdated = () => void loadChannels();
     window.addEventListener('nj-slack-inbox-updated', onSlackInboxUpdated);
+    window.addEventListener('nj-room-channels-updated', onRoomChannelsUpdated);
     const id = window.setInterval(() => void loadChannels(), 5_000);
     return () => {
       window.clearInterval(id);
       window.removeEventListener('nj-slack-inbox-updated', onSlackInboxUpdated);
+      window.removeEventListener('nj-room-channels-updated', onRoomChannelsUpdated);
     };
   }, [loadChannels]);
 
@@ -2764,6 +2778,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             onOpenNewDM={() => setCreateNewDmOpen(true)}
             onDeleteChannel={handleDeleteChannel}
             onOpenChannelInfo={handleOpenChannelInfo}
+            activeRoom={activeRoomSidebarMeta}
           />
         )}
 

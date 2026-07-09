@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Channel } from '../types/protocol';
-import { isSlackHubChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from './slackChannelDisplay';
+import {
+  channelSidebarLabel,
+  isSlackHubChannelName,
+  roomChannelSidebarLabel,
+  showSlackHubChannelIdInHeader,
+  slackChannelDisplayName,
+} from './slackChannelDisplay';
 
 describe('slackChannelDisplay', () => {
   it('labels mirror channels from display_name', () => {
@@ -50,5 +56,34 @@ describe('slackChannelDisplay', () => {
   it('hides inbox hub id in chat header', () => {
     expect(showSlackHubChannelIdInHeader('slack:inbox:U1:U2')).toBe(false);
     expect(showSlackHubChannelIdInHeader('slack:C01234567')).toBe(true);
+  });
+
+  it('labels room channels from display_name', () => {
+    const ch: Channel = {
+      id: 'room-1',
+      name: 'room-abc12345-general',
+      display_name: 'Design review',
+      description: 'Design review',
+      type: 'room',
+      room_id: 'abc12345-uuid',
+      created: '',
+      agents: [],
+    };
+    expect(roomChannelSidebarLabel(ch)).toBe('Design review');
+    expect(channelSidebarLabel(ch)).toBe('Design review');
+  });
+
+  it('labels room channels from room_id when unnamed', () => {
+    const ch: Channel = {
+      id: 'room-1',
+      name: 'room-abc12345-general',
+      description: 'Room chat',
+      type: 'room',
+      room_id: 'abc12345-uuid',
+      created: '',
+      agents: [],
+    };
+    expect(roomChannelSidebarLabel(ch)).toBe('Room · abc12345');
+    expect(channelSidebarLabel(ch)).toBe('Room · abc12345');
   });
 });

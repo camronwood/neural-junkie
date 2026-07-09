@@ -56,7 +56,7 @@ export function MusicWorkbench({ workspaceId, audioPath, projectPath, tabId }: M
   const [project, setProject] = useState<MusicProject | null>(null);
   const [audioFilePath, setAudioFilePath] = useState<string | null>(audioPath ?? null);
   const [peaks, setPeaks] = useState<WaveformPeaks | null>(null);
-  const [loopA, setLoopA] = useState(0);
+  const [loopA] = useState(0);
   const [loopB, setLoopB] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [generating, setGenerating] = useState(false);

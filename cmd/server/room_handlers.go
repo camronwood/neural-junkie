@@ -66,8 +66,15 @@ func handleRoomCreate(w http.ResponseWriter, r *http.Request) {
 	_, _ = chatHub.JoinRoom(room.JoinCode, sess.Username)
 
 	chName := hub.RoomGeneralChannel(room.ID)
-	ch := chatHub.CreateChannelWithType(chName, "Room chat", "", protocol.ChannelTypeRoom, sess.Username)
+	chDesc := "Room chat"
+	if dn := strings.TrimSpace(room.Name); dn != "" {
+		chDesc = dn
+	}
+	ch := chatHub.CreateChannelWithType(chName, chDesc, "", protocol.ChannelTypeRoom, sess.Username)
 	ch.RoomID = room.ID
+	if dn := strings.TrimSpace(room.Name); dn != "" {
+		ch.DisplayName = dn
+	}
 	chatHub.SyncRoomChannelMembers(room.ID)
 
 	w.Header().Set("Content-Type", "application/json")

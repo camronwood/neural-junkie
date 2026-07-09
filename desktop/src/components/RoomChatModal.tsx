@@ -32,6 +32,7 @@ export function RoomChatModal({ isOpen, onClose }: RoomChatModalProps) {
   } = useRoomStore();
 
   const [tab, setTab] = useState<RoomTab>('host');
+  const [roomNameInput, setRoomNameInput] = useState('');
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [joinUsernameInput, setJoinUsernameInput] = useState('');
 
@@ -126,11 +127,27 @@ export function RoomChatModal({ isOpen, onClose }: RoomChatModalProps) {
                   <p className="text-xs text-gray-400">
                     This creates an ephemeral room on your local hub. Others join by entering your hub URL and the join code.
                   </p>
+                  {mode !== 'host' && (
+                    <label className="block text-xs text-gray-400">
+                      Room name <span className="text-gray-600">(optional)</span>
+                      <input
+                        value={roomNameInput}
+                        onChange={(e) => setRoomNameInput(e.target.value)}
+                        placeholder="e.g. Design review"
+                        maxLength={64}
+                        className="mt-1 w-full rounded-md border border-slack-border bg-slack-bg px-2 py-1 text-xs text-gray-100 placeholder:text-gray-600"
+                      />
+                    </label>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       disabled={creating || mode === 'host'}
-                      onClick={() => void createRoom()}
+                      onClick={() =>
+                        void createRoom({
+                          name: roomNameInput.trim() || undefined,
+                        })
+                      }
                       className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40"
                     >
                       {mode === 'host' ? 'Room active' : creating ? 'Starting…' : 'Start room'}
@@ -147,6 +164,12 @@ export function RoomChatModal({ isOpen, onClose }: RoomChatModalProps) {
                   </div>
                   {mode === 'host' && room && (
                     <div className="space-y-1 text-xs text-gray-300">
+                      {room.name?.trim() ? (
+                        <div>
+                          <span className="text-gray-500">Name:</span>{' '}
+                          <span className="text-white">{room.name}</span>
+                        </div>
+                      ) : null}
                       <div>
                         <span className="text-gray-500">Join code:</span>{' '}
                         <span className="font-mono tracking-widest text-white">{joinCode}</span>

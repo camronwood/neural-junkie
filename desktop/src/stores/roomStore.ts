@@ -8,6 +8,12 @@ import {
 } from '../config/hubUrl';
 import { useChatStore } from './chatStore';
 
+function notifyRoomChannelsUpdated() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('nj-room-channels-updated'));
+  }
+}
+
 export type RoomMode = 'host' | 'guest' | null;
 
 export interface RoomSessionSnapshot {
@@ -84,6 +90,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       if (channel) {
         useChatStore.getState().setChannel(channel);
       }
+      notifyRoomChannelsUpdated();
     } catch (e: any) {
       set({ error: e?.message ?? String(e), creating: false });
     }
@@ -118,6 +125,14 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         useChatStore.getState().setUsername(username.trim());
       }
 
+      try {
+        const hostApi = new ChatAPI(hubUrl);
+        const channelList = await hostApi.fetchChannels();
+        useChatStore.getState().setChannels(channelList);
+      } catch {
+        // Sidebar refresh listener will retry.
+      }
+
       set({
         mode: 'guest',
         room,
@@ -126,6 +141,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         presenceMembers: room?.members ?? [],
         joining: false,
       });
+      notifyRoomChannelsUpdated();
     } catch (e: any) {
       set({ error: e?.message ?? String(e), joining: false });
     }
@@ -171,6 +187,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         presenceMembers: [],
         previous: null,
       });
+      notifyRoomChannelsUpdated();
     }
   },
 
@@ -182,6 +199,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       const api = new ChatAPI();
       await api.endRoom(st.room.id);
       set({ mode: null, room: null, roomChannel: null, joinCode: '', presenceMembers: [] });
+      notifyRoomChannelsUpdated();
     } catch (e: any) {
       set({ error: e?.message ?? String(e) });
     }

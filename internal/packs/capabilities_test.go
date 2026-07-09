@@ -79,4 +79,36 @@ func TestIsPlatformCapability(t *testing.T) {
 	if IsPlatformCapability("phoenix-import") {
 		t.Fatal("phoenix-import should not be platform")
 	}
+	if IsPlatformCapability("room-chat") {
+		t.Fatal("room-chat should be pack-local (toolbar-chip), not platform")
+	}
+}
+
+func TestBuildResolvedCapabilities_roomChatToolbar(t *testing.T) {
+	dir := "testdata/official/room-chat"
+	m, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	warns, errs := m.ValidateCapabilityDefs(dir)
+	if len(errs) > 0 {
+		t.Fatalf("errors=%v warns=%v", errs, warns)
+	}
+	resolved := BuildResolvedCapabilities(m)
+	if len(resolved) != 1 {
+		t.Fatalf("resolved=%+v", resolved)
+	}
+	rc := resolved[0]
+	if rc.Platform {
+		t.Fatal("room-chat must not resolve as platform-only")
+	}
+	if rc.Kind != "toolbar-chip" {
+		t.Fatalf("kind=%q", rc.Kind)
+	}
+	if rc.UI == nil || rc.UI.Toolbar == nil || rc.UI.Toolbar.ID != "room" {
+		t.Fatalf("toolbar ui=%+v", rc.UI)
+	}
+	if rc.UI.Modal != "room-chat" {
+		t.Fatalf("modal=%q", rc.UI.Modal)
+	}
 }

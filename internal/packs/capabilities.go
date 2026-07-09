@@ -44,7 +44,6 @@ var OfficialDomainCapabilityTokens = []string{
 	"music-workbench",
 	"music-sidecar",
 	"lora-training-sidecar",
-	"room-chat",
 }
 
 // KnownExtensionKinds are valid capability_defs.kind values.

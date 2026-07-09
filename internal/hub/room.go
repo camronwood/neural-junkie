@@ -116,9 +116,6 @@ func (h *Hub) CreateRoom(hostUser string, opts RoomOptions) (*Room, error) {
 	}
 
 	name := strings.TrimSpace(opts.Name)
-	if name == "" {
-		name = fmt.Sprintf("%s's Room", host)
-	}
 
 	room := &Room{
 		ID:         roomID,

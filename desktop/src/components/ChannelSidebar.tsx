@@ -7,7 +7,7 @@ import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { parseDMDisplayName, dmChannelNamesForAgent } from '../utils/dmChannelDisplay';
 import { buildSidebarDMRows } from '../utils/sidebarDmRows';
-import { channelSidebarLabel, isSlackHubChannelName, isSlackMirrorChannelName } from '../utils/slackChannelDisplay';
+import { channelSidebarLabel, isSlackHubChannelName, isSlackMirrorChannelName, roomChannelSidebarLabel } from '../utils/slackChannelDisplay';
 import {
   agentSidebarHideKey,
   isAgentShortcutDeleted,
@@ -32,6 +32,8 @@ interface ChannelSidebarProps {
   onOpenNewDM: () => void;
   onDeleteChannel?: (channelName: string) => void;
   onOpenChannelInfo?: (ch: Channel) => void;
+  /** Active room session metadata for richer room row labels. */
+  activeRoom?: { id: string; joinCode?: string; name?: string } | null;
 }
 
 const MIN_WIDTH = 180;
@@ -131,6 +133,14 @@ function normalizeChannelRow(ch: Channel): Channel {
   ) {
     return { ...ch, type: 'collaboration' as ChannelType };
   }
+  if (
+    name.startsWith('room-') &&
+    name.endsWith('-general') &&
+    (ch.type === 'public' || !ch.type || ch.type === 'custom')
+  ) {
+    const roomId = (ch.room_id || name.slice('room-'.length, -'-general'.length)).trim();
+    return { ...ch, type: 'room' as ChannelType, room_id: roomId || ch.room_id };
+  }
   return ch;
 }
 
@@ -144,6 +154,7 @@ export function ChannelSidebar({
   onOpenNewDM,
   onDeleteChannel,
   onOpenChannelInfo,
+  activeRoom = null,
 }: ChannelSidebarProps) {
   const channelsNorm = channels.map(normalizeChannelRow);
   const { channel: activeChannel, unreadChannels, unreadCounts, channelThinkingAgents } = useChatStore(
@@ -200,6 +211,9 @@ export function ChannelSidebar({
     .filter(c => c.type === 'collaboration')
     .filter(c => !(settingsLoaded && isSidebarChannelDeleted(settings, c)))
     .sort((a, b) => a.name.localeCompare(b.name));
+  const roomChannels = channelsNorm
+    .filter(c => c.type === 'room')
+    .sort((a, b) => a.name.localeCompare(b.name));
   const dmChannels = channelsNorm
     .filter(c => c.type === 'dm')
     .filter(c => !(settingsLoaded && isSidebarChannelDeleted(settings, c)))
@@ -215,6 +229,20 @@ export function ChannelSidebar({
     }
     const short = ch.name.replace(/^collab-/, '').slice(0, 8);
     return short ? `collab ${short}` : ch.name;
+  };
+
+  const roomChannelLabel = (ch: Channel): string => {
+    if (activeRoom?.id && ch.room_id === activeRoom.id) {
+      const name = activeRoom.name?.trim();
+      if (name) {
+        return name.length > 48 ? `${name.slice(0, 45)}…` : name;
+      }
+      const code = activeRoom.joinCode?.trim();
+      if (code) {
+        return `Room · ${code}`;
+      }
+    }
+    return roomChannelSidebarLabel(ch);
   };
 
   const filteredPublicChannels = publicChannels.filter((c) => {
@@ -248,6 +276,15 @@ export function ChannelSidebar({
       c.name.toLowerCase().includes(normalizedQuery) ||
       (c.description || '').toLowerCase().includes(normalizedQuery) ||
       collaborationChannelLabel(c).toLowerCase().includes(normalizedQuery)
+    );
+  });
+  const filteredRoomChannels = roomChannels.filter((c) => {
+    if (!normalizedQuery) return true;
+    return (
+      c.name.toLowerCase().includes(normalizedQuery) ||
+      (c.description || '').toLowerCase().includes(normalizedQuery) ||
+      roomChannelLabel(c).toLowerCase().includes(normalizedQuery) ||
+      (c.room_id || '').toLowerCase().includes(normalizedQuery)
     );
   });
   const filteredDMChannels = dmChannels.filter((c) => {
@@ -294,6 +331,7 @@ export function ChannelSidebar({
     filteredCustomChannels.length > 0 ||
     filteredSlackChannels.length > 0 ||
     filteredCollaborationChannels.length > 0 ||
+    filteredRoomChannels.length > 0 ||
     sidebarDMRows.length > 0;
 
   useEffect(() => {
@@ -432,7 +470,7 @@ export function ChannelSidebar({
     const isActive = ch.name === activeChannel;
     const isUnread = unreadChannels.has(ch.name);
     const isTyping = (channelThinkingAgents.get(ch.name)?.size ?? 0) > 0;
-    const displayName = channelSidebarLabel(ch, collaborationChannelLabel);
+    const displayName = channelSidebarLabel(ch, collaborationChannelLabel, roomChannelLabel);
     const isSlackMirror = isSlackMirrorChannelName(ch.name);
     const rowClass = `flex-1 min-w-0 text-left px-2 py-1 rounded text-sm flex items-center transition-colors ${
       isActive
@@ -443,6 +481,7 @@ export function ChannelSidebar({
     }`;
     const showDelete = ch.type === 'custom' && onDeleteChannel;
     const isCollab = ch.type === 'collaboration';
+    const isRoom = ch.type === 'room';
     const isHiddenCollabRow = isCollab && hiddenCollabSet.has(ch.name) && normalizedQuery.length > 0;
 
     return (
@@ -454,12 +493,14 @@ export function ChannelSidebar({
           title={
             isCollab
               ? `${displayName} (${ch.name})`
+              : isRoom
+                ? `${displayName} (${ch.name})`
               : isSlackMirror
                 ? displayName
                 : (ch.description || ch.name)
           }
         >
-          <span className="mr-1 opacity-60">{isCollab ? '🤝' : isSlackMirror ? '⎘' : '#'}</span>
+          <span className="mr-1 opacity-60">{isCollab ? '🤝' : isRoom ? '👥' : isSlackMirror ? '⎘' : '#'}</span>
           <span className="truncate">{displayName}</span>
           {isHiddenCollabRow && (
             <span className="text-[10px] uppercase text-white/50 shrink-0">hidden</span>
@@ -699,6 +740,16 @@ export function ChannelSidebar({
                   Collaborations
                 </div>
                 {filteredCollaborationChannels.map(ch => (
+                  <ChannelItem key={ch.id} ch={ch} />
+                ))}
+              </>
+            )}
+            {filteredRoomChannels.length > 0 && (
+              <>
+                <div className="px-1 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                  Rooms
+                </div>
+                {filteredRoomChannels.map(ch => (
                   <ChannelItem key={ch.id} ch={ch} />
                 ))}
               </>
