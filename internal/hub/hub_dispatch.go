@@ -1176,6 +1176,10 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		} else if strings.TrimSpace(snap.SourceRepoPath) != "" {
 			taskMsg.Metadata["context_scope"] = "hint"
 		}
+		if len(contextPaths) > 0 && strings.TrimSpace(snap.SourceRepoPath) != "" &&
+			collaboration.TaskRequiresFileDeliverable(task) {
+			mergeTaskContextFilesIntoMessage(taskMsg, snap.SourceRepoPath, contextPaths)
+		}
 		applyCollabTaskRoutingMetadata(task, taskMsg)
 		timeoutSec := collaboration.ExecutionTimeoutSeconds(task, h.collabExecutionTimeoutOverride())
 		if taskMsg.Metadata == nil {

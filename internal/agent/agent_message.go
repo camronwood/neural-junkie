@@ -220,6 +220,14 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 			log.Printf("[%s] Generation cancelled (interject)", a.Info.Name)
 			clearResponded()
 			a.sendThinkingStatus(msg, protocol.ThinkingStatusAborted)
+			if a.Collab != nil && msg.Type == protocol.MessageTypeCollabDiscussion {
+				cid := msg.GetCollaborationID()
+				phase := msg.GetCollaborationPhase()
+				if cid != "" && phase == "planning" && a.Collab.IsActive(cid) {
+					turnCount := a.Collab.ParticipantTurnCount(cid, a.Info.ID)
+					a.scheduleCollaborationTurnHandoffRetry(msg, cid, a.Info.ID, turnCount)
+				}
+			}
 			return
 		}
 		log.Printf("[%s] Error generating response: %v", a.Info.Name, err)
@@ -425,6 +433,11 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 			collabID = cid
 			if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
 				log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
+				if collabPhase == "planning" || collabPhase == "reviewing" {
+					clearResponded()
+					a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
+					return
+				}
 			} else {
 				a.Collab.AnalyzeConsensus(collabID, responseMsg)
 			}

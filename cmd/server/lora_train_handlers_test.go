@@ -155,7 +155,7 @@ func TestHandleLoraTrainStart_rejectsQwenBase(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "Qwen") {
-		t.Fatalf("expected Qwen error, got %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "cannot be used for LoRA training") {
+		t.Fatalf("expected LoRA training rejection, got %s", rec.Body.String())
 	}
 }

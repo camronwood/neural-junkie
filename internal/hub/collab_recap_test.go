@@ -171,10 +171,17 @@ func TestTransitionToReviewing_DispatchesCollabRecap(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	// Seed discussion so last speaker is a2
+	// Seed discussion so last speaker is a2 (round-robin order).
+	first := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, chName, *a1, "opening planning thought")
+	first.SetCollaborationID(collab.ID)
+	if err := cm.RecordMessage(collab.ID, first); err != nil {
+		t.Fatalf("record a1: %v", err)
+	}
 	discMsg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, chName, *a2, "final planning thought")
 	discMsg.SetCollaborationID(collab.ID)
-	_ = cm.RecordMessage(collab.ID, discMsg)
+	if err := cm.RecordMessage(collab.ID, discMsg); err != nil {
+		t.Fatalf("record a2: %v", err)
+	}
 
 	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
 		t.Fatalf("reviewing: %v", err)
@@ -221,6 +228,11 @@ func TestSessionRestoreDispatchesPendingPlanningRecapWithoutAssignee(t *testing.
 		t.Fatalf("create: %v", err)
 	}
 
+	first := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, chName, *a1, "opening planning thought")
+	first.SetCollaborationID(collab.ID)
+	if err := cm.RecordMessage(collab.ID, first); err != nil {
+		t.Fatalf("record a1: %v", err)
+	}
 	discMsg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, chName, *a2, "final planning thought")
 	discMsg.SetCollaborationID(collab.ID)
 	if err := cm.RecordMessage(collab.ID, discMsg); err != nil {

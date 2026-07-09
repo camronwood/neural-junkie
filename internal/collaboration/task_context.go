@@ -8,6 +8,7 @@ import (
 )
 
 var collabPathRefPattern = regexp.MustCompile(`(?:^|[\s"'(])([./]?[a-zA-Z0-9][a-zA-Z0-9_./-]*(?:/[a-zA-Z0-9_./-]+)+)`)
+var taskSingleFileRefPattern = regexp.MustCompile(`(?i)(?:^|[\s"'(,\-])([a-zA-Z0-9][a-zA-Z0-9._-]*\.(?:md|go|ts|tsx|js|json|yaml|yml|py|rs|txt))`)
 
 // InferTaskContextPaths returns repo-relative paths an assignee should read for a task.
 func InferTaskContextPaths(task CollaborationTask, repoRoot string) []string {
@@ -27,6 +28,11 @@ func InferTaskContextPaths(task CollaborationTask, repoRoot string) []string {
 		paths = append(paths, p)
 	}
 	for _, m := range collabPathRefPattern.FindAllStringSubmatch(text, -1) {
+		if len(m) > 1 {
+			add(m[1])
+		}
+	}
+	for _, m := range taskSingleFileRefPattern.FindAllStringSubmatch(text, -1) {
 		if len(m) > 1 {
 			add(m[1])
 		}

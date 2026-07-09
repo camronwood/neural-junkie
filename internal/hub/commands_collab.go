@@ -425,8 +425,17 @@ func (ch *CommandHandler) handleRunbookRun(ctx context.Context, msg *protocol.Me
 
 // setCollabClientOnAgent sets the CollaborationClient on any agent type
 // that embeds the base Agent struct. It searches known agent registries.
+func (ch *CommandHandler) lookupRuntimeAgent(agentID string) *agent.Agent {
+	if ch == nil || agentID == "" {
+		return nil
+	}
+	ch.agentsMu.RLock()
+	defer ch.agentsMu.RUnlock()
+	return ch.runtimeAgents[agentID]
+}
+
 func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, client agent.CollaborationClient) {
-	if runtimeAgent, ok := ch.runtimeAgents[agentID]; ok && runtimeAgent != nil {
+	if runtimeAgent := ch.lookupRuntimeAgent(agentID); runtimeAgent != nil {
 		runtimeAgent.SetCollabClient(client)
 		return
 	}
@@ -452,9 +461,15 @@ func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, clie
 			return
 		}
 	}
-	// System agents (specialist, moderator, assistant) are tracked differently;
-	// we set the field via the hub's registered agent lookup.
-	log.Printf("[Collaboration] Setting collab client on agent %s (%s) via hub lookup", agentName, shortID(agentID))
+	if ch.hub != nil && strings.TrimSpace(agentName) != "" {
+		if info := ch.hub.FindLiveAgentByDisplayName(agentName, ""); info != nil {
+			if runtimeAgent := ch.lookupRuntimeAgent(info.ID); runtimeAgent != nil {
+				runtimeAgent.SetCollabClient(client)
+				return
+			}
+		}
+	}
+	log.Printf("[Collaboration] Warning: could not set collab client on agent %s (%s)", agentName, shortID(agentID))
 }
 
 func (ch *CommandHandler) handleSubmitPlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {

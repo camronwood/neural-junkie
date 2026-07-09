@@ -104,9 +104,28 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 
 	enforced := c.DiscussionBudgetEnforced()
 
+	if !isDiscussionGenerationError(msg) && c.Phase == PhasePlanning && enforced {
+		agentID := msg.From.ID
+		if d.TurnsThisRound[agentID] >= discussionTurnBudget(c, d) {
+			cm.mu.Unlock()
+			return fmt.Errorf("planning turn budget exhausted for agent")
+		}
+		if planningSpeakerCooldownBlockedLocked(c, d, agentID) {
+			cm.mu.Unlock()
+			return fmt.Errorf("planning cooldown: waiting for other participants")
+		}
+		if len(d.Participants) > 0 && d.CurrentTurnIndex < len(d.Participants) &&
+			d.Participants[d.CurrentTurnIndex] != agentID {
+			cm.mu.Unlock()
+			return fmt.Errorf("not current planning turn")
+		}
+	}
+
 	d.Messages = append(d.Messages, msg)
 	if isDiscussionGenerationError(msg) {
-		cm.advanceTurn(c)
+		// Keep the turn on the failed participant so watchdog/handoff retries can
+		// re-prompt them instead of advancing to the next speaker (which lets one
+		// agent dominate while others stay silent in scenario harnesses).
 		c.UpdatedAt = time.Now()
 		cm.mu.Unlock()
 		return nil
@@ -383,11 +402,13 @@ func silentParticipantIDsLocked(d *DiscussionSession) []string {
 		if m == nil {
 			continue
 		}
+		if isDiscussionGenerationError(m) {
+			continue
+		}
 		id := strings.TrimSpace(m.From.ID)
 		if id == "" || id == "system" {
 			continue
 		}
-		// Count generation_error as attempted so watchdog advances to other participants.
 		spoken[id] = true
 	}
 	var silent []string
@@ -435,6 +456,30 @@ func planningDiscussionTimeoutElapsed(c *Collaboration, d *DiscussionSession) bo
 		grace = maxGrace
 	}
 	return elapsed > d.Timeout+grace
+}
+
+// planningSpeakerCooldownBlockedLocked prevents one agent from dominating planning
+// before every other participant has spoken at least once in the current round.
+// Caller must hold cm.mu.
+func planningSpeakerCooldownBlockedLocked(c *Collaboration, d *DiscussionSession, agentID string) bool {
+	if c == nil || d == nil || c.Phase != PhasePlanning || !c.DiscussionBudgetEnforced() {
+		return false
+	}
+	if d.Status != DiscussionActive {
+		return false
+	}
+	if d.TurnsThisRound[agentID] == 0 {
+		return false
+	}
+	for _, pid := range d.Participants {
+		if pid == agentID {
+			continue
+		}
+		if d.TurnsThisRound[pid] == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // participationQuorumMet is true when every discussion participant has spoken at least once.

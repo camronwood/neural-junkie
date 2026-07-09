@@ -141,6 +141,99 @@ func TestPlanningDiscussionTimeoutElapsed_graceBeforeFirstRecordedMessage(t *tes
 	}
 }
 
+func TestRecordMessage_generationErrorDoesNotAdvanceTurn(t *testing.T) {
+	t.Parallel()
+	h := newRunbookMockHub()
+	h.addAgent("arch-id", "SoftwareArchitect", protocol.AgentTypeArchitecture, nil)
+	h.addAgent("be-id", "BackendEngineer", protocol.AgentTypeBackend, nil)
+	cm := NewCollaborationManager(h)
+	collab, err := cm.CreateCollaboration(
+		"plan",
+		[]string{"arch-id", "be-id"},
+		"collab-plan",
+		"tester",
+		DiscussionConfig{MaxRounds: 1, MaxTotalMessages: 4},
+		CreateOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	discMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		collab.Channel,
+		protocol.AgentInfo{ID: "arch-id", Name: "SoftwareArchitect"},
+		"plan",
+	)
+	if err := cm.RecordMessage(collab.ID, discMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	cm.mu.RLock()
+	turnAfterArch := collab.Discussion.CurrentTurnIndex
+	cm.mu.RUnlock()
+	if turnAfterArch != 1 {
+		t.Fatalf("expected turn index 1 (BackendEngineer) after architect spoke, got %d", turnAfterArch)
+	}
+
+	errMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		collab.Channel,
+		protocol.AgentInfo{ID: "be-id", Name: "BackendEngineer"},
+		"**BackendEngineer** could not complete this turn: timeout",
+	)
+	errMsg.Metadata = map[string]interface{}{"generation_error": true}
+	if err := cm.RecordMessage(collab.ID, errMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	cm.mu.RLock()
+	turnAfterErr := collab.Discussion.CurrentTurnIndex
+	cm.mu.RUnlock()
+	if turnAfterErr != 1 {
+		t.Fatalf("generation_error should not advance turn, got index %d", turnAfterErr)
+	}
+}
+
+func TestRecordMessage_planningCooldownRejectsDominatingSpeaker(t *testing.T) {
+	t.Parallel()
+	h := newRunbookMockHub()
+	h.addAgent("arch-id", "SoftwareArchitect", protocol.AgentTypeArchitecture, nil)
+	h.addAgent("be-id", "BackendEngineer", protocol.AgentTypeBackend, nil)
+	cm := NewCollaborationManager(h)
+	collab, err := cm.CreateCollaboration(
+		"plan",
+		[]string{"arch-id", "be-id"},
+		"collab-plan",
+		"tester",
+		DiscussionConfig{MaxRounds: 1, MaxTotalMessages: 4},
+		CreateOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		collab.Channel,
+		protocol.AgentInfo{ID: "arch-id", Name: "SoftwareArchitect"},
+		"plan",
+	)
+	if err := cm.RecordMessage(collab.ID, first); err != nil {
+		t.Fatal(err)
+	}
+
+	second := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		collab.Channel,
+		protocol.AgentInfo{ID: "arch-id", Name: "SoftwareArchitect"},
+		"plan again",
+	)
+	if err := cm.RecordMessage(collab.ID, second); err == nil {
+		t.Fatal("expected architect blocked from second planning turn before backend speaks")
+	}
+}
+
 func TestRecordMessage_generationErrorDoesNotConsumeTurn(t *testing.T) {
 	t.Parallel()
 	h := newRunbookMockHub()
@@ -180,7 +273,7 @@ func TestRecordMessage_generationErrorDoesNotConsumeTurn(t *testing.T) {
 		t.Fatalf("generation_error should not consume turn budget, got %d", d.TurnsThisRound["be-id"])
 	}
 	silent := cm.SilentPlanningParticipantIDs(collab.ID)
-	if len(silent) != 1 || silent[0] != "arch-id" {
-		t.Fatalf("expected only architect silent after backend generation_error, got %v", silent)
+	if len(silent) != 2 {
+		t.Fatalf("expected both participants still silent for quorum after generation_error, got %v", silent)
 	}
 }

@@ -2,12 +2,69 @@ package hub
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
+
+const maxTaskContextFileBytes = 32_000
+
+// taskContextOpenFiles loads repo-relative paths into workspace open_files entries
+// so file-deliverable tasks (e.g. findings.md summaries) receive source content.
+func taskContextOpenFiles(repoRoot string, paths []string) []interface{} {
+	repoRoot = strings.TrimSpace(repoRoot)
+	if repoRoot == "" || len(paths) == 0 {
+		return nil
+	}
+	var out []interface{}
+	for _, rel := range paths {
+		rel = strings.TrimPrefix(strings.TrimSpace(rel), "./")
+		if rel == "" || strings.Contains(rel, "..") {
+			continue
+		}
+		abs := filepath.Join(repoRoot, filepath.FromSlash(rel))
+		data, err := os.ReadFile(abs)
+		if err != nil || len(data) == 0 {
+			continue
+		}
+		if len(data) > maxTaskContextFileBytes {
+			data = data[:maxTaskContextFileBytes]
+		}
+		ext := strings.TrimPrefix(filepath.Ext(rel), ".")
+		out = append(out, map[string]interface{}{
+			"path":      rel,
+			"language":  ext,
+			"content":   string(data),
+			"is_active": len(out) == 0,
+		})
+	}
+	return out
+}
+
+func mergeTaskContextFilesIntoMessage(msg *protocol.Message, repoRoot string, paths []string) {
+	if msg == nil {
+		return
+	}
+	files := taskContextOpenFiles(repoRoot, paths)
+	if len(files) == 0 {
+		return
+	}
+	if msg.Metadata == nil {
+		msg.Metadata = map[string]interface{}{}
+	}
+	ws, _ := msg.Metadata["workspace_context"].(map[string]interface{})
+	if ws == nil {
+		ws = map[string]interface{}{"workspace_path": strings.TrimSpace(repoRoot)}
+		msg.Metadata["workspace_context"] = ws
+	}
+	ws["open_files"] = files
+	msg.Metadata[agent.MetadataContextScope] = agent.ContextScopeFocus
+}
 
 func (h *Hub) collaborationWorkspaceContextSnapshot(snap *collaboration.Collaboration) map[string]interface{} {
 	if snap == nil || strings.TrimSpace(snap.WorkingDirectory) == "" {

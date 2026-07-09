@@ -1353,18 +1353,7 @@ func (cm *CollaborationManager) PlanningSpeakerCooldownBlocked(collabID, agentID
 	if d.Status != DiscussionActive || !c.DiscussionBudgetEnforced() {
 		return false
 	}
-	if d.TurnsThisRound[agentID] == 0 {
-		return false
-	}
-	for _, pid := range d.Participants {
-		if pid == agentID {
-			continue
-		}
-		if d.TurnsThisRound[pid] == 0 {
-			return true
-		}
-	}
-	return false
+	return planningSpeakerCooldownBlockedLocked(c, d, agentID)
 }
 
 // ParticipantTurnCount returns discussion messages the agent sent in the current round.

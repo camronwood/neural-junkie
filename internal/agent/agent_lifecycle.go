@@ -126,6 +126,15 @@ func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string) {
 		if candidate.From.ID == a.Info.ID || candidate.From.Name == a.Info.Name {
 			continue
 		}
+		// Replay missed collaboration turn handoffs (system prompts with @mention).
+		if candidate.IsFromSystem() && candidate.Type == protocol.MessageTypeCollabDiscussion &&
+			candidate.GetCollaborationID() != "" && isCollabTurnHandoffContent(candidate.Content) {
+			a.backfillMentionsFromContent(candidate)
+			if a.shouldRespond(candidate) && !messageTooOldForUnansweredReplay(candidate) {
+				pending = append(pending, candidate)
+			}
+			continue
+		}
 		if !protocol.IsUserLikeSender(candidate.From) {
 			continue
 		}

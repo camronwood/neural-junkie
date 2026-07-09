@@ -102,5 +102,9 @@ func TaskDispatchFileDeliverableNote(t CollaborationTask) string {
 	if TaskLooksLikeMarkdownDeliverable(t) {
 		note += "\n\n**Do not run build/deploy tooling** (docker-compose, npm, make, kubectl, etc.) unless this task text explicitly asks you to build, deploy, or execute the app. Read reference files from the project; ship the markdown via `[FILE_CHANGE]`."
 	}
+	lower := strings.ToLower(strings.TrimSpace(t.Title + " " + t.Description))
+	if strings.Contains(lower, "findings.md") && strings.Contains(lower, "summariz") {
+		note += "\n\n**Research deliverable:** Read each source file named in this task from the project workspace (MCP read tools). Write `findings.md` with concrete bullets grounded in those files — not a task list, plan recap, or guessed stack."
+	}
 	return note
 }

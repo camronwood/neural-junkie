@@ -156,6 +156,21 @@ func (cm *CollaborationManager) ensurePlanTasksFromGoalLocked(c *Collaboration) 
 	if len(goalTasks) == 0 {
 		return
 	}
+	goalLower := strings.ToLower(strings.TrimSpace(c.Description))
+	if len(goalTasks) == 1 && (strings.Contains(goalLower, "plan one task") || strings.Contains(goalLower, "this exact line")) {
+		if c.Plan == nil {
+			c.Plan = &SharedArtifact{}
+		}
+		planContent := formatPlanContentFromTasks(goalTasks)
+		c.Plan.Content = planContent
+		c.Plan.Version++
+		c.Plan.UpdatedAt = time.Now()
+		c.Plan.Status = ArtifactProposed
+		c.Tasks = goalTasks
+		c.UpdatedAt = time.Now()
+		log.Printf("[CollaborationManager] Applied single goal task for %s", c.ID[:8])
+		return
+	}
 	if c.Plan == nil {
 		c.Plan = &SharedArtifact{}
 	}

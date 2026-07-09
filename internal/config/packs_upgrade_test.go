@@ -39,7 +39,7 @@ func TestListPackUpdatesDetectsNewerCatalogVersion(t *testing.T) {
 		Version: 1,
 		Packs: []packs.CatalogEntry{{
 			ID:          PackMusicCreation,
-			Version:     "1.0.1",
+			Version:     "2.0.1",
 			Title:       "Music creation",
 			DownloadURL: dlURL,
 		}},
@@ -61,7 +61,7 @@ func TestListPackUpdatesDetectsNewerCatalogVersion(t *testing.T) {
 	if len(updates) != 1 || updates[0].ID != PackMusicCreation {
 		t.Fatalf("updates = %+v", updates)
 	}
-	if updates[0].InstalledVersion == "" || updates[0].LatestVersion != "1.0.1" {
+	if updates[0].InstalledVersion == "" || updates[0].LatestVersion != "2.0.1" {
 		t.Fatalf("unexpected versions: %+v", updates[0])
 	}
 
@@ -76,7 +76,7 @@ func TestListPackUpdatesDetectsNewerCatalogVersion(t *testing.T) {
 			break
 		}
 	}
-	if row == nil || !row.UpdateAvailable || row.Version != "1.0.1" {
+	if row == nil || !row.UpdateAvailable || row.Version != "2.0.1" {
 		t.Fatalf("catalog row = %+v", row)
 	}
 }
@@ -89,12 +89,12 @@ func TestUpgradePackPreservesEnabled(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	upgradedZipURL := serveTestPackZipAtVersion(t, PackMusicCreation, "1.0.1")
+	upgradedZipURL := serveTestPackZipAtVersion(t, PackMusicCreation, "2.0.1")
 	packs.InvalidateCatalogCache()
 	body, _ := json.Marshal(&packs.Catalog{
 		Version: 1,
 		Packs: []packs.CatalogEntry{{
-			ID: PackMusicCreation, Version: "1.0.1", Title: "Music", DownloadURL: upgradedZipURL,
+			ID: PackMusicCreation, Version: "2.0.1", Title: "Music", DownloadURL: upgradedZipURL,
 		}},
 	})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -115,8 +115,8 @@ func TestUpgradePackPreservesEnabled(t *testing.T) {
 		t.Fatal("expected pack still installed")
 	}
 	ver := cfg.installedCatalogVersion(PackMusicCreation)
-	if ver != "1.0.1" {
-		t.Fatalf("installed version = %q, want 1.0.1", ver)
+	if ver != "2.0.1" {
+		t.Fatalf("installed version = %q, want 2.0.1", ver)
 	}
 }
 
