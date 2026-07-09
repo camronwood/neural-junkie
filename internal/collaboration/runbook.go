@@ -201,6 +201,7 @@ func (cm *CollaborationManager) createCollaborationCore(
 		ExecutionMode:                 execMode,
 		SourceRepoPath:                strings.TrimSpace(opts.SourceRepoPath),
 		SourceWorkspaceContext:        cloneWorkspaceContextMap(opts.SourceWorkspaceContext),
+		AttachWorkspaceContext:        opts.AttachWorkspaceContext,
 		AllowAgentParticipantRequests: opts.AllowAgentParticipantRequests,
 	}
 	cm.collaborations[collabID] = collab

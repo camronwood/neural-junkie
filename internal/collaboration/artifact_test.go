@@ -387,3 +387,43 @@ func TestSynthesizePlanFromDiscussion_mergesTaskLinesAcrossMessages(t *testing.T
 		t.Fatalf("expected >=2 merged tasks, got %d plan=%q tasks=%v", len(tasks), plan, tasks)
 	}
 }
+
+func TestSynthesizePlanFromDiscussion_documentFindingsExecutionRegression(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "sa-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+	}
+	sa := "I agree with the collaboration goal. Here is a minimal task list: - Task 1: @BackendEngineer - Write collabs/ac310c77-9d42-4981-9b53-c9e814243809/findings.md"
+	be := "I agree with the minimal task list. It aligns well with lane boundaries: - **Task 1** (findings.md) is squarely in my backend lane — summarizes implementation details from README.md and core/sample/main.go"
+	disc := &DiscussionSession{
+		Messages: []*protocol.Message{
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "c", protocol.AgentInfo{Name: "SoftwareArchitect"}, sa),
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "c", protocol.AgentInfo{Name: "BackendEngineer"}, be),
+		},
+	}
+	c := &Collaboration{Agents: agents, Discussion: disc}
+	_, tasks := SynthesizePlanFromDiscussion(c)
+	if len(tasks) > 2 {
+		t.Fatalf("expected <=2 tasks (parser explosion?), got %d: %#v", len(tasks), tasks)
+	}
+}
+
+func TestSynthesizePlanFromDiscussion_rejectsReadmeSubtasks(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "sa-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+	}
+	sa := `- Task 1: @BackendEngineer - Document findings in collabs/ac310c77/findings.md summarizing README.md and core/sample/main.go
+- Task 2: @BackendEngineer - Summarize README.md
+- Task 3: @BackendEngineer - Summarize core/sample/main.go`
+	disc := &DiscussionSession{
+		Messages: []*protocol.Message{
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "c", protocol.AgentInfo{Name: "SoftwareArchitect"}, sa),
+		},
+	}
+	c := &Collaboration{Agents: agents, Discussion: disc}
+	_, tasks := SynthesizePlanFromDiscussion(c)
+	if len(tasks) > 2 {
+		t.Fatalf("expected <=2 tasks, got %d: %#v", len(tasks), tasks)
+	}
+}

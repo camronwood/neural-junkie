@@ -76,6 +76,7 @@ func handleRoomCreate(w http.ResponseWriter, r *http.Request) {
 		ch.DisplayName = dn
 	}
 	chatHub.SyncRoomChannelMembers(room.ID)
+	chatHub.WireRoomChannelAgents(chName)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{

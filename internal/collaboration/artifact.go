@@ -639,11 +639,24 @@ func isWeakTaskFragment(desc string) bool {
 	if TaskRequiresFileDeliverable(CollaborationTask{Description: desc}) {
 		return false
 	}
-	if len(ReferencedDeliverablePaths(CollaborationTask{Description: desc})) > 0 {
+	lower := strings.ToLower(strings.TrimSpace(desc))
+	if strings.Contains(lower, "findings.md") && !strings.HasPrefix(lower, "summarize ") && !strings.HasPrefix(lower, "summarise ") {
 		return false
 	}
+	paths := ReferencedDeliverablePaths(CollaborationTask{Description: desc})
+	for _, p := range paths {
+		if strings.HasPrefix(strings.ToLower(p), "collabs/") {
+			return false
+		}
+	}
+	// "Summarize README.md" / "Summarize core/sample/main.go" are research inputs folded
+	// into a findings task, not separate executable deliverables.
+	if len(paths) > 0 {
+		if strings.HasPrefix(lower, "summarize ") || strings.HasPrefix(lower, "summarise ") {
+			return true
+		}
+	}
 
-	lower := strings.ToLower(strings.TrimSpace(desc))
 	if strings.Contains(desc, "**:") || strings.HasPrefix(desc, "**") {
 		return true
 	}

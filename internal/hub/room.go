@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -293,6 +294,64 @@ func (h *Hub) SyncRoomChannelMembers(roomID string) {
 		return
 	}
 	h.syncRoomChannelMembersLocked(room)
+}
+
+// WireRoomChannelAgents joins the host's general-channel agents into a room channel
+// and starts their subscriptions so LAN guests can @mention them.
+func (h *Hub) WireRoomChannelAgents(channelName string) {
+	if h == nil {
+		return
+	}
+	channelName = strings.TrimSpace(channelName)
+	if channelName == "" {
+		return
+	}
+	ch, err := h.GetChannel(channelName)
+	if err != nil || ch.Type != protocol.ChannelTypeRoom {
+		return
+	}
+
+	agents, err := h.GetChannelAgents("general")
+	if err != nil || len(agents) == 0 {
+		for _, a := range h.ListAgents() {
+			if a != nil {
+				agents = append(agents, *a)
+			}
+		}
+	}
+	for _, agent := range agents {
+		h.wireRoomAgentToChannel(agent.ID, channelName)
+	}
+}
+
+// EnsureRoomMentionedAgents wires agents resolved from @mentions into a room channel.
+// Idempotent safety net for agents registered after the room was created.
+func (h *Hub) EnsureRoomMentionedAgents(channelName string, agentIDs []string) {
+	if h == nil || len(agentIDs) == 0 {
+		return
+	}
+	channelName = strings.TrimSpace(channelName)
+	if channelName == "" {
+		return
+	}
+	ch, err := h.GetChannel(channelName)
+	if err != nil || ch.Type != protocol.ChannelTypeRoom {
+		return
+	}
+	for _, agentID := range agentIDs {
+		if agentID == "" || agentID == "__INVALID__" {
+			continue
+		}
+		h.wireRoomAgentToChannel(agentID, channelName)
+	}
+}
+
+func (h *Hub) wireRoomAgentToChannel(agentID, channelName string) {
+	if err := h.AddAgentToChannel(agentID, channelName); err != nil {
+		log.Printf("[Room] failed to add agent %s to %s: %v", agentID, channelName, err)
+		return
+	}
+	h.EnsureAgentSubscribedToChannel(agentID, channelName)
 }
 
 func (h *Hub) syncRoomChannelMembersLocked(room *Room) {

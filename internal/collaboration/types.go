@@ -299,6 +299,7 @@ type CreateOptions struct {
 	ExecutionMode                 ExecutionMode
 	SourceRepoPath                string // absolute git repo root; optional until workspace ack
 	SourceWorkspaceContext        map[string]interface{} // snapshot from desktop outbound metadata
+	AttachWorkspaceContext        bool                   // copy workspace onto collab channel messages (--workspace / --repo)
 	Source                        CollaborationSource
 	InitialTasks                  []CollaborationTask
 	SkipDiscussion                bool
@@ -351,6 +352,9 @@ type Collaboration struct {
 	// SourceWorkspaceContext is a snapshot of the user's active workspace (name, path, file tree)
 	// captured when the collaboration starts, used for planning prompts and message metadata.
 	SourceWorkspaceContext map[string]interface{} `json:"source_workspace_context,omitempty"`
+	// AttachWorkspaceContext is true when /collaborate used --workspace or --repo so turn
+	// prompts may carry outline workspace metadata (not for passive desktop context alone).
+	AttachWorkspaceContext bool `json:"attach_workspace_context,omitempty"`
 	// WorktreeBranch is the branch created for worktree execution (e.g. nj/collab-abc12345).
 	WorktreeBranch string `json:"worktree_branch,omitempty"`
 	// WorkingDirectory is an absolute path created when execution starts; agents

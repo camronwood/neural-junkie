@@ -55,6 +55,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		resolvedMentions := make(map[string]bool) // track which mentions were resolved
 		agentIDs := h.ResolveMentionsWithValidation(mentionStrings, resolvedMentions, msg.Channel)
 		msg.Mentions = agentIDs
+		h.EnsureRoomMentionedAgents(msg.Channel, agentIDs)
 
 		h.maybeRequestCollaborationParticipants(msg, agentIDs)
 
@@ -1332,6 +1333,7 @@ func collaborationInfoForAgent(c *collaboration.Collaboration, agentID string) a
 		ExecutionMode:          string(c.ExecutionMode),
 		SourceRepoPath:         c.SourceRepoPath,
 		SourceWorkspaceContext: c.SourceWorkspaceContext,
+		AttachWorkspaceContext: c.AttachWorkspaceContext,
 		WorktreeBranch:         c.WorktreeBranch,
 		WorkingDirectory:       c.WorkingDirectory,
 	}

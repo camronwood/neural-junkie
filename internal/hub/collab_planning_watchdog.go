@@ -142,9 +142,11 @@ func (h *Hub) sendPlanningTurnHandoff(c *collaboration.Collaboration, agentID st
 		msg.Metadata = map[string]interface{}{}
 	}
 	msg.Metadata["collab_internal_event"] = true
-	if ctx := c.SourceWorkspaceContext; len(ctx) > 0 {
-		msg.Metadata["workspace_context"] = ctx
-		msg.Metadata[agent.MetadataContextScope] = agent.ContextScopeOutline
+	if c.AttachWorkspaceContext {
+		if ctx := c.SourceWorkspaceContext; len(ctx) > 0 {
+			msg.Metadata["workspace_context"] = ctx
+			msg.Metadata[agent.MetadataContextScope] = agent.ContextScopeOutline
+		}
 	}
 
 	if err := h.SendMessage(msg); err != nil {

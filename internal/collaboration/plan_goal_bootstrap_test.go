@@ -71,3 +71,15 @@ func TestExtractTasksFromCollaborationGoal_unassignedFindingsTask(t *testing.T) 
 		t.Fatalf("expected findings.md task in %#v", taskTitles(tasks))
 	}
 }
+
+func TestExtractTasksFromCollaborationGoal_documentFindingsExecutionGoal(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "sa-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+	}
+	goal := "@BackendEngineer @BackendEngineer Plan one task using this exact line: - Task 1: @BackendEngineer - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go."
+	tasks := ExtractTasksFromCollaborationGoal(goal, "ac310c77-9d42-4981-9b53-c9e814243809", agents)
+	if len(tasks) > 2 {
+		t.Fatalf("expected <=2 tasks from goal, got %d: %#v", len(tasks), tasks)
+	}
+}

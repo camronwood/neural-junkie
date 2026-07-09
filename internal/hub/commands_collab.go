@@ -107,6 +107,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		createOpts.SourceRepoPath = sourceWorkspacePath
 	}
 	createOpts.SourceWorkspaceContext = workspaceContextForCollaboration(msg, flagParse, sourceWorkspacePath, description)
+	createOpts.AttachWorkspaceContext = flagParse.AttachWorkspace
 	if flagParse.Worktree {
 		createOpts.ExecutionMode = collaboration.ExecutionModeWorktree
 		if createOpts.SourceRepoPath != "" {

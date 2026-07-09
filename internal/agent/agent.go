@@ -196,6 +196,7 @@ type CollaborationInfo struct {
 	ExecutionMode          string // sandbox | worktree
 	SourceRepoPath         string
 	SourceWorkspaceContext map[string]interface{}
+	AttachWorkspaceContext bool
 	WorktreeBranch         string
 	WorkingDirectory       string // collaboration execution root (absolute path)
 }

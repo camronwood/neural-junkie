@@ -137,6 +137,9 @@ func (h *Hub) shouldSkipJoinAnnouncementLocked(channelName string, agent *protoc
 	if agent == nil {
 		return true
 	}
+	if ch, ok := h.channels[channelName]; ok && ch.Type == protocol.ChannelTypeRoom {
+		return true
+	}
 	msgs := h.messages[channelName]
 	for i := len(msgs) - 1; i >= 0 && i >= len(msgs)-40; i-- {
 		m := msgs[i]

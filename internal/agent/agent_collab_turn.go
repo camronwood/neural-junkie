@@ -65,15 +65,17 @@ func (a *Agent) sendCollaborationTurnHandoff(source *protocol.Message, collabID,
 		turnMsg.Metadata = map[string]interface{}{}
 	}
 	turnMsg.Metadata["collab_internal_event"] = true
-	if messageHasWorkspaceContext(source) {
-		if raw, ok := source.Metadata["workspace_context"]; ok {
-			if ctx, ok := raw.(map[string]interface{}); ok {
-				inheritWorkspaceContextFromCollaboration(turnMsg, ctx)
+	info := a.Collab.GetCollaboration(collabID, a.Info.ID)
+	if info.AttachWorkspaceContext {
+		if messageHasWorkspaceContext(source) {
+			if raw, ok := source.Metadata["workspace_context"]; ok {
+				if ctx, ok := raw.(map[string]interface{}); ok {
+					inheritWorkspaceContextFromCollaboration(turnMsg, ctx)
+				}
 			}
+		} else {
+			inheritWorkspaceContextFromCollaboration(turnMsg, info.SourceWorkspaceContext)
 		}
-	} else {
-		info := a.Collab.GetCollaboration(collabID, a.Info.ID)
-		inheritWorkspaceContextFromCollaboration(turnMsg, info.SourceWorkspaceContext)
 	}
 
 	if err := a.Hub.SendMessage(turnMsg); err != nil {
