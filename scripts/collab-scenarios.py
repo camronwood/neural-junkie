@@ -1558,6 +1558,7 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
     solo_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"  solo leg: channel={channel} output={output_rel}")
+    hub.clear_channel_history(ctx.base, channel, max_retries=4)
     meta = ctx.build_send_metadata() or {}
     meta.setdefault("conversation_mode", "code")
     meta.setdefault("implementation_session", True)
@@ -1603,7 +1604,9 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
             if code != 200:
                 print(f"  FAIL [solo]: retry send ({code})", file=sys.stderr)
                 return False
-            baseline = hub.count_chat_agent_messages(msgs, from_agent=solo_agent)
+            baseline = hub.count_chat_agent_messages(
+                hub.list_messages(ctx.base, channel, 200), from_agent=solo_agent
+            )
             continue
         print(f"  FAIL [solo]: no {solo_agent} reply ({reply_detail})", file=sys.stderr)
         return False

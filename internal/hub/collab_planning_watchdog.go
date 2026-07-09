@@ -13,6 +13,25 @@ import (
 
 const collabPlanningHandoffRedispatchAfter = 25 * time.Second
 
+// KickPlanningDiscussionWatchdog clears handoff throttle and re-sends turn prompts for silent participants.
+func (h *Hub) KickPlanningDiscussionWatchdog(collabID string) {
+	if h == nil || h.collabManager == nil || strings.TrimSpace(collabID) == "" {
+		return
+	}
+	h.collabWatchdogMu.Lock()
+	if h.collabWatchdogPlanningHandoff != nil {
+		delete(h.collabWatchdogPlanningHandoff, collabID)
+	}
+	h.collabWatchdogMu.Unlock()
+	for _, c := range h.collabManager.ListActive() {
+		if c == nil || c.ID != collabID {
+			continue
+		}
+		h.tickPlanningDiscussionWatchdog(c, time.Now())
+		return
+	}
+}
+
 // tickPlanningDiscussionWatchdog re-sends turn handoffs when planning participants stay silent.
 func (h *Hub) tickPlanningDiscussionWatchdog(c *collaboration.Collaboration, now time.Time) {
 	if h == nil || h.collabManager == nil || c == nil {

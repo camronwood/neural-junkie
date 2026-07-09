@@ -380,13 +380,14 @@ func silentParticipantIDsLocked(d *DiscussionSession) []string {
 	}
 	spoken := make(map[string]bool, len(d.Participants))
 	for _, m := range d.Messages {
-		if m == nil || isDiscussionGenerationError(m) {
+		if m == nil {
 			continue
 		}
 		id := strings.TrimSpace(m.From.ID)
 		if id == "" || id == "system" {
 			continue
 		}
+		// Count generation_error as attempted so watchdog advances to other participants.
 		spoken[id] = true
 	}
 	var silent []string
@@ -420,7 +421,10 @@ func planningDiscussionTimeoutElapsed(c *Collaboration, d *DiscussionSession) bo
 	// Keep planning open while no turn has been recorded yet — the first LLM reply
 	// often exceeds the scaled wall timeout (--messages 4 → 180s).
 	if d.TotalMessageCount == 0 {
-		const firstReplyGrace = 2 * time.Minute
+		firstReplyGrace := 2 * time.Minute
+		if d.MaxTotalMessages > 0 && d.MaxTotalMessages <= 4 {
+			firstReplyGrace = 45 * time.Second
+		}
 		if elapsed <= d.Timeout+firstReplyGrace {
 			return false
 		}

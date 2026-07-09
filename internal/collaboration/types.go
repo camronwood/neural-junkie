@@ -269,11 +269,15 @@ func (dc DiscussionConfig) Normalized() DiscussionConfig {
 	} else if out.Timeout > HardMaxTimeout {
 		out.Timeout = HardMaxTimeout
 	}
-	// Short collabs (--messages 4) should not sit silent for the full 5m default.
+	// Short collabs (--messages ≤8) should not sit silent for the full 5m default.
 	if out.MaxTotalMessages > 0 && out.MaxTotalMessages <= 8 && out.Timeout > 3*time.Minute {
 		scaled := time.Duration(out.MaxTotalMessages) * 45 * time.Second
-		if scaled < 2*time.Minute {
-			scaled = 2 * time.Minute
+		minShort := 2 * time.Minute
+		if out.MaxTotalMessages <= 4 {
+			minShort = 90 * time.Second
+		}
+		if scaled < minShort {
+			scaled = minShort
 		}
 		if scaled < out.Timeout {
 			out.Timeout = scaled

@@ -61,9 +61,12 @@ func (a *Agent) sendCollabVisibleGenerationError(msg *protocol.Message, userMsg,
 		return
 	}
 	if a.Collab != nil {
+		collabPhase := a.Collab.GetCollaboration(collabID, a.Info.ID).Phase
 		if err := a.Collab.RecordMessage(collabID, collabMsg); err != nil {
 			log.Printf("[%s] Warning: failed to record collab generation error: %v", a.Info.Name, err)
-		} else {
+		}
+		// Always hand off during planning so timeouts/errors do not strand silent participants.
+		if collabPhase == "planning" && a.Collab.IsActive(collabID) {
 			a.promptNextCollaborationTurn(collabMsg, collabID)
 		}
 	}

@@ -180,7 +180,7 @@ func TestRecordMessage_generationErrorDoesNotConsumeTurn(t *testing.T) {
 		t.Fatalf("generation_error should not consume turn budget, got %d", d.TurnsThisRound["be-id"])
 	}
 	silent := cm.SilentPlanningParticipantIDs(collab.ID)
-	if len(silent) != 2 {
-		t.Fatalf("expected both participants still silent for quorum, got %v", silent)
+	if len(silent) != 1 || silent[0] != "arch-id" {
+		t.Fatalf("expected only architect silent after backend generation_error, got %v", silent)
 	}
 }

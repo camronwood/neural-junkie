@@ -171,6 +171,29 @@ func TestImageGenerationDisabledDuringImplementationSession(t *testing.T) {
 	}
 }
 
+func TestImageGenerationToolsDisabledDuringCollabPlanning(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture},
+		Hub:  hub,
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-test",
+		protocol.AgentInfo{ID: "system", Name: "System"},
+		"@SoftwareArchitect propose tasks",
+	)
+	msg.SetCollaborationPhase("planning")
+	if a.imageGenerationToolsEnabledForMessage(msg) {
+		t.Fatal("image gen should be disabled during collab planning")
+	}
+	for _, td := range a.agentToolDefinitions(msg) {
+		if td.Name == generateImageToolName {
+			t.Fatal("generate_image should not be in tool list during collab planning")
+		}
+	}
+}
+
 func TestTryHubImageGenerationShortcutSkippedDuringImplementationSession(t *testing.T) {
 	hub := &imageGenTestHub{enabled: true}
 	a := &Agent{

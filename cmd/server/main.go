@@ -318,7 +318,7 @@ func main() {
 	sessionSaverWG.Add(1)
 	go func() {
 		defer sessionSaverWG.Done()
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {

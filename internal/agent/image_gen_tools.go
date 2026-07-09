@@ -61,7 +61,7 @@ func (a *Agent) imageGenerationToolsEnabledForMessage(msg *protocol.Message) boo
 }
 
 // messageSuppressesImageGeneration disables image tools during code/implementation work
-// so specialists do not call generate_image instead of editing or running commands.
+// and collaboration planning/review turns so specialists stay on task lists, not image gen.
 func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 	if msg == nil {
 		return false
@@ -74,6 +74,12 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 	}
 	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
 		return true
+	}
+	if msg.Type == protocol.MessageTypeCollabDiscussion {
+		switch strings.ToLower(strings.TrimSpace(msg.GetCollaborationPhase())) {
+		case "planning", "reviewing":
+			return true
+		}
 	}
 	return false
 }

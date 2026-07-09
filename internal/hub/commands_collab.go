@@ -253,6 +253,13 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("⚠️ Collaboration created in **#%s** but failed to prompt first agent: %v", collabChannelName, err)), nil
 	}
 
+	// Re-dispatch quickly if the first participant stays silent (watchdog throttle starts after create).
+	ch.hub.KickPlanningDiscussionWatchdog(collab.ID)
+	go func(collabID string) {
+		time.Sleep(collabPlanningHandoffRedispatchAfter)
+		ch.hub.KickPlanningDiscussionWatchdog(collabID)
+	}(collab.ID)
+
 	ch.setCollaborateRedirect(collabChannelName, collab.ID)
 
 	if sourceWorkspaceWarn != "" {

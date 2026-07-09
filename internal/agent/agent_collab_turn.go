@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	collabTurnHandoffRetryDelay = 25 * time.Second
+	collabTurnHandoffRetryDelay = 15 * time.Second
 	collabTurnHandoffMaxRetries = 3
 )
 
