@@ -81,12 +81,13 @@
         <li><strong>Web browser</strong> — run the pack’s Playwright setup script for browser binaries.</li>
         <li><strong>Music creation</strong> — one-time ACE-Step setup under <strong>Domain packs → Tools</strong>.</li>
         <li><strong>Specialist tuning</strong> — optional LoRA training venv via the pack setup script.</li>
+        <li><strong>Room chat</strong> — host enables <strong>Settings → Security → listen on LAN</strong> and configures a hub token for guests.</li>
       </ul>
 
-      <h2 id="catalog">Official packs (8)</h2>
+      <h2 id="catalog">Official packs (9)</h2>
       <p>Jump to a pack for specialists, capabilities, repository links, and setup notes.</p>
 
-      <nav class="packs-grid packs-grid--eight packs-toc" aria-label="Pack catalog">
+      <nav class="packs-grid packs-grid--nine packs-toc" aria-label="Pack catalog">
         <a class="pack-card pack-card--dev" href="#software-development">
           <h3 class="pack-card-title">Software development</h3>
           <p class="pack-card-blurb">11 engineering specialists, IDE v4, MCP sidecar</p>
@@ -118,6 +119,10 @@
         <a class="pack-card pack-card--lora" href="#specialist-tuning">
           <h3 class="pack-card-title">Specialist tuning</h3>
           <p class="pack-card-blurb">LoRA training and adapter compose</p>
+        </a>
+        <a class="pack-card pack-card--room" href="#room-chat">
+          <h3 class="pack-card-title">Room chat</h3>
+          <p class="pack-card-blurb">Same-room LAN rooms, host agents</p>
         </a>
       </nav>
 
@@ -298,6 +303,26 @@
           <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-specialist-tuning">GitHub repository</a>
           <a class="btn btn-ghost btn-sm" href="features/personal-learning.html">Personal learning guide</a>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SPECIALIST_TUNING_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <section class="pack-detail pack-detail--room" id="room-chat" aria-labelledby="pack-room-chat">
+        <header class="pack-detail-header">
+          <h2 id="pack-room-chat">Room chat</h2>
+          <span class="pack-detail-badge">v1.0.0</span>
+        </header>
+        <p>Same-room <strong>LAN chat</strong> for workshops, lab benches, and co-located teams. One person hosts an ephemeral room on their local hub; others join from the desktop with a hub URL and join code. Everyone chats in a room channel — guests can @mention the <strong>host’s agents</strong>, which run on the host machine. No cloud relay.</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>Room toolbar modal</strong> — create or join rooms from the desktop when the pack is enabled.</li>
+          <li><strong>Ephemeral rooms</strong> — configurable TTL, member cap, and optional history persistence.</li>
+          <li><strong>Scoped guest access</strong> — joiners get a hub session limited to room channels only.</li>
+          <li><strong>Full agent access</strong> — guests @mention specialists on the host hub (backend, biology, custom experts, etc.).</li>
+        </ul>
+        <p><strong>Setup:</strong> Install and enable the pack. Host: <strong>Settings → Security</strong> → enable LAN binding (<code>listen_all</code>) and set a hub token. Guests must be on the same LAN (watch for Wi‑Fi client isolation).</p>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-room-chat">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ROOM_CHAT.md">Room chat doc</a>
         </div>
       </section>
 
