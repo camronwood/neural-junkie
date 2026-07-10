@@ -7,6 +7,7 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 | Topic | File |
 |--------|------|
 | Download and first run | [DOWNLOAD.md](docs/DOWNLOAD.md) |
+| macOS Homebrew tap | [HOMEBREW.md](docs/HOMEBREW.md) |
 | Setup from source | [GETTING_STARTED.md](docs/GETTING_STARTED.md) |
 | Product overview | [USER_VALUE_GUIDE.md](docs/USER_VALUE_GUIDE.md) |
 | Hardware requirements | [HARDWARE.md](docs/HARDWARE.md) |

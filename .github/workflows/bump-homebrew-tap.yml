@@ -1,0 +1,71 @@
+name: Bump Homebrew tap
+
+# Runs only on the canonical repo (not forks). Secrets live in GitHub Actions
+# settings — never in git. See docs/HOMEBREW.md#secrets.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to bump the cask to (e.g. v1.2.0-beta.5)
+        required: true
+        default: v1.2.0-beta.5
+
+permissions:
+  contents: read
+
+jobs:
+  bump-cask:
+    runs-on: ubuntu-latest
+    if: >-
+      github.repository == 'camronwood/neural-junkie' &&
+      (github.event_name == 'workflow_dispatch' || github.event.release.draft == false)
+    steps:
+      - id: deploy_key
+        env:
+          DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          if [[ -z "${DEPLOY_KEY}" ]]; then
+            echo "configured=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::HOMEBREW_TAP_DEPLOY_KEY is not set — skipping tap bump."
+            echo "::warning::See docs/HOMEBREW.md#secrets or bump manually with scripts/bump-homebrew-cask.sh"
+          else
+            echo "configured=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.deploy_key.outputs.configured == 'true'
+        with:
+          repository: camronwood/homebrew-tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          path: homebrew-tap
+
+      - uses: actions/checkout@v4
+        if: steps.deploy_key.outputs.configured == 'true'
+        with:
+          path: neural-junkie
+
+      - name: Regenerate neural-junkie cask
+        if: steps.deploy_key.outputs.configured == 'true'
+        working-directory: neural-junkie
+        run: |
+          chmod +x scripts/bump-homebrew-cask.sh
+          ./scripts/bump-homebrew-cask.sh "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}" ../homebrew-tap
+
+      - name: Commit and push tap
+        if: steps.deploy_key.outputs.configured == 'true'
+        working-directory: homebrew-tap
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/neural-junkie.rb
+          if git diff --staged --quiet; then
+            echo "Cask unchanged; skipping push"
+            exit 0
+          fi
+          git commit -m "neural-junkie ${TAG}"
+          git push

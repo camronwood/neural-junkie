@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -127,8 +127,8 @@ server-debug: setup-env ## Hub with NEURAL_JUNKIE_DEBUG=1 (pprof + /api/debug/hu
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_DEBUG=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
 
 server-regression: setup-env ## Hub for live scenario regression (RATE_LIMIT=0 + DEBUG=1); logs to /tmp/nj-hub.log
-	@echo "🔧 Regression hub → /tmp/nj-hub.log  (NEURAL_JUNKIE_RATE_LIMIT=0 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
-	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
+	@echo "🔧 Regression hub → /tmp/nj-hub.log  (NEURAL_JUNKIE_RATE_LIMIT=0 NJ_OLLAMA_MAX_CONCURRENCY=2 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 NJ_OLLAMA_MAX_CONCURRENCY=2 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
 
 server-log: ## Tail collab-related lines from /tmp/nj-hub.log (run server-debug first)
 	@python3 scripts/debug-collab.py watch --log /tmp/nj-hub.log
@@ -191,10 +191,18 @@ collab-scenarios: ## Run all live collab scenarios (hub should use make server-r
 collab-scenarios-all: collab-scenarios ## Alias: full collab sweep (25 scenarios; PROFILE does not shorten timeouts)
 
 collab-scenarios-core: ## Collab core participation/planning (~8 scenarios; hub restart between)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 NJ_RESTART_HUB_BETWEEN_SCENARIOS=1 python3 scripts/collab-scenarios.py --core \
-		$(if $(PROFILE),--profile $(PROFILE),) \
+	@NEURAL_JUNKIE_RATE_LIMIT=0 NJ_RESTART_HUB_BETWEEN_SCENARIOS=1 \
+		NJ_REQUIRE_FULL_BOOT=1 NJ_REGRESSION_SLIM_ROSTER=1 NJ_REGRESSION_CLAUDE_CLOUD=1 \
+		NJ_SCENARIO_PROFILE=core python3 scripts/collab-scenarios.py --core \
+		$(if $(PROFILE),--profile $(PROFILE),--profile core) \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(KEEP),--keep,)
+
+collab-scenarios-core-debug: ## Serial collab-core repro (one scenario at a time; stop on FAIL)
+	@chmod +x scripts/collab-sweep-serial.sh
+	@CORE=1 RETRIES=$(or $(RETRIES),1) RESUME=$(RESUME) VERBOSE=$(VERBOSE) \
+		NJ_REQUIRE_FULL_BOOT=1 NJ_REGRESSION_SLIM_ROSTER=1 NJ_REGRESSION_CLAUDE_CLOUD=1 \
+		NJ_SCENARIO_PROFILE=core ./scripts/collab-sweep-serial.sh
 
 collab-sweep-serial: ## Run collab scenarios one-by-one; stop on FAIL (RESUME=1 skips PASS in docs/testing/collab-matrix.tsv)
 	@chmod +x scripts/collab-sweep-serial.sh
@@ -386,14 +394,16 @@ layer-climb: ## Run layers in order until one fails (ci → implement → chat �
 layer-gate: ## Run one layer gate (LAYER=ci|implement|chat|collab|collab-core|collab-full|bundle|parity)
 	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-gate LAYER=implement [VERBOSE=1] [NO_RESTART_HUB=1]"; $(MAKE) layer-list; exit 1; fi
 	@chmod +x scripts/layer-gate.py
-	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/layer-gate.py \
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 \
+		$(if $(filter collab collab-core,$(LAYER)),NJ_REQUIRE_FULL_BOOT=1 NJ_REGRESSION_SLIM_ROSTER=1 NJ_REGRESSION_CLAUDE_CLOUD=1,) \
+		python3 scripts/layer-gate.py \
 		--layer "$(LAYER)" \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(NO_RESTART_HUB),--no-restart-hub,)'
 
-layer-fix-loop: ## Layer gate + Cursor agent fix loop (LAYER=implement MAX_ITER=3 DRY_RUN=1)
-	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-fix-loop LAYER=implement [MAX_ITER=3] [DRY_RUN=1] [NO_COMMIT=1]"; $(MAKE) layer-list; exit 1; fi
+layer-fix-loop: ## Layer gate + Cursor agent fix loop (LAYER=implement MAX_ITER=3 DRY_RUN=1 NO_WORKTREE=1)
+	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-fix-loop LAYER=implement [MAX_ITER=3] [DRY_RUN=1] [NO_COMMIT=1] [NO_WORKTREE=1]"; $(MAKE) layer-list; exit 1; fi
 	@chmod +x scripts/layer-fix-loop.py scripts/layer-gate.py
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/layer-fix-loop.py \
 		--layer "$(LAYER)" \
@@ -412,7 +422,7 @@ layer-fix-loop: ## Layer gate + Cursor agent fix loop (LAYER=implement MAX_ITER=
 		$(if $(NO_COMMIT),--no-commit,) \
 		$(if $(FIX_BRANCH),--fix-branch "$(FIX_BRANCH)",) \
 		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",) \
-		$(if $(USE_WORKTREE),--use-worktree,--no-worktree)'
+		$(if $(NO_WORKTREE),--no-worktree,--use-worktree)'
 
 layer-overnight: ## Walk-away layer fix loop in tmux (LAYER=implement)
 	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-overnight LAYER=implement"; $(MAKE) layer-list; exit 1; fi
@@ -421,7 +431,7 @@ layer-overnight: ## Walk-away layer fix loop in tmux (LAYER=implement)
 	 REPORT='$(REPORT)' SKIP_GATE='$(SKIP_GATE)' SKIP_AGENT='$(SKIP_AGENT)' \
 	 SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' MODEL='$(MODEL)' \
 	 PREFER_SDK='$(PREFER_SDK)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
-	 USE_WORKTREE='$(USE_WORKTREE)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
+	 NO_WORKTREE='$(NO_WORKTREE)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
 
 test-growth-list: ## List ranked test-growth candidates (no agent)
 	@chmod +x scripts/test-growth-loop.py
@@ -501,6 +511,10 @@ release-prep: ## Full release gate: test-everything-full + parity-restart + rele
 		$(if $(STOP_ON_FAIL),--stop-on-fail,)'
 
 overnight-release-prep: overnight
+
+bump-homebrew-cask: ## Regenerate ../homebrew-tap cask (TAG=v1.2.0-beta.5 TAP_DIR=../homebrew-tap)
+	@chmod +x scripts/bump-homebrew-cask.sh
+	@./scripts/bump-homebrew-cask.sh '$(or $(TAG),v1.2.0-beta.5)' '$(or $(TAP_DIR),$(CURDIR)/../homebrew-tap)'
 
 ensure-ollama-models-ready: ## Pull/warm/smoke Ollama models before release prep (SUITE=release; NO_PULL=1 to skip pulls)
 	@chmod +x scripts/ensure-ollama-models-ready.py

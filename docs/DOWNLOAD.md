@@ -6,6 +6,15 @@ Install Neural Junkie from [GitHub Releases — v1.2.0-beta.5](https://github.co
 
 ## 1. Install
 
+**macOS (Homebrew):**
+
+```bash
+brew tap camronwood/tap
+brew install --cask neural-junkie
+```
+
+Details: [HOMEBREW.md](HOMEBREW.md). The cask installs the same signed `.dmg` as GitHub Releases.
+
 | Platform | Artifact |
 |----------|----------|
 | macOS (Apple Silicon) | `.dmg` with `aarch64` in the name |
