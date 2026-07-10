@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Hub Is the Product: Why Neural Junkie Isn&#x27;t a Chatbot — Neural Junkie</title>
+  <meta name="description" content="Most AI tools are chat UIs or IDE plugins. Neural Junkie is a local Go hub — channels, agents, collaboration phases, file approvals, and model routing in one orchestrator your desktop, browser, Slack, and CLI all talk to. Here&#x27;s why we built it that way." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · The Hub Is the Product: Why Neural Junkie Isn&#x27;t a Chatbot
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>The Hub Is the Product: Why Neural Junkie Isn&#x27;t a Chatbot</h1>
+      <p class="article-lead">Most AI tools are chat UIs or IDE plugins. Neural Junkie is a local Go hub — channels, agents, collaboration phases, file approvals, and model routing in one orchestrator your desktop, browser, Slack, and CLI all talk to. Here&#x27;s why we built it that way.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">localfirst</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-hub-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>If you browse the AI tooling landscape, most products fall into one of two buckets:</p>
+<ol>
+<li><strong>A chat window</strong> with a model picker</li>
+<li><strong>An IDE plugin</strong> that edits files in your editor</li>
+</ol>
+<p>Both can be useful. Neither is enough when you want <strong>multiple specialists</strong>, <strong>structured collaboration</strong>, <strong>human approval for mutations</strong>, <strong>Slack as a front door</strong>, and <strong>local-first control</strong> — without rebuilding orchestration in every client.</p>
+<p><strong>Neural Junkie</strong> is built around a third shape: a <strong>local agent hub</strong> — a Go server that owns channels, agents, routing, collaboration lifecycle, file-change workflow, workspaces, and session state. The desktop app, browser chat, terminal client, CLI, and Slack bridge are <strong>clients</strong>. The hub is the product.</p>
+<p>This article is the architecture story we never published on its own — what the hub does, how the pieces connect, and <strong>why</strong> we made the decisions we did.</p>
+<h2>The bet in one sentence</h2>
+<p><strong>Orchestration belongs in a server you control — not in whichever UI happened to be open.</strong></p>
+<p>Models improvise. UIs come and go. The hub enforces the rules: who can speak, what gets written to disk, which model runs, and when a collaboration phase advances.</p>
+<h2>What we were solving</h2>
+<p>Early prototypes looked like every other agent demo: one process, one chat loop, one model. That breaks the moment you want:</p>
+<ul>
+<li><strong>Several specialists</strong> in the same channel — security, backend, repo expert — without six separate chat tabs</li>
+<li><strong>Threads and DMs</strong> with persistent history, not a fresh context window per question</li>
+<li><strong>Multi-agent collaboration</strong> with phases, task DAGs, workspace gates, and file approvals</li>
+<li><strong>Repo-aware work</strong> where agents <em>propose</em> edits and humans <em>approve</em> them</li>
+<li><strong>Slack</strong> as a team front door while agents still run on your machine</li>
+<li><strong>Local Ollama</strong> plus optional cloud providers — mixed per agent, per task, per turn</li>
+<li><strong>One install</strong> that ships as a desktop <code>.dmg</code> / <code>.msi</code> / <code>.deb</code> without asking users to run five services</li>
+</ul>
+<p>You can bolt some of that onto a chat UI. You cannot bolt all of it on cleanly without a <strong>central coordinator</strong>.</p>
+<p>So we built one.</p>
+<h2>System overview</h2>
+<pre class="mermaid">graph TB
+    subgraph Clients["Clients (thin)"]
+        Desktop["Desktop · Tauri + React"]
+        Web["Browser chat · built-in HTML"]
+        Terminal["Terminal · WebSocket"]
+        CLI["CLI · HTTP"]
+        Slack["Slack bridge · Socket Mode"]
+    end
+
+    subgraph Hub["Hub Server · Go · 127.0.0.1:18765"]
+        Core["Hub Core"]
+        Cmd["Command Handler · 50+ actions"]
+        FC["File Change Manager"]
+        WS["Workspace Manager"]
+        Collab["Collaboration Manager"]
+        Infer["Inference / routing layer"]
+    end
+
+    subgraph Agents["Agents"]
+        Auto["Auto-started · Assistant"]
+        InProc["In-process specialists · pack-enabled"]
+        Dynamic["Dynamic · Repo · Confluence · CLI"]
+    end
+
+    subgraph Providers["Model providers"]
+        Ollama["Ollama · local"]
+        Cloud["Claude · OpenAI-compatible · LM Studio"]
+    end
+
+    subgraph Packs["Domain packs · optional"]
+        Sidecar["Python sidecars · /api/cad · /api/biology · …"]
+    end
+
+    Desktop <-->|WebSocket| Core
+    Web <-->|WebSocket| Core
+    Terminal <-->|WebSocket| Core
+    CLI -->|HTTP| Core
+    Slack <-->|in-process| Core
+
+    Core --> Cmd
+    Core --> FC
+    Core --> WS
+    Core --> Collab
+    Core --> Infer
+
+    Auto <-->|internal| Core
+    InProc <-->|internal| Core
+    Dynamic <-->|HTTP poll or WS| Core
+
+    Agents --> Providers
+    Core --> Sidecar</pre>
+<p><strong>Read it left to right:</strong> clients talk to one hub; the hub owns state and policy; agents call models; packs extend the hub with domain sidecars.</p>
+<h2>Why a hub — and not just a bigger desktop app</h2>
+<h3>1. Multiple surfaces, one brain</h3>
+<p>The <strong>Tauri desktop</strong> is the full workspace — palette, files, editor, threads, pending changes. But you shouldn't need the desktop open for every interaction.</p>
+<table>
+<thead>
+<tr>
+<th>Client</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Desktop</strong></td>
+<td>Primary workspace — IDE v4, file approval, settings, collab UI</td>
+</tr>
+<tr>
+<td><strong>Browser</strong> (<code>GET /</code>)</td>
+<td>Lightweight chat against the same channels</td>
+</tr>
+<tr>
+<td><strong>Terminal</strong> (<code>make chat</code>)</td>
+<td>WebSocket chat for scripting and quick checks</td>
+</tr>
+<tr>
+<td><strong>Go CLI</strong></td>
+<td>Automation, CI hooks, headless commands</td>
+</tr>
+<tr>
+<td><strong>Slack bridge</strong></td>
+<td>Team-visible channel mirroring; DMs land in private hub channels</td>
+</tr>
+</tbody>
+</table>
+<p>All of them hit the <strong>same channel history</strong>, <strong>same agent registry</strong>, <strong>same file-change queue</strong>. No duplicate orchestration logic in React and Go and Python.</p>
+<h3>2. Agents are participants, not callbacks</h3>
+<p>In plugin-style tools, the editor calls a model and applies a diff. In Neural Junkie, <strong>agents are first-class hub members</strong>:</p>
+<ul>
+<li>They <strong>register</strong> with capabilities and provider config</li>
+<li>They <strong>join channels</strong> and receive broadcast messages</li>
+<li>They decide whether to respond (@mention, expertise match, moderator timeout)</li>
+<li>They send messages back through the hub — including <code>file_change</code>, <code>collaboration_plan</code>, <code>tool_approval</code>, streaming deltas</li>
+</ul>
+<p>That pub/sub shape is what makes multi-agent chat feel like Slack, not like a single completion stream with costumes.</p>
+<h3>3. Policy lives server-side</h3>
+<p>Humans approve file changes. Collaboration advances through phases. Tool use can be gated. Rate limits apply per client. Session ACLs decide who sees which DM.</p>
+<p>Those rules need to hold whether the message arrived from the desktop, a Slack @mention, or <code>POST /api/send</code>. <strong>Server-side enforcement</strong> beats "the React app remembered to ask."</p>
+<h3>4. Local-first without fragile glue</h3>
+<p>The hub binds <strong><code>127.0.0.1:18765</code></strong> by default. Your models, history, repo indexes, and approvals stay on your machine. The desktop bundles the Go binary as a <strong>Tauri sidecar</strong> — one artifact, no separate <code>go install</code> step.</p>
+<p>Opt-in LAN binding (<code>NEURAL_JUNKIE_LISTEN_ALL=1</code>) plus a hub token supports room chat and shared benches — still <strong>your</strong> hub, not our cloud.</p>
+<h2>Hub core: what it actually owns</h2>
+<p>The <code>Hub</code> struct in <code>internal/hub/</code> is the central broker. These aren't marketing labels — they're the subsystems we had to name in code.</p>
+<table>
+<thead>
+<tr>
+<th>Subsystem</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Channels</strong></td>
+<td>Create, join, leave; per-channel history; subscriber broadcast</td>
+</tr>
+<tr>
+<td><strong>Agent registry</strong></td>
+<td>Register, list, dedupe; track removed agents; per-agent provider</td>
+</tr>
+<tr>
+<td><strong>Message routing</strong></td>
+<td>@mention parsing, keyword detection, path auto-detection, thread replies</td>
+</tr>
+<tr>
+<td><strong>Command handler</strong></td>
+<td>50+ slash actions — agents, repos, collab, providers, files, meetings</td>
+</tr>
+<tr>
+<td><strong>Collaboration manager</strong></td>
+<td>Planning → review → approved → executing → completed; task DAG dispatch</td>
+</tr>
+<tr>
+<td><strong>File change manager</strong></td>
+<td>Register proposals; approve/reject; backup before apply</td>
+</tr>
+<tr>
+<td><strong>Workspace manager</strong></td>
+<td>Multi-root workspaces; persisted paths; scope for file APIs</td>
+</tr>
+<tr>
+<td><strong>Session persistence</strong></td>
+<td>Periodic save to <code>~/.neural-junkie/last-session.json</code>; SQLite sidecar for history</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-go">type Hub struct {
+    channels          map[string]*protocol.Channel
+    agents            map[string]*protocol.AgentInfo
+    messages          map[string][]*protocol.Message
+    subscribers       map[string][]chan *protocol.Message
+    threads           map[string][]*protocol.Message
+    commandHandler    *CommandHandler
+    collabManager     *collaboration.CollaborationManager
+    fileChangeManager *filechange.FileChangeManager
+    workspaceManager  *WorkspaceManager
+}
+</code></pre>
+<p>Concurrency is guarded by <code>sync.RWMutex</code>. Subscriber channels are buffered Go channels. The hub is <strong>single-process, single instance</strong> — honest limitation, simpler ops.</p>
+<h2>Message flow: one turn through the hub</h2>
+<pre><code>User sends message
+    │
+    ▼
+Hub receives (WebSocket or HTTP)
+    │
+    ├── Parse @mentions
+    ├── Detect slash commands → CommandHandler
+    ├── Detect file paths → optional repo agent
+    ├── Classify intent (closure / casual / substantive / task)
+    ├── Build context stack (mode, memory, grounding, budget)
+    │
+    ▼
+Broadcast to channel subscribers
+    │
+    ▼
+Each agent evaluates relevance
+    │
+    ├── @mentioned? → respond
+    ├── Expertise match? → respond
+    ├── Moderator safety-net timer? → respond
+    │
+    ▼
+Inference layer picks model + provider
+    │
+    ▼
+Agent streams reply → Hub → subscribers
+</code></pre>
+<p><strong>Key insight:</strong> the desktop doesn't pick the model for collab tasks, delegation consults, or tool loops. The <strong>hub's inference layer</strong> does — and attaches a routing trace on the message so you can audit it. See <a href="INFERENCE-LAYER-LINKEDIN.md">Inference layer</a> and <a href="MODEL-LAYERING-LINKEDIN.md">Model layering</a> for the per-turn detail.</p>
+<h2>Agents: three deployment shapes</h2>
+<p>Not every agent runs the same way. The hub supports three patterns on purpose.</p>
+<h3>In-process (default)</h3>
+<p><strong>Assistant</strong>, pack-enabled specialists (BackendEngineer, BiologyExpert, …), and configured experts run <strong>inside the hub process</strong>. Message delivery is push-based — no HTTP polling loop to yourself.</p>
+<p><strong>Why:</strong> lower latency, simpler local install, shared config, no port juggling for six agents on a laptop.</p>
+<h3>Standalone <code>cmd/agent</code> (optional)</h3>
+<p><code>make agents</code> starts separate processes that register over HTTP or WebSocket. Useful for development, isolation, or resource-heavy agents.</p>
+<p><strong>Why:</strong> escape hatch without making multi-process the default UX.</p>
+<h3>Dynamic agents</h3>
+<p><strong>Repo agents</strong>, <strong>Confluence agents</strong>, and <strong>CLI agents</strong> (Cursor, Gemini) spin up when you index a path or detect a binary on PATH. They register, join relevant channels, and poll or subscribe.</p>
+<p><strong>Why:</strong> expertise should attach to <em>your</em> codebase and <em>your</em> docs — not ship as a fixed roster of six generic personas.</p>
+<h2>Collaboration: why it lives in the hub</h2>
+<p><code>/collaborate</code> looks like one command. Under the hood it's a <strong>state machine</strong> the hub enforces:</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>What the hub guarantees</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Planning</strong></td>
+<td>Round-robin turns, budgets, timeouts; plan artifact versioning</td>
+</tr>
+<tr>
+<td><strong>Review</strong></td>
+<td>Human approves or revises before execution</td>
+</tr>
+<tr>
+<td><strong>Executing</strong></td>
+<td>Task DAG — <code>ReadyTasks</code> waves; per-task routing; workspace gates</td>
+</tr>
+<tr>
+<td><strong>File changes</strong></td>
+<td>Agents propose; hub registers; human approves in desktop</td>
+</tr>
+</tbody>
+</table>
+<p>Models improvise. The hub <strong>does not</strong> let chat markdown write to disk. Structured <code>file_change</code> messages do — after approval.</p>
+<p>This is the difference between a demo and a product. See <a href="COLLABORATION-LINKEDIN.md">Collaboration</a> and <a href="LOOP-STACK-LINKEDIN.md">Loop stack</a> for the full loop map.</p>
+<h2>File changes: humans stay in the loop</h2>
+<pre><code>Agent proposes file change (message metadata)
+    │
+    ▼
+Hub registers with FileChangeManager
+    │
+    ▼
+Desktop Pending Changes panel (diff preview)
+    │
+    ├── Approve → apply to workspace (local or remote SSH)
+    └── Reject → discard; thread records decision
+</code></pre>
+<p><strong>Why server-side registration:</strong> Slack, CLI, and collab execution all produce proposals. The hub is the <strong>single queue</strong> — the desktop is the best approval UI, not the only enforcement point.</p>
+<p>Backups land in <code>~/.neural-junkie/backups/</code> before apply. Remote workspaces route through <code>nj-remote</code> with the same hub-backed tree.</p>
+<h2>Domain packs extend the hub</h2>
+<p>Official packs (software dev, life sciences, CAD, AWS, incident management, web browser, music) install as zip bundles. When enabled, they can:</p>
+<ul>
+<li>Register <strong>capabilities</strong> and compose templates (chat / tool / LoRA stacks)</li>
+<li>Start <strong>Python sidecars</strong> — biology fold, CAD geometry, music generation, browser automation</li>
+<li>Expose routes like <code>/api/biology/*</code>, <code>/api/cad/*</code> proxied through the Go hub</li>
+</ul>
+<p><strong>Why sidecars:</strong> domain tools need Python ecosystems (RDKit, CadQuery, Playwright) that don't belong inside the Go binary. The hub stays the <strong>front door</strong> — one port, one auth model, one session.</p>
+<p>Pack layout IDE vs team layout is a presentation concern. Orchestration still flows through the hub.</p>
+<h2>Data: everything under <code>~/.neural-junkie/</code></h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>repos/</code></td>
+<td>Cached repository indexes</td>
+</tr>
+<tr>
+<td><code>confluence/</code></td>
+<td>Cached Confluence indexes</td>
+</tr>
+<tr>
+<td><code>assistant/</code></td>
+<td>Reminders, tasks, notes</td>
+</tr>
+<tr>
+<td><code>exports/</code></td>
+<td>MCP-format agent exports</td>
+</tr>
+<tr>
+<td><code>backups/</code></td>
+<td>Pre-apply file change backups</td>
+</tr>
+<tr>
+<td><code>workspaces.json</code></td>
+<td>Registered workspace roots</td>
+</tr>
+<tr>
+<td><code>last-session.json</code></td>
+<td>Channel/session recovery</td>
+</tr>
+<tr>
+<td><code>config.json</code></td>
+<td>Providers, packs, integrations (encrypted secrets)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why one data root:</strong> backup, migration, and "where did my stuff go?" should have one answer.</p>
+<h2>Security follows from the hub shape</h2>
+<p>Neural Junkie is <strong>not</strong> a multi-tenant cloud service. Security choices assume <strong>your machine</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Threat</th>
+<th>Hub response</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Random websites calling localhost</td>
+<td>Loopback bind; restricted CORS</td>
+</tr>
+<tr>
+<td>Agent impersonation</td>
+<td><code>from</code> ignored unless hub token set</td>
+</tr>
+<tr>
+<td>Path traversal</td>
+<td><code>pathutil.WithinRoot</code> on workspace and data paths</td>
+</tr>
+<tr>
+<td>LAN exposure</td>
+<td>Opt-in + <code>NEURAL_JUNKIE_HUB_TOKEN</code> required</td>
+</tr>
+<tr>
+<td>Secrets on disk</td>
+<td>AES-GCM for config keys and desktop credentials</td>
+</tr>
+<tr>
+<td>API abuse</td>
+<td>Per-IP/session rate limits (disable for scenario CI)</td>
+</tr>
+</tbody>
+</table>
+<p>Channel ACLs gate DMs and custom channels when session auth is active. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SECURITY.md">SECURITY.md</a>.</p>
+<h2>What we deliberately did <em>not</em> build</h2>
+<p>Honesty matters in open beta:</p>
+<table>
+<thead>
+<tr>
+<th>Non-goal</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Multi-tenant cloud hub</strong></td>
+<td>Conflicts with local-first; you run your models</td>
+</tr>
+<tr>
+<td><strong>Horizontal scale</strong></td>
+<td>Single hub instance; no regional failover</td>
+</tr>
+<tr>
+<td><strong>Full browser IDE</strong></td>
+<td>Web UI is chat-only; desktop owns files and approval UX</td>
+</tr>
+<tr>
+<td><strong>Autonomous file writes</strong></td>
+<td>Human approval is a feature, not a missing checkbox</td>
+</tr>
+</tbody>
+</table>
+<p>These are documented on <a href="https://camronwood.github.io/neural-junkie/known-issues.html">Known issues</a>. They're tradeoffs, not oversights.</p>
+<h2>How the rest of the article series maps to the hub</h2>
+<p>Once you accept "the hub is the product," the other articles are <strong>layers on top</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Article</th>
+<th>Hub layer it explains</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="MODEL-LAYERING-LINKEDIN.md">Model layering</a></td>
+<td>Context, weights, routing, orchestration per turn</td>
+</tr>
+<tr>
+<td><a href="INFERENCE-LAYER-LINKEDIN.md">Inference layer</a></td>
+<td>Decide before you generate — closure skips inference</td>
+</tr>
+<tr>
+<td><a href="MODULAR-AI-COMPOSITION-LINKEDIN.md">Modular AI composition</a></td>
+<td>Pack-declared compose stacks; routing badges</td>
+</tr>
+<tr>
+<td><a href="LOOP-STACK-LINKEDIN.md">Loop stack</a></td>
+<td>Collab, implementation, fix, tool, and guard loops</td>
+</tr>
+<tr>
+<td><a href="COLLABORATION-LINKEDIN.md">Collaboration</a></td>
+<td>Phases, DAG, workspace gates</td>
+</tr>
+<tr>
+<td><a href="CONVERSATION-MEMORY-LINKEDIN.md">Conversation memory</a></td>
+<td>Hub-indexed retrieval, not transcript stuffing</td>
+</tr>
+<tr>
+<td><a href="LORA-LINKEDIN.md">LoRA / MCP</a></td>
+<td>Weight and knowledge layers agents call through the hub</td>
+</tr>
+</tbody>
+</table>
+<p>We should have published this one first. Better late than never.</p>
+<h2>What we learned</h2>
+<p><strong>1. Chat UIs are clients. Orchestrators are products.</strong></p>
+<p>If your "product" is only the React app, every new surface (Slack, CLI, headless CI) reimplements half the rules.</p>
+<p><strong>2. Pub/sub beats request/response for multi-agent.</strong></p>
+<p>Agents observing a channel — with dedup, expertise, and @mentions — scales better than a central "call each agent in sequence" script.</p>
+<p><strong>3. Put gates in the server.</strong></p>
+<p>File approval, collab phase transitions, and tool policy belong in Go, close to the data paths they protect.</p>
+<p><strong>4. Bundle the hub, don't install it separately.</strong></p>
+<p>Tauri sidecar packaging was the unlock for "download and run" beta installers. Users shouldn't manage a Go service manually.</p>
+<p><strong>5. Extend via packs, not forks.</strong></p>
+<p>Python sidecars and capability tokens let domains grow without bloating <code>internal/hub/</code> with biology-only <code>if</code> branches.</p>
+<h2>Try it</h2>
+<p>Personal open-source project — macOS, Windows, Linux.</p>
+<pre><code class="language-bash">make pull-models   # optional — qwen2.5-coder:14b + qwen2.5:7b
+make start-all     # hub + desktop
+</code></pre>
+<p>Or download installers: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p><strong>Architecture docs:</strong><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">ARCHITECTURE.md</a> — full technical reference<br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md">CONTEXT_MODEL.md</a> — per-turn context stack<br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">COLLABORATION.md</a> — collab lifecycle<br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS.md">PACKS.md</a> — domain pack install and sidecars</p>
+<p>If you run a local multi-agent setup and hit a routing, approval, or collab edge case — GitHub issues welcome. That feedback becomes the next scenario in the harness.</p>
+<p><strong>Next in the series:</strong> <a href="MODEL-LAYERING-LINKEDIN.md">Model layering</a> — how the hub picks models at four levels once a turn deserves inference.</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/HUB-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="hub.html">The Hub Is the Product: Why Neural Junkie Isn&#x27;t a Chatbot</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+</body>
+</html>

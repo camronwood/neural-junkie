@@ -24,6 +24,7 @@ from site_nav import render_footer_explore, render_site_chrome  # noqa: E402
 ARTICLE_ORDER = [
     "beta-5",
     "hardware",
+    "hub",
     "model-layering",
     "modular-ai-composition",
     "inference-layer",
@@ -46,6 +47,7 @@ ARTICLE_ORDER = [
 SOURCE_BY_SLUG = {
     "beta-5": "BETA25-LINKEDIN.md",
     "hardware": "HARDWARE-LINKEDIN.md",
+    "hub": "HUB-LINKEDIN.md",
     "model-layering": "MODEL-LAYERING-LINKEDIN.md",
     "modular-ai-composition": "MODULAR-AI-COMPOSITION-LINKEDIN.md",
     "inference-layer": "INFERENCE-LAYER-LINKEDIN.md",
@@ -103,6 +105,7 @@ META_OVERRIDES: dict[str, dict[str, object]] = {
 TOPIC_BY_SLUG = {
     "beta-5": "release",
     "hardware": "hardware",
+    "hub": "architecture",
     "model-layering": "architecture",
     "modular-ai-composition": "architecture",
     "inference-layer": "architecture",

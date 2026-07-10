@@ -28,7 +28,7 @@
         <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
         <a class="btn btn-ghost" href="../packs.html">Packs</a>
         <a class="btn btn-ghost" href="../features/index.html">Guides</a>
-        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
         <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
         <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="../security.html">Security</a>
@@ -137,7 +137,7 @@
 </ul>
 <p>Same Specialist tuning pack, same local workflow as training from chat or collab history — but only rows you explicitly confirmed. See our <a href="https://camronwood.github.io/neural-junkie/articles/lora.html">LoRA article</a> for compose and train details.</p>
 <h2>What we deliberately exclude</h2>
-<p>Personal learnings are <strong>not</strong> injected into CLI agents or Assistant tool-heavy paths — those routes stay lightweight and policy-driven.</p>
+<p>Personal learnings are <strong>not</strong> injected into CLI agents or the Moderator — those paths stay lightweight and policy-driven.</p>
 <p>They complement conversation memory and session summaries; they do not replace repo indexes or MCP tool context.</p>
 <p>If you disable the feature, existing entries remain on disk but stop injecting until you turn it back on.</p>
 <h2>Try it</h2>
@@ -151,7 +151,7 @@ make start-all
 <li>Approve in the modal → ask a new task → preference should surface in retrieved learnings</li>
 </ol>
 <p>Debug: <code>GET /api/learnings/query?q=...</code> previews retrieval without sending a chat message.</p>
-<p>Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5</p>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
 <p>If a scope feels wrong (global note leaking into the wrong collab, embed fallback too noisy) — GitHub issues welcome.</p>
 <p>Camron Wood — Neural Junkie (personal project)</p>
     </article>
@@ -166,15 +166,15 @@ make start-all
 <!-- NJ-SITE-FOOTER-NAV:START -->
     <nav class="doc-strip footer-explore" aria-label="Explore site">
       <span class="doc-strip-label">Explore:</span>
-        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
-        <a class="btn btn-ghost btn-sm" href="../packs.html">Packs</a>
-        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
-        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
-        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
-        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
-        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
-        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
-        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
         <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
     </nav>
 <!-- NJ-SITE-FOOTER-NAV:END -->
@@ -185,9 +185,5 @@ make start-all
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
     mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
   </script>
-
-<!-- NJ-SITE-ANALYTICS:START -->
-  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
-<!-- NJ-SITE-ANALYTICS:END -->
 </body>
 </html>

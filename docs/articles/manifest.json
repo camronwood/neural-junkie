@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-07T12:05:07Z",
-  "count": 19,
+  "updated": "2026-07-10T14:45:39Z",
+  "count": 20,
   "items": [
     {
       "slug": "beta-5",
@@ -39,6 +39,26 @@
       "sourceFile": "HARDWARE-LINKEDIN.md",
       "sourcePath": "docs/marketing/HARDWARE-LINKEDIN.md",
       "href": "hardware.html"
+    },
+    {
+      "slug": "hub",
+      "title": "The Hub Is the Product: Why Neural Junkie Isn't a Chatbot",
+      "teaser": "Most AI tools are chat UIs or IDE plugins. Neural Junkie is a local Go hub \u2014 channels, agents, collaboration phases, file approvals, and model routing in one orchestrator your desktop, browser, Slack, and CLI all talk to. Here's why we built it that way.",
+      "cover": "assets/neural-junkie-hub-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-hub-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "developertools",
+        "opensource",
+        "localfirst",
+        "architecture"
+      ],
+      "sourceFile": "HUB-LINKEDIN.md",
+      "sourcePath": "docs/marketing/HUB-LINKEDIN.md",
+      "href": "hub.html"
     },
     {
       "slug": "model-layering",
