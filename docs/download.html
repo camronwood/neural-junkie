@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Download 1.2.0-beta.5 — Neural Junkie</title>
-  <meta name="description" content="Download Neural Junkie 1.2.0-beta.5 for macOS, Windows, and Linux — direct installer links from GitHub Releases." />
+  <meta name="description" content="Download Neural Junkie 1.2.0-beta.5 for macOS (Homebrew or .dmg), Windows, and Linux — direct installer links from GitHub Releases." />
   <link rel="icon" type="image/png" sizes="32x32" href="assets/icon/favicon-32.png" />
   <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -50,12 +50,23 @@
       <p class="feature-deep-lead">
         Latest beta: <strong>1.2.0-beta.5</strong>
         <time datetime="2026-07-06T00:00:00Z">July 6, 2026</time>.
-        Pick your platform below for a direct installer link, or browse
+        On <strong>macOS</strong>, install with <strong>Homebrew</strong> (recommended) or pick a direct <code>.dmg</code> below.
+        Windows and Linux use the installers in the grid, or browse
         <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5">all assets on GitHub</a>.
         <strong>macOS</strong> bundles Ollama. <strong>Windows</strong> and <strong>Linux</strong> use slim installers — setup wizard auto-installs Ollama on first launch.
         In-app auto-updates on macOS and Windows (beta channel).
       </p>
     </header>
+
+    <section class="download-brew" id="homebrew" aria-labelledby="dl-brew">
+      <h2 id="dl-brew">macOS · Homebrew <span class="download-brew__badge">recommended</span></h2>
+      <p class="download-brew__lead">Apple Silicon and Intel — same signed app as the GitHub <code>.dmg</code>. Ollama bundled; upgrades via <code>brew upgrade --cask neural-junkie</code>.</p>
+      <pre class="download-brew__cmd"><code>brew tap camronwood/tap
+brew install --cask neural-junkie</code></pre>
+      <p class="download-brew__note">Tap repo: <a href="https://github.com/camronwood/homebrew-tap">github.com/camronwood/homebrew-tap</a>. Maintainer docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/HOMEBREW.md">HOMEBREW.md</a>.</p>
+    </section>
+
+    <h2 class="download-section-title">Direct downloads</h2>
 
     <div class="download-grid">
       <section class="download-card" aria-labelledby="dl-macos-arm">
