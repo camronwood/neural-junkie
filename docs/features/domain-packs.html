@@ -47,7 +47,7 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Domain packs</h1>
-      <p class="feature-deep-lead">Neural Junkie stays lean out of the box — <strong>Moderator</strong>, <strong>Assistant</strong>, and CLI agents only. Open <strong>Domain packs</strong> from the toolbar chip (<strong>⌘⇧K</strong>) to install official packs from GitHub and add specialists, models, MCP tools, and layout presets for the work you actually do. For the full catalog with repo links and per-pack details, see <a href="../packs.html">Domain packs catalog</a>.</p>
+      <p class="feature-deep-lead">Neural Junkie stays lean out of the box — <strong>Assistant</strong> and CLI agents only. Open <strong>Domain packs</strong> from the toolbar chip (<strong>⌘⇧K</strong>) to install official packs from GitHub and add specialists, models, MCP tools, and layout presets for the work you actually do. For the full catalog with repo links and per-pack details, see <a href="../packs.html">Domain packs catalog</a>.</p>
     </header>
 
     <figure class="screenshot-frame" style="margin-bottom: 2rem;">
@@ -66,11 +66,11 @@
         <li><strong>Software development</strong> — six engineering specialists, dev MCP tools, Git in the app, <strong>IDE v4</strong> (full LSP, remote SSH, <code>@codebase</code>). See <a href="ide-v4.html">IDE v4 guide</a> and <a href="ide-v3.html">IDE v3 guide</a>.</li>
         <li><strong>Life sciences</strong> — BiologyExpert, OpenBioLLM, sequence tools, protein folding. <a href="life-sciences.html">Lab workflows guide</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">Life sciences doc</a>.</li>
         <li><strong>CAD</strong> — CADExpert, OpenSCAD workbench, param sliders, Three.js STL preview. Requires OpenSCAD on PATH. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CAD_PACK.md">CAD pack doc</a>.</li>
-        <li><strong>Specialist tuning</strong> — LoRA training from chat and collabs, personal learning opt-in, adapter compose in Ollama. Pairs with <a href="personal-learning.html">Personal learning</a>.</li>
+        <li><strong>Specialist tuning</strong> — LoRA v2 compound specialists: import rows, review training JSONL, bootstrap repo indexes, compose Ollama tags. Pairs with <a href="personal-learning.html">Personal learning</a>. <a href="../articles/lora-v2.html">LoRA v2 article</a>.</li>
         <li><strong>AWS</strong> — AWSExpert with read-only AWS CLI MCP tools and SSO profile integration via <strong>Settings → Integrations</strong>. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/AWS_PACK.md">AWS pack doc</a>.</li>
         <li><strong>Incident management</strong> — IncidentManager for Jira triage, reproduction steps, and handoff to engineering. Requires software-development. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/INCIDENT_PACK.md">Incident pack doc</a>.</li>
         <li><strong>Web browser</strong> — WebBrowserExpert, <code>fetch_url</code> / web search MCP, and an HTML preview workbench for workspace <code>.html</code> files and local dev servers. Requires software-development. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/WEB_BROWSER_PACK.md">Web browser pack doc</a>.</li>
-        <li><strong>Music creation</strong> — MusicExpert, ACE-Step generation, music workbench, stems export. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/MUSIC_CREATION_PACK.md">Music creation pack doc</a>.</li>
+        <li><strong>Music creation</strong> — MusicExpert, ACE-Step sft/turbo/xl variants (v1.0.2), music workbench, stems export. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/MUSIC_CREATION_PACK.md">Music creation pack doc</a>.</li>
       </ul>
 
       <h2>Install flow</h2>
@@ -85,13 +85,14 @@
       <p><strong>Pack Dev Studio</strong> (Domain packs → <strong>Develop</strong> tab) lets you author <code>pack.yaml</code>, live-validate YAML, dev-link a folder, and test overlays before sideloading a zip. Customer packs install via <strong>Install zip</strong> or <code>POST /api/packs/install-zip</code>. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS_CUSTOM.md">PACKS_CUSTOM.md</a>.</p>
 
       <h2>What stays universal</h2>
-      <p>Moderator, Assistant, Slack Connect, collaboration, and custom experts via <code>/create-expert</code> work regardless of which packs you enable. Packs add depth — they do not gate the core chat experience.</p>
+      <p>Assistant, Slack Connect, collaboration, and custom experts via <code>/create-expert</code> work regardless of which packs you enable. Packs add depth — they do not gate the core chat experience.</p>
 
       <aside class="repo-links">
         <h2>Read more in the repository</h2>
         <ul>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS.md">PACKS.md</a> — catalog URLs and API.</li>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/AWS_PACK.md">AWS_PACK.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/INCIDENT_PACK.md">INCIDENT_PACK.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/WEB_BROWSER_PACK.md">WEB_BROWSER_PACK.md</a></li>
+          <li><a href="../release-notes.html#v1-2-0-beta-5">Release notes → beta.5</a> — LoRA v2 and pack updates.</li>
           <li><a href="../release-notes.html#v1-0-0-beta-19">Release notes → beta.19</a> — pack store launch.</li>
           <li><a href="../release-notes.html#v1-0-0-beta-22">Release notes → beta.22</a> — Pack Dev Studio fixes.</li>
         </ul>

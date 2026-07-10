@@ -60,7 +60,7 @@
     </figure>
 
     <article class="feature-prose">
-      <h2>Personal inbox &amp; forwarding (beta.21)</h2>
+      <h2>Personal inbox &amp; forwarding</h2>
       <ul>
         <li><strong>Personal inbox</strong> — DM the NJ Slack bot from mobile; messages route to a private hub channel and the agent you configure. OAuth captures the installing user as owner.</li>
         <li><strong>Selective forwarding</strong> — Optional rules in watched channels: @mention of you, <code>nj:</code> prefix, or a reaction emoji. Forwarded messages get agent replies in the <strong>original Slack thread</strong>.</li>
@@ -74,6 +74,41 @@
         <li><strong>Per-channel binding</strong> — Pick Slack channel ID, NJ agent, routing policy (always / questions / mention-only), and optional display name.</li>
         <li><strong>Any backend</strong> — Bind Assistant, Cursor CLI, repo agents, or specialists backed by Claude, OpenAI-compatible APIs, Gemini, Ollama, and more.</li>
       </ul>
+
+      <h2>Demo videos</h2>
+      <div class="demo-video-grid" style="margin: 1.5rem 0;">
+        <figure class="screenshot-frame">
+          <h3 class="demo-video-title">Slack Connect overview</h3>
+          <video controls playsinline preload="metadata" aria-label="Neural Junkie Slack Connect demo">
+            <source src="../media/nj-slack.mp4" type="video/mp4" />
+          </video>
+          <figcaption class="screenshot-caption"><a href="../media/nj-slack.mp4">Download MP4</a></figcaption>
+        </figure>
+        <figure class="screenshot-frame">
+          <h3 class="demo-video-title">Message forwarding</h3>
+          <video controls playsinline preload="metadata" aria-label="Slack message forwarding in Neural Junkie">
+            <source src="../media/slack-message-forwarding.mp4" type="video/mp4" />
+          </video>
+          <figcaption class="screenshot-caption"><a href="../media/slack-message-forwarding.mp4">Download MP4</a></figcaption>
+        </figure>
+        <figure class="screenshot-frame">
+          <h3 class="demo-video-title">Away mode</h3>
+          <video controls playsinline preload="metadata" aria-label="Agents respond when you are away">
+            <source src="../media/agents-respond-when-away.mp4" type="video/mp4" />
+          </video>
+          <figcaption class="screenshot-caption"><a href="../media/agents-respond-when-away.mp4">Download MP4</a></figcaption>
+        </figure>
+        <figure class="screenshot-frame">
+          <h3 class="demo-video-title">Ask from mobile</h3>
+          <video controls playsinline preload="metadata" aria-label="Ask the Assistant from Slack mobile">
+            <source src="../media/ask-the-assistant-mobile.mp4" type="video/mp4" />
+          </video>
+          <figcaption class="screenshot-caption"><a href="../media/ask-the-assistant-mobile.mp4">Download MP4</a></figcaption>
+        </figure>
+      </div>
+
+      <h2>Setup diagnostics (beta.5)</h2>
+      <p><strong>Settings → Integrations → Slack</strong> includes a setup checklist, smoke-test endpoints, and clearer handler errors for OAuth, Socket Mode, and channel routing. Use diagnostics before filing issues when bindings look correct but messages do not flow.</p>
 
       <h2>Setup paths</h2>
       <p><strong>Simple (bundled OAuth)</strong> — Desktop <strong>Settings → Integrations → Connect Slack</strong> walks through vendor OAuth and Socket Mode on your local hub. End users do not paste bot tokens.</p>
@@ -91,6 +126,7 @@
         <h2>Read more in the repository</h2>
         <ul>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">Slack integration</a> — events, bindings file, policies, troubleshooting.</li>
+          <li><a href="../release-notes.html#v1-2-0-beta-5">Release notes → beta.5</a> — Slack setup diagnostics.</li>
           <li><a href="../release-notes.html#v1-0-0-beta-21">Release notes → beta.21</a> — inbox, forwarding, context v2.</li>
           <li><a href="../release-notes.html#v1-0-0-beta-15">Release notes → beta.15</a> — bundled OAuth and threaded sync.</li>
           <li><a href="../gallery/index.html">Gallery</a> — Slack ad art and screenshots.</li>

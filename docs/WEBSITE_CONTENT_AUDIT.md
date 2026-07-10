@@ -1,14 +1,56 @@
 # Website content audit
 
 **Site:** https://camronwood.github.io/neural-junkie/  
-**Updated:** 2026-06-24  
-**Primary story:** Multi-agent hive-mind → local-first → human control → download / start here
+**Updated:** 2026-07-10  
+**Primary story:** Multi-agent hive-mind → local-first → human control → download / start here  
+**Current release:** v1.2.0-beta.5 (July 6, 2026)
 
-## Navigation map (after refresh)
+## July 2026 refresh summary
+
+| Area | Change |
+|------|--------|
+| Homepage videos | 6-up grid — feature flythrough, multi-agent, Assistant, Slack, local image gen, away mode |
+| Video assets | 9 new MP4s in `docs/media/` (web-optimized via `scripts/optimize-site-videos-batch.py`) |
+| Beta.5 messaging | ReAct tools, routing trace, Runbooks v2, multi-repo scope, LoRA v2, Slack diagnostics |
+| Moderator purge | Merged into Assistant (beta.2) — removed from marketing copy |
+| Articles | Download links → `v1.2.0-beta.5`; beta.5 "this week" → released July 6 |
+| Feature guides | Videos on Slack, collab, bundled-ollama; desktop scope chip + routing trace |
+
+### Homepage demo videos (`index.html`)
+
+| File | Topic |
+|------|--------|
+| `feature-flythrough.mp4` | Product overview |
+| `gemini-copilot-cursor-edge-assistant-chat.mp4` | Multi-agent channel |
+| `ask-the-assistant.mp4` | Assistant workflow |
+| `nj-slack.mp4` | Slack Connect |
+| `local-image-gen-free.mp4` | Local image gen |
+| `agents-respond-when-away.mp4` | Away mode |
+
+### Feature-page videos
+
+| Page | Videos |
+|------|--------|
+| `features/slack-connect.html` | nj-slack, slack-message-forwarding, agents-respond-when-away, ask-the-assistant-mobile |
+| `features/multi-agent-collaboration.html` | website-collab |
+| `features/bundled-ollama.html` | local-image-gen-free |
+| `features/agents-and-experts.html` | general-experts-guitar (kept) |
+
+### Legacy videos (retained)
+
+| File | Status |
+|------|--------|
+| `general-experts-guitar.mp4` | Used on agents-and-experts guide |
+| `gemini-cursor-agents.mp4` | Superseded on homepage; kept in repo |
+| `local-model-switching.mp4` | Superseded on homepage; kept in repo |
+
+---
+
+## Navigation map
 
 | Nav item | Target | Role |
 |----------|--------|------|
-| Start here | `start-here.html` | Primary onboarding (was GitHub DOWNLOAD.md) |
+| Start here | `start-here.html` | Primary onboarding |
 | Product | `#pillars` | Three pillars + use cases |
 | Guides | `features/index.html` | Deep capability pages |
 | Articles | `articles/index.html` | Long-form architecture writing |
@@ -20,122 +62,33 @@
 | Download | `download.html` | Conversion |
 | Star on GitHub | repo | Community |
 
-Footer doc-strip: same sections plus Architecture (repo doc).
+---
+
+## Page status (2026-07-10)
+
+| Page | Status |
+|------|--------|
+| `index.html` | **Refreshed** — 6 videos, beta.5 banner, Runbooks v2, routing trace card |
+| `download.html` | **Refreshed** — beta.5 feature summary |
+| `start-here.html` | **Refreshed** — Assistant-only, beta.5 onboarding bullets |
+| `packs.html` | **Refreshed** — LoRA v2, music v1.0.2, Assistant-only |
+| `known-issues.html` | **Refreshed** — July 10 date, layer-gate testing |
+| `security.html` | **Refreshed** — Connection settings, version footer |
+| `features/*` | **Refreshed** — videos, Moderator purge, beta.5 links |
+| `articles/*` | **Refreshed** — beta.5 download URLs, hardware Ollama facts |
+| `release-notes.html` | Historical entries unchanged (correct) |
 
 ---
 
-## Page-by-page audit
+## Maintenance
 
-### `index.html` (landing)
-
-| Element | Primary CTA | Secondary | Status |
-|---------|-------------|-----------|--------|
-| Hero | Download | Start here, Use cases | **Refreshed** — hive-mind lead; IDE v4 demoted |
-| Pillars | — | — | **New** — specialists / local / control |
-| Use cases | Persona cards | 4 vertical entry points | **New** — includes life sciences |
-| Demo videos | — | MP4 downloads | **Moved up** (was duplicated at bottom) |
-| Flagship jump | In-page anchors | Collab → Local → Slack → Packs → IDE → HW | **Reordered** |
-| Spotlight sections | Deep-dive buttons | Repo docs | **Reordered**; IDE framed as capability |
-| Everything else | Feature guide links | — | **Trimmed** — removed duplicate IDE card |
-| Ship with confidence | Doc strip | — | **Simplified** strip |
-| Release preview | Download | Release notes | Summary leads with hive-mind |
-| Final CTA | Download | Start here | **Updated** |
-
-### `start-here.html` **(new)**
-
-| Section | Purpose |
-|---------|---------|
-| Install | Wizard tracks (dev / life sciences / team) |
-| First chat | Palette, providers |
-| Dev first win | Repo agent + `/collaborate` |
-| Lab first win | Life sciences pack + customer sideload mention |
-| Hardware / honesty | Links to HW + known issues |
-
-**CTA:** Download → Security
-
-### `security.html` **(new)**
-
-| Section | Purpose |
-|---------|---------|
-| Privacy by default | Local-first, opt-in cloud |
-| Human control | Approvals, collab phases |
-| Built-in protections | Threat table (from SECURITY.md) |
-| Shared machines | Env vars checklist |
-| Lab environments | Customer packs, data locality |
-
-**CTA:** SECURITY.md in repo
-
-### `features/life-sciences.html` **(new)**
-
-| Section | Purpose |
-|---------|---------|
-| Who this is for | Analysts, research, regulated-adjacent |
-| Official pack | Component table (no private Brightest Bio details) |
-| Typical workflow | Wizard → pack → BiologyExpert |
-| Customer packs | Sideload for instrument-specific QC |
-| Privacy | Link to security page |
-
-**CTAs:** Domain packs, BIOLOGY_PACK.md, start here
-
-### `download.html`
-
-| Change | Detail |
-|--------|--------|
-| After install | Links to `start-here.html` instead of DOWNLOAD.md only |
-
-### `features/index.html`
-
-| Change | Detail |
-|--------|--------|
-| Grid | Added Life sciences guide card |
-
-### `features/domain-packs.html`
-
-| Change | Detail |
-|--------|--------|
-| Life sciences bullet | Links to `life-sciences.html` |
-
-### `articles/index.html`
-
-| Change | Detail |
-|--------|--------|
-| Toolbar | **Fixed** broken `articles-count` span |
-
-### Unchanged high-value pages
-
-| Page | Notes |
-|------|-------|
-| `known-issues.html` | Keep prominent — differentiator |
-| `release-notes.html` | Manual sync with CHANGELOG — maintenance risk |
-| `benchmarks/index.html` | Live JSON — strong proof |
-| `gallery/index.html` | Moved to footer strip only |
-| 17 `features/*.html` | Depth layer; no copy pass this round |
+1. **Version strings** — re-run `./scripts/update-website-release.sh` + `python3 scripts/sync-site-nav.py` on each beta tag.
+2. **Videos** — add source to `~/Desktop/NJ videos/`, update `scripts/optimize-site-videos-batch.py` mapping, run batch encoder.
+3. **Release notes** — append `release-notes.html` manually after each tag.
 
 ---
 
-## Messaging alignment
-
-| Source | Positioning | Action |
-|--------|-------------|--------|
-| Landing hero | Digital hive-mind + specialists | **Aligned** |
-| `USER_VALUE_GUIDE.md` | "AI engineering team" | Repo doc — narrow; site now broader |
-| IDE v4 | Capability, not identity | **Aligned** on landing |
-| Life sciences | Public pack + customer sideload | **New** `life-sciences.html` |
-| Brightest Bio Lab pack | Private — not on site | Correct — only "customer sideload" |
-
----
-
-## Remaining gaps (future work)
-
-1. **Version strings** — synced to **v1.2.0-beta.3** via `./scripts/update-website-release.sh` + `python3 scripts/sync-site-nav.py` (dev banner reads `desktop/package.json`). Re-run both on each beta tag; append `release-notes.html` manually.
-2. **61 repo markdown docs** — only top onboarding + security surfaced on-site; full docs site optional.
-3. **No Pages CI** — deploy is push-to-`main` on `/docs`.
-4. **README** — still engineering-heavy; optional sync with landing voice.
-5. **Contributing / roadmap** — not on marketing site yet.
-
----
-
-## CTA funnel (intended)
+## CTA funnel
 
 ```mermaid
 flowchart LR
@@ -144,9 +97,8 @@ flowchart LR
     Landing --> Start[start-here.html]
     Start --> Guides[features/*]
     Start --> Security[security.html]
-    UseCases[Use case cards]
-    UseCases --> LifeSci[life-sciences.html]
-    UseCases --> IDE[ide-v4.html]
+    Videos[Demo videos]
+    Videos --> Download
     Download --> Start
     Guides --> Download
 ```

@@ -48,7 +48,7 @@
     <header class="feature-deep-hero">
       <h1>Domain packs</h1>
       <p class="feature-deep-lead">
-        Neural Junkie ships lean — <strong>Moderator</strong>, <strong>Assistant</strong>, and CLI agents only. Install official <strong>domain packs</strong> to add specialists, models, MCP tools, workbenches, and layout presets for the work you actually do. Each pack is open source in its own GitHub repository and installs from the in-app pack store.
+        Neural Junkie ships lean — <strong>Assistant</strong> and CLI agents only. Install official <strong>domain packs</strong> to add specialists, models, MCP tools, workbenches, and layout presets for the work you actually do. Each pack is open source in its own GitHub repository and installs from the in-app pack store.
       </p>
       <p class="release-landing-actions" style="margin-top: 1rem;">
         <a class="btn btn-primary" href="download.html">Download Neural Junkie</a>
@@ -260,13 +260,13 @@
           <h2 id="pack-music-creation">Music creation</h2>
           <span class="pack-detail-badge">v2.0.0</span>
         </header>
-        <p>MusicExpert — lyrics via Ollama, ACE-Step 1.5 sidecar, music workbench, stems export, and EP workflow.</p>
+        <p>MusicExpert — lyrics via Ollama, ACE-Step 1.5 sidecar (sft/turbo/xl variants in pack v1.0.2), music workbench, stems export, and EP workflow.</p>
         <h3>Specialists</h3>
         <p>MusicExpert.</p>
         <h3>What you get</h3>
         <ul>
           <li><strong>Music workbench</strong> — waveform, loop regions, A/B compare, stems export, multi-section projects.</li>
-          <li><strong>ACE-Step 1.5 sidecar</strong> — generate, extract stems, repaint, render arrangement, optional MIDI export.</li>
+          <li><strong>ACE-Step 1.5 sidecar</strong> — sft/turbo/xl model variants; tune seed, steps, guidance, ODE/SDE inference; extract stems, repaint, render arrangement.</li>
           <li><strong>Commands</strong> — <code>/generate-music</code> and MCP tools <code>generate_music</code>, <code>extract_stems</code>.</li>
           <li><strong>Turbo weights bundled</strong> — default variant ships in the release zip (no Hugging Face download).</li>
           <li><strong>Demo mode</strong> — <code>NJ_MUSIC_DEMO=1</code> for GPU-free preview.</li>
@@ -283,9 +283,10 @@
           <h2 id="pack-specialist-tuning">Specialist tuning</h2>
           <span class="pack-detail-badge">v2.0.0</span>
         </header>
-        <p>Train LoRA adapters from chat, collabs, and repo experts; compose Hugging Face adapters in Ollama. Pairs with <a href="features/personal-learning.html">Personal learning</a>.</p>
+        <p>Train LoRA v2 compound specialists from chat, collabs, and repo experts; import Hugging Face adapters, review training JSONL, and compose Ollama tags. Pairs with <a href="features/personal-learning.html">Personal learning</a>. See <a href="articles/lora-v2.html">LoRA v2 article</a>.</p>
         <h3>What you get</h3>
         <ul>
+          <li><strong>LoRA v2 lifecycle</strong> — import rows, review JSONL, bootstrap repo indexes, compose tags from one base + adapters.</li>
           <li><strong>LoRA training sidecar</strong> — Unsloth/MLX subprocess at <code>/api/lora/sidecar</code>.</li>
           <li><strong>Cross-pack adapters</strong> — tune specialists across software dev, biology, CAD, AWS, incident, browser, and music packs.</li>
           <li><strong>Eval gates</strong> — per-domain probes in <code>assets/eval/</code>; adapters require passing eval before assignment.</li>
@@ -309,7 +310,7 @@
       </ul>
 
       <h2 id="universal">What stays universal</h2>
-      <p>Moderator, Assistant, Slack Connect, collaboration, and custom experts via <code>/create-expert</code> work regardless of which packs you enable. Packs add depth — they do not gate the core chat experience.</p>
+      <p>Assistant, Slack Connect, collaboration, and custom experts via <code>/create-expert</code> work regardless of which packs you enable. Packs add depth — they do not gate the core chat experience.</p>
 
       <aside class="repo-links">
         <h2>Repository docs</h2>
@@ -317,6 +318,8 @@
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS.md">PACKS.md</a> — catalog URLs, install API, and update flow.</li>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/packs/catalog.json">packs/catalog.json</a> — official catalog source of truth.</li>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS_V2_ROADMAP.md">PACKS_V2_ROADMAP.md</a> — v2 direction.</li>
+          <li><a href="release-notes.html#v1-2-0-beta-5">Release notes → beta.5</a> — LoRA v2, collab hardening.</li>
+          <li><a href="articles/lora-v2.html">LoRA v2 article</a></li>
           <li><a href="release-notes.html#v1-0-0-beta-19">Release notes → beta.19</a> — pack store launch.</li>
         </ul>
       </aside>

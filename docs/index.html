@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Neural Junkie — Multi-agent AI workspace</title>
-  <meta name="description" content="Neural Junkie — open-source multi-agent AI workspace. Specialist agents, local-first Ollama, human approval, Slack Connect, domain packs, and IDE v4." />
+  <meta name="description" content="Neural Junkie — open-source multi-agent AI workspace. v1.2.0-beta.5: ReAct tools, routing trace, Runbooks v2, collab hardening, LoRA v2, local-first Ollama, Slack Connect, domain packs, IDE v4." />
   <meta property="og:title" content="Neural Junkie — Multi-agent AI workspace" />
-  <meta property="og:description" content="Stop talking to one LLM. Run a digital hive-mind — local-first specialists, bounded collaboration, and human approval in one desktop app." />
+  <meta property="og:description" content="Stop talking to one LLM. Run a digital hive-mind — local-first specialists, bounded collaboration, routing you can audit, and human approval in one desktop app." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
   <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
@@ -25,7 +25,7 @@
   <div class="dev-banner" role="status">
     <div class="wrap dev-banner-inner">
       <strong>v1.2.0-beta.5 open beta</strong>
-      <span><a href="download.html">Download</a> · <a href="download.html#homebrew">Homebrew</a> · <a href="start-here.html">Start here</a> — multi-agent workspace with IDE v4 (full LSP, remote SSH). macOS bundles Ollama; Win/Linux wizard installs it. <a href="features/ide-v4.html">IDE v4</a> · <a href="known-issues.html">Known issues</a> · <a href="https://github.com/camronwood/neural-junkie/issues">Issues</a> welcome.</span>
+      <span><a href="download.html">Download</a> · <a href="download.html#homebrew">Homebrew</a> · <a href="start-here.html">Start here</a> — ReAct tools, routing trace, Runbooks v2, multi-repo scope, collab hardening, LoRA v2. <a href="articles/beta-5.html">What's new</a> · <a href="features/ide-v4.html">IDE v4</a> · <a href="known-issues.html">Known issues</a> · <a href="https://github.com/camronwood/neural-junkie/issues">Issues</a> welcome.</span>
     </div>
   </div>
 
@@ -135,36 +135,66 @@
     <section class="demo-video-showcase" aria-labelledby="demo-video-heading">
       <div class="wrap">
         <h2 id="demo-video-heading">See it in action</h2>
-        <p class="section-intro">Short demos from the real desktop — multi-agent chat, custom experts, and local model switching.</p>
+        <p class="section-intro">Short demos from the real desktop — product overview, multi-agent chat, Assistant workflows, Slack, local image gen, and away mode.</p>
         <div class="demo-video-grid">
           <figure class="screenshot-frame">
-            <h3 class="demo-video-title">Custom expert: guitar coach</h3>
-            <p class="demo-video-blurb">Create a general-purpose expert for any domain — not limited to engineering presets.</p>
-            <video controls playsinline preload="metadata" aria-label="Creating a custom guitar expert agent in Neural Junkie">
-              <source src="media/general-experts-guitar.mp4" type="video/mp4" />
+            <h3 class="demo-video-title">The workspace in 40 seconds</h3>
+            <p class="demo-video-blurb">Feature fly-through — specialists, collaboration, IDE, packs, and local AI in one desktop app.</p>
+            <video controls playsinline preload="metadata" aria-label="Neural Junkie feature fly-through demo">
+              <source src="media/feature-flythrough.mp4" type="video/mp4" />
             </video>
             <figcaption class="screenshot-caption">
-              <a href="media/general-experts-guitar.mp4">Download MP4</a>
+              <a href="media/feature-flythrough.mp4">Download MP4</a>
             </figcaption>
           </figure>
           <figure class="screenshot-frame">
-            <h3 class="demo-video-title">Two agents, one channel</h3>
-            <p class="demo-video-blurb"><strong>Gemini</strong> and <strong>Cursor</strong> discuss each other in the same room — the multi-agent pattern you use for real work.</p>
-            <video controls playsinline preload="metadata" aria-label="Gemini and Cursor agents discussing each other in chat">
-              <source src="media/gemini-cursor-agents.mp4" type="video/mp4" />
+            <h3 class="demo-video-title">Gemini, Copilot, Cursor — one channel</h3>
+            <p class="demo-video-blurb"><strong>Gemini</strong>, <strong>Copilot</strong>, and <strong>Cursor</strong> agents in the same room — the multi-agent pattern you use for real work.</p>
+            <video controls playsinline preload="metadata" aria-label="Gemini, Copilot, and Cursor agents in one Neural Junkie channel">
+              <source src="media/gemini-copilot-cursor-edge-assistant-chat.mp4" type="video/mp4" />
             </video>
             <figcaption class="screenshot-caption">
-              <a href="media/gemini-cursor-agents.mp4">Download MP4</a>
+              <a href="media/gemini-copilot-cursor-edge-assistant-chat.mp4">Download MP4</a>
             </figcaption>
           </figure>
           <figure class="screenshot-frame">
-            <h3 class="demo-video-title">Switch local models in one place</h3>
-            <p class="demo-video-blurb">Curated <strong>Ollama</strong> library — install models, tap <strong>Use for agents</strong>, and route specialists without leaving the app.</p>
-            <video controls playsinline preload="metadata" aria-label="Ollama model library: install and switch local models for Neural Junkie agents">
-              <source src="media/local-model-switching.mp4" type="video/mp4" />
+            <h3 class="demo-video-title">Ask the Assistant</h3>
+            <p class="demo-video-blurb">Your always-on <strong>Assistant</strong> — reminders, tasks, workspace context, and command help in one DM.</p>
+            <video controls playsinline preload="metadata" aria-label="Ask the Assistant in Neural Junkie">
+              <source src="media/ask-the-assistant.mp4" type="video/mp4" />
             </video>
             <figcaption class="screenshot-caption">
-              <a href="media/local-model-switching.mp4">Download MP4</a>
+              <a href="media/ask-the-assistant.mp4">Download MP4</a>
+            </figcaption>
+          </figure>
+          <figure class="screenshot-frame">
+            <h3 class="demo-video-title">Slack Connect</h3>
+            <p class="demo-video-blurb">Mirror bound channels, route @mentions to any agent, and keep your team in Slack while agents run locally.</p>
+            <video controls playsinline preload="metadata" aria-label="Neural Junkie Slack Connect demo">
+              <source src="media/nj-slack.mp4" type="video/mp4" />
+            </video>
+            <figcaption class="screenshot-caption">
+              <a href="media/nj-slack.mp4">Download MP4</a> · <a href="features/slack-connect.html">Slack guide</a>
+            </figcaption>
+          </figure>
+          <figure class="screenshot-frame">
+            <h3 class="demo-video-title">Local image gen for free</h3>
+            <p class="demo-video-blurb">Generate images with local <strong>Ollama</strong> models — no cloud API required for creative workflows.</p>
+            <video controls playsinline preload="metadata" aria-label="Local image generation with Ollama in Neural Junkie">
+              <source src="media/local-image-gen-free.mp4" type="video/mp4" />
+            </video>
+            <figcaption class="screenshot-caption">
+              <a href="media/local-image-gen-free.mp4">Download MP4</a>
+            </figcaption>
+          </figure>
+          <figure class="screenshot-frame">
+            <h3 class="demo-video-title">Agents respond when you're away</h3>
+            <p class="demo-video-blurb">Slack <strong>away mode</strong> and personal inbox — your agents keep answering while you're offline.</p>
+            <video controls playsinline preload="metadata" aria-label="Neural Junkie agents respond when you are away">
+              <source src="media/agents-respond-when-away.mp4" type="video/mp4" />
+            </video>
+            <figcaption class="screenshot-caption">
+              <a href="media/agents-respond-when-away.mp4">Download MP4</a> · <a href="features/slack-connect.html">Away mode</a>
             </figcaption>
           </figure>
         </div>
@@ -178,6 +208,7 @@
           <a href="#multi-agent-collaboration">🤝 Collaboration</a>
           <a href="#bundled-ollama">⚡ Local AI</a>
           <a href="#slack-connect">⎘ Slack</a>
+          <a href="#smarter-chat">🔍 Routing trace</a>
           <a href="#domain-packs">📦 Domain packs</a>
           <a href="#ide-v4">⌨️ IDE v4</a>
           <a href="#hardware-requirements">💾 Hardware</a>
@@ -195,14 +226,14 @@
           </p>
           <ul class="feature-list feature-list--tight">
             <li><strong>Phases you control</strong> — planning → review → approve → execute with visible status.</li>
-            <li><strong>Runbooks &amp; HTTP actions</strong> — wire automations when plans need more than chat.</li>
+            <li><strong>Runbooks v2</strong> — persisted definitions, run history, connector profiles, and replay from the desktop library.</li>
             <li><strong>Personal learning</strong> — collaboration-scoped memory when Specialist tuning is on.</li>
-            <li><strong>v1.2</strong> — IDE v4 full LSP and remote SSH; Ask / Agent composer, durable memory, customer pack sideload. <a href="known-issues.html">Known issues</a>.</li>
+            <li><strong>v1.2.0-beta.5</strong> — collab hardening from live scenario gates, multi-repo workspace scope, routing trace on every turn. <a href="known-issues.html">Known issues</a>.</li>
           </ul>
           <div class="feature-spotlight-actions">
             <a class="btn btn-primary" href="features/multi-agent-collaboration.html">Collaboration deep dive →</a>
             <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">Collaboration docs</a>
-            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-20">Beta.20 notes</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-2-0-beta-5">Beta.5 notes</a>
           </div>
         </div>
         <figure class="feature-spotlight-visual">
@@ -244,7 +275,7 @@
           <div class="feature-spotlight-actions">
             <a class="btn btn-primary" href="features/bundled-ollama.html">Local AI deep dive →</a>
             <a class="btn btn-ghost" href="features/model-app-store.html">Model App Store</a>
-            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-22">Beta.22 notes</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-2-0-beta-5">Beta.5 notes</a>
           </div>
         </div>
         <figure class="feature-spotlight-visual">
@@ -268,7 +299,7 @@
           <p class="feature-spotlight-kicker">Slack integration</p>
           <h2 id="slack-connect-heading">Your team stays in Slack. Agents stay in sync.</h2>
           <p class="feature-spotlight-lead">
-            <strong>Slack Connect</strong> mirrors bound channels into Neural Junkie with <strong>two-way threading</strong>: @mentions and channel lines route to the agent you choose — Assistant, custom experts, repo agents, or any configured <strong>Claude / GPT / Gemini / Ollama</strong> backend. <strong>Personal inbox</strong> (beta.21): DM the NJ bot from Slack mobile; replies land in a private hub channel.
+            <strong>Slack Connect</strong> mirrors bound channels into Neural Junkie with <strong>two-way threading</strong>: @mentions and channel lines route to the agent you choose — Assistant, custom experts, repo agents, or any configured <strong>Claude / GPT / Gemini / Ollama</strong> backend. <strong>Personal inbox</strong>: DM the NJ bot from Slack mobile; replies land in a private hub channel. <strong>Setup diagnostics</strong> in Settings help you verify OAuth, Socket Mode, and channel routing.
           </p>
           <ul class="feature-list feature-list--tight">
             <li><strong>Per-channel policy</strong> — always-on, questions-only, or @mention routing.</li>
@@ -279,7 +310,7 @@
           <div class="feature-spotlight-actions">
             <a class="btn btn-primary" href="features/slack-connect.html">Slack deep dive →</a>
             <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">Setup guide</a>
-            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-21">Beta.21 notes</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-2-0-beta-5">Beta.5 notes</a>
           </div>
         </div>
         <figure class="feature-spotlight-visual">
@@ -483,6 +514,12 @@
         <p class="section-intro">Long conversations need more than a bigger prompt window. Neural Junkie routes intent, scopes workspace attachment, and lets you save facts you want agents to remember.</p>
         <div class="grid-3 highlights-grid">
           <article class="card">
+            <div class="card-icon" aria-hidden="true">🔍</div>
+            <h3>Routing trace &amp; ReAct tools</h3>
+            <p>Every turn shows <strong>routing badges</strong> and a live telemetry drawer — model tier, retrieval mode, composer mode. <strong>ReAct MCP</strong> runs tools on models like Gemma 3 12B without native tool calling.</p>
+            <p class="card-cta"><a class="card-link" href="articles/react-tools.html">ReAct tools article →</a></p>
+          </article>
+          <article class="card">
             <div class="card-icon" aria-hidden="true">💬</div>
             <h3>Chat / Code composer</h3>
             <p><strong>Auto, Chat, or Code</strong> mode on each send. Chat skips heavy tooling for casual turns; Code enables workspace and file workflows. Thread-scoped history keeps side topics focused.</p>
@@ -498,7 +535,7 @@
             <div class="card-icon" aria-hidden="true">📋</div>
             <h3>User rules &amp; find</h3>
             <p>Per-user markdown rules via Settings/API shape every prompt. In-channel <strong>find bar</strong> searches message history so you can recover decisions without scrolling forever.</p>
-            <p class="card-cta"><a class="card-link" href="release-notes.html#v1-0-0-beta-21">Beta.21 notes →</a></p>
+            <p class="card-cta"><a class="card-link" href="release-notes.html#v1-2-0-beta-5">Beta.5 notes →</a></p>
           </article>
         </div>
       </div>
@@ -541,9 +578,9 @@
           </article>
           <article class="card">
             <div class="card-icon" aria-hidden="true">📊</div>
-            <h3>Runbook builder</h3>
-            <p>Visual task graphs with dependencies, agent assignments, and HTTP action nodes — import markdown runbooks or start from the desktop <strong>RB</strong> button.</p>
-            <p class="card-cta"><a class="card-link" href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md#runbook-builder-desktop">Runbook docs →</a></p>
+            <h3>Runbooks v2</h3>
+            <p>Persisted <strong>RunbookDefinition</strong> library, run history, connector profiles, and pack-owned templates — import markdown or start from the desktop <strong>RB</strong> button.</p>
+            <p class="card-cta"><a class="card-link" href="https://github.com/camronwood/neural-junkie/blob/main/docs/RUNBOOKS_V2.md">Runbooks v2 docs →</a></p>
           </article>
           <article class="card">
             <div class="card-icon" aria-hidden="true">🔌</div>
@@ -592,8 +629,7 @@
           <div class="workflow-block">
             <h3 class="workflow-title">Always-on helpers</h3>
             <ul class="feature-list feature-list--tight">
-              <li><strong>Moderator</strong> — command help, product guidance, and a safety net when questions sit unanswered.</li>
-              <li><strong>Assistant</strong> — tasks, reminders, notes, meeting-oriented commands, and scoped workspace context when you opt in.</li>
+              <li><strong>Assistant</strong> — command help, product guidance, reminders, tasks, notes, meeting-oriented commands, scoped workspace context, and a safety net when questions sit unanswered.</li>
               <li><strong>First-run setup wizard</strong> — get providers and agents configured without reading a novel first.</li>
               <li><strong>Tool approvals</strong> — gate risky agent tool use where your stack requires it.</li>
             </ul>

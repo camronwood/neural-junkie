@@ -59,6 +59,14 @@
       />
     </figure>
 
+    <figure class="screenshot-frame" style="margin-bottom: 2rem;">
+      <h3 class="demo-video-title" style="padding: 1rem 1rem 0.35rem; margin: 0; font-size: 1.05rem;">Full collaboration walkthrough</h3>
+      <video controls playsinline preload="metadata" aria-label="Neural Junkie website collaboration demo">
+        <source src="../media/website-collab.mp4" type="video/mp4" />
+      </video>
+      <figcaption class="screenshot-caption"><a href="../media/website-collab.mp4">Download MP4</a></figcaption>
+    </figure>
+
     <article class="feature-prose">
       <h2>Why collaboration is first-class</h2>
       <p>Single-thread @mentions work for quick questions. Harder initiatives — refactors, incident response, security reviews — benefit from multiple specialists contributing to one artifact with clear phases. Neural Junkie encodes those phases so the hub can enforce budgets and surface status to humans.</p>
@@ -81,6 +89,12 @@
       <h2>Optional smart routing (execution tasks)</h2>
       <p>When <strong>Collaboration smart routing</strong> is enabled in Settings, the hub may pick a <strong>different configured AI provider</strong> than an assignee’s default <em>only for collaboration execution tasks</em> — messages that carry task execution metadata after planning is approved and the workspace is acknowledged. The policy is a <strong>static heuristic</strong> (for example vision-capable providers, short local-friendly prompts, security-flavored keywords); it is not live dollar pricing. Planning turns, normal channel chat, and agents running out-of-process via <code>cmd/agent</code> are out of scope for this routing mode today.</p>
 
+      <h2>Runbooks v2 &amp; replay (beta.5)</h2>
+      <p><strong>Runbooks v2</strong> persists <code>RunbookDefinition</code> entries, <code>RunExecution</code> history, and connector profiles in the hub. Open the desktop runbook library to import markdown, assign agents, and replay completed runs. Pack-owned templates ship with domain packs when configured.</p>
+
+      <h2>Collab hardening (beta.5)</h2>
+      <p>Weeks of live scenario gates tightened planning parsers, discussion watchdogs, turn handoff retries, and approve-plan timing. Per-turn <strong>routing trace</strong> on collab messages helps debug why an execution task picked a particular model tier.</p>
+
       <h2>How this differs from threads</h2>
       <p>Threads are lightweight side conversations attached to a message. Collaborations add <em>session state</em>, <em>artifacts</em>, and <em>gated transitions</em> — closer to a runbook than a reply chain.</p>
 
@@ -88,6 +102,8 @@
         <h2>Read more in the repository</h2>
         <ul>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">Collaboration</a> — full design, phases, and operator guidance.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/RUNBOOKS_V2.md">Runbooks v2</a> — persisted definitions, run history, connector profiles.</li>
+          <li><a href="../release-notes.html#v1-2-0-beta-5">Release notes → beta.5</a> — collab hardening and routing trace.</li>
           <li><a href="../known-issues.html">Known issues</a> — open collab bugs and limitations (updated as we fix them).</li>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md#collaboration-package-internalcollaboration">Architecture → Collaboration package</a> — data structures and manager responsibilities.</li>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/README.md#commands">README → Commands</a> — collaboration-related slash entries.</li>

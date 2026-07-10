@@ -50,7 +50,7 @@
       <p class="feature-deep-lead">
         Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
         Remaining entries are intentional limitations. Several UX gaps were closed in the limitations sprint (layout owner picker, workspace gate banners, pause abort, channel export).
-        Last updated <time datetime="2026-07-06">July 6, 2026</time> (v1.2.0-beta.5 — ReAct tools, routing trace, Runbooks v2, multi-repo scope; stable checklist in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>).
+        Last updated <time datetime="2026-07-10">July 10, 2026</time> (v1.2.0-beta.5 — ReAct tools, routing trace, Runbooks v2, multi-repo scope, LoRA v2, Slack diagnostics; stable checklist in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>).
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
       </p>
     </header>
@@ -170,7 +170,7 @@
         <li><strong>Go tests</strong> — orchestrator, plan parsing: <code>make test-collab-plan</code>, <code>make collab-smoke</code></li>
         <li><strong>Live collab scenarios</strong> — <code>make collab-scenario SCENARIO=…</code>; matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-matrix.tsv">collab-matrix.tsv</a> (21/21 PASS)</li>
         <li><strong>Chat regression</strong> — <code>make chat-scenarios-regression</code> (workspace visibility, closure, echo)</li>
-        <li><strong>Implement parity</strong> — <code>make implement-scenarios</code>, <code>make test-parity-stable</code> (3× with hub restart)</li>
+        <li><strong>Release engineering loops</strong> — <code>make layer-gate</code>, <code>make layer-fix-loop</code>, <code>make test-growth-loop</code> with artifacts in <code>docs/testing/</code></li>
       </ul>
       <p>When a scenario flips to <strong>PASS</strong>, delete the matching <code>&lt;li&gt;</code> here and the row in <code>KNOWN_ISSUES.md</code>, then note the fix in <a href="release-notes.html">release notes</a>.</p>
 
