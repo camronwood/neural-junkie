@@ -144,7 +144,7 @@ func (h *Hub) sendPlanningTurnHandoff(c *collaboration.Collaboration, agentID st
 	)
 	msg.SetCollaborationID(c.ID)
 	msg.SetCollaborationPhase(string(collaboration.PhasePlanning))
-	msg.Mentions = []string{agentID}
+	msg.Mentions = []string{h.resolveCollabParticipantLiveID(c, agentID)}
 	if msg.Metadata == nil {
 		msg.Metadata = map[string]interface{}{}
 	}

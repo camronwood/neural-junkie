@@ -14,6 +14,12 @@
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 15},
     {
+      "action": "wait_discussion",
+      "min_total": 0,
+      "timeout": "30s",
+      "retries": 0
+    },
+    {
       "action": "assert_collab",
       "source_repo_path_empty": true,
       "expect_workspace_warning": true

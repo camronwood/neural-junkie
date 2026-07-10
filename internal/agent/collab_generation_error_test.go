@@ -69,13 +69,19 @@ func TestSendGenerationFailureMessages_CollabDiscussion(t *testing.T) {
 }
 
 type collabErrorRecordStub struct {
-	recorded int
+	recorded  int
+	turnAgent string
 }
 
-func (c *collabErrorRecordStub) IsParticipant(string, string) bool          { return true }
-func (c *collabErrorRecordStub) IsAgentTurn(string, string) bool            { return true }
-func (c *collabErrorRecordStub) IsActive(string) bool                       { return true }
-func (c *collabErrorRecordStub) GetCurrentTurnAgent(string) (string, error) { return "sa-1", nil }
+func (c *collabErrorRecordStub) IsParticipant(string, string) bool { return true }
+func (c *collabErrorRecordStub) IsAgentTurn(string, string) bool   { return true }
+func (c *collabErrorRecordStub) IsActive(string) bool              { return true }
+func (c *collabErrorRecordStub) GetCurrentTurnAgent(string) (string, error) {
+	if c.turnAgent != "" {
+		return c.turnAgent, nil
+	}
+	return "sa-1", nil
+}
 func (c *collabErrorRecordStub) GetCollaborationForAgent(string) CollaborationInfo {
 	return CollaborationInfo{}
 }
@@ -122,6 +128,38 @@ func TestSendCollabVisibleGenerationError_PromptsNextTurn(t *testing.T) {
 	}
 	if handoffs != 1 {
 		t.Fatalf("expected one turn handoff after generation error, got %d", handoffs)
+	}
+}
+
+func TestSendCollabVisibleGenerationError_RePromptsSelfOnTurn(t *testing.T) {
+	hub := &collabErrorCaptureHub{}
+	collab := &collabErrorRecordStub{turnAgent: "be-1"}
+	a := &Agent{
+		Info:   protocol.AgentInfo{ID: "be-1", Name: "BackendEngineer", Type: protocol.AgentTypeBackend},
+		Hub:    hub,
+		Collab: collab,
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-abc",
+		protocol.AgentInfo{Name: "System", Type: protocol.AgentTypeGeneral},
+		"handoff",
+	)
+	msg.SetCollaborationID("collab-uuid-1")
+	msg.SetCollaborationPhase("planning")
+
+	a.sendCollabVisibleGenerationError(msg, "timed out", "timeout", true)
+
+	handoffs := 0
+	for _, m := range hub.sent {
+		if m.Type == protocol.MessageTypeCollabDiscussion && strings.Contains(m.Content, "Collaboration turn handoff") {
+			if len(m.Mentions) == 1 && m.Mentions[0] == "be-1" {
+				handoffs++
+			}
+		}
+	}
+	if handoffs != 1 {
+		t.Fatalf("expected self turn handoff after generation error, got %d", handoffs)
 	}
 }
 

@@ -94,6 +94,7 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
         env["CURSOR_API_KEY"] = cursor_key
 
     env.setdefault("NEURAL_JUNKIE_RATE_LIMIT", "0")
+    env.setdefault("NJ_OLLAMA_MAX_CONCURRENCY", "2")
     env.setdefault("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765")
     env.setdefault("NEURAL_JUNKIE_AUTH_REQUIRED", "1")
     # Regression collab/implement scenarios default to the minimal fixture, not the NJ repo root.
@@ -121,6 +122,12 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
         env["NJ_DELIVERABLE_JUDGE_MODEL"] = DEFAULT_OLLAMA_JUDGE_MODEL
 
     env.setdefault("NJ_AGENT_TIMEOUT_MINUTES", DEFAULT_AGENT_TIMEOUT_MINUTES)
+
+    # Collab gate tuning (slim roster + cloud Claude — see docs/TESTING.md).
+    if os.environ.get("NJ_REGRESSION_SLIM_ROSTER", "").strip() == "":
+        env.setdefault("NJ_REGRESSION_SLIM_ROSTER", "0")
+    if os.environ.get("NJ_REGRESSION_CLAUDE_CLOUD", "").strip() == "":
+        env.setdefault("NJ_REGRESSION_CLAUDE_CLOUD", "0")
 
     try:
         from lib.hub_config import apply_automation_to_env

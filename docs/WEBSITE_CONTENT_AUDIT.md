@@ -71,8 +71,8 @@
 | `index.html` | **Refreshed** — 6 videos, beta.5 banner, Runbooks v2, routing trace card |
 | `download.html` | **Refreshed** — beta.5 feature summary |
 | `start-here.html` | **Refreshed** — Assistant-only, beta.5 onboarding bullets |
-| `packs.html` | **Refreshed** — LoRA v2, music v1.0.2, Assistant-only |
-| `known-issues.html` | **Refreshed** — July 10 date, layer-gate testing |
+| `packs.html` | **Refreshed** — 9 packs + room chat meta, LoRA v2, music v1.0.2 |
+| `known-issues.html` | **Refreshed** — synced with KNOWN_ISSUES.md: room-chat LAN, ReAct allowlist, collab workarounds, implement parity, beta.5 callout, IDE v4.1 resolved note |
 | `security.html` | **Refreshed** — Connection settings, version footer |
 | `features/*` | **Refreshed** — videos, Moderator purge, beta.5 links |
 | `articles/*` | **Refreshed** — beta.5 download URLs, hardware Ollama facts |

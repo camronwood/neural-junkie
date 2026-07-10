@@ -27,6 +27,7 @@ class TestReleasePrepEnv(unittest.TestCase):
     def test_release_prep_env_sets_rate_limit(self) -> None:
         env = release_prep_env(SCRIPTS_DIR.parent)
         self.assertEqual(env.get("NEURAL_JUNKIE_RATE_LIMIT"), "0")
+        self.assertEqual(env.get("NJ_OLLAMA_MAX_CONCURRENCY"), "2")
 
     def test_release_prep_env_ollama_judge_default(self) -> None:
         env = release_prep_env(SCRIPTS_DIR.parent)

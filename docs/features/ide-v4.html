@@ -66,17 +66,20 @@
       <h2>Carried forward from IDE v3</h2>
       <p>Ask / Agent / Export composer modes, implementation sessions, editor trust (<code>yolo</code> auto-approve), and semantic <code>@codebase</code> search remain the daily workflow. See <a href="ide-v3.html">IDE v3 guide</a>.</p>
 
-      <h2>v4.1 limitations</h2>
+      <h2>v4.1+ scope (shipped beta.2)</h2>
+      <p>Remote LSP relay, dev container desktop wizard, remote collab worktrees, and MCP on remote backends shipped in <strong>v1.2.0-beta.2</strong>. See the v4.1 table in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V4.md">IDE_V4.md</a>.</p>
+
+      <h2>Remaining edges</h2>
       <ul>
-        <li>Full LSP relay on <strong>remote</strong> workspaces is deferred — local LSP is production-ready today.</li>
-        <li>Dev container desktop wizard tab is API-only; attach plan + manual sidecar for now.</li>
-        <li>Collaboration worktrees on remote workspaces not yet supported.</li>
+        <li><strong>LSP language coverage</strong> — production servers today: <code>gopls</code>, <code>rust-analyzer</code>, <code>pyright-langserver</code>. Other languages rely on tree-sitter symbols and editor features without full LSP.</li>
+        <li><strong>Remote setup</strong> — SSH and dev-container workspaces require <code>nj-remote</code> on the host; see <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/REMOTE_WORKSPACES.md">REMOTE_WORKSPACES.md</a> for tokens and security model.</li>
+        <li><strong>Beta honesty</strong> — broader intentional limits (single hub, web UI thin client, model variance) live on <a href="../known-issues.html">Known issues</a>.</li>
       </ul>
 
       <h2>Open source</h2>
       <p>Neural Junkie is open source. Fork it, run it locally, contribute features — build the IDE you actually own.</p>
 
-      <p><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V4.md">IDE_V4.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/REMOTE_WORKSPACES.md">REMOTE_WORKSPACES.md</a> · <a href="../release-notes.html#v1-2-0-beta-1">Release notes</a></p>
+      <p><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V4.md">IDE_V4.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/REMOTE_WORKSPACES.md">REMOTE_WORKSPACES.md</a> · <a href="../release-notes.html#v1-2-0-beta-5">Release notes → beta.5</a> · <a href="../release-notes.html#v1-2-0-beta-2">beta.2</a> (v4.1 remote)</p>
     </article>
 
   </main>

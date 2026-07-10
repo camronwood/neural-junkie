@@ -48,12 +48,17 @@
     <header class="feature-deep-hero">
       <h1>Known issues &amp; limitations</h1>
       <p class="feature-deep-lead">
-        Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
-        Remaining entries are intentional limitations. Several UX gaps were closed in the limitations sprint (layout owner picker, workspace gate banners, pause abort, channel export).
-        Last updated <time datetime="2026-07-10">July 10, 2026</time> (v1.2.0-beta.5 — ReAct tools, routing trace, Runbooks v2, multi-repo scope, LoRA v2, Slack diagnostics; stable checklist in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>).
+        Open beta means real gaps — and real progress. This page lists what we know is wrong, flaky, or intentionally scoped for <strong>v1.2.0-beta.5</strong>. We <strong>remove items when they are fixed</strong>; what remains is honest scope, not a backlog we forgot.
+        Last updated <time datetime="2026-07-10">July 10, 2026</time>.
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
+        Stable cut checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>.
       </p>
     </header>
+
+    <div class="release-landing-preview" style="margin-bottom: 2rem;">
+      <p class="release-landing-label">Improved in beta.5</p>
+      <p class="release-landing-summary">ReAct tools on Gemma, per-turn routing trace, Runbooks v2, multi-repo workspace scope, collab hardening from live scenario gates, LoRA v2 specialists, Slack setup diagnostics, and release-engineering loops (<code>make layer-gate</code>). See <a href="release-notes.html#v1-2-0-beta-5">beta.5 release notes</a> and <a href="articles/beta-5.html">beta.5 article</a>.</p>
+    </div>
 
     <nav class="release-jump issues-jump" aria-label="Jump to section">
       <span class="release-jump-label">Sections</span>
@@ -84,92 +89,103 @@
       </p>
 
       <h2 id="collaboration">Collaboration</h2>
-      <p>Multi-agent collab is the hardest surface to make reliable. See also <a href="features/multi-agent-collaboration.html">Collaboration guide</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">COLLABORATION.md</a>.</p>
+      <p>Multi-agent collab is the hardest surface to make reliable. Beta.5 hardened planning parsers, discussion watchdogs, and approve-plan timing — but local model variance remains. See <a href="features/multi-agent-collaboration.html">Collaboration guide</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">COLLABORATION.md</a>.</p>
 
       <ul class="issues-list">
-        <!-- ISSUE: collab-chat-not-disk -->
         <li class="issue-item" id="collab-chat-not-disk">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Chat does not write files</strong>
-          <p>Execution success means <strong>approved file-change proposals</strong>, not polished markdown in the thread. <code>TASK_STATUS: completed</code> alone does not create files.</p>
+          <p>Execution success means <strong>approved file-change proposals</strong> in Pending changes — not polished markdown in the thread. Chat needs <code>[FILE_CHANGE]</code> proposals you approve. <code>TASK_STATUS: completed</code> alone does not create files on disk.</p>
         </li>
-        <!-- ISSUE: collab-model-variance -->
         <li class="issue-item" id="collab-model-variance">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Model variance</strong>
-          <p>Local Ollama models differ in silence, speed, and plan quality. The hub enforces phase budgets and fallbacks; it cannot force a perfect task list from every model. <strong>Mitigation:</strong> Settings → <strong>Collaboration planning provider</strong> for optional cloud/larger-model planning turns.</p>
+          <p>Local Ollama models differ in silence, speed, and plan quality. The hub enforces phase budgets and fallbacks; it cannot force a perfect task list from every model.</p>
+          <p><strong>Mitigation:</strong> Settings → <strong>Collaboration planning provider</strong> for optional cloud/larger-model planning turns. For implementation sessions: <strong>reliable tool model</strong> and optional <strong>reliable provider</strong> (repair round 2+) in Settings → Implementation sessions — the outcome card shows failure reason when repair fails.</p>
         </li>
-        <!-- ISSUE: collab-smart-routing-scope -->
         <li class="issue-item" id="collab-smart-routing-scope">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Smart routing scope</strong>
-          <p>Collaboration smart routing applies to <strong>execution tasks only</strong> — not normal channel chat. Planning can use a separate optional planning provider in Settings.</p>
+          <p>Collaboration smart routing applies to <strong>execution tasks only</strong> — not normal channel chat. Planning can use a separate optional <code>planning_provider_id</code> in Settings.</p>
         </li>
+      </ul>
+
+      <h3>Collaboration workarounds</h3>
+      <ul class="feature-list feature-list--tight">
+        <li>Upgrade the hub after each beta tag — collab fixes land frequently.</li>
+        <li>Run <code>make collab-preflight</code> before live scenarios; use <code>make debug-collab</code> for discussion diagnosis (see COLLABORATION.md).</li>
+        <li>Zero-task plans: revise the plan or re-run with fewer agents.</li>
+        <li>Inspect per-turn <strong>routing trace</strong> on collab messages when execution picks an unexpected model.</li>
       </ul>
 
       <h2 id="chat-context">Chat &amp; context</h2>
       <ul class="issues-list">
-        <!-- ISSUE: hub-history-bounded -->
         <li class="issue-item" id="hub-history-bounded">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Bounded message history</strong>
-          <p>Per-channel history is capped (5000 messages) and age-pruned after 24h unless marked <strong>durable</strong> in channel info. SQLite sidecar + <strong>Export history</strong> — not a full in-app search archive.</p>
+          <p>Per-channel history is capped (5000 messages) and age-pruned after 24h unless marked <strong>durable</strong> in channel info. SQLite sidecar + <strong>Export history</strong> — not a full in-app search archive. Use the in-channel <strong>find bar</strong> for recent history.</p>
         </li>
       </ul>
 
       <h2 id="integrations">Integrations</h2>
       <ul class="issues-list">
-        <!-- ISSUE: slack-bridge-local -->
         <li class="issue-item" id="slack-bridge-local">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Slack needs local hub</strong>
-          <p>Socket Mode bridge runs in-process — the hub must be running on your machine.</p>
+          <p>Socket Mode bridge runs in-process — the hub must be running on your machine. No public URL required. Use <strong>Settings → Integrations → Slack</strong> diagnostics when OAuth, Socket Mode, or channel routing fails.</p>
         </li>
-        <!-- ISSUE: confluence-setup -->
         <li class="issue-item" id="confluence-setup">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Confluence setup cost</strong>
           <p>Doc agents need Cloud credentials, indexing time, and reasonable space size for good answers.</p>
         </li>
+        <li class="issue-item" id="room-chat-lan">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Room chat needs same LAN</strong>
+          <p>The <a href="packs.html#room-chat">Room chat</a> pack requires guests on the <strong>same LAN</strong> as the host hub. Corporate Wi‑Fi client isolation may block joins. Host must enable <strong>listen on LAN</strong> (<code>listen_all</code>) and configure a hub token. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ROOM_CHAT.md">ROOM_CHAT.md</a>.</p>
+        </li>
       </ul>
 
       <h2 id="desktop-ide">Desktop, IDE &amp; packs</h2>
       <ul class="issues-list">
-        <!-- ISSUE: web-ui-thin -->
         <li class="issue-item" id="web-ui-thin">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Web UI is thin</strong>
-          <p>Browser chat at <code>/</code> lacks the full desktop workspace, palette, and file-approval flows.</p>
+          <p>Browser chat at <code>/</code> is a lightweight client — no full workspace, command palette, routing trace drawer, or file-approval flows. Use the <strong>Tauri desktop</strong> for production work.</p>
         </li>
-        <!-- ISSUE: git-dev-pack -->
         <li class="issue-item" id="git-dev-pack">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Git requires dev pack</strong>
           <p>In-app Git needs the Software development pack, <code>git</code> on PATH, and a git workspace.</p>
         </li>
-        <!-- ISSUE: macos-adhoc-sign -->
         <li class="issue-item" id="macos-adhoc-sign">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>macOS ad-hoc signing</strong>
           <p>GitHub Release macOS builds are ad-hoc signed until Apple Developer credentials are available. First launch may require <strong>Right-click → Open</strong>. Planned fix: <strong>v1.2.1</strong> notarized builds.</p>
         </li>
       </ul>
+      <p class="issues-resolved-note"><strong>Resolved in beta.2+:</strong> IDE v4 remote LSP relay and remote collab worktrees — see <a href="features/ide-v4.html">IDE v4 guide</a> for current remote workspace limits.</p>
 
       <h2 id="hub-providers">Hub, agents &amp; providers</h2>
       <ul class="issues-list">
-        <!-- ISSUE: single-hub -->
         <li class="issue-item" id="single-hub">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Single hub instance</strong>
           <p>No distributed or multi-region deployment model yet.</p>
         </li>
+        <li class="issue-item" id="react-tools-allowlist">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>ReAct tools allowlist</strong>
+          <p><strong>ReAct MCP</strong> on models without native tool calling is allowlist-based (<code>gemma3:12b</code> first in beta.5). Other tags use native tools when available, or Qwen swap fallback. See <a href="articles/react-tools.html">ReAct tools article</a>.</p>
+        </li>
       </ul>
 
       <h2 id="quality">How we test (and close items)</h2>
       <ul class="feature-list feature-list--tight">
-        <li><strong>Go tests</strong> — orchestrator, plan parsing: <code>make test-collab-plan</code>, <code>make collab-smoke</code></li>
+        <li><strong>Go tests</strong> — orchestrator, plan parsing: <code>make test-collab-plan</code>, <code>make collab-smoke</code>, <code>go test ./...</code></li>
         <li><strong>Live collab scenarios</strong> — <code>make collab-scenario SCENARIO=…</code>; matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-matrix.tsv">collab-matrix.tsv</a> (21/21 PASS)</li>
         <li><strong>Chat regression</strong> — <code>make chat-scenarios-regression</code> (workspace visibility, closure, echo)</li>
+        <li><strong>Implement parity</strong> — <code>make implement-scenarios</code>, <code>make test-parity-stable</code> (3× with hub restart)</li>
         <li><strong>Release engineering loops</strong> — <code>make layer-gate</code>, <code>make layer-fix-loop</code>, <code>make test-growth-loop</code> with artifacts in <code>docs/testing/</code></li>
       </ul>
       <p>When a scenario flips to <strong>PASS</strong>, delete the matching <code>&lt;li&gt;</code> here and the row in <code>KNOWN_ISSUES.md</code>, then note the fix in <a href="release-notes.html">release notes</a>.</p>
@@ -204,7 +220,7 @@
         <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
     </nav>
 <!-- NJ-SITE-FOOTER-NAV:END -->
-      <p><a href="index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+      <p><a href="index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT) · v1.2.0-beta.5 open beta</p>
     </div>
   </footer>
 

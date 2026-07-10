@@ -3,6 +3,8 @@ package collaboration
 import (
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +20,23 @@ func isDiscussionGenerationError(msg *protocol.Message) bool {
 	}
 	_, hasCode := msg.Metadata["error_code"]
 	return hasCode
+}
+
+// maxPlanningGenerationErrorsPerTurn caps retries on one planning turn before
+// advancing to the next participant (prevents generation_error death spirals).
+const maxPlanningGenerationErrorsPerTurn = 2
+
+func planningGenerationErrorCount(d *DiscussionSession, agentID string) int {
+	if d == nil || agentID == "" {
+		return 0
+	}
+	n := 0
+	for _, m := range d.Messages {
+		if m != nil && m.From.ID == agentID && isDiscussionGenerationError(m) {
+			n++
+		}
+	}
+	return n
 }
 
 func (cm *CollaborationManager) postDiscussionLimitNotice(collabID string) {
@@ -123,9 +142,18 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 
 	d.Messages = append(d.Messages, msg)
 	if isDiscussionGenerationError(msg) {
-		// Keep the turn on the failed participant so watchdog/handoff retries can
-		// re-prompt them instead of advancing to the next speaker (which lets one
-		// agent dominate while others stay silent in scenario harnesses).
+		agentID := msg.From.ID
+		errCount := planningGenerationErrorCount(d, agentID)
+		// Keep the turn on the first failure so watchdog/handoff can re-prompt;
+		// after repeated failures advance so other participants are not stranded.
+		if errCount >= maxPlanningGenerationErrorsPerTurn &&
+			c.Phase == PhasePlanning && enforced &&
+			len(d.Participants) > 0 && d.CurrentTurnIndex < len(d.Participants) &&
+			d.Participants[d.CurrentTurnIndex] == agentID {
+			log.Printf("[Discussion %s] Advancing turn after %d generation_errors from %s",
+				d.ID[:8], errCount, agentID)
+			cm.advanceTurn(c)
+		}
 		c.UpdatedAt = time.Now()
 		cm.mu.Unlock()
 		return nil
@@ -421,6 +449,32 @@ func silentParticipantIDsLocked(d *DiscussionSession) []string {
 	return silent
 }
 
+func ollamaConcurrencyLimit() int {
+	raw := strings.TrimSpace(os.Getenv("NJ_OLLAMA_MAX_CONCURRENCY"))
+	if raw == "" {
+		return 1
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 {
+		return 1
+	}
+	return n
+}
+
+// planningOllamaQueueFactor estimates how many Ollama slot turns a planning quorum
+// may need when participants serialize through NJ_OLLAMA_MAX_CONCURRENCY.
+func planningOllamaQueueFactor(participantCount int) int {
+	if participantCount < 1 {
+		participantCount = 1
+	}
+	conc := ollamaConcurrencyLimit()
+	f := (participantCount + conc - 1) / conc
+	if f < 1 {
+		return 1
+	}
+	return f
+}
+
 // planningDiscussionTimeoutElapsed is true when the wall-clock budget expired.
 // While silent participants remain and the message budget is not exhausted, a
 // short grace window allows the planning watchdog to re-dispatch turn handoffs.
@@ -439,19 +493,30 @@ func planningDiscussionTimeoutElapsed(c *Collaboration, d *DiscussionSession) bo
 	if len(silent) == 0 || d.TotalMessageCount >= d.MaxTotalMessages {
 		return true
 	}
+	queueFactor := planningOllamaQueueFactor(len(d.Participants))
 	// Keep planning open while no turn has been recorded yet — the first LLM reply
-	// often exceeds the scaled wall timeout (--messages 4 → 180s).
+	// often exceeds the scaled wall timeout (--messages 4 → 180s), especially when
+	// agents queue behind NJ_OLLAMA_MAX_CONCURRENCY.
 	if d.TotalMessageCount == 0 {
 		firstReplyGrace := 2 * time.Minute
 		if d.MaxTotalMessages > 0 && d.MaxTotalMessages <= 4 {
 			firstReplyGrace = 45 * time.Second
+		}
+		firstReplyGrace *= time.Duration(queueFactor)
+		const maxFirstReplyGrace = 6 * time.Minute
+		if firstReplyGrace > maxFirstReplyGrace {
+			firstReplyGrace = maxFirstReplyGrace
 		}
 		if elapsed <= d.Timeout+firstReplyGrace {
 			return false
 		}
 	}
 	grace := time.Duration(len(silent)) * 45 * time.Second
-	const maxGrace = 3 * time.Minute
+	maxGrace := 3 * time.Minute * time.Duration(queueFactor)
+	const hardMaxGrace = 8 * time.Minute
+	if maxGrace > hardMaxGrace {
+		maxGrace = hardMaxGrace
+	}
 	if grace > maxGrace {
 		grace = maxGrace
 	}

@@ -16,6 +16,9 @@ import (
 )
 
 func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
+	if a.IsPaused() {
+		return
+	}
 	// Handle agent status messages for provider/model updates
 	if msg.Type == protocol.MessageTypeAgentStatus {
 		if msg.Metadata != nil {
@@ -617,6 +620,13 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		}
 		if a.Collab.IsParticipant(collabID, a.Info.ID) && a.Collab.IsActive(collabID) {
 			collabPhase := a.Collab.GetCollaboration(collabID, a.Info.ID).Phase
+			// Planning: only the turn holder (or explicit turn handoff) may call the LLM
+			// on peer discussion traffic — reduces Ollama slot contention under batch load.
+			if collabPhase == "planning" && msg.Type == protocol.MessageTypeCollabDiscussion && !msg.IsFromSystem() && !isHumanCollabSpeaker(msg) {
+				if !isCollabTurnPromptForAgent(msg, collabID, a.Info.ID, a.Collab) && !a.Collab.IsAgentTurn(collabID, a.Info.ID) {
+					return false
+				}
+			}
 			if collabPhase == "planning" && a.Collab.PlanningSpeakerCooldownBlocked(collabID, a.Info.ID) {
 				if !(msg.IsMentioned(a.Info.ID) && collabOutOfTurnMentionOK(msg, collabPhase)) {
 					log.Printf("[%s] ⏸ planning cooldown — waiting for other participants (collab %s)", a.Info.Name, collabID[:8])

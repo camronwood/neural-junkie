@@ -1571,7 +1571,8 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
         return False
 
     timeout = hub.parse_timeout(solo.get("timeout", "300s"))
-    reply_timeout = min(120.0, timeout)
+    reply_timeout = hub.parse_timeout(solo.get("reply_timeout", solo.get("timeout", "240s")))
+    reply_timeout = min(reply_timeout, timeout)
     min_bytes = int(solo.get("min_bytes", 40))
     allow_fallback = bool(solo.get("allow_discussion_fallback", True))
     baseline = hub.count_chat_agent_messages(
@@ -1707,7 +1708,8 @@ def _restart_hub_between_scenarios_enabled(*, core: bool) -> bool:
         return False
     if raw in ("1", "true", "yes"):
         return True
-    return core
+    # Default on for all batch sweeps (--core and --all) to shed in-process collab state.
+    return True
 
 
 def restart_hub_between_scenarios(base: str, *, label: str, core: bool) -> bool:
@@ -1763,6 +1765,10 @@ def _run_scenario_once(
     keep: bool = False,
 ) -> tuple[bool, str]:
     scenario = load_scenario(name)
+    from lib.regression_collab import apply_core_scenario_defaults, is_collab_core_scenario
+
+    if is_collab_core_scenario(name):
+        scenario = apply_core_scenario_defaults(scenario)
     if scenario_requires_gemini(scenario) and _gemini_probe_ok is False:
         print(f"=== FAIL: {name} ===", file=sys.stderr)
         print(f"  Gemini preflight failed: {_gemini_probe_detail}", file=sys.stderr)
@@ -1889,7 +1895,7 @@ def main() -> int:
         help="Run collab-core scenarios only (participation/planning; default hub restart between)",
     )
     p.add_argument("--hub", default=hub.DEFAULT_HUB)
-    p.add_argument("--profile", choices=["fast", "realistic"], default=None)
+    p.add_argument("--profile", choices=["fast", "realistic", "core"], default=None)
     p.add_argument("--agents", default=None, help="Override agent mentions")
     p.add_argument("--verbose", "-v", action="store_true")
     p.add_argument("--keep", action="store_true", help="Do not cancel collab after run")
@@ -1941,6 +1947,13 @@ def main() -> int:
         require=args.require_claude,
     ):
         return 1
+    if args.core:
+        os.environ["NJ_REQUIRE_FULL_BOOT"] = "1"
+        os.environ.setdefault("NJ_REGRESSION_SLIM_ROSTER", "1")
+        os.environ.setdefault("NJ_REGRESSION_CLAUDE_CLOUD", "1")
+        os.environ.setdefault("NJ_SCENARIO_PROFILE", "core")
+        os.environ.pop("SKIP_BOOT", None)
+        os.environ.pop("NJ_BOOT_DONE", None)
     if not maybe_boot_regression(base, root=ROOT, label="collab-scenarios"):
         return 1
     if args.all or args.core:

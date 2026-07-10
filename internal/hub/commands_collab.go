@@ -241,7 +241,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	)
 	turnMsg.SetCollaborationID(collab.ID)
 	turnMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
-	turnMsg.Mentions = []string{firstAgent.AgentID}
+	turnMsg.Mentions = []string{ch.resolveLiveAgentID(firstAgent.AgentID, firstAgent.AgentName, firstAgent.AgentType)}
 	if turnMsg.Metadata == nil {
 		turnMsg.Metadata = map[string]interface{}{}
 	}

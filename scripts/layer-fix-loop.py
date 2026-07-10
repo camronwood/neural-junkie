@@ -215,8 +215,8 @@ def main() -> int:
     p.add_argument("--no-commit", action="store_true")
     p.add_argument("--fix-branch", help="Git branch for fixes")
     p.add_argument("--base-branch", help="Base ref when creating fix branch")
-    p.add_argument("--use-worktree", action="store_true", default=False, help="Run fixes in .worktrees/<branch>")
-    p.add_argument("--no-worktree", action="store_true", help="Apply fixes on --cwd checkout (default for collab layers)")
+    p.add_argument("--use-worktree", action="store_true", default=True, help="Run fixes in .worktrees/<branch> (default)")
+    p.add_argument("--no-worktree", action="store_false", dest="use_worktree", help="Apply fixes on --cwd checkout instead")
     p.add_argument("--list", action="store_true")
     args = p.parse_args()
 
@@ -233,25 +233,30 @@ def main() -> int:
         print(err, file=sys.stderr)
         return 2
 
+    layer = spec.name
+
     if args.max_iterations < 1:
         print("max-iterations must be >= 1", file=sys.stderr)
         return 1
 
     apply_release_prep_env(ROOT)
+    collab_layers = {"collab", "collab-core", "collab-full"}
+    if layer in collab_layers:
+        os.environ["NJ_REQUIRE_FULL_BOOT"] = "1"
+        os.environ.pop("SKIP_BOOT", None)
+        os.environ.pop("NJ_BOOT_DONE", None)
+    if layer in ("collab", "collab-core"):
+        os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "1"
+        os.environ["NJ_REGRESSION_CLAUDE_CLOUD"] = "1"
+        os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "1"
+    elif layer == "collab-full":
+        os.environ["NJ_REGRESSION_CLAUDE_CLOUD"] = "1"
     provision_hub_automation_key(ROOT)
     testing_dir = Path(args.log_dir)
     testing_dir.mkdir(parents=True, exist_ok=True)
     hub_url = args.hub.rstrip("/")
-    layer = spec.name
 
-    use_worktree = bool(args.use_worktree) and not args.no_worktree
-    if layer in ("collab-core", "collab-full") and not args.use_worktree:
-        use_worktree = False
-        print(
-            ">>> [git] collab layer: fixing on --cwd checkout (gate/hub use same tree); "
-            "pass --use-worktree to isolate in .worktrees/",
-            flush=True,
-        )
+    use_worktree = bool(args.use_worktree)
 
     if args.dry_run:
         args.skip_agent = True

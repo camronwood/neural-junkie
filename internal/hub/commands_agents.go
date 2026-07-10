@@ -344,6 +344,12 @@ func (ch *CommandHandler) handlePauseAgent(ctx context.Context, msg *protocol.Me
 				}
 			}
 
+			ch.agentsMu.RLock()
+			if ra, ok := ch.runtimeAgents[a.ID]; ok && ra != nil {
+				ra.Pause()
+			}
+			ch.agentsMu.RUnlock()
+
 			ch.AbortAgentGenerations(a.ID)
 
 			return ch.systemResponse(msg.Channel, fmt.Sprintf("⏸️  Agent '%s' has been paused (in-flight generation stopped)", agentName)), nil
@@ -387,6 +393,12 @@ func (ch *CommandHandler) handleUnpauseAgent(ctx context.Context, msg *protocol.
 					break
 				}
 			}
+
+			ch.agentsMu.RLock()
+			if ra, ok := ch.runtimeAgents[a.ID]; ok && ra != nil {
+				ra.Unpause()
+			}
+			ch.agentsMu.RUnlock()
 
 			return ch.systemResponse(msg.Channel, fmt.Sprintf("▶️  Agent '%s' has been unpaused", agentName)), nil
 		}

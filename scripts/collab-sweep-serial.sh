@@ -72,6 +72,10 @@ run_one() {
   echo "" | tee -a "$LOG"
   echo "=== $(date -u +%H:%M:%SZ) scenario: $scenario ===" | tee -a "$LOG"
   PYTHONUNBUFFERED=1 NEURAL_JUNKIE_RATE_LIMIT=0 \
+    NJ_REQUIRE_FULL_BOOT="${NJ_REQUIRE_FULL_BOOT:-}" \
+    NJ_REGRESSION_SLIM_ROSTER="${NJ_REGRESSION_SLIM_ROSTER:-}" \
+    NJ_REGRESSION_CLAUDE_CLOUD="${NJ_REGRESSION_CLAUDE_CLOUD:-}" \
+    NJ_SCENARIO_PROFILE="${NJ_SCENARIO_PROFILE:-}" \
     python3 -u scripts/collab-scenarios.py --scenario "$scenario" $VERBOSE_FLAG 2>&1 | tee -a "$LOG"
 }
 
@@ -84,9 +88,15 @@ if [ -f /tmp/nj-collab-sweep-2026-06-02.log ]; then
 fi
 
 SCENARIOS=()
-while IFS= read -r _s; do
-  [ -n "$_s" ] && SCENARIOS+=("$_s")
-done < <(python3 scripts/collab-scenarios.py --list)
+if [ "${CORE:-0}" = "1" ]; then
+  while IFS= read -r _s; do
+    [ -n "$_s" ] && SCENARIOS+=("$_s")
+  done < <(python3 -c "from scripts.lib.collab_core_scenarios import collab_core_scenarios; [print(s) for s in collab_core_scenarios()]")
+else
+  while IFS= read -r _s; do
+    [ -n "$_s" ] && SCENARIOS+=("$_s")
+  done < <(python3 scripts/collab-scenarios.py --list)
+fi
 
 for scenario in "${SCENARIOS[@]}"; do
   [ -n "$scenario" ] || continue

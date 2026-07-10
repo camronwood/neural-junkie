@@ -19,6 +19,8 @@ MAX_CONCURRENT_COLLABS = 3
 AGENT_PROFILES: dict[str, str] = {
     "fast": "@Assistant",
     "realistic": "@SoftwareArchitect @BackendEngineer",
+    # collab-core: two Ollama specialists + @Claude (cloud during regression when enabled).
+    "core": "@SoftwareArchitect @BackendEngineer @Claude",
 }
 
 DISCUSSION_TYPES = frozenset(
@@ -804,6 +806,24 @@ def _extract_loose_file_changes(content: str) -> list[tuple[str, str]]:
 
 _TASK_STATUS_LINE = re.compile(r"(?im)^\s*TASK_STATUS:\s*\S+.*$")
 _TASK_STATUS_ANY = re.compile(r"TASK_STATUS:\s*\S+", re.I)
+_PLANNING_TASK_LINE = re.compile(r"^(\d+\.|[-*])\s*Task\s+\d+:", re.I)
+_PLANNING_ASSIGNMENT_LINE = re.compile(r"@\w[\w-]*\s*-\s*(Write|Document)\b", re.I)
+
+
+def _is_planning_task_list_line(line: str) -> bool:
+    """Skip planning task-list bullets when synthesizing execution deliverables."""
+    if _PLANNING_TASK_LINE.search(line):
+        return True
+    if _PLANNING_ASSIGNMENT_LINE.search(line):
+        return True
+    if "collabs/<id>/" in line.lower():
+        return True
+    return False
+
+
+def _is_turn_handoff_content(content: str) -> bool:
+    body = content or ""
+    return "Collaboration turn handoff" in body or "You're up first" in body
 
 
 def sanitize_deliverable_body(text: str) -> str:
@@ -825,6 +845,8 @@ def _collect_bullet_findings(messages: list[dict], limit: int = 8) -> str:
         for raw in (msg.get("content") or "").splitlines():
             line = raw.strip()
             if not line or line.startswith("[FILE_CHANGE]"):
+                continue
+            if _is_planning_task_list_line(line):
                 continue
             if re.match(r"^(\d+\.|[-*])\s+", line) or line.startswith("**"):
                 lines.append(line)
@@ -961,8 +983,7 @@ def discussion_diagnosis(
     handoffs = sum(
         1
         for m in msgs
-        if isinstance(m, dict)
-        and "Collaboration turn handoff" in (m.get("content") or "")
+        if isinstance(m, dict) and _is_turn_handoff_content(m.get("content") or "")
     )
     pending = len(list_pending_file_changes(base))
     lines.append(f"  system turn handoffs in channel: {handoffs}")

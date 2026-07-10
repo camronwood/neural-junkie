@@ -12,12 +12,17 @@ from pathlib import Path
 
 class RegressionBootTest(unittest.TestCase):
     def tearDown(self) -> None:
-        for key in ("SKIP_BOOT", BOOT_DONE_ENV):
+        for key in ("SKIP_BOOT", BOOT_DONE_ENV, "NJ_REQUIRE_FULL_BOOT"):
             os.environ.pop(key, None)
 
     def test_should_skip_boot_when_flag_set(self) -> None:
         os.environ["SKIP_BOOT"] = "1"
         self.assertTrue(should_skip_boot())
+
+    def test_require_full_boot_overrides_skip(self) -> None:
+        os.environ["SKIP_BOOT"] = "1"
+        os.environ["NJ_REQUIRE_FULL_BOOT"] = "1"
+        self.assertFalse(should_skip_boot())
 
     def test_boot_skips_when_already_done(self) -> None:
         os.environ[BOOT_DONE_ENV] = "1"

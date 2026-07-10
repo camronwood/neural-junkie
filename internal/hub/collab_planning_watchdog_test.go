@@ -131,6 +131,53 @@ func TestTickPlanningDiscussionWatchdog_HandoffCurrentTurnAfterGenerationError(t
 	}
 }
 
+func TestTickPlanningDiscussionWatchdog_HandoffWhenAssigneeBusy(t *testing.T) {
+	h := newTestHub(t)
+	chName := "watchdog-busy"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeArchitecture, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeBackend, Status: "busy"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, chName, "tester", collaboration.DiscussionConfig{
+		MaxRounds:        1,
+		MaxTotalMessages: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		chName,
+		protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeArchitecture},
+		"first plan line",
+	)
+	if err := cm.RecordMessage(collab.ID, first); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().Add(collabPlanningHandoffRedispatchAfter + time.Second)
+	h.tickPlanningDiscussionWatchdog(collab, now)
+
+	msgs, _ := h.GetMessages(chName, 50)
+	handoffs := 0
+	for _, m := range msgs {
+		if m == nil || m.Type != protocol.MessageTypeCollabDiscussion || !m.IsFromSystem() {
+			continue
+		}
+		if m.IsMentioned("a2") && strings.Contains(m.Content, "turn handoff") {
+			handoffs++
+		}
+	}
+	if handoffs == 0 {
+		t.Fatal("expected watchdog to hand off even when assignee status is busy (stale busy blocks silent participants)")
+	}
+}
+
 func TestSendPlanningTurnHandoff_OmitsWorkspaceWithoutAttachFlag(t *testing.T) {
 	h := newTestHub(t)
 	chName := "watchdog-no-ws"

@@ -33,6 +33,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	if err := h.rejectClosedCollaborationChannel(msg); err != nil {
 		return err
 	}
+	h.normalizeCollabTurnHandoffMentions(msg)
 	h.processCollaborationLifecycle(msg)
 	h.attachCollaborationData(msg)
 

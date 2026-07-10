@@ -258,6 +258,29 @@ Most collab scenarios stop after **partial execution** (`min_completed: 1`, `set
 
 **Live collab roster policy:** at most **two Ollama specialists** plus **@Claude** when a third participant is needed. Avoid `@Assistant` in scenarios — specialists implement; Claude covers cloud participation and judging.
 
+### Collab batch load (agent participation under Ollama)
+
+Collab gates enable these automatically for `LAYER=collab` and `LAYER=collab-core`:
+
+| Knob | Purpose |
+|------|---------|
+| `NJ_OLLAMA_MAX_CONCURRENCY=2` | Hub-wide Ollama slot cap (`make server-regression`) |
+| `NJ_REQUIRE_FULL_BOOT=1` | Ignore `SKIP_BOOT` / `NJ_BOOT_DONE` — always warm models + restart hub |
+| `NJ_REGRESSION_SLIM_ROSTER=1` | `/pause-agent` on specialists outside core roster |
+| `NJ_REGRESSION_CLAUDE_CLOUD=1` | Switch `@Claude` to cloud provider (not Ollama) |
+| `NJ_RESTART_HUB_BETWEEN_SCENARIOS=1` | Default for all batch collab sweeps |
+| `NJ_SCENARIO_PROFILE=core` | `@SoftwareArchitect @BackendEngineer @Claude` |
+
+**Debug one scenario at a time:**
+
+```bash
+make collab-scenarios-core-debug ONLY=planning-two-agent VERBOSE=1
+# or full serial matrix with RESUME:
+make collab-sweep-serial RESUME=1
+```
+
+**Optional isolated Ollama** (heavy hosts): run a second daemon on another port and point the hub at it via `OLLAMA_HOST` in `env.local` (see `env.example`).
+
 ### Per-scenario agent requirements (all 25)
 
 | Scenario | Required agents | Notes |

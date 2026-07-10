@@ -23,8 +23,18 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 	}
 
 	nextAgentID, err := a.Collab.GetCurrentTurnAgent(collabID)
-	if err != nil || strings.TrimSpace(nextAgentID) == "" || nextAgentID == a.Info.ID {
+	if err != nil || strings.TrimSpace(nextAgentID) == "" {
 		return
+	}
+	if nextAgentID == a.Info.ID {
+		// Turn stays on this agent after generation_error — re-prompt them to retry.
+		if source == nil || source.From.ID != a.Info.ID || source.Metadata == nil {
+			return
+		}
+		ge, ok := source.Metadata["generation_error"].(bool)
+		if !ok || !ge {
+			return
+		}
 	}
 
 	collabInfo := a.Collab.GetCollaboration(collabID, a.Info.ID)

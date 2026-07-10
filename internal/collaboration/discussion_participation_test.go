@@ -195,6 +195,56 @@ func TestRecordMessage_generationErrorDoesNotAdvanceTurn(t *testing.T) {
 	}
 }
 
+func TestRecordMessage_generationErrorAdvancesTurnAfterRepeatedFailures(t *testing.T) {
+	t.Parallel()
+	h := newRunbookMockHub()
+	h.addAgent("arch-id", "SoftwareArchitect", protocol.AgentTypeArchitecture, nil)
+	h.addAgent("be-id", "BackendEngineer", protocol.AgentTypeBackend, nil)
+	cm := NewCollaborationManager(h)
+	collab, err := cm.CreateCollaboration(
+		"plan",
+		[]string{"arch-id", "be-id"},
+		"collab-plan",
+		"tester",
+		DiscussionConfig{MaxRounds: 1, MaxTotalMessages: 4},
+		CreateOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	discMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		collab.Channel,
+		protocol.AgentInfo{ID: "arch-id", Name: "SoftwareArchitect"},
+		"plan",
+	)
+	if err := cm.RecordMessage(collab.ID, discMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < maxPlanningGenerationErrorsPerTurn; i++ {
+		errMsg := protocol.NewMessage(
+			protocol.MessageTypeCollabDiscussion,
+			collab.Channel,
+			protocol.AgentInfo{ID: "be-id", Name: "BackendEngineer"},
+			"**BackendEngineer** could not complete this turn: timeout",
+		)
+		errMsg.Metadata = map[string]interface{}{"generation_error": true}
+		if err := cm.RecordMessage(collab.ID, errMsg); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cm.mu.RLock()
+	turnAfter := collab.Discussion.CurrentTurnIndex
+	cm.mu.RUnlock()
+	if turnAfter != 0 {
+		t.Fatalf("expected turn to advance back to architect after %d errors, got index %d",
+			maxPlanningGenerationErrorsPerTurn, turnAfter)
+	}
+}
+
 func TestRecordMessage_planningCooldownRejectsDominatingSpeaker(t *testing.T) {
 	t.Parallel()
 	h := newRunbookMockHub()

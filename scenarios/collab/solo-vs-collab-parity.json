@@ -18,6 +18,7 @@
     "required_agents": ["BackendEngineer"],
     "output_rel": "collabs/parity-solo/findings.md",
     "timeout": "300s",
+    "reply_timeout": "240s",
     "min_bytes": 40,
     "allow_discussion_fallback": true,
     "message": "@BackendEngineer Create collabs/parity-solo/findings.md with three bullet findings about README.md and core/sample/main.go.",

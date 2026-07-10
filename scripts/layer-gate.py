@@ -144,6 +144,17 @@ def main() -> int:
     apply_release_prep_env(ROOT)
     hub_url = args.hub.rstrip("/")
     repo_cwd = args.cwd.resolve()
+    collab_layers = {"collab", "collab-core", "collab-full"}
+    if spec.name in collab_layers:
+        os.environ["NJ_REQUIRE_FULL_BOOT"] = "1"
+        os.environ.pop("SKIP_BOOT", None)
+        os.environ.pop("NJ_BOOT_DONE", None)
+    if spec.name in ("collab", "collab-core"):
+        os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "1"
+        os.environ["NJ_REGRESSION_CLAUDE_CLOUD"] = "1"
+        os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "1"
+    elif spec.name == "collab-full":
+        os.environ["NJ_REGRESSION_CLAUDE_CLOUD"] = "1"
     testing_dir = Path(args.log_dir)
     testing_dir.mkdir(parents=True, exist_ok=True)
     stamp = args.stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")

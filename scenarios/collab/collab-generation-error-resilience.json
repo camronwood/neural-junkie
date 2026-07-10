@@ -37,6 +37,22 @@
       "timeout": 25
     },
     {
+      "action": "wait_discussion",
+      "min_total": 2,
+      "min_per_agent": 1,
+      "required_agents": [
+        "BackendEngineer",
+        "SoftwareArchitect"
+      ],
+      "timeout": "180s",
+      "retries": 1,
+      "nudge_agents": [
+        "BackendEngineer",
+        "SoftwareArchitect"
+      ],
+      "retry_on_generation_error": true
+    },
+    {
       "action": "wait_phase",
       "phase": "reviewing",
       "timeout": "180s"
