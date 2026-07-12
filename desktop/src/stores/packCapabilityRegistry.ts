@@ -33,6 +33,29 @@ export function registryHasCapability(
   return registry.some((r) => r.id === c || r.qualified_id === c);
 }
 
+/** Match hub HasPackCapability legacy fallback: enabled pack manifest capabilities. */
+export function enabledPackDeclaresCapability(
+  packs: Array<{ id: string; enabled?: boolean; capabilities?: string[] }>,
+  cap: string,
+): boolean {
+  const c = String(cap).trim();
+  if (!c) return false;
+  return packs.some((p) => {
+    if (!p.enabled) return false;
+    return (p.capabilities ?? []).some((declared) => declared === c || declared === `${p.id}/${c}`);
+  });
+}
+
+export function hasPackCapability(
+  capabilities: string[],
+  registry: ResolvedCapability[],
+  packs: Array<{ id: string; enabled?: boolean; capabilities?: string[] }>,
+  cap: string,
+): boolean {
+  if (registryHasCapability(capabilities, registry, cap)) return true;
+  return enabledPackDeclaresCapability(packs, cap);
+}
+
 /** Match file-viewer capabilities by glob (simple ** suffix/prefix rules). */
 export function matchFileViewer(
   registry: ResolvedCapability[],

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
 // buildOutlineFileTree returns a shallow directory outline for workspace_context.
@@ -131,6 +133,9 @@ func appendOutlineEntries(b *strings.Builder, rootAbs, dir string, depth, maxDep
 	for _, e := range entries {
 		name := e.Name()
 		if strings.HasPrefix(name, ".") && name != "." {
+			continue
+		}
+		if e.IsDir() && workspacebackend.IsWalkIgnoreDir(name) {
 			continue
 		}
 		if e.IsDir() {

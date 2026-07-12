@@ -120,11 +120,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	subs := make([]wsSub, 0, len(watch))
 	defer func() {
 		for _, s := range subs {
-			chatHub.Unsubscribe(s.name, s.ch)
+			chatHub.UnsubscribeUI(s.name, s.ch)
 		}
 	}()
 	for _, name := range watch {
-		msgCh, err := chatHub.Subscribe(name)
+		msgCh, err := chatHub.SubscribeUI(name)
 		if err != nil {
 			log.Printf("Subscribe %q: %v", name, err)
 			continue

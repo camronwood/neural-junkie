@@ -173,6 +173,7 @@ func TestTryBiologyScanToolShortcutRunsTool(t *testing.T) {
 }
 
 type scanShortcutHistoryHub struct {
+	hubArenaNoop
 	msgs []*protocol.Message
 }
 

@@ -423,6 +423,14 @@ func NewMusicAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return NewAgent(protocol.AgentTypeMusic, name, expertise, ai, hub)
 }
 
+// NewArenaAgent creates a model comparison agent for chess, Connect Four, and logic puzzles.
+func NewArenaAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Chess", "Connect Four", "Logic puzzles", "Model comparison", "Benchmarks",
+	}
+	return NewAgent(protocol.AgentTypeArena, name, expertise, ai, hub)
+}
+
 // NewCustomExpertAgent creates a user-defined domain expert (any slug/persona).
 func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvider, hub HubClient) *Agent {
 	if len(expertise) == 0 {
@@ -486,6 +494,8 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewBrowserAgent(name, ai, hub), nil
 	case protocol.AgentTypeMusic:
 		return NewMusicAgent(name, ai, hub), nil
+	case protocol.AgentTypeArena:
+		return NewArenaAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:
 		return NewRepoAgentWrapper(name, ai, hub), nil
 	case protocol.AgentTypeAssistant:

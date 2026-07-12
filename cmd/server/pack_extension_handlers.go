@@ -7,6 +7,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/cadcsidecar"
 	"github.com/camronwood/neural-junkie/internal/browser"
 	"github.com/camronwood/neural-junkie/internal/awssidecar"
+	"github.com/camronwood/neural-junkie/internal/arenasidecar"
 	"github.com/camronwood/neural-junkie/internal/biologysidecar"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/incidentsidecar"
@@ -82,6 +83,17 @@ func initBiologySidecarClient() {
 	biologysidecar.DefaultSidecarClient = biologysidecar.NewSidecarClient(baseURL)
 }
 
+func initArenaSidecarClient() {
+	baseURL := func() string {
+		if packSidecarMgr == nil {
+			return ""
+		}
+		return packSidecarMgr.BaseURL(config.PackModelArena)
+	}
+	arenasidecar.SidecarBaseURL = baseURL
+	arenasidecar.DefaultSidecarClient = arenasidecar.NewSidecarClient(baseURL)
+}
+
 func syncPackSidecars() {
 	if appConfig == nil || packSidecarMgr == nil {
 		return
@@ -121,7 +133,7 @@ func handlePackExtensionRoute(w http.ResponseWriter, r *http.Request) {
 
 func packExtensionRoutePrefix(path string) string {
 	path = strings.TrimSpace(path)
-	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music", "/api/browser", "/api/aws", "/api/biology", "/api/cad", "/api/lora/sidecar"} {
+	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music", "/api/arena", "/api/browser", "/api/aws", "/api/biology", "/api/cad", "/api/lora/sidecar"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return prefix
 		}
@@ -139,6 +151,8 @@ func routeCapabilityForRoute(prefix string) string {
 		return "secondary-analysis-api"
 	case "/api/music":
 		return "music-sidecar"
+	case "/api/arena":
+		return "model-arena-sidecar"
 	case "/api/lora/sidecar":
 		return "lora-training-sidecar"
 	case "/api/browser":
@@ -208,6 +222,19 @@ func handleBiologyRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Error(w, "Biology API requires the Life sciences pack", http.StatusForbidden)
+}
+
+func handleArenaRoute(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	if path == "/api/arena/match/step" || path == "/api/arena/match/run" {
+		handleArenaMatchRoute(w, r)
+		return
+	}
+	if appConfig != nil && appConfig.RouteOwnerPackID("/api/arena") != "" {
+		handlePackExtensionRoute(w, r)
+		return
+	}
+	http.Error(w, "Arena API requires the Model Arena pack", http.StatusForbidden)
 }
 
 func handlePhoenixRoute(w http.ResponseWriter, r *http.Request) {

@@ -18,6 +18,7 @@ import { CadWorkbench } from './CadWorkbench';
 import { StructureWorkbench } from './StructureWorkbench';
 import { HtmlBrowserWorkbench } from './HtmlBrowserWorkbench';
 import { MusicWorkbench } from './MusicWorkbench';
+import { ArenaWorkbench } from './ArenaWorkbench';
 import { ScanAnalysisViewer } from './ScanAnalysisViewer';
 import { ComparatorAnalysisViewer } from './ComparatorAnalysisViewer';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -175,11 +176,12 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   const isCadWorkbenchTab = activeTab?.viewMode === 'cad-workbench';
   const isStructureWorkbenchTab = activeTab?.viewMode === 'structure-workbench';
   const isMusicWorkbenchTab = activeTab?.viewMode === 'music-workbench';
+  const isArenaWorkbenchTab = activeTab?.viewMode === 'arena-workbench';
   const isCsvTableTab = activeTab?.viewMode === 'csv-table';
   const isMarkdownPreviewTab = activeTab?.viewMode === 'markdown-preview';
   const isCsvFileTab = activeTab ? isEditableCsvPath(activeTab.path) : false;
   const isMarkdownFileTab = activeTab ? isMarkdownPath(activeTab.path) : false;
-  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab || isStructureWorkbenchTab || isMusicWorkbenchTab;
+  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab || isStructureWorkbenchTab || isMusicWorkbenchTab || isArenaWorkbenchTab;
 
   useEffect(() => {
     if (!activeTabId) {
@@ -228,7 +230,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -436,6 +438,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     if (tab.viewMode === 'structure-workbench') return '🧬';
     if (tab.viewMode === 'html-preview') return '🌐';
     if (tab.viewMode === 'music-workbench') return '🎵';
+    if (tab.viewMode === 'arena-workbench') return '♟';
     if (tab.viewMode === 'scan-summary') return '🔬';
     if (tab.viewMode === 'scan-analysis') return '📊';
     if (tab.viewMode === 'comparator-analysis') return '📈';
@@ -654,6 +657,13 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               workspaceId={activeTab.workspaceId}
               audioPath={activeTab.musicPath}
               projectPath={activeTab.musicProjectPath}
+              tabId={activeTab.id}
+            />
+          ) : activeTab.viewMode === 'arena-workbench' ? (
+            <ArenaWorkbench
+              key={`${activeTab.id}:${activeTab.arenaPath ?? activeTab.path}`}
+              workspaceId={activeTab.workspaceId}
+              sessionPath={activeTab.arenaPath ?? activeTab.path}
               tabId={activeTab.id}
             />
           ) : activeTab.viewMode === 'html-preview' && activeTab.htmlPath ? (

@@ -44,15 +44,15 @@ func TestChannelHasRecentImplementationActivity(t *testing.T) {
 	agentID := "fe-1"
 	history := []*protocol.Message{
 		{
-			ID:   "u1",
-			Type: protocol.MessageTypeQuestion,
-			From: protocol.AgentInfo{Name: "camron", Type: protocol.AgentTypeGeneral},
+			ID:      "u1",
+			Type:    protocol.MessageTypeQuestion,
+			From:    protocol.AgentInfo{Name: "camron", Type: protocol.AgentTypeGeneral},
 			Content: "add a settings button with themes",
 		},
 		{
-			ID:   "fc1",
-			Type: protocol.MessageTypeFileChange,
-			From: protocol.AgentInfo{ID: agentID, Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+			ID:      "fc1",
+			Type:    protocol.MessageTypeFileChange,
+			From:    protocol.AgentInfo{ID: agentID, Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
 			Content: "edit src/App.tsx",
 		},
 	}
@@ -72,9 +72,9 @@ func TestChannelHasRecentImplementationActivity_stopsAtClosure(t *testing.T) {
 			Content: "how would you add a theme toggle?",
 		},
 		{
-			ID:   "a1",
-			Type: protocol.MessageTypeChat,
-			From: protocol.AgentInfo{ID: agentID, Name: "Assistant", Type: protocol.AgentTypeAssistant},
+			ID:      "a1",
+			Type:    protocol.MessageTypeChat,
+			From:    protocol.AgentInfo{ID: agentID, Name: "Assistant", Type: protocol.AgentTypeAssistant},
 			Content: "Put it in the settings header.",
 		},
 		{
@@ -84,9 +84,9 @@ func TestChannelHasRecentImplementationActivity_stopsAtClosure(t *testing.T) {
 			Content: "ok thanks",
 		},
 		{
-			ID:   "a2",
-			Type: protocol.MessageTypeChat,
-			From: protocol.AgentInfo{ID: agentID, Name: "Assistant", Type: protocol.AgentTypeAssistant},
+			ID:      "a2",
+			Type:    protocol.MessageTypeChat,
+			From:    protocol.AgentInfo{ID: agentID, Name: "Assistant", Type: protocol.AgentTypeAssistant},
 			Content: "You're welcome! Let me know if you need anything else.",
 		},
 	}
@@ -127,9 +127,9 @@ func TestUserRequestsImplementationForMessage_afterUIApproval(t *testing.T) {
 						Content: "blank screen can you fix it?",
 					},
 					{
-						ID:   "fc1",
-						Type: protocol.MessageTypeFileChange,
-						From: protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+						ID:      "fc1",
+						Type:    protocol.MessageTypeFileChange,
+						From:    protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
 						Content: "edit src/App.tsx",
 					},
 					{
@@ -162,9 +162,9 @@ func TestChannelHasPendingImplementationPlan_falseAfterUIApproval(t *testing.T) 
 	agentID := "fe-1"
 	history := []*protocol.Message{
 		{
-			ID:   "fc1",
-			Type: protocol.MessageTypeFileChange,
-			From: protocol.AgentInfo{ID: agentID, Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+			ID:      "fc1",
+			Type:    protocol.MessageTypeFileChange,
+			From:    protocol.AgentInfo{ID: agentID, Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
 			Content: "edit src/App.tsx",
 		},
 		{
@@ -191,9 +191,9 @@ func TestUserRequestsImplementationForMessage_afterApproval(t *testing.T) {
 			History: map[string][]*protocol.Message{
 				"dm-u-fe": {
 					{
-						ID:   "fc1",
-						Type: protocol.MessageTypeFileChange,
-						From: protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+						ID:      "fc1",
+						Type:    protocol.MessageTypeFileChange,
+						From:    protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
 						Content: "edit src/App.tsx",
 					},
 				},
@@ -324,7 +324,7 @@ func TestShouldUseFileChangeFenceFallback_bareWorkspaceDirective(t *testing.T) {
 
 func TestImplementationSeedCandidates_workspaceDirectiveLoadsReadme(t *testing.T) {
 	t.Parallel()
-	paths := implementationSeedCandidates("", "use the workspace", nil, nil)
+	paths := implementationSeedCandidates("", "use the workspace", nil, nil, nil, false)
 	found := false
 	for _, p := range paths {
 		if p == "README.md" {
@@ -479,7 +479,7 @@ func TestImplementationContinuation_skipsRecentlyAppliedPaths(t *testing.T) {
 	applied := channelRecentlyAppliedFilePaths(history, "u-next", agentID)
 	dir := t.TempDir()
 	writeImplementationReactFixture(t, dir)
-	paths := implementationSeedCandidates(dir, "continue please", history, mergeAppliedPathsIntoExclude(nil, applied))
+	paths := implementationSeedCandidates(dir, "continue please", history, mergeAppliedPathsIntoExclude(nil, applied), nil, false)
 	for _, p := range paths {
 		if p == "tailwind.config.js" {
 			t.Fatalf("tailwind.config.js should be excluded after approval, got %v", paths)
@@ -509,7 +509,7 @@ func TestImplementationSeedCandidates_fromHistory(t *testing.T) {
 			Content: "src/components/SettingsModal.tsx src/components/MermaidModal.tsx",
 		},
 	}
-	paths := implementationSeedCandidates("", "ok goahead", history, nil)
+	paths := implementationSeedCandidates("", "ok goahead", history, nil, nil, false)
 	found := false
 	for _, p := range paths {
 		if p == "src/components/SettingsModal.tsx" {
@@ -546,7 +546,7 @@ func TestShouldAugmentPromptWithWorkspace_contentDelivery(t *testing.T) {
 	msg := &protocol.Message{
 		Content: "Can you write me an article about this app?",
 		Metadata: map[string]interface{}{
-			MetadataContextScope:   ContextScopeOutline,
+			MetadataContextScope:     ContextScopeOutline,
 			MetadataConversationMode: ConversationModeChat,
 			"workspace_context": map[string]interface{}{
 				"workspace_path": dirOrSkip(t),
@@ -589,11 +589,52 @@ func writeImplementationReactFixture(t *testing.T, dir string) {
 	}
 }
 
+func TestImplementationSeedCandidates_researchDeliverableUsesTaskContextPaths(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeImplementationReactFixture(t, dir)
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mainDir := filepath.Join(dir, "core", "sample")
+	if err := os.MkdirAll(mainDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mainDir, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"dependencies":{"react":"^18","@tauri-apps/api":"^1.5.3"},"devDependencies":{"vite":"^5"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	content := "Document findings in collabs/x/findings.md summarizing README.md and core/sample/main.go"
+	focusPaths := []string{"README.md", "core/sample/main.go"}
+	paths := implementationSeedCandidates(dir, content, nil, nil, focusPaths, true)
+
+	hasReadme, hasMain, hasApp := false, false, false
+	for _, p := range paths {
+		switch p {
+		case "README.md":
+			hasReadme = true
+		case "core/sample/main.go":
+			hasMain = true
+		case "src/App.tsx":
+			hasApp = true
+		}
+	}
+	if !hasReadme || !hasMain {
+		t.Fatalf("expected README.md and core/sample/main.go in seeds, got %v", paths)
+	}
+	if hasApp {
+		t.Fatalf("src/App.tsx should not be seeded for research deliverable, got %v", paths)
+	}
+}
+
 func TestImplementationSeedCandidates_stackSeedsForAllAgents(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	writeImplementationReactFixture(t, dir)
-	paths := implementationSeedCandidates(dir, "the app is not booting can you fix it?", nil, nil)
+	paths := implementationSeedCandidates(dir, "the app is not booting can you fix it?", nil, nil, nil, false)
 	want := map[string]bool{"package.json": false, "src/main.tsx": false, "src/App.tsx": false}
 	for _, p := range paths {
 		if _, ok := want[p]; ok {
@@ -616,7 +657,7 @@ func TestImplementationSeedCandidates_bootErrorAddsAppJS(t *testing.T) {
 		t.Fatal(err)
 	}
 	errLog := "✘ [ERROR] Expected \";\" but found \"git\"\n    src/App.js:1:7:\n      1 │ diff --git"
-	paths := implementationSeedCandidates(dir, errLog, nil, nil)
+	paths := implementationSeedCandidates(dir, errLog, nil, nil, nil, false)
 	found := false
 	for _, p := range paths {
 		if p == "src/App.js" {

@@ -71,14 +71,30 @@ func (h *Hub) normalizeCollabTurnHandoffMentions(msg *protocol.Message) {
 	for _, id := range msg.Mentions {
 		add(id)
 	}
-	// First-turn prompts embed @DisplayName; resolve to live IDs when Mentions are stale.
-	for _, name := range protocol.ParseMentions(msg.Content) {
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
+	// First-turn prompts also contain the collaboration goal, which may mention
+	// every participant. Only recover a target from content when the explicit
+	// Mentions field did not resolve to a live agent; otherwise parsing the full
+	// body wakes every participant at once and defeats round-robin planning.
+	hasLiveTarget := false
+	for _, id := range out {
+		if _, err := h.GetAgent(id); err == nil {
+			hasLiveTarget = true
+			break
 		}
-		if info := h.FindLiveAgentByDisplayName(name, ""); info != nil {
-			add(info.ID)
+	}
+	if !hasLiveTarget {
+		leading := strings.TrimSpace(msg.Content)
+		if idx := strings.Index(leading, "--"); idx >= 0 {
+			leading = leading[:idx]
+		}
+		for _, name := range protocol.ParseMentions(leading) {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			if info := h.FindLiveAgentByDisplayName(name, ""); info != nil {
+				add(info.ID)
+			}
 		}
 	}
 	if len(out) > 0 {

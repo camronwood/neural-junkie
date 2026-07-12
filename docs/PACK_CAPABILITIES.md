@@ -133,6 +133,16 @@ Requires **software-development** pack.
 
 ---
 
+## Model Arena (`model-arena`)
+
+| Token | What it enables |
+|-------|-----------------|
+| `model-arena` | **ArenaExpert** agent, arena hub tools, match runner endpoints. See [MODEL_ARENA_PACK.md](./MODEL_ARENA_PACK.md). |
+| `model-arena-workbench` | Toolbar Arena chip, modal, and file explorer: open `*.nj-arena.json` in the **arena workbench**. |
+| `model-arena-sidecar` | Pack-local hub sidecar; session validation at `/api/arena/*`. |
+
+---
+
 ## Capability → UI quick reference
 
 | UI / behavior | Capability token(s) |
@@ -148,6 +158,7 @@ Requires **software-development** pack.
 | HTML preview workbench | `web-browser-workbench` |
 | Inline song player in chat | `music-generation` |
 | Music workbench (audio / project) | `music-workbench` |
+| Arena workbench (`.nj-arena.json`) | `model-arena-workbench` |
 | AWS integrations settings | `aws-sso` |
 | Jira integrations settings | `jira-integration` |
 | Memory / LoRA training settings | `personal-learning`, `lora-training` |

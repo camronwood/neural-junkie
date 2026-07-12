@@ -193,9 +193,11 @@ func (o *OllamaProvider) newChatRequest(messages []OllamaMessage, stream bool) O
 	if keep := ollamaKeepAliveValue(); keep != nil {
 		req.KeepAlive = keep
 	}
-	if ollamaModelWantsThinking(o.Model) {
-		req.Think = boolPtr(true)
-	}
+	// Always send an explicit value. Models such as qwen3.5 may default to
+	// thinking even when the tag is not a dedicated thinking variant; with a
+	// bounded num_predict that can consume the entire response budget and
+	// produce no visible collaboration message.
+	req.Think = boolPtr(ollamaModelWantsThinking(o.Model))
 	return req
 }
 
@@ -219,7 +221,10 @@ func ollamaChatOptions(model string) map[string]interface{} {
 	}
 	if runtime.NumPredict > 0 {
 		opts["num_predict"] = runtime.NumPredict
-	} else if ollamaModelLikelyNoNativeTools(model) {
+	} else {
+		// Keep local-agent turns bounded by default. Native-tool models can
+		// otherwise stream thousands of tiny chunks during simple collab
+		// planning, filling agent subscription queues before the handoff.
 		opts["temperature"] = 0.7
 		opts["num_predict"] = 512
 	}

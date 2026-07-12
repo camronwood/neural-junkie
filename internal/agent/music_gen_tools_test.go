@@ -9,6 +9,7 @@ import (
 )
 
 type musicGenTestHub struct {
+	hubArenaNoop
 	enabled bool
 	posted  bool
 	style   string

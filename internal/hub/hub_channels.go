@@ -42,6 +42,7 @@ func (h *Hub) CreateChannelWithType(name, description, project string, channelTy
 	h.channels[name] = channel
 	h.messages[name] = []*protocol.Message{}
 	h.subscribers[name] = []chan *protocol.Message{}
+	h.uiSubscribers[name] = []chan *protocol.Message{}
 
 	return channel
 }
@@ -241,10 +242,14 @@ func (h *Hub) DeleteChannel(channelName string) error {
 	for _, sub := range h.subscribers[channelName] {
 		close(sub)
 	}
+	for _, sub := range h.uiSubscribers[channelName] {
+		close(sub)
+	}
 
 	delete(h.channels, channelName)
 	delete(h.messages, channelName)
 	delete(h.subscribers, channelName)
+	delete(h.uiSubscribers, channelName)
 	store := h.persistentStore
 
 	if store != nil {
@@ -279,9 +284,13 @@ func (h *Hub) removeChannelUnlocked(channelName string) bool {
 	for _, sub := range h.subscribers[channelName] {
 		close(sub)
 	}
+	for _, sub := range h.uiSubscribers[channelName] {
+		close(sub)
+	}
 	delete(h.channels, channelName)
 	delete(h.messages, channelName)
 	delete(h.subscribers, channelName)
+	delete(h.uiSubscribers, channelName)
 	h.clearChannelContextLocked(channelName)
 	return true
 }

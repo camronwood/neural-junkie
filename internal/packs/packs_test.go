@@ -127,6 +127,52 @@ func TestMusicCreationPackCapabilities(t *testing.T) {
 	}
 }
 
+func TestModelArenaPackCapabilities(t *testing.T) {
+	m := officialTestManifest(t, "model-arena")
+	for _, cap := range []string{"model-arena", "model-arena-sidecar", "model-arena-workbench", "model-arena-launcher"} {
+		if !m.HasCapability(cap) {
+			t.Fatalf("expected capability %s", cap)
+		}
+	}
+	if _, ok := m.CapabilityDefs["model-arena-sidecar"]; !ok {
+		t.Fatal("expected model-arena-sidecar capability_defs")
+	}
+	launcher, ok := m.CapabilityDefs["model-arena-launcher"]
+	if !ok {
+		t.Fatal("expected model-arena-launcher capability_defs")
+	}
+	if launcher.Kind != "toolbar-chip" {
+		t.Fatalf("expected toolbar-chip launcher, got %q", launcher.Kind)
+	}
+	resolved := BuildResolvedCapabilities(m)
+	var foundLauncher bool
+	var sidecarRoutes []string
+	for _, rc := range resolved {
+		if rc.ID == "model-arena-launcher" && rc.Kind == "toolbar-chip" && rc.UI != nil && rc.UI.Modal == "model-arena" {
+			foundLauncher = true
+		}
+		if rc.ID == "model-arena-sidecar" {
+			sidecarRoutes = append(sidecarRoutes, rc.Routes...)
+		}
+	}
+	if !foundLauncher {
+		t.Fatal("expected model-arena-launcher in resolved capability registry")
+	}
+	hasArenaRoute := false
+	for _, r := range sidecarRoutes {
+		if r == "/api/arena" {
+			hasArenaRoute = true
+			break
+		}
+	}
+	if !hasArenaRoute {
+		t.Fatalf("expected /api/arena route on model-arena-sidecar, got %v", sidecarRoutes)
+	}
+	if m.ExpertSlug != "arena" {
+		t.Fatalf("expected expert_slug arena, got %s", m.ExpertSlug)
+	}
+}
+
 func TestPackIDForAgentType(t *testing.T) {
 	if got := PackIDForAgentType("backend"); got != "software-development" {
 		t.Fatalf("got %q", got)
@@ -135,6 +181,9 @@ func TestPackIDForAgentType(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 	if got := PackIDForAgentType("music"); got != "music-creation" {
+		t.Fatalf("got %q", got)
+	}
+	if got := PackIDForAgentType("arena"); got != "model-arena" {
 		t.Fatalf("got %q", got)
 	}
 	if got := PackIDForAgentType("unknown"); got != "" {

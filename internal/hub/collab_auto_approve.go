@@ -93,7 +93,11 @@ func (h *Hub) maybeCompleteCollabTasksAfterDeliverable(collabID, channel string)
 		return
 	}
 	for _, task := range snap.Tasks {
-		if task.Status != collaboration.TaskInProgress {
+		// File proposals can be registered before the agent's final task reply
+		// advances pending -> in_progress. A dispatched task with its concrete
+		// deliverable already auto-approved is complete regardless of that race.
+		if task.Status != collaboration.TaskInProgress &&
+			!(task.Status == collaboration.TaskPending && task.PromptDispatched) {
 			continue
 		}
 		if !collaboration.TaskRequiresFileDeliverable(task) {

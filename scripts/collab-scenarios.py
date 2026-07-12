@@ -1311,6 +1311,54 @@ def step_assert_music_extract(ctx: ScenarioContext, step: dict) -> tuple[bool, s
     return True, f"extracted {len(stems)} stem(s)"
 
 
+def _arena_post(base: str, path: str, body: dict) -> tuple[int, dict]:
+    url = f"{base.rstrip('/')}{path}"
+    raw = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=raw, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return resp.status, data if isinstance(data, dict) else {}
+    except urllib.error.HTTPError as exc:
+        try:
+            data = json.loads(exc.read().decode("utf-8"))
+        except Exception:
+            data = {"error": exc.reason or str(exc)}
+        return exc.code, data if isinstance(data, dict) else {"error": str(data)}
+
+
+def step_assert_arena_session(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
+    challenge = (step.get("challenge") or "connect4").strip()
+    code, data = _arena_post(ctx.base, "/api/arena/sessions", {"challenge": challenge})
+    if code != 200:
+        if step.get("skip_if_unavailable"):
+            return True, f"arena skipped ({data.get('error') or code})"
+        return False, data.get("error") or f"create session HTTP {code}"
+    session_id = (data.get("id") or "").strip()
+    if not session_id:
+        return False, "session missing id"
+    moves = step.get("moves") or []
+    for move in moves:
+        body: dict = {"by": "scenario"}
+        if challenge == "connect4":
+            body["column"] = int(move)
+        else:
+            body["move"] = str(move)
+        code, data = _arena_post(ctx.base, f"/api/arena/sessions/{session_id}/move", body)
+        if code != 200:
+            return False, data.get("error") or f"move HTTP {code}"
+    state = data.get("state") if isinstance(data.get("state"), dict) else {}
+    status = (state.get("status") or data.get("status") or "").strip()
+    result = (state.get("result") or data.get("result") or "").strip()
+    expected_status = (step.get("expected_status") or "finished").strip()
+    expected_result = (step.get("expected_result") or "").strip()
+    if expected_status and status != expected_status:
+        return False, f"status {status!r} != {expected_status!r}"
+    if expected_result and result != expected_result:
+        return False, f"result {result!r} != {expected_result!r}"
+    return True, f"session {session_id} status={status} result={result}"
+
+
 def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
     action = (step.get("action") or step.get("type") or "").strip()
     handlers = {
@@ -1333,6 +1381,7 @@ def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
         "assert_cad_render": step_assert_cad_render,
         "assert_music_generate": step_assert_music_generate,
         "assert_music_extract": step_assert_music_extract,
+        "assert_arena_session": step_assert_arena_session,
     }
     fn = handlers.get(action)
     if not fn:

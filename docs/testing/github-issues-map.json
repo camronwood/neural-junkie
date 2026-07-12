@@ -1,0 +1,21 @@
+{
+  "collab-chat-not-disk": 4,
+  "collab-model-variance": 5,
+  "collab-smart-routing-scope": 6,
+  "hub-history-bounded": 7,
+  "slack-bridge-local": 8,
+  "confluence-setup": 9,
+  "room-chat-lan": 10,
+  "web-ui-thin": 11,
+  "git-dev-pack": 12,
+  "macos-adhoc-sign": 13,
+  "single-hub": 14,
+  "react-tools-allowlist": 15,
+  "blocker-collab-soak": 16,
+  "blocker-parity-soak": 17,
+  "blocker-platform-smoke": 18,
+  "blocker-d5-deferred": 19,
+  "collab-agent-silence": 20,
+  "collab-generation-error": 21,
+  "layer-gate-make-verbose-macos": 22
+}

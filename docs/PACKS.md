@@ -42,6 +42,7 @@ Dev-linked and custom packs are excluded from automatic update prompts.
 | `incident-management` | `camronwood/neural-junkie-pack-incident-management` |
 | `web-browser` | `camronwood/neural-junkie-pack-web-browser` |
 | `music-creation` | `camronwood/neural-junkie-pack-music-creation` |
+| `model-arena` | `camronwood/neural-junkie-pack-model-arena` |
 
 Build and release from each pack repo:
 

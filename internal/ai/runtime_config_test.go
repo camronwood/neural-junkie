@@ -17,6 +17,14 @@ func TestOllamaChatOptions_runtimeOverrides(t *testing.T) {
 	}
 }
 
+func TestOllamaChatOptions_defaultCapsNativeToolModels(t *testing.T) {
+	SetHubRuntimeOptions(config.PerformanceConfig{}, config.OllamaConfig{})
+	opts := ollamaChatOptions("qwen3.5:9b")
+	if opts["num_predict"] != 512 {
+		t.Fatalf("default num_predict = %#v, want 512", opts["num_predict"])
+	}
+}
+
 func TestOllamaKeepAliveValue(t *testing.T) {
 	SetHubRuntimeOptions(config.PerformanceConfig{}, config.OllamaConfig{KeepAlive: "5m"})
 	if ollamaKeepAliveValue() != "5m" {

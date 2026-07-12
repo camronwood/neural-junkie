@@ -10,7 +10,10 @@ import (
 
 // minimal stubs avoid importing hub (hub imports agent → cycle).
 
-type shouldRespondTestHub struct{ dmChannel string }
+type shouldRespondTestHub struct {
+	hubArenaNoop
+	dmChannel string
+}
 
 func (shouldRespondTestHub) SendMessage(*protocol.Message) error       { return nil }
 func (shouldRespondTestHub) BroadcastDirect(string, *protocol.Message) {}
@@ -97,13 +100,16 @@ func TestShouldRespond_DMBySlugWhenHubReturnsPublic(t *testing.T) {
 	}
 }
 
-type collabSystemTurnStub struct{ agentID string }
+type collabSystemTurnStub struct {
+	agentID  string
+	inactive bool
+}
 
 func (s collabSystemTurnStub) IsParticipant(_collabID, agentID string) bool {
 	return agentID == s.agentID
 }
 func (collabSystemTurnStub) IsAgentTurn(_collabID, _agentID string) bool { return true }
-func (collabSystemTurnStub) IsActive(_collabID string) bool              { return true }
+func (s collabSystemTurnStub) IsActive(_collabID string) bool            { return !s.inactive }
 func (collabSystemTurnStub) GetCurrentTurnAgent(string) (string, error)  { return "", nil }
 func (collabSystemTurnStub) GetCollaborationForAgent(string) CollaborationInfo {
 	return CollaborationInfo{}
@@ -143,6 +149,27 @@ func TestShouldRespond_CollabInternalHandoffWakesMentionedAgent(t *testing.T) {
 
 	if !ag.shouldRespond(msg) {
 		t.Fatal("expected mentioned agent to respond to collaboration turn handoff (collab_internal_event)")
+	}
+}
+
+func TestShouldRespond_CollabInternalHandoffIgnoresCancelledCollab(t *testing.T) {
+	const agentID = "backend-id"
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", []string{"code"}, ai.NewMockProvider(), shouldRespondTestHub{})
+	ag.Info.ID = agentID
+	ag.SetCollabClient(collabSystemTurnStub{agentID: agentID, inactive: true})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-test",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"Collaboration turn handoff: next participant, please continue the plan discussion.",
+	)
+	msg.SetCollaborationID("550e8400-e29b-41d4-a716-446655440000")
+	msg.Mentions = []string{agentID}
+	msg.Metadata["collab_internal_event"] = true
+
+	if ag.shouldRespond(msg) {
+		t.Fatal("cancelled collaboration must ignore queued internal handoff")
 	}
 }
 

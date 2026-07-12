@@ -59,3 +59,34 @@ func TestNormalizeCollabTurnHandoffMentions_ResolvesStaleParticipantID(t *testin
 		t.Fatalf("stale participant ID must not remain in mentions: %v", msg.Mentions)
 	}
 }
+
+func TestNormalizeCollabTurnHandoffMentions_DoesNotWakeGoalParticipants(t *testing.T) {
+	h := newTestHub(t)
+	architectID := "live-sa-id"
+	backendID := "live-be-id"
+	for _, info := range []*protocol.AgentInfo{
+		{ID: architectID, Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture, Status: "active"},
+		{ID: backendID, Name: "BackendEngineer", Type: protocol.AgentTypeBackend, Status: "active"},
+	} {
+		if err := h.RegisterAgent(info); err != nil {
+			t.Fatalf("RegisterAgent(%s): %v", info.Name, err)
+		}
+	}
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"turn-mentions",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"@SoftwareArchitect -- You're up first for: @SoftwareArchitect @BackendEngineer plan one backend task.",
+	)
+	msg.Mentions = []string{architectID}
+	msg.Metadata["collab_internal_event"] = true
+
+	h.normalizeCollabTurnHandoffMentions(msg)
+	if !msg.IsMentioned(architectID) {
+		t.Fatalf("expected explicit target %q, got %v", architectID, msg.Mentions)
+	}
+	if msg.IsMentioned(backendID) {
+		t.Fatalf("goal participant must not become a turn target: %v", msg.Mentions)
+	}
+}

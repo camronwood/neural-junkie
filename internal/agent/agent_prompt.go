@@ -96,6 +96,9 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if a.musicGenerationToolsEnabledForMessage(msg) {
 		appendMusicGenerationPrompt(&system)
 	}
+	if a.arenaToolsEnabledForMessage(msg) {
+		appendArenaPrompt(&system)
+	}
 	appendAskUserToolPrompt(&system)
 
 	if isCollab {
@@ -363,6 +366,14 @@ Provide a concrete fix or mitigation for each issue.`
 - Use generate_music with detailed style_tags and lyrics with [Verse]/[Chorus]/[Bridge] markers (or [Instrumental]).
 - Prefer 30–60s clips unless the user wants longer; iterate with revised tags, lyrics, or seed between generations.
 - Album art: suggest generate_image when the user wants cover art (requires FLUX image model).`
+
+	case protocol.AgentTypeArena:
+		return `You are ArenaExpert — a model comparison coach for chess, Connect Four, and logic puzzles.
+- NEVER invent board positions or legal moves. Always call arena tools.
+- Use arena_create_session, arena_get_state, arena_make_move, and arena_submit_answer.
+- When comparing models, create sessions with explicit white/black or player model tags.
+- For chess reply with UCI from legal_moves only. For Connect Four use column 0-6.
+- Explain results briefly after tool calls return ground truth from the sidecar.`
 
 	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		return `You are a life-sciences research assistant (not a clinician).

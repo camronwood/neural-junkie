@@ -6,6 +6,7 @@ import { PackStoreBrowse } from './pack-store/PackStoreBrowse';
 import { PackUpdatesBanner } from './PackUpdatesBanner';
 import { PackDevStudio } from './pack-store/dev/PackDevStudio';
 import { MusicCreationToolsPanel } from './MusicCreationToolsPanel';
+import { ModelArenaToolsPanel } from './ModelArenaToolsPanel';
 import { ImageGenerationToolsPanel } from './ImageGenerationToolsPanel';
 import { mergeSettingsPut } from './settings/settingsShared';
 
@@ -36,6 +37,12 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
   );
   const musicPackEnabled = usePacksStore((s) =>
     s.packs.some((p) => p.id === 'music-creation' && p.enabled),
+  );
+  const arenaPackInstalled = usePacksStore((s) =>
+    s.packs.some((p) => p.id === 'model-arena' && p.installed),
+  );
+  const arenaPackEnabled = usePacksStore((s) =>
+    s.packs.some((p) => p.id === 'model-arena' && p.enabled),
   );
   const [packsErr, setPacksErr] = useState<string | null>(null);
   const [mcpEnabled, setMcpEnabled] = useState(true);
@@ -493,6 +500,21 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
             hubHttp={hubHttp}
             isActive={isActive && section === 'tools' && musicPackEnabled}
             packEnabled={musicPackEnabled}
+          />
+        </>
+      )}
+
+      {arenaPackInstalled && (
+        <>
+          {!arenaPackEnabled && (
+            <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              Model Arena is installed but disabled. Enable it from the Store tab to use the workbench.
+            </p>
+          )}
+          <ModelArenaToolsPanel
+            hubHttp={hubHttp}
+            isActive={isActive && section === 'tools' && arenaPackEnabled}
+            packEnabled={arenaPackEnabled}
           />
         </>
       )}

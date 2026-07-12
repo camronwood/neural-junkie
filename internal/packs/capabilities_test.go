@@ -84,6 +84,39 @@ func TestIsPlatformCapability(t *testing.T) {
 	}
 }
 
+func TestBuildResolvedCapabilities_officialSidecarRoutes(t *testing.T) {
+	dir := "testdata/official/model-arena"
+	m, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	warns, errs := m.ValidateCapabilityDefs(dir)
+	if len(errs) > 0 {
+		t.Fatalf("errors=%v warns=%v", errs, warns)
+	}
+	_ = warns
+	resolved := BuildResolvedCapabilities(m)
+	var sidecar *ResolvedCapability
+	for i := range resolved {
+		if resolved[i].ID == "model-arena-sidecar" {
+			sidecar = &resolved[i]
+			break
+		}
+	}
+	if sidecar == nil {
+		t.Fatal("missing model-arena-sidecar")
+	}
+	if sidecar.Kind != SidecarKindHub {
+		t.Fatalf("kind=%q", sidecar.Kind)
+	}
+	if len(sidecar.Routes) != 1 || sidecar.Routes[0] != "/api/arena" {
+		t.Fatalf("routes=%v", sidecar.Routes)
+	}
+	if !sidecar.Platform {
+		t.Fatal("expected platform token flag on official sidecar capability")
+	}
+}
+
 func TestBuildResolvedCapabilities_roomChatToolbar(t *testing.T) {
 	dir := "testdata/official/room-chat"
 	m, err := LoadManifest(dir)

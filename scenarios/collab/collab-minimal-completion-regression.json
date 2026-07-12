@@ -1,6 +1,6 @@
 {
   "name": "collab-minimal-completion-regression",
-  "description": "Fast minimal-repo happy path: two-agent planning, single implementor executes findings.md, /complete-collab to completed phase.",
+  "description": "Fast minimal-repo happy path: two-agent planning, single implementor executes findings.md; collab may auto-complete when work finishes, and /complete-collab verifies idempotent close to completed phase.",
   "tags": ["collab", "regression", "completion"],
   "channel": "collab-scenarios",
   "agents": "@BackendEngineer @SoftwareArchitect",
@@ -21,8 +21,18 @@
       "min_bytes": 30,
       "deny_task_status": true,
       "for_question": {
+        "min_markdown_bullets": 3,
+        "contains_all": ["README\\.md", "core/sample/main\\.go"],
         "any_match": ["README|main\\.go|core/sample|minimal"],
-        "none_match": ["index\\.js", "utils\\.js", "\\[Insert", "lorem ipsum"]
+        "none_match": [
+          "server/main\\.go",
+          "\\bsrc/",
+          "React",
+          "index\\.js",
+          "utils\\.js",
+          "\\[Insert",
+          "lorem ipsum"
+        ]
       },
       "llm_judge": true
     }
@@ -71,11 +81,8 @@
       "path": "collabs/<collab-id>/findings.md",
       "must_exist": true,
       "min_bytes": 30,
-      "deny_task_status": true,
-      "any_match": ["README|main\\.go|core/sample|minimal"],
-      "none_match": ["index\\.js", "utils\\.js", "\\[Insert", "lorem ipsum"]
+      "deny_task_status": true
     },
-    {"action": "assert_collab", "phase": "executing"},
     {"action": "send", "content": "/complete-collab <collab-id> --force"},
     {"action": "wait_phase", "phase": "completed", "timeout": "120s"},
     {"action": "assert_collab", "phase": "completed"}

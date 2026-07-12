@@ -82,6 +82,16 @@
       "publisher": "Neural Junkie",
       "builtin": true,
       "download_url": "https://github.com/camronwood/neural-junkie-pack-music-creation/releases/download/v2.0.0/music-creation-2.0.0.zip"
+    },
+    {
+      "id": "model-arena",
+      "version": "1.0.0",
+      "title": "Model Arena",
+      "description": "Compare models on chess, Connect Four, and logic puzzles with verifiable scoring and live arena workbench.",
+      "icon_key": "arena",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-model-arena/releases/download/v1.0.0/model-arena-1.0.0.zip"
     }
   ]
 }

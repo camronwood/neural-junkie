@@ -100,6 +100,9 @@ func appendBackendOutlineEntries(b *strings.Builder, backend workspacebackend.Ba
 		if strings.HasPrefix(name, ".") && name != "." {
 			continue
 		}
+		if e.IsDir && workspacebackend.IsWalkIgnoreDir(name) {
+			continue
+		}
 		if e.IsDir {
 			b.WriteString(indent)
 			b.WriteString(name)

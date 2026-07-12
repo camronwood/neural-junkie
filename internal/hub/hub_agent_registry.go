@@ -44,8 +44,10 @@ func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 	*stored = *agent
 	enrichAgentImageGeneration(stored)
 	enrichAgentMusicGeneration(h, stored)
+	enrichAgentArena(h, stored)
 	agent.SupportsImageGeneration = stored.SupportsImageGeneration
 	agent.SupportsMusicGeneration = stored.SupportsMusicGeneration
+	agent.SupportsArena = stored.SupportsArena
 	if h.agentRulesStore != nil {
 		if md, ok := h.agentRulesStore.Get(stored.ID); ok {
 			stored.CustomRulesMarkdown = md
@@ -278,6 +280,7 @@ func (h *Hub) SyncAgentRegistration(agentID string, info protocol.AgentInfo) err
 	*ag = info
 	enrichAgentImageGeneration(ag)
 	enrichAgentMusicGeneration(h, ag)
+	enrichAgentArena(h, ag)
 	h.syncAgentInfoCopiesInChannelsLocked(agentID, ag)
 	return nil
 }

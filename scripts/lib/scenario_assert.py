@@ -21,6 +21,15 @@ DELIVERABLE_ASSERT_ACTIONS = frozenset(
     {"assert_deliverable", "assert_file_exists", "assert_files", "assert_file_absent"}
 )
 
+# Scenario harness control sends (not the user's original request).
+_HARNESS_CONTROL_SEND_CMDS = frozenset(
+    {
+        "/resume-plan",
+        "/complete-collab",
+        "/cancel-plan",
+    }
+)
+
 def looks_like_stack_tool_command(command: str) -> bool:
     command = (command or "").strip()
     if not command:
@@ -76,10 +85,32 @@ def check_text_patterns(
     return True, "ok"
 
 
+_MARKDOWN_BULLET_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+\.\s+)", re.MULTILINE)
+
+
+def count_markdown_bullets(text: str) -> int:
+    return len(_MARKDOWN_BULLET_RE.findall(text))
+
+
+def check_min_markdown_bullets(
+    text: str,
+    minimum: int,
+    *,
+    label: str = "content",
+) -> tuple[bool, str]:
+    count = count_markdown_bullets(text)
+    if count < minimum:
+        return False, f"{label} min_markdown_bullets {count} < {minimum}"
+    return True, "ok"
+
+
 def check_contains_all(text: str, patterns: list[str], *, label: str = "content") -> tuple[bool, str]:
     for pattern in patterns:
-        if pattern not in text:
-            return False, f"{label} missing contains_all {pattern!r}"
+        try:
+            if not re.search(pattern, text, re.I | re.MULTILINE):
+                return False, f"{label} missing contains_all {pattern!r}"
+        except re.error as exc:
+            return False, f"{label} invalid contains_all pattern {pattern!r}: {exc}"
     return True, "ok"
 
 
@@ -92,16 +123,26 @@ def scenario_all_steps(scenario: dict) -> list[dict]:
     return steps
 
 
+def is_harness_control_send(content: str) -> bool:
+    """True when send content is a scenario harness slash command, not a user request."""
+    text = (content or "").strip()
+    if not text.startswith("/"):
+        return False
+    cmd = text.split(None, 1)[0].lower()
+    return cmd in _HARNESS_CONTROL_SEND_CMDS
+
+
 def scenario_question(scenario: dict) -> str:
-    for step in scenario_all_steps(scenario):
-        if (step.get("action") or "").strip() == "send":
-            content = (step.get("content") or "").strip()
-            if content:
-                return content
     collaborate = scenario.get("collaborate") if isinstance(scenario.get("collaborate"), dict) else {}
     goal = (collaborate.get("goal") or "").strip()
     if goal:
         return goal
+    for step in scenario_all_steps(scenario):
+        if (step.get("action") or "").strip() != "send":
+            continue
+        content = (step.get("content") or "").strip()
+        if content and not is_harness_control_send(content):
+            return content
     return (scenario.get("description") or "").strip()
 
 
@@ -227,6 +268,15 @@ def check_file_deliverable(
             return False, f"{rel} missing contains {want!r}"
 
     for_question = spec.get("for_question") if isinstance(spec.get("for_question"), dict) else {}
+
+    min_bullets = for_question.get("min_markdown_bullets")
+    if min_bullets is None:
+        min_bullets = spec.get("min_markdown_bullets")
+    if min_bullets is not None:
+        ok, detail = check_min_markdown_bullets(body, int(min_bullets), label=f"file {rel}")
+        if not ok:
+            return False, detail
+
     contains_all = for_question.get("contains_all") or spec.get("contains_all")
     if contains_all:
         ok, detail = check_contains_all(body, list(contains_all), label=f"file {rel}")

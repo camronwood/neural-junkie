@@ -43,6 +43,9 @@ var OfficialDomainCapabilityTokens = []string{
 	"music-generation",
 	"music-workbench",
 	"music-sidecar",
+	"model-arena",
+	"model-arena-sidecar",
+	"model-arena-workbench",
 	"lora-training-sidecar",
 }
 
@@ -177,6 +180,10 @@ func (m *Manifest) ValidateCapabilityDefs(packDir string) (warnings, errors []st
 			continue
 		}
 		if IsPlatformCapability(capID) {
+			if def.Kind == SidecarKindHub || def.Kind == SidecarKindMCP {
+				warnings = append(warnings, validateCapabilityDefPaths(capID, def, packDir, &errors)...)
+				continue
+			}
 			errors = append(errors, fmt.Sprintf("capability_defs[%q]: platform capability cannot be redefined in a pack", capID))
 			continue
 		}
@@ -257,6 +264,15 @@ func BuildResolvedCapabilities(m *Manifest) []ResolvedCapability {
 		if shortID == "" {
 			shortID = cap
 		}
+		if def, ok := m.CapabilityDefs[shortID]; ok && strings.TrimSpace(def.Kind) != "" {
+			rc := resolvedCapabilityFromDef(m.ID, shortID, def)
+			if IsPlatformCapability(shortID) {
+				rc.Platform = true
+				rc.QualifiedID = shortID
+			}
+			out = append(out, rc)
+			continue
+		}
 		if IsPlatformCapability(shortID) {
 			out = append(out, ResolvedCapability{
 				ID:          shortID,
@@ -267,26 +283,24 @@ func BuildResolvedCapabilities(m *Manifest) []ResolvedCapability {
 			})
 			continue
 		}
-		def, ok := m.CapabilityDefs[shortID]
-		if !ok {
-			continue
-		}
-		rc := ResolvedCapability{
-			ID:          shortID,
-			QualifiedID: QualifiedCapabilityID(m.ID, shortID),
-			PackID:      m.ID,
-			Kind:        def.Kind,
-			Routes:      append([]string(nil), def.Routes...),
-			UI:          def.UI,
-			MatchGlob:   def.MatchGlob,
-			Viewer:      def.Viewer,
-			Settings:    append([]string(nil), def.Settings...),
-			MCPTools:    append([]string(nil), def.MCPTools...),
-			MCPAgents:   append([]string(nil), def.MCPAgents...),
-		}
-		out = append(out, rc)
 	}
 	return out
+}
+
+func resolvedCapabilityFromDef(packID, shortID string, def CapabilityDef) ResolvedCapability {
+	return ResolvedCapability{
+		ID:          shortID,
+		QualifiedID: QualifiedCapabilityID(packID, shortID),
+		PackID:      packID,
+		Kind:        def.Kind,
+		Routes:      append([]string(nil), def.Routes...),
+		UI:          def.UI,
+		MatchGlob:   def.MatchGlob,
+		Viewer:      def.Viewer,
+		Settings:    append([]string(nil), def.Settings...),
+		MCPTools:    append([]string(nil), def.MCPTools...),
+		MCPAgents:   append([]string(nil), def.MCPAgents...),
+	}
 }
 
 // MergeResolvedCapabilities merges capabilities from multiple manifests with short-id collision detection.

@@ -1,6 +1,7 @@
 package packsidecar
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -141,14 +142,28 @@ func (m *Manager) ProxyHTTP(w http.ResponseWriter, r *http.Request, packID, side
 		target += "?" + q
 	}
 	var body io.Reader
+	var bodyBytes []byte
 	if r.Body != nil {
-		body = r.Body
+		var readErr error
+		bodyBytes, readErr = io.ReadAll(r.Body)
+		_ = r.Body.Close()
+		if readErr != nil {
+			return readErr
+		}
+		if len(bodyBytes) > 0 {
+			body = bytes.NewReader(bodyBytes)
+		}
 	}
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, target, body)
 	if err != nil {
 		return err
 	}
 	req.Header = r.Header.Clone()
+	req.Header.Del("Content-Length")
+	req.Header.Del("Transfer-Encoding")
+	if bodyBytes != nil {
+		req.ContentLength = int64(len(bodyBytes))
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err

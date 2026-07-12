@@ -2041,6 +2041,20 @@ section h2 {
   border: 1px solid var(--border);
 }
 
+.issue-badge--release-blocker {
+  background: rgba(225, 29, 72, 0.15);
+  color: #fda4af;
+  border: 1px solid rgba(225, 29, 72, 0.4);
+}
+
+.issue-github-link {
+  display: inline-block;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 0.8rem;
+  margin-left: 0.35rem;
+  color: var(--accent, #5b8def);
+}
+
 .issues-resolved-note {
   margin-top: 1rem;
   padding: 0.75rem 1rem;

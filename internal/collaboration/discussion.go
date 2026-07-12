@@ -152,7 +152,7 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 			d.Participants[d.CurrentTurnIndex] == agentID {
 			log.Printf("[Discussion %s] Advancing turn after %d generation_errors from %s",
 				d.ID[:8], errCount, agentID)
-			cm.advanceTurn(c)
+			cm.advanceTurnAfterGenerationErrors(c)
 		}
 		c.UpdatedAt = time.Now()
 		cm.mu.Unlock()
@@ -565,6 +565,19 @@ func participationQuorumMet(d *DiscussionSession) bool {
 		}
 	}
 	return d.TotalMessageCount >= len(d.Participants)
+}
+
+// advanceTurnAfterGenerationErrors moves to the next participant after repeated
+// generation failures on the current turn. Uses simple round-robin so the turn
+// does not snap back to a stuck agent when turn-budget skip logic would keep
+// the failing speaker as "next".
+// Must be called with cm.mu held.
+func (cm *CollaborationManager) advanceTurnAfterGenerationErrors(c *Collaboration) {
+	d := c.Discussion
+	if d == nil || len(d.Participants) == 0 {
+		return
+	}
+	d.CurrentTurnIndex = (d.CurrentTurnIndex + 1) % len(d.Participants)
 }
 
 // advanceTurn moves to the next participant in round-robin order.

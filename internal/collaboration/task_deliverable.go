@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	taskFileVerbRE     = regexp.MustCompile(`(?i)\b(write|create|draft|produce|emit)\b`)
-	taskFileExtRE      = regexp.MustCompile(`(?i)[\w./-]+\.(md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js)`)
-	taskPathTokenRE    = regexp.MustCompile(`(?i)(?:collabs/[\w-]+/[\w./-]+\.(?:md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js)|[\w][\w./-]*\.(?:md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js))`)
-	deliverableExtRE   = regexp.MustCompile(`(?i)\.(md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js)$`)
+	taskFileVerbRE   = regexp.MustCompile(`(?i)\b(write|create|draft|produce|emit)\b`)
+	taskFileExtRE    = regexp.MustCompile(`(?i)[\w./-]+\.(md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js)`)
+	taskPathTokenRE  = regexp.MustCompile(`(?i)(?:collabs/[\w-]+/[\w./-]+\.(?:md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js)|[\w][\w./-]*\.(?:md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js))`)
+	deliverableExtRE = regexp.MustCompile(`(?i)\.(md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js)$`)
 )
 
 // sanitizePathToken rejects truncated or corrupt path tokens from task titles.
@@ -91,8 +91,68 @@ func ReferencedDeliverablePaths(t CollaborationTask) []string {
 	return other
 }
 
+func hasResearchFindingsTrigger(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	for _, trigger := range []string{"summariz", "citing", "cite", "three bullet"} {
+		if strings.Contains(lower, trigger) {
+			return true
+		}
+	}
+	return false
+}
+
+// taskLooksLikeResearchFindingsDeliverable is true for findings.md tasks that ask for sourced research bullets.
+// Parsed plan tasks often drop citation wording; fall back to the collaboration goal when present.
+func taskLooksLikeResearchFindingsDeliverable(t CollaborationTask, collabGoal string) bool {
+	taskText := strings.TrimSpace(t.Title + " " + t.Description)
+	lower := strings.ToLower(taskText)
+	if !strings.Contains(lower, "findings.md") {
+		return false
+	}
+	if hasResearchFindingsTrigger(taskText) {
+		return true
+	}
+	return hasResearchFindingsTrigger(collabGoal)
+}
+
+// allReferencedPaths extracts every repo-relative path token from task text.
+func allReferencedPaths(t CollaborationTask) []string {
+	return referencedPathsFromText(t.Title + " " + t.Description)
+}
+
+func referencedPathsFromText(combined string) []string {
+	seen := make(map[string]bool)
+	var paths []string
+	for _, m := range taskPathTokenRE.FindAllString(combined, -1) {
+		p := sanitizePathToken(m)
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		paths = append(paths, p)
+	}
+	return paths
+}
+
+// researchSourcePathsForDeliverable lists non-findings source paths from task text and collaboration goal.
+func researchSourcePathsForDeliverable(t CollaborationTask, collabGoal string) []string {
+	seen := make(map[string]bool)
+	var sources []string
+	for _, text := range []string{t.Title + " " + t.Description, collabGoal} {
+		for _, p := range referencedPathsFromText(text) {
+			lower := strings.ToLower(filepath.ToSlash(p))
+			if strings.HasSuffix(lower, "findings.md") || seen[p] {
+				continue
+			}
+			seen[p] = true
+			sources = append(sources, p)
+		}
+	}
+	return sources
+}
+
 // TaskDispatchFileDeliverableNote returns extra instructions for file-shaped tasks.
-func TaskDispatchFileDeliverableNote(t CollaborationTask) string {
+func TaskDispatchFileDeliverableNote(t CollaborationTask, collabGoal string) string {
 	if !TaskRequiresFileDeliverable(t) {
 		return ""
 	}
@@ -102,9 +162,11 @@ func TaskDispatchFileDeliverableNote(t CollaborationTask) string {
 	if TaskLooksLikeMarkdownDeliverable(t) {
 		note += "\n\n**Do not run build/deploy tooling** (docker-compose, npm, make, kubectl, etc.) unless this task text explicitly asks you to build, deploy, or execute the app. Read reference files from the project; ship the markdown via `[FILE_CHANGE]`."
 	}
-	lower := strings.ToLower(strings.TrimSpace(t.Title + " " + t.Description))
-	if strings.Contains(lower, "findings.md") && strings.Contains(lower, "summariz") {
-		note += "\n\n**Research deliverable:** Read each source file named in this task from the project workspace (MCP read tools). Write `findings.md` with concrete bullets grounded in those files — not a task list, plan recap, or guessed stack."
+	if taskLooksLikeResearchFindingsDeliverable(t, collabGoal) {
+		note += "\n\n**Research deliverable:** Read each source file named in this task from the project workspace (MCP read tools). Write `findings.md` with **at least three substantive Markdown bullet lines** (`-`, `*`, `+`, or numbered) grounded in those files. **Cite or reference every source path named in this task** in the bullets — not a task list, plan recap, or guessed stack."
+		if sources := researchSourcePathsForDeliverable(t, collabGoal); len(sources) > 0 {
+			note += "\nSource paths to read and cite: " + strings.Join(sources, ", ") + "."
+		}
 	}
 	return note
 }

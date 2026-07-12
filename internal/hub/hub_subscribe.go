@@ -21,29 +21,94 @@ func (h *Hub) Subscribe(channelName string) (chan *protocol.Message, error) {
 	return ch, nil
 }
 
-// Unsubscribe removes a subscription
+// SubscribeUI creates a frontend UI subscription that receives all channel messages,
+// including ephemeral stream deltas and UI-only agent_status broadcasts.
+func (h *Hub) SubscribeUI(channelName string) (chan *protocol.Message, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if _, ok := h.channels[channelName]; !ok {
+		return nil, fmt.Errorf("channel %s not found", channelName)
+	}
+
+	ch := make(chan *protocol.Message, 512)
+	h.uiSubscribers[channelName] = append(h.uiSubscribers[channelName], ch)
+
+	return ch, nil
+}
+
+// Unsubscribe removes an agent/integration tier subscription.
 func (h *Hub) Unsubscribe(channelName string, ch chan *protocol.Message) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	subs, ok := h.subscribers[channelName]
+	h.unsubscribeFrom(h.subscribers, channelName, ch)
+}
+
+// UnsubscribeUI removes a frontend UI tier subscription.
+func (h *Hub) UnsubscribeUI(channelName string, ch chan *protocol.Message) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.unsubscribeFrom(h.uiSubscribers, channelName, ch)
+}
+
+func (h *Hub) unsubscribeFrom(subsByChannel map[string][]chan *protocol.Message, channelName string, ch chan *protocol.Message) {
+	subs, ok := subsByChannel[channelName]
 	if !ok {
 		return
 	}
 
 	for i, sub := range subs {
 		if sub == ch {
-			h.subscribers[channelName] = append(subs[:i], subs[i+1:]...)
+			subsByChannel[channelName] = append(subs[:i], subs[i+1:]...)
 			close(ch)
 			break
 		}
 	}
 }
 
-// broadcast sends a message to all subscribers of a channel (must be called with lock held)
+func deliverToAgentTier(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	switch msg.Type {
+	case protocol.MessageTypeStreamDelta, protocol.MessageTypeStreamEnd:
+		return false
+	case protocol.MessageTypeAgentStatus:
+		return isControlPlaneAgentStatus(msg)
+	default:
+		return true
+	}
+}
+
+func isControlPlaneAgentStatus(msg *protocol.Message) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	if _, ok := msg.Metadata[protocol.MetadataChannelHold]; ok {
+		return true
+	}
+	if v, ok := msg.Metadata[protocol.MetadataChannelInterjectAbort].(bool); ok && v {
+		return true
+	}
+	if v, ok := msg.Metadata[MetadataKeyHistoryResync].(bool); ok && v {
+		return true
+	}
+	return false
+}
+
+// broadcast sends a message to channel subscribers (must be called with lock held).
 func (h *Hub) broadcast(channelName string, msg *protocol.Message) {
-	subs, ok := h.subscribers[channelName]
-	if !ok {
+	h.deliverToSubscribers(h.uiSubscribers[channelName], msg)
+
+	if deliverToAgentTier(msg) {
+		h.deliverToSubscribers(h.subscribers[channelName], msg)
+	}
+}
+
+func (h *Hub) deliverToSubscribers(subs []chan *protocol.Message, msg *protocol.Message) {
+	if len(subs) == 0 {
 		return
 	}
 
@@ -56,7 +121,7 @@ func (h *Hub) broadcast(channelName string, msg *protocol.Message) {
 		}
 	}
 	if dropped > 0 {
-		log.Printf("[Hub] broadcast: dropped %d/%d messages on channel %q (subscriber buffer full)", dropped, len(subs), channelName)
+		log.Printf("[Hub] broadcast: dropped %d/%d messages (subscriber buffer full)", dropped, len(subs))
 	}
 }
 

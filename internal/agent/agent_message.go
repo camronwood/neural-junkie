@@ -612,6 +612,12 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				if !isCollabTurnPromptForAgent(msg, collabID, a.Info.ID, a.Collab) {
 					return false
 				}
+				// A retry handoff can already be queued when scenario cleanup
+				// cancels the collaboration. Never start fresh model work for
+				// those stale prompts after the channel has closed.
+				if !a.Collab.IsActive(collabID) || !a.Collab.IsParticipant(collabID, a.Info.ID) {
+					return false
+				}
 				if isCollabTurnHandoffContent(msg.Content) {
 					log.Printf("[%s] ✅ COLLABORATION TURN HANDOFF - will respond (collab %s)", a.Info.Name, collabID[:8])
 					return true

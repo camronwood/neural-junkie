@@ -12,7 +12,7 @@ import { getHubBaseURL } from '../config/hubUrl';
 import type { PackCapability } from './packCapabilities';
 import {
   parseCapabilityRegistry,
-  registryHasCapability,
+  hasPackCapability,
   matchFileViewer,
   toolbarActionsFromRegistry,
   settingsKeysFromRegistry,
@@ -250,7 +250,7 @@ export const usePacksStore = create<PacksState>((set, get) => ({
 
   hasCapability: (cap) => {
     const state = get();
-    return registryHasCapability(state.capabilities, state.capabilityRegistry, cap);
+    return hasPackCapability(state.capabilities, state.capabilityRegistry, state.packs, cap);
   },
 
   getFileViewerForPath: (path) => matchFileViewer(get().capabilityRegistry, path),

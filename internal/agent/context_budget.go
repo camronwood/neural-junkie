@@ -198,7 +198,9 @@ func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int, 
 
 	if len(systemPart) > limit/2 {
 		systemPart, rulesBlock = peelProtectedRulesSection(systemPart)
-		systemPart = systemPart[:limit/2] + "\n…(system context truncated)\n"
+		if len(systemPart) > limit/2 {
+			systemPart = systemPart[:limit/2] + "\n…(system context truncated)\n"
+		}
 		systemPart = rulesBlock + systemPart
 		stats.Truncated = true
 	}
@@ -214,9 +216,77 @@ func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int, 
 			combined = systemPart + ai.SystemPromptSeparator + userPart
 		}
 	}
+	// Protected rules are intentionally peeled before ordinary system trimming,
+	// but a large per-agent rules block can itself exceed the whole budget. The
+	// previous path then returned an oversized prompt unchanged. Keep both rule
+	// markers and the latest user message while enforcing the configured cap.
+	if len(combined) > limit {
+		separatorBytes := len(ai.SystemPromptSeparator)
+		if maxUser := limit / 2; len(userPart) > maxUser {
+			userPart = userPart[:maxUser] + "\n…(user context truncated)\n"
+		}
+		systemBudget := limit - separatorBytes - len(userPart)
+		if systemBudget < 0 {
+			systemBudget = 0
+		}
+		systemPart = truncateSystemPreservingRules(systemPart, systemBudget)
+		combined = systemPart + ai.SystemPromptSeparator + userPart
+		if len(combined) > limit {
+			combined = combined[:limit]
+		}
+	}
 	stats.FinalBytes = len(combined)
 	stats.Truncated = true
 	return combined, stats
+}
+
+func truncateSystemPreservingRules(system string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	rest, rules := peelProtectedRulesSection(system)
+	if rules == "" {
+		if len(system) <= maxBytes {
+			return system
+		}
+		return system[:maxBytes]
+	}
+
+	rulesBudget := maxBytes / 2
+	if rulesBudget < len(rulesSectionStart)+len(rulesSectionEnd)+8 {
+		rulesBudget = 0
+	}
+	if len(rules) > rulesBudget {
+		rules = truncateRulesBlock(rules, rulesBudget)
+	}
+	restBudget := maxBytes - len(rules)
+	if restBudget < 0 {
+		restBudget = 0
+	}
+	if len(rest) > restBudget {
+		rest = rest[:restBudget]
+	}
+	return rules + rest
+}
+
+func truncateRulesBlock(rules string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	prefix := rulesSectionStart + "\n"
+	suffix := "\n…(rules truncated)\n" + rulesSectionEnd + "\n"
+	if maxBytes <= len(prefix)+len(suffix) {
+		return ""
+	}
+	body := strings.TrimPrefix(rules, prefix)
+	if idx := strings.LastIndex(body, rulesSectionEnd); idx >= 0 {
+		body = body[:idx]
+	}
+	bodyBudget := maxBytes - len(prefix) - len(suffix)
+	if len(body) > bodyBudget {
+		body = body[:bodyBudget]
+	}
+	return prefix + body + suffix
 }
 
 func compressMarkedSection(body, marker, channelID, callID string, maxBytes int) (string, string) {

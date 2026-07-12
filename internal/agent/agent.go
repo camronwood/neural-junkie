@@ -131,6 +131,10 @@ type HubClient interface {
 	MusicGenerationEnabled() bool
 	GenerateAndPostMusic(ctx context.Context, channel string, from protocol.AgentInfo, req MusicGenerateRequest) error
 	ExtractAndPostMusicStems(ctx context.Context, channel string, from protocol.AgentInfo, req MusicExtractRequest) error
+	// Model Arena (model-arena pack sidecar).
+	ArenaEnabled() bool
+	ArenaSidecarGet(ctx context.Context, path string) (map[string]any, error)
+	ArenaSidecarPost(ctx context.Context, path string, body map[string]any) (map[string]any, error)
 	// AskUserQuestion blocks until the user answers or the question times out.
 	AskUserQuestion(agentID, agentName, channel, question string, options []string) (string, error)
 	// RequestToolApproval gates mutating MCP tool calls (returns true if approved).

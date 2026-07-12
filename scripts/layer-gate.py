@@ -44,6 +44,19 @@ def run_cmd(cmd: list[str], *, env: dict | None = None, cwd: Path = ROOT) -> tup
     return proc.returncode, out
 
 
+def apply_verbose_to_stage_cmd(cmd: list[str], *, verbose: bool) -> tuple[list[str], dict[str, str]]:
+    """Pass verbose to make targets via VERBOSE=1; python scripts get --verbose."""
+    extra_env: dict[str, str] = {}
+    if not verbose or "--verbose" in cmd:
+        return cmd, extra_env
+    if cmd and cmd[0] == "make":
+        extra_env["VERBOSE"] = "1"
+        return cmd, extra_env
+    if "implement-scenarios.py" in " ".join(cmd):
+        return cmd, extra_env
+    return [*cmd, "--verbose"], extra_env
+
+
 def ensure_hub_for_layer(hub_url: str, *, no_restart: bool, layer: str = "", cwd: Path = ROOT) -> bool:
     repo = cwd.resolve()
     restart_layers = {"implement", "collab", "collab-core", "collab-full"}
@@ -176,13 +189,13 @@ def main() -> int:
 
     for stage in spec.stages:
         cmd = resolve_stage_cmd(stage.cmd, hub_url=hub_url)
-        if args.verbose and "--verbose" not in cmd and "implement-scenarios.py" not in " ".join(cmd):
-            cmd = [*cmd, "--verbose"]
+        cmd, verbose_env = apply_verbose_to_stage_cmd(cmd, verbose=args.verbose)
+        stage_env = {"NEURAL_JUNKIE_HUB_URL": hub_url, **verbose_env}
         log_lines.append(f"## {stage.name}")
         log_lines.append(f">>> {' '.join(cmd)}")
         log_lines.append("")
         t0 = time.time()
-        rc, out = run_cmd(cmd, env={"NEURAL_JUNKIE_HUB_URL": hub_url}, cwd=repo_cwd)
+        rc, out = run_cmd(cmd, env=stage_env, cwd=repo_cwd)
         duration = time.time() - t0
         log_lines.append(out.rstrip())
         log_lines.append("")

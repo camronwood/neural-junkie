@@ -49,8 +49,9 @@
       <h1>Known issues &amp; limitations</h1>
       <p class="feature-deep-lead">
         Open beta means real gaps — and real progress. This page lists what we know is wrong, flaky, or intentionally scoped for <strong>v1.2.0-beta.5</strong>. We <strong>remove items when they are fixed</strong>; what remains is honest scope, not a backlog we forgot.
-        Last updated <time datetime="2026-07-10">July 10, 2026</time>.
+        Last updated <time datetime="2026-07-12">July 12, 2026</time>.
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
+        GitHub tracker: <a href="https://github.com/camronwood/neural-junkie/issues">all issues</a>.
         Stable cut checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>.
       </p>
     </header>
@@ -62,6 +63,10 @@
 
     <nav class="release-jump issues-jump" aria-label="Jump to section">
       <span class="release-jump-label">Sections</span>
+      <a href="#release-blockers">Release blockers</a>
+      <span aria-hidden="true">·</span>
+      <a href="#active-bugs">Active &amp; investigating</a>
+      <span aria-hidden="true">·</span>
       <a href="#collaboration">Collaboration</a>
       <span aria-hidden="true">·</span>
       <a href="#chat-context">Chat &amp; context</a>
@@ -77,6 +82,7 @@
 
     <article class="feature-prose">
       <p class="issues-legend">
+        <span class="issue-badge issue-badge--release-blocker">Release blocker</span> blocks stable cut gate &nbsp;
         <span class="issue-badge issue-badge--active">Active</span> confirmed bug or regression &nbsp;
         <span class="issue-badge issue-badge--investigating">Investigating</span> repro unclear or fix in progress &nbsp;
         <span class="issue-badge issue-badge--limitation">Limitation</span> by design or environment
@@ -84,9 +90,62 @@
 
       <p>
         <strong>Report something new:</strong>
-        <a href="https://github.com/camronwood/neural-junkie/issues">GitHub Issues</a> —
+        <a href="https://github.com/camronwood/neural-junkie/issues/new/choose">GitHub Issues</a> —
         for <code>/collaborate</code>, say which phase stuck: planning, review, workspace gate, execution, or files.
+        Each item below links to a tracked GitHub issue.
       </p>
+
+      <h2 id="release-blockers">Release blockers</h2>
+      <p>Gates that must pass before stable cut. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ROADMAP-Q3-2026.md">Q3 roadmap</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md">stable release checklist</a>.</p>
+      <ul class="issues-list">
+        <li class="issue-item" id="blocker-collab-soak">
+          <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
+          <strong>Collab-full layer gate failing</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/16">#16</a>
+          <p><code>make layer-gate LAYER=collab-full</code> failing — agent silence, discussion timeouts, and <code>generation_error</code> loops across multiple scenarios. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-gate-collab-full-2026-07-05-2233-iter2.md">layer-gate-collab-full-2026-07-05</a>.</p>
+        </li>
+        <li class="issue-item" id="blocker-parity-soak">
+          <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
+          <strong>Parity soak not confirmed</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/17">#17</a>
+          <p><code>make test-parity-stable</code> (3× implement @ 20/20 with hub restart) not yet run. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/reliability-pass-3-2026-06-28.md">reliability-pass-3</a>.</p>
+        </li>
+        <li class="issue-item" id="blocker-platform-smoke">
+          <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
+          <strong>Platform smoke pending sign-off</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/18">#18</a>
+          <p>Gate 5 platform smoke on beta.5+ installer — minimum macOS arm64 + one of Windows x64 or Linux x64. Checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/stable-platform-smoke.md">stable-platform-smoke.md</a>.</p>
+        </li>
+        <li class="issue-item" id="blocker-d5-deferred">
+          <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
+          <strong>D5 specialist simplification deferred</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/19">#19</a>
+          <p>Epic blocked until parity gate is green. MCP dedup, QualityReviewer roll-up, fewer redundant specialists. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PHASE_D_BACKLOG.md">PHASE_D_BACKLOG.md</a>.</p>
+        </li>
+      </ul>
+
+      <h2 id="active-bugs">Active bugs &amp; investigations</h2>
+      <p>Promoted from recent <code>layer-gate</code> collab-core/full runs (Jul 2026). These are beyond normal model variance — see <a href="#collab-model-variance">model variance</a> limitation below.</p>
+      <ul class="issues-list">
+        <li class="issue-item" id="layer-gate-make-verbose-macos">
+          <span class="issue-badge issue-badge--active">Active</span>
+          <strong>layer-gate passes unsupported <code>--verbose</code> to make on macOS</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/22">#22</a>
+          <p><code>make layer-gate LAYER=collab-core</code> fails immediately on macOS BSD make — gate never runs scenarios. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-gate-collab-core-2026-07-12-1604.md">layer-gate-collab-core-2026-07-12</a>.</p>
+        </li>
+        <li class="issue-item" id="collab-agent-silence">
+          <span class="issue-badge issue-badge--investigating">Investigating</span>
+          <strong>Collab agents silent during planning discussions</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/20">#20</a>
+          <p>Agents blocked or silent — <code>discussion timeout</code>, <code>shouldRespond blocked</code>, <code>msgs=0/3</code>. Scenarios: <code>document-findings-execution</code>, <code>collab-participation-three-agent</code>, <code>planning-two-agent</code>, and others.</p>
+        </li>
+        <li class="issue-item" id="collab-generation-error">
+          <span class="issue-badge issue-badge--investigating">Investigating</span>
+          <strong>Cloud provider generation_error loops in collab planning</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/21">#21</a>
+          <p>Claude, Gemini, and Assistant loop <code>generation_error</code> during planning — high error counts, partial agent participation, planning phase stuck.</p>
+        </li>
+      </ul>
 
       <h2 id="collaboration">Collaboration</h2>
       <p>Multi-agent collab is the hardest surface to make reliable. Beta.5 hardened planning parsers, discussion watchdogs, and approve-plan timing — but local model variance remains. See <a href="features/multi-agent-collaboration.html">Collaboration guide</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">COLLABORATION.md</a>.</p>
@@ -95,17 +154,20 @@
         <li class="issue-item" id="collab-chat-not-disk">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Chat does not write files</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/4">#4</a>
           <p>Execution success means <strong>approved file-change proposals</strong> in Pending changes — not polished markdown in the thread. Chat needs <code>[FILE_CHANGE]</code> proposals you approve. <code>TASK_STATUS: completed</code> alone does not create files on disk.</p>
         </li>
         <li class="issue-item" id="collab-model-variance">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Model variance</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/5">#5</a>
           <p>Local Ollama models differ in silence, speed, and plan quality. The hub enforces phase budgets and fallbacks; it cannot force a perfect task list from every model.</p>
           <p><strong>Mitigation:</strong> Settings → <strong>Collaboration planning provider</strong> for optional cloud/larger-model planning turns. For implementation sessions: <strong>reliable tool model</strong> and optional <strong>reliable provider</strong> (repair round 2+) in Settings → Implementation sessions — the outcome card shows failure reason when repair fails.</p>
         </li>
         <li class="issue-item" id="collab-smart-routing-scope">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Smart routing scope</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/6">#6</a>
           <p>Collaboration smart routing applies to <strong>execution tasks only</strong> — not normal channel chat. Planning can use a separate optional <code>planning_provider_id</code> in Settings.</p>
         </li>
       </ul>
@@ -123,6 +185,7 @@
         <li class="issue-item" id="hub-history-bounded">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Bounded message history</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/7">#7</a>
           <p>Per-channel history is capped (5000 messages) and age-pruned after 24h unless marked <strong>durable</strong> in channel info. SQLite sidecar + <strong>Export history</strong> — not a full in-app search archive. Use the in-channel <strong>find bar</strong> for recent history.</p>
         </li>
       </ul>
@@ -132,16 +195,19 @@
         <li class="issue-item" id="slack-bridge-local">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Slack needs local hub</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/8">#8</a>
           <p>Socket Mode bridge runs in-process — the hub must be running on your machine. No public URL required. Use <strong>Settings → Integrations → Slack</strong> diagnostics when OAuth, Socket Mode, or channel routing fails.</p>
         </li>
         <li class="issue-item" id="confluence-setup">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Confluence setup cost</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/9">#9</a>
           <p>Doc agents need Cloud credentials, indexing time, and reasonable space size for good answers.</p>
         </li>
         <li class="issue-item" id="room-chat-lan">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Room chat needs same LAN</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/10">#10</a>
           <p>The <a href="packs.html#room-chat">Room chat</a> pack requires guests on the <strong>same LAN</strong> as the host hub. Corporate Wi‑Fi client isolation may block joins. Host must enable <strong>listen on LAN</strong> (<code>listen_all</code>) and configure a hub token. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ROOM_CHAT.md">ROOM_CHAT.md</a>.</p>
         </li>
       </ul>
@@ -151,16 +217,19 @@
         <li class="issue-item" id="web-ui-thin">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Web UI is thin</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/11">#11</a>
           <p>Browser chat at <code>/</code> is a lightweight client — no full workspace, command palette, routing trace drawer, or file-approval flows. Use the <strong>Tauri desktop</strong> for production work.</p>
         </li>
         <li class="issue-item" id="git-dev-pack">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Git requires dev pack</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/12">#12</a>
           <p>In-app Git needs the Software development pack, <code>git</code> on PATH, and a git workspace.</p>
         </li>
         <li class="issue-item" id="macos-adhoc-sign">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>macOS ad-hoc signing</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/13">#13</a>
           <p>GitHub Release macOS builds are ad-hoc signed until Apple Developer credentials are available. First launch may require <strong>Right-click → Open</strong>. Planned fix: <strong>v1.2.1</strong> notarized builds.</p>
         </li>
       </ul>
@@ -171,11 +240,13 @@
         <li class="issue-item" id="single-hub">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Single hub instance</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/14">#14</a>
           <p>No distributed or multi-region deployment model yet.</p>
         </li>
         <li class="issue-item" id="react-tools-allowlist">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>ReAct tools allowlist</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/15">#15</a>
           <p><strong>ReAct MCP</strong> on models without native tool calling is allowlist-based (<code>gemma3:12b</code> first in beta.5). Other tags use native tools when available, or Qwen swap fallback. See <a href="articles/react-tools.html">ReAct tools article</a>.</p>
         </li>
       </ul>
@@ -183,16 +254,17 @@
       <h2 id="quality">How we test (and close items)</h2>
       <ul class="feature-list feature-list--tight">
         <li><strong>Go tests</strong> — orchestrator, plan parsing: <code>make test-collab-plan</code>, <code>make collab-smoke</code>, <code>go test ./...</code></li>
-        <li><strong>Live collab scenarios</strong> — <code>make collab-scenario SCENARIO=…</code>; matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-matrix.tsv">collab-matrix.tsv</a> (21/21 PASS)</li>
+        <li><strong>Live collab scenarios</strong> — <code>make collab-scenario SCENARIO=…</code>; matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-matrix.tsv">collab-matrix.tsv</a> (21/21 PASS as of 2026-06-09; recent layer-gate runs show regressions — see <a href="#active-bugs">Active &amp; investigating</a>)</li>
         <li><strong>Chat regression</strong> — <code>make chat-scenarios-regression</code> (workspace visibility, closure, echo)</li>
         <li><strong>Implement parity</strong> — <code>make implement-scenarios</code>, <code>make test-parity-stable</code> (3× with hub restart)</li>
         <li><strong>Release engineering loops</strong> — <code>make layer-gate</code>, <code>make layer-fix-loop</code>, <code>make test-growth-loop</code> with artifacts in <code>docs/testing/</code></li>
       </ul>
-      <p>When a scenario flips to <strong>PASS</strong>, delete the matching <code>&lt;li&gt;</code> here and the row in <code>KNOWN_ISSUES.md</code>, then note the fix in <a href="release-notes.html">release notes</a>.</p>
+      <p>When a scenario flips to <strong>PASS</strong> or a bug is fixed: close the GitHub issue, delete the matching <code>&lt;li&gt;</code> here and the row in <code>KNOWN_ISSUES.md</code>, then note the fix in <a href="release-notes.html">release notes</a>.</p>
 
       <aside class="repo-links">
         <h2>Related docs</h2>
         <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/issues">GitHub Issues</a> — tracked list (#4–#22)</li>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md">KNOWN_ISSUES.md</a> — same list for maintainers</li>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STATUS.md">STATUS.md</a> — broader project status</li>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/COLLABORATION-LINKEDIN.md">Why collab is hard to ship</a> — engineering narrative</li>

@@ -140,7 +140,7 @@ func preferImplementationTargetPath(workspacePath, userContent, modelPath string
 	if userAffirmsPendingImplementation(userContent) {
 		return ""
 	}
-	for _, p := range implementationSeedCandidates(workspacePath, userContent, nil, nil) {
+	for _, p := range implementationSeedCandidates(workspacePath, userContent, nil, nil, nil, false) {
 		if isValidFileChangeRelPath(p) {
 			return p
 		}

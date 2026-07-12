@@ -131,10 +131,13 @@ func workspaceContextForCollaboration(msg *protocol.Message, flags collaborateFl
 		if mode, _ := msg.Metadata[metadataCollabSourceMode].(string); strings.EqualFold(strings.TrimSpace(mode), "path") {
 			if p, _ := msg.Metadata[metadataCollabSourcePath].(string); strings.TrimSpace(p) != "" {
 				abs, _ := filepath.Abs(p)
-				ctx := map[string]interface{}{
-					"workspace_path": filepath.Clean(abs),
-					"workspace_name": filepath.Base(abs),
+				ctx := workspaceContextFromMessageMetadata(msg)
+				if ctx == nil {
+					ctx = map[string]interface{}{}
 				}
+				ctx["workspace_path"] = filepath.Clean(abs)
+				ctx["workspace_name"] = filepath.Base(abs)
+				delete(ctx, "open_files")
 				enrichSourceWorkspaceOutline(ctx, abs, goal)
 				return ctx
 			}

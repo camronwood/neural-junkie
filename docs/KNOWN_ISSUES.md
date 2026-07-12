@@ -1,22 +1,45 @@
 # Known limitations and issues
 
-**Last updated:** 2026-07-10 · **Current beta:** [v1.2.0-beta.5](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
+**Last updated:** 2026-07-12 · **Current beta:** [v1.2.0-beta.5](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
 **Public page:** [known-issues.html](known-issues.html) — keep in sync with this file when you add or close items.
 
-**Report new bugs:** [GitHub Issues](https://github.com/camronwood/neural-junkie/issues) — for collaboration, include the phase (planning, review, workspace gate, execution, files).
+**GitHub tracker:** [camronwood/neural-junkie issues](https://github.com/camronwood/neural-junkie/issues) — each row below links to a tracked issue. Issue map: [github-issues-map.json](testing/github-issues-map.json).
+
+**Report new bugs:** [GitHub Issues](https://github.com/camronwood/neural-junkie/issues/new/choose) — for collaboration, include the phase (planning, review, workspace gate, execution, files).
+
+---
+
+## Release blockers
+
+| ID | Status | GitHub | Summary |
+|----|--------|--------|---------|
+| `blocker-collab-soak` | **Release blocker** | [#16](https://github.com/camronwood/neural-junkie/issues/16) | `make layer-gate LAYER=collab-full` failing — agent silence, timeouts, generation errors across multiple scenarios. Evidence: [layer-gate-collab-full-2026-07-05-2233-iter2.md](testing/layer-gate-collab-full-2026-07-05-2233-iter2.md). |
+| `blocker-parity-soak` | **Release blocker** | [#17](https://github.com/camronwood/neural-junkie/issues/17) | `make test-parity-stable` (3× @ 20/20 with hub restart) not yet confirmed. Evidence: [reliability-pass-3-2026-06-28.md](testing/reliability-pass-3-2026-06-28.md). |
+| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off. Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md). |
+| `blocker-d5-deferred` | **Release blocker** | [#19](https://github.com/camronwood/neural-junkie/issues/19) | D5 specialist simplification deferred until parity gate is green. See [PHASE_D_BACKLOG.md](PHASE_D_BACKLOG.md). |
+
+---
+
+## Active bugs and investigations
+
+| ID | Status | GitHub | Summary |
+|----|--------|--------|---------|
+| `layer-gate-make-verbose-macos` | **Active** | [#22](https://github.com/camronwood/neural-junkie/issues/22) | `make layer-gate LAYER=collab-core` fails immediately on macOS — harness passes unsupported `--verbose` to BSD make. Evidence: [layer-gate-collab-core-2026-07-12-1604.md](testing/layer-gate-collab-core-2026-07-12-1604.md). |
+| `collab-agent-silence` | **Investigating** | [#20](https://github.com/camronwood/neural-junkie/issues/20) | Agents silent or `shouldRespond blocked` during planning — discussion timeouts with `msgs=0/3`. Scenarios: `document-findings-execution`, `collab-participation-three-agent`, `planning-two-agent`, and others. |
+| `collab-generation-error` | **Investigating** | [#21](https://github.com/camronwood/neural-junkie/issues/21) | Cloud providers (Claude, Gemini) loop `generation_error` during collab planning — high error counts, partial agent participation. |
 
 ---
 
 ## Collaboration
 
-| ID | Status | Summary |
-|----|--------|---------|
-| `collab-chat-not-disk` | **Limitation** | Chat markdown does **not** write to disk. Execution needs `[FILE_CHANGE]` proposals and your approval in **Pending changes**. `TASK_STATUS: completed` alone does not create files. |
-| `collab-model-variance` | **Limitation** | Local models (Ollama) vary in discussion quality, silence, and timeouts; hub enforces phase caps and fallbacks but cannot guarantee plan shape. **Mitigation:** Settings → **Collaboration planning provider** (optional cloud/larger model for planning turns). Implementation sessions: use **reliable tool model** / optional **reliable provider** (repair round 2+) in Settings → Implementation sessions; outcome card shows failure reason. |
-| `collab-smart-routing-scope` | **Limitation** | Smart routing applies to **execution tasks only**, not normal channel chat. Planning can use optional `planning_provider_id` in Settings (separate from smart routing). |
+| ID | Status | GitHub | Summary |
+|----|--------|--------|---------|
+| `collab-chat-not-disk` | **Limitation** | [#4](https://github.com/camronwood/neural-junkie/issues/4) | Chat markdown does **not** write to disk. Execution needs `[FILE_CHANGE]` proposals and your approval in **Pending changes**. `TASK_STATUS: completed` alone does not create files. |
+| `collab-model-variance` | **Limitation** | [#5](https://github.com/camronwood/neural-junkie/issues/5) | Local models (Ollama) vary in discussion quality, silence, and timeouts; hub enforces phase caps and fallbacks but cannot guarantee plan shape. **Mitigation:** Settings → **Collaboration planning provider** (optional cloud/larger model for planning turns). Implementation sessions: use **reliable tool model** / optional **reliable provider** (repair round 2+) in Settings → Implementation sessions; outcome card shows failure reason. |
+| `collab-smart-routing-scope` | **Limitation** | [#6](https://github.com/camronwood/neural-junkie/issues/6) | Smart routing applies to **execution tasks only**, not normal channel chat. Planning can use optional `planning_provider_id` in Settings (separate from smart routing). |
 
 **Workarounds:** Upgrade hub after each beta; run `make collab-preflight` before scenarios; use `make debug-collab` / discussion diagnosis in [COLLABORATION.md](COLLABORATION.md). For zero-task plans, revise plan or re-run with fewer agents. Inspect per-turn **routing trace** on collab messages when execution picks an unexpected model.
 
@@ -24,29 +47,29 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 ## Chat and context
 
-| ID | Status | Summary |
-|----|--------|---------|
-| `hub-history-bounded` | **Limitation** | Per-channel history is capped (5000 messages) and age-pruned after 24h unless marked **durable**. SQLite sidecar + **Export history** in channel info; not a full in-app search archive. |
+| ID | Status | GitHub | Summary |
+|----|--------|--------|---------|
+| `hub-history-bounded` | **Limitation** | [#7](https://github.com/camronwood/neural-junkie/issues/7) | Per-channel history is capped (5000 messages) and age-pruned after 24h unless marked **durable**. SQLite sidecar + **Export history** in channel info; not a full in-app search archive. |
 
 ---
 
 ## Integrations
 
-| ID | Status | Summary |
-|----|--------|---------|
-| `slack-bridge-local` | **Limitation** | Slack bridge runs **in-process** on the local hub — no public URL required (Socket Mode), but the hub must be running. Use **Settings → Integrations → Slack** diagnostics when OAuth or routing fails. |
-| `confluence-setup` | **Limitation** | Confluence agents need Cloud credentials and indexing time; search quality depends on space size and token limits. |
-| `room-chat-lan` | **Limitation** | **Room chat** pack requires guests on the **same LAN** as the host hub. Corporate Wi‑Fi client isolation may block joins; host must enable **listen on LAN** and configure a hub token. |
+| ID | Status | GitHub | Summary |
+|----|--------|--------|---------|
+| `slack-bridge-local` | **Limitation** | [#8](https://github.com/camronwood/neural-junkie/issues/8) | Slack bridge runs **in-process** on the local hub — no public URL required (Socket Mode), but the hub must be running. Use **Settings → Integrations → Slack** diagnostics when OAuth or routing fails. |
+| `confluence-setup` | **Limitation** | [#9](https://github.com/camronwood/neural-junkie/issues/9) | Confluence agents need Cloud credentials and indexing time; search quality depends on space size and token limits. |
+| `room-chat-lan` | **Limitation** | [#10](https://github.com/camronwood/neural-junkie/issues/10) | **Room chat** pack requires guests on the **same LAN** as the host hub. Corporate Wi‑Fi client isolation may block joins; host must enable **listen on LAN** and configure a hub token. |
 
 ---
 
 ## Desktop, IDE, and packs
 
-| ID | Status | Summary |
-|----|--------|---------|
-| `web-ui-thin` | **Limitation** | Browser hub UI at `/` is a **lightweight chat client** — no full workspace, palette, or file-approval UX. Use the **Tauri desktop** for production work. |
-| `git-dev-pack` | **Limitation** | In-app Git operations require the **Software development** pack, `git` on PATH, and a git workspace. |
-| `macos-adhoc-sign` | **Limitation** | GitHub Release macOS builds are **ad-hoc signed** until Apple Developer credentials are available. First launch may require **Right-click → Open**. Planned fix: **v1.2.1** notarized builds. |
+| ID | Status | GitHub | Summary |
+|----|--------|--------|---------|
+| `web-ui-thin` | **Limitation** | [#11](https://github.com/camronwood/neural-junkie/issues/11) | Browser hub UI at `/` is a **lightweight chat client** — no full workspace, palette, or file-approval UX. Use the **Tauri desktop** for production work. |
+| `git-dev-pack` | **Limitation** | [#12](https://github.com/camronwood/neural-junkie/issues/12) | In-app Git operations require the **Software development** pack, `git` on PATH, and a git workspace. |
+| `macos-adhoc-sign` | **Limitation** | [#13](https://github.com/camronwood/neural-junkie/issues/13) | GitHub Release macOS builds are **ad-hoc signed** until Apple Developer credentials are available. First launch may require **Right-click → Open**. Planned fix: **v1.2.1** notarized builds. |
 
 _Removed in v4.1 (beta.2+): `ide-v4-remote-lsp`, `ide-v4-remote-collab` — see [IDE_V4.md](IDE_V4.md)._
 
@@ -54,19 +77,22 @@ _Removed in v4.1 (beta.2+): `ide-v4-remote-lsp`, `ide-v4-remote-collab` — see 
 
 ## Hub, agents, and providers
 
-| ID | Status | Summary |
-|----|--------|---------|
-| `single-hub` | **Limitation** | **Single-server** deployment — no horizontal scale or multi-region hub. |
-| `react-tools-allowlist` | **Limitation** | **ReAct MCP** on non-native tool models is allowlist-based (e.g. `gemma3:12b` first). Other tags fall back to native tools or Qwen swap. |
+| ID | Status | GitHub | Summary |
+|----|--------|--------|---------|
+| `single-hub` | **Limitation** | [#14](https://github.com/camronwood/neural-junkie/issues/14) | **Single-server** deployment — no horizontal scale or multi-region hub. |
+| `react-tools-allowlist` | **Limitation** | [#15](https://github.com/camronwood/neural-junkie/issues/15) | **ReAct MCP** on non-native tool models is allowlist-based (e.g. `gemma3:12b` first). Other tags fall back to native tools or Qwen swap. |
 
 ---
 
 ## How we track quality
 
 - **Deterministic:** `make test-collab-plan`, `make collab-smoke`, `go test ./...`
-- **Live collab:** `make collab-scenario SCENARIO=…` — matrix in [testing/collab-matrix.tsv](testing/collab-matrix.tsv) (21/21 PASS)
+- **Live collab:** `make collab-scenario SCENARIO=…` — matrix in [testing/collab-matrix.tsv](testing/collab-matrix.tsv) (21/21 PASS as of 2026-06-09; recent layer-gate runs show regressions — see Active/Investigating above)
 - **Chat regression:** `make chat-scenarios-regression` — workspace visibility, closure, echo (context v2)
 - **Implement parity:** `make implement-scenarios`, `make test-parity-stable` (3× with hub restart)
 - **Release engineering:** `make layer-gate`, `make layer-fix-loop`, `make test-growth-loop` — artifacts in [docs/testing/](testing/)
 
-When a row in [collab-matrix.tsv](testing/collab-matrix.tsv) flips to **PASS**, remove the matching **Active** / **Investigating** item above and from [known-issues.html](known-issues.html).
+When a row flips to **PASS** or a bug is fixed:
+1. Close the matching GitHub issue
+2. Remove the row here and from [known-issues.html](known-issues.html)
+3. Note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)

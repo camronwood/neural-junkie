@@ -7,6 +7,29 @@ import (
 	"testing"
 )
 
+func TestAppendOutlineEntries_skipsNodeModules(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "node_modules", "pkg"), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("readme\n"), 0644); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "node_modules", "pkg", "index.js"), []byte("x"), 0644); err != nil {
+		t.Fatalf("write node_modules file: %v", err)
+	}
+
+	var b strings.Builder
+	appendOutlineEntries(&b, root, root, 0, 2)
+	tree := b.String()
+	if !strings.Contains(tree, "README.md") {
+		t.Fatalf("expected README.md in outline, got:\n%s", tree)
+	}
+	if strings.Contains(tree, "node_modules") {
+		t.Fatalf("node_modules should be excluded, got:\n%s", tree)
+	}
+}
+
 func TestBuildCollabOutlineFileTree_PrioritizesResourceAPI(t *testing.T) {
 	root := t.TempDir()
 	for _, p := range []string{

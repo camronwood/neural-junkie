@@ -99,7 +99,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     clearError,
   } = useFileExplorerStore();
 
-  const { openFile, openScanSummary, openScanAnalysis, openCadWorkbench, openStructureWorkbench, openHtmlBrowser, openMusicWorkbench, openComparatorAnalysis, setPanelQCReport } =
+  const { openFile, openScanSummary, openScanAnalysis, openCadWorkbench, openStructureWorkbench, openHtmlBrowser, openMusicWorkbench, openArenaWorkbench, openComparatorAnalysis, setPanelQCReport } =
     useEditorStore();
   const hasScanSummary = usePacksStore((s) => s.hasCapability('scan-summary-viewer'));
   const hasScanAnalysis = usePacksStore((s) => s.hasCapability('scan-analysis-viewer'));
@@ -108,6 +108,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
   const hasStructureWorkbench = usePacksStore((s) => s.hasCapability('biology-workbench'));
   const hasHtmlBrowserWorkbench = usePacksStore((s) => s.hasCapability(PACK_CAP.WEB_BROWSER_WORKBENCH));
   const hasMusicWorkbench = usePacksStore((s) => s.hasCapability(PACK_CAP.MUSIC_WORKBENCH));
+  const hasArenaWorkbench = usePacksStore((s) => s.hasCapability(PACK_CAP.MODEL_ARENA_WORKBENCH));
   const addToBasket = useSecondaryAnalysisStore((s) => s.addToBasket);
   const setPanelOpen = useSecondaryAnalysisStore((s) => s.setPanelOpen);
   const { addToast } = useToastStore();
@@ -598,6 +599,12 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
             content = await api.fetchFileContent(activeWorkspace.id, file.path);
           }
           openMusicWorkbench(activeWorkspace.id, file.path, content);
+          if (onFileOpen) onFileOpen();
+          setSelectedPath(file.path);
+          return;
+        }
+        if (hasArenaWorkbench && !file.is_dir && /\.nj-arena\.json$/i.test(file.path)) {
+          openArenaWorkbench(activeWorkspace.id, file.path);
           if (onFileOpen) onFileOpen();
           setSelectedPath(file.path);
           return;

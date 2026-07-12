@@ -7,25 +7,26 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 const maxRecentlyAppliedFilePaths = 8
 
 var (
-	implementationAffirmRE = regexp.MustCompile(`(?i)\b(approved|approve(d| it)?|keep going|please continue|continue(?: with (it|this|that|the work))?|looks good|that sounds good|sounds good|go[- ]?ahead|goadhead|do it( now)?|yes please|please do|proceed|make (the |those )?(changes|them)|apply (that|it|your plan)|do that now|ok please|sure,?\s*please|let's do it|please implement|sounds good[,!]?\s*(go|do)|that works[,!]?\s*(go|do)?|you can (start|begin|proceed)|yeah go ahead|yes[,!]?\s*(keep going|that sounds good|use that|please))\b`)
-	weakImplementationAffirmRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:ok|okay|looks good|that works|sounds good|nice|great|cool|perfect)[!.?\s]*$`)
-	themeImplementationRE  = regexp.MustCompile(`(?i)(?:\b(theme|themes|dark[/ ]?light|dark mode|light mode|ui theme)\b.{0,64}\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|toggle|finish)\b|\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|finish)\b.{0,64}\b(theme|themes|ui theme|dark mode|light mode|font size)\b)`)
-	implementTypoRE        = regexp.MustCompile(`(?i)\bimpl[e]?ment\b`)
-	workspaceDirectiveRE   = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
+	implementationAffirmRE      = regexp.MustCompile(`(?i)\b(approved|approve(d| it)?|keep going|please continue|continue(?: with (it|this|that|the work))?|looks good|that sounds good|sounds good|go[- ]?ahead|goadhead|do it( now)?|yes please|please do|proceed|make (the |those )?(changes|them)|apply (that|it|your plan)|do that now|ok please|sure,?\s*please|let's do it|please implement|sounds good[,!]?\s*(go|do)|that works[,!]?\s*(go|do)?|you can (start|begin|proceed)|yeah go ahead|yes[,!]?\s*(keep going|that sounds good|use that|please))\b`)
+	weakImplementationAffirmRE  = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:ok|okay|looks good|that works|sounds good|nice|great|cool|perfect)[!.?\s]*$`)
+	themeImplementationRE       = regexp.MustCompile(`(?i)(?:\b(theme|themes|dark[/ ]?light|dark mode|light mode|ui theme)\b.{0,64}\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|toggle|finish)\b|\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|finish)\b.{0,64}\b(theme|themes|ui theme|dark mode|light mode|font size)\b)`)
+	implementTypoRE             = regexp.MustCompile(`(?i)\bimpl[e]?ment\b`)
+	workspaceDirectiveRE        = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
 	bootErrorIntentRE           = regexp.MustCompile(`(?i)(not booting|won't boot|does not boot|failed to scan|esbuild|✘\s*\[ERROR\]|\[ERROR\].*Expected|make start-all|vite dev|syntax error|white screen|blank screen|exit_code=)`)
 	implementationStatusCheckRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:is it fixed|did (?:that|it) fix|does it work(?: now)?|is it working(?: now)?|still broken|still not (?:booting|working)|working now)\??[!.?\s]*$`)
-	destructiveCommandRE       = regexp.MustCompile(`(?i)\brm\s+-rf\b|\brm\s+-r\b|\brmdir\s+/\b|>\s*/dev/`)
-	contentDeliveryRE      = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
-	fileExportRE           = regexp.MustCompile(`(?i)\b(store (?:that|it|in|the)|save (?:it|as|in|the)|fill (?:the file|.* with)|create (?:that |the )?file|please create (?:that |the )?file|write (?:it |that ).*(?:file|\.md)|markdown file)\b`)
-	bareWorkspaceWrapperRE = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
-	advisoryHypotheticalRE = regexp.MustCompile(`(?i)\b(how would you|how could you|how should i|what would you|in one short paragraph|can you explain how)\b`)
-	advisoryPlacementRE    = regexp.MustCompile(`(?i)\b(where should .{0,80} live|where would you put)\b`)
+	destructiveCommandRE        = regexp.MustCompile(`(?i)\brm\s+-rf\b|\brm\s+-r\b|\brmdir\s+/\b|>\s*/dev/`)
+	contentDeliveryRE           = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
+	fileExportRE                = regexp.MustCompile(`(?i)\b(store (?:that|it|in|the)|save (?:it|as|in|the)|fill (?:the file|.* with)|create (?:that |the )?file|please create (?:that |the )?file|write (?:it |that ).*(?:file|\.md)|markdown file)\b`)
+	bareWorkspaceWrapperRE      = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
+	advisoryHypotheticalRE      = regexp.MustCompile(`(?i)\b(how would you|how could you|how should i|what would you|in one short paragraph|can you explain how)\b`)
+	advisoryPlacementRE         = regexp.MustCompile(`(?i)\b(where should .{0,80} live|where would you put)\b`)
 )
 
 var workspaceDirectiveDocSeeds = []string{"README.md", "DOCS.md", "docs/README.md"}
@@ -924,7 +925,9 @@ func messageImpliesBootFix(content string, history []*protocol.Message) bool {
 // implementationSeedCandidates returns paths to load from disk for implement turns.
 // Stack manifest drives seeds for all agent types; error-log paths are prioritized first.
 // exclude holds recently applied or otherwise skipped paths (may use basename keys).
-func implementationSeedCandidates(workspacePath string, content string, history []*protocol.Message, exclude map[string]bool) []string {
+// When researchDocDeliverable is true and taskFocusPaths is non-empty, explicit task
+// context paths are seeded instead of generic stack entrypoints (e.g. src/App.tsx).
+func implementationSeedCandidates(workspacePath string, content string, history []*protocol.Message, exclude map[string]bool, taskFocusPaths []string, researchDocDeliverable bool) []string {
 	seen := make(map[string]bool)
 	var out []string
 	add := func(p string) {
@@ -954,7 +957,7 @@ func implementationSeedCandidates(workspacePath string, content string, history 
 			add(p)
 		}
 	}
-	if messageImpliesBootFix(content, history) {
+	if messageImpliesBootFix(content, history) && !researchDocDeliverable {
 		for _, p := range []string{
 			"Makefile", "scripts/start-all.sh",
 			"src/App.js", "src/App.tsx", "src/main.tsx", "src/main.ts", "package.json",
@@ -964,13 +967,66 @@ func implementationSeedCandidates(workspacePath string, content string, history 
 	}
 	workspacePath = strings.TrimSpace(workspacePath)
 	if workspacePath != "" {
-		if manifest := DetectStackManifest(workspacePath); manifest != nil {
+		if researchDocDeliverable && len(taskFocusPaths) > 0 {
+			for _, p := range taskFocusPaths {
+				add(p)
+			}
+		} else if manifest := DetectStackManifest(workspacePath); manifest != nil {
 			for _, p := range manifest.ImplementationSeedPaths() {
 				add(p)
 			}
 		}
 	}
 	return out
+}
+
+func isResearchDocumentationDeliverable(content string) bool {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return false
+	}
+	task := collaboration.CollaborationTask{Title: content, Description: content}
+	if !collaboration.TaskLooksLikeMarkdownDeliverable(task) {
+		return false
+	}
+	lower := strings.ToLower(content)
+	return strings.Contains(lower, "findings") ||
+		strings.Contains(lower, "summariz") ||
+		strings.Contains(lower, "summaris") ||
+		strings.Contains(lower, "document") ||
+		strings.Contains(lower, "research")
+}
+
+func taskContextPathsFromMessage(msg *protocol.Message) []string {
+	if msg == nil || msg.Metadata == nil {
+		return nil
+	}
+	raw, ok := msg.Metadata["task_context_paths"]
+	if !ok {
+		return nil
+	}
+	switch v := raw.(type) {
+	case []string:
+		out := make([]string, 0, len(v))
+		for _, p := range v {
+			if p = strings.TrimSpace(p); p != "" {
+				out = append(out, p)
+			}
+		}
+		return out
+	case []interface{}:
+		var out []string
+		for _, item := range v {
+			if p, ok := item.(string); ok {
+				if p = strings.TrimSpace(p); p != "" {
+					out = append(out, p)
+				}
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 // AppendContentDeliverySeedFiles loads README/docs from the workspace for writing tasks.
@@ -1061,7 +1117,9 @@ func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *proto
 		agentID = a.Info.ID
 	}
 	exclude := mergeAppliedPathsIntoExclude(excludePaths, channelRecentlyAppliedFilePaths(history, msg.ID, agentID))
-	paths := implementationSeedCandidates(workspacePath, msg.Content, history, exclude)
+	focusPaths := taskContextPathsFromMessage(msg)
+	researchDoc := isResearchDocumentationDeliverable(msg.Content)
+	paths := implementationSeedCandidates(workspacePath, msg.Content, history, exclude, focusPaths, researchDoc)
 	if len(paths) == 0 {
 		return 0
 	}

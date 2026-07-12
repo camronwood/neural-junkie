@@ -106,6 +106,7 @@ func TestExecuteSearchReplaceTool_proposesEdit(t *testing.T) {
 }
 
 type countingHub struct {
+	hubArenaNoop
 	inner shouldRespondTestHub
 	count *int
 }

@@ -99,6 +99,7 @@ import { ModelLibraryModal } from './ModelLibraryModal';
 import { DomainPacksModal } from './DomainPacksModal';
 import { PhoenixBrowserModal } from './PhoenixBrowserModal';
 import { RoomChatModal } from './RoomChatModal';
+import { ModelArenaModal } from './ModelArenaModal';
 import { LearningProposalModal } from './LearningProposalModal';
 import type { LearningProposalAction } from '../api/chatAPI';
 import type { LoraTrainPrefill } from './LoraTrainingPanel';
@@ -283,6 +284,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [activePackModal, setActivePackModal] = useState<string | null>(null);
   const phoenixModalOpen = activePackModal === 'phoenix-import';
   const roomChatModalOpen = activePackModal === 'room-chat';
+  const modelArenaModalOpen = activePackModal === 'model-arena';
   const layoutProfile = usePacksStore((s) => s.layoutProfile);
   const hasIdeV2 = usePacksStore((s) => s.hasCapability('ide-v2'));
   const softwareDevPackActive = usePacksStore((s) => s.softwareDevelopmentPackActive());
@@ -329,6 +331,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     shallow
   );
   const openFileInEditor = useEditorStore((s) => s.openFile);
+  const openArenaWorkbench = useEditorStore((s) => s.openArenaWorkbench);
   const revealLineInEditor = useEditorStore((s) => s.revealLine);
   const activeEditorTab = useEditorStore((s) => {
     const id = s.activeTabId;
@@ -3257,6 +3260,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
       <PhoenixBrowserModal isOpen={phoenixModalOpen} onClose={() => setActivePackModal(null)} />
       <RoomChatModal isOpen={roomChatModalOpen} onClose={() => setActivePackModal(null)} />
+      <ModelArenaModal
+        isOpen={modelArenaModalOpen}
+        onClose={() => setActivePackModal(null)}
+        onOpenInEditor={(workspaceId) => {
+          openArenaWorkbench(workspaceId, 'arena/model-arena.nj-arena.json');
+          setCodeEditorOpen(true);
+          void updateLayoutSettings({ editorPanelVisible: true });
+        }}
+      />
 
       <LearningProposalModal
         isOpen={learningProposalOpen}

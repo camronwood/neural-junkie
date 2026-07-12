@@ -60,6 +60,7 @@ const (
 	AgentTypeIncident     AgentType = "incident"
 	AgentTypeBrowser      AgentType = "browser"
 	AgentTypeMusic        AgentType = "music"
+	AgentTypeArena        AgentType = "arena"
 	AgentTypeGeneral      AgentType = "general"
 	AgentTypeRepo         AgentType = "repo"
 	AgentTypeExpert       AgentType = "expert"     // Custom domain experts (/create-expert)
@@ -175,6 +176,7 @@ type AgentInfo struct {
 	SupportsVision          bool      `json:"supports_vision"`           // Whether the agent can process images
 	SupportsImageGeneration bool      `json:"supports_image_generation"` // Whether the agent can generate images (provider-dependent)
 	SupportsMusicGeneration bool      `json:"supports_music_generation"` // Whether the agent can generate music (music-creation pack)
+	SupportsArena           bool      `json:"supports_arena"`            // Whether the agent can use Model Arena tools
 	IndexingStatus          string    `json:"indexing_status"`           // "indexing", "ready", "reindexing", "error" (for repo/confluence agents)
 	IndexProgress           int       `json:"index_progress"`            // 0-100 percentage (for repo/confluence agents)
 	RepositoryPath          string    `json:"repository_path"`           // Path to repository (for repo agents)

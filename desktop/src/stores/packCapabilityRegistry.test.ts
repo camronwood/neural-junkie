@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toolbarActionsFromRegistry } from './packCapabilityRegistry';
+import { toolbarActionsFromRegistry, hasPackCapability } from './packCapabilityRegistry';
 import type { ResolvedCapability } from '../api/chatAPI';
 
 describe('toolbarActionsFromRegistry', () => {
@@ -49,5 +49,19 @@ describe('toolbarActionsFromRegistry', () => {
     expect(actions[0].label).toBe('');
     expect(actions[0].iconUrl).toContain('/api/packs/acme-lab/asset');
     expect(actions[0].iconUrl).toContain('assets%2Ficons%2Fchip.png');
+  });
+});
+
+describe('hasPackCapability', () => {
+  it('falls back to enabled pack manifest capabilities', () => {
+    const packs = [
+      {
+        id: 'model-arena',
+        enabled: true,
+        capabilities: ['model-arena', 'model-arena-workbench', 'model-arena-launcher'],
+      },
+    ];
+    expect(hasPackCapability([], [], packs, 'model-arena-workbench')).toBe(true);
+    expect(hasPackCapability([], [{ id: 'model-arena-launcher', qualified_id: 'model-arena/model-arena-launcher' }], packs, 'model-arena-launcher')).toBe(true);
   });
 });

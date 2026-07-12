@@ -10,6 +10,29 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+func TestWorkspaceContextForCollaboration_preservesCuratedFileTree(t *testing.T) {
+	repo := t.TempDir()
+	curated := "Key project paths (start here):\n  README.md\n"
+	msg := &protocol.Message{
+		Metadata: map[string]interface{}{
+			"collab_source_mode": "path",
+			"collab_source_path": repo,
+			"workspace_context": map[string]interface{}{
+				"workspace_path": repo,
+				"file_tree":      curated,
+			},
+		},
+	}
+	ctx := workspaceContextForCollaboration(msg, collaborateFlagParse{}, "", "investigate schemas")
+	if ctx == nil {
+		t.Fatal("expected workspace context")
+	}
+	tree, _ := ctx["file_tree"].(string)
+	if tree != curated {
+		t.Fatalf("file_tree = %q want curated %q", tree, curated)
+	}
+}
+
 func TestCollaborateSkipsCollabSandboxAsSourceWorkspace(t *testing.T) {
 	h := NewHub()
 	assetsRoot := t.TempDir()

@@ -489,6 +489,12 @@ func (m *MockHub) GenerateAndPostMusic(context.Context, string, protocol.AgentIn
 func (m *MockHub) ExtractAndPostMusicStems(context.Context, string, protocol.AgentInfo, agent.MusicExtractRequest) error {
 	return nil
 }
+func (m *MockHub) ArenaEnabled() bool { return false }
+func (m *MockHub) ArenaSidecarGet(context.Context, string) (map[string]any, error) { return nil, nil }
+func (m *MockHub) ArenaSidecarPost(context.Context, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
 func (m *MockHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }

@@ -24,22 +24,92 @@ func TestTaskRequiresFileDeliverable(t *testing.T) {
 }
 
 func TestTaskDispatchFileDeliverableNote(t *testing.T) {
-	note := TaskDispatchFileDeliverableNote(CollaborationTask{Description: "Write collabs/x/out.md"})
+	note := TaskDispatchFileDeliverableNote(CollaborationTask{Description: "Write collabs/x/out.md"}, "")
 	if note == "" || !strings.Contains(note, "FILE_CHANGE") || !strings.Contains(note, "completed") {
 		t.Fatalf("unexpected note: %q", note)
 	}
 	if !strings.Contains(note, "docker-compose") {
 		t.Fatalf("expected markdown task note to warn against stack tooling, got: %q", note)
 	}
+	if strings.Contains(note, "Research deliverable") {
+		t.Fatalf("generic markdown task should not get research note: %q", note)
+	}
+}
+
+func TestTaskDispatchFileDeliverableNote_researchFindings(t *testing.T) {
+	cases := []struct {
+		name string
+		task CollaborationTask
+		goal string
+	}{
+		{
+			name: "summarize wording",
+			task: CollaborationTask{
+				Description: "Summarize README.md and core/sample/main.go in collabs/x/findings.md",
+			},
+		},
+		{
+			name: "citing wording",
+			task: CollaborationTask{
+				Description: "Write collabs/x/findings.md citing README.md and core/sample/main.go",
+			},
+		},
+		{
+			name: "three bullets wording",
+			task: CollaborationTask{
+				Description: "Write collabs/x/findings.md with three bullets from README.md and core/sample/main.go",
+			},
+		},
+		{
+			name: "collab goal cites sources when task omits wording",
+			task: CollaborationTask{
+				Description: "Write collabs/x/findings.md",
+			},
+			goal: "@SoftwareArchitect @BackendEngineer Plan one task: Write findings.md with three bullets citing README.md and core/sample/main.go only.",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			note := TaskDispatchFileDeliverableNote(tc.task, tc.goal)
+			if !strings.Contains(note, "Research deliverable") {
+				t.Fatalf("expected research note, got: %q", note)
+			}
+			if !strings.Contains(note, "at least three substantive Markdown bullet") {
+				t.Fatalf("expected bullet requirement, got: %q", note)
+			}
+			if !strings.Contains(note, "Cite or reference every source path") {
+				t.Fatalf("expected citation requirement, got: %q", note)
+			}
+			if !strings.Contains(note, "README.md") || !strings.Contains(note, "core/sample/main.go") {
+				t.Fatalf("expected named source paths, got: %q", note)
+			}
+			if !strings.Contains(note, "task list") || !strings.Contains(note, "guessed stack") {
+				t.Fatalf("expected anti-pattern guidance, got: %q", note)
+			}
+		})
+	}
+}
+
+func TestTaskDispatchFileDeliverableNote_nonResearchFindings(t *testing.T) {
+	cases := []CollaborationTask{
+		{Description: "Write collabs/x/findings.md with implementation notes"},
+		{Description: "Draft collabs/x/plan.md summarizing architecture"},
+	}
+	for i, task := range cases {
+		note := TaskDispatchFileDeliverableNote(task, "")
+		if strings.Contains(note, "Research deliverable") {
+			t.Fatalf("case %d: unexpected research note: %q", i, note)
+		}
+	}
 }
 
 func TestSanitizePathToken_rejectsTruncatedPaths(t *testing.T) {
 	cases := map[string]string{
-		"collabs/b222bffe/index....":           "",
-		"collabs/b2.../index.html":             "",
-		"collabs/x/<|redacted|>/plan.md":       "",
+		"collabs/b222bffe/index....":              "",
+		"collabs/b2.../index.html":                "",
+		"collabs/x/<|redacted|>/plan.md":          "",
 		"collabs/x/frontend_architecture_plan.md": "collabs/x/frontend_architecture_plan.md",
-		"index.html":                           "index.html",
+		"index.html": "index.html",
 	}
 	for in, want := range cases {
 		got := sanitizePathToken(in)

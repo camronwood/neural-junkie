@@ -1,0 +1,53 @@
+id: model-arena
+version: "1.0.0"
+title: Model Arena
+description: Compare models on chess, Connect Four, and logic puzzles with verifiable scoring.
+layout_profile: team
+capabilities:
+  - model-arena
+  - model-arena-sidecar
+  - model-arena-workbench
+  - model-arena-launcher
+capability_defs:
+  model-arena-sidecar:
+    kind: hub-sidecar
+    routes:
+      - /api/arena
+    sidecar:
+      module: assets/hub/routes/arena.py
+    settings:
+      - arena_sessions_dir
+      - stockfish_path
+      - arena_default_time_control
+  model-arena-launcher:
+    kind: toolbar-chip
+    ui:
+      toolbar: { id: arena, label: Arena, icon: assets/icons/arena.svg }
+      modal: model-arena
+agents:
+  - type: arena
+    name: ArenaExpert
+    implementation: builtin/arena
+    ollama_model: qwen2.5-coder:14b
+    compose:
+      consult_triggers:
+        - arena
+        - chess
+        - connect
+        - logic
+        - puzzle
+        - model
+        - benchmark
+expert_slug: arena
+expert_label: Model Arena
+models_to_ensure:
+  - qwen2.5-coder:14b
+ollama_model: qwen2.5-coder:14b
+settings_overlay:
+  arena_sessions_dir: ~/.neural-junkie/arena/sessions
+  arena_venv: ~/.neural-junkie/arena/venv
+  stockfish_path: ""
+  arena_default_time_control: rapid
+assets:
+  workspace_guide: assets/WORKSPACE.md
+  runbooks: assets/runbooks/

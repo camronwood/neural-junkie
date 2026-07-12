@@ -30,6 +30,7 @@ func (c *captureAI) GenerateVisionResponse(ctx context.Context, prompt string, i
 }
 
 type captureHub struct {
+	hubArenaNoop
 	sent []*protocol.Message
 }
 

@@ -13,8 +13,8 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
-	"github.com/camronwood/neural-junkie/internal/scansummary"
 	"github.com/camronwood/neural-junkie/internal/scananalysis"
+	"github.com/camronwood/neural-junkie/internal/scansummary"
 )
 
 const generateImageToolName = "generate_image"
@@ -151,12 +151,30 @@ func imageGenToolPreview(prompt string) string {
 }
 
 func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefinition {
+	// Planning turns must produce a short prose/task-list response. Exposing
+	// ask_user, workspace, or MCP tools lets local models enter a tool loop and
+	// hold the round-robin turn until the scenario times out.
+	if msg != nil && msg.Type == protocol.MessageTypeCollabDiscussion {
+		switch msg.GetCollaborationPhase() {
+		case "planning", "reviewing":
+			return nil
+		}
+	}
 	var tools []ai.ClaudeToolDefinition
 	if a.imageGenerationToolsEnabledForMessage(msg) {
 		tools = append(tools, generateImageToolDefinition())
 	}
 	if a.musicGenerationToolsEnabledForMessage(msg) {
 		tools = append(tools, generateMusicToolDefinition(), extractStemsToolDefinition())
+	}
+	if a.arenaToolsEnabledForMessage(msg) {
+		tools = append(tools,
+			arenaListChallengesToolDefinition(),
+			arenaCreateSessionToolDefinition(),
+			arenaGetStateToolDefinition(),
+			arenaMakeMoveToolDefinition(),
+			arenaSubmitAnswerToolDefinition(),
+		)
 	}
 	if a.MCPServer != nil {
 		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), a.MCPToolAllowlist)...)
@@ -206,6 +224,21 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	}
 	if name == extractStemsToolName {
 		return a.executeExtractStemsTool(ctx, msg, input)
+	}
+	if name == arenaCreateSessionToolName {
+		return a.executeArenaCreateSessionTool(ctx, msg, input)
+	}
+	if name == arenaGetStateToolName {
+		return a.executeArenaGetStateTool(ctx, msg, input)
+	}
+	if name == arenaMakeMoveToolName {
+		return a.executeArenaMakeMoveTool(ctx, msg, input)
+	}
+	if name == arenaSubmitAnswerToolName {
+		return a.executeArenaSubmitAnswerTool(ctx, msg, input)
+	}
+	if name == arenaListChallengesTool {
+		return a.executeArenaListChallengesTool(ctx, msg, input)
 	}
 	if name == proposeFileEditToolName {
 		return a.executeProposeFileEditTool(ctx, msg, input)

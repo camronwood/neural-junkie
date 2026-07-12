@@ -144,6 +144,28 @@ export interface InstallACEStepResponse {
   acestep: ACEStepStatus;
 }
 
+export interface ArenaSidecarPaths {
+  venv: string;
+  python: string;
+  requirements?: string;
+}
+
+export interface ArenaSidecarStatus {
+  chess_available: boolean;
+  venv_ready: boolean;
+  installing: boolean;
+  python_ok: boolean;
+  python_version?: string;
+  last_error?: string;
+  paths: ArenaSidecarPaths;
+}
+
+export interface InstallArenaSidecarResponse {
+  status: string;
+  pack_id: string;
+  sidecar: ArenaSidecarStatus;
+}
+
 export interface ImageGenStatus {
   ready: boolean;
   provider: string;
@@ -3189,6 +3211,45 @@ export class ChatAPI {
   async restartMusicSidecar(packId = 'music-creation'): Promise<{ status: string; acestep: ACEStepStatus }> {
     const response = await this.hubFetch(
       `/api/packs/${encodeURIComponent(packId)}/restart-sidecar`,
+      { method: 'POST' },
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async fetchArenaSidecarStatus(packId = 'model-arena'): Promise<ArenaSidecarStatus> {
+    const response = await this.hubFetch(
+      `/api/packs/${encodeURIComponent(packId)}/sidecar-status`,
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async installArenaSidecarDeps(
+    packId = 'model-arena',
+  ): Promise<InstallArenaSidecarResponse> {
+    const response = await this.hubFetch(
+      `/api/packs/${encodeURIComponent(packId)}/install-sidecar-deps`,
+      { method: 'POST' },
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async restartArenaSidecar(
+    packId = 'model-arena',
+  ): Promise<{ status: string; sidecar: ArenaSidecarStatus }> {
+    const response = await this.hubFetch(
+      `/api/packs/${encodeURIComponent(packId)}/arena-restart-sidecar`,
       { method: 'POST' },
     );
     if (!response.ok) {

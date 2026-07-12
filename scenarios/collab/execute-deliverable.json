@@ -1,6 +1,6 @@
 {
   "name": "execute-deliverable",
-  "description": "Approve plan, ack workspace on fixture repo; auto-approve writes findings.md grounded in minimal-repo, then /complete-collab to completed phase.",
+  "description": "Approve plan, ack workspace on fixture repo; auto-approve writes findings.md grounded in minimal-repo; collab may auto-complete when work finishes, and /complete-collab verifies idempotent close to completed phase.",
   "channel": "collab-scenarios",
   "agents": "@BackendEngineer @SoftwareArchitect",
   "required_agents": [
@@ -135,10 +135,6 @@
         "data handling module",
         "security vulnerabilities identified"
       ]
-    },
-    {
-      "action": "assert_collab",
-      "phase": "executing"
     },
     {
       "action": "send",

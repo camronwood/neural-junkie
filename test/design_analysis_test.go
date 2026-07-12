@@ -56,6 +56,12 @@ func (m *MockHubClient) GenerateAndPostMusic(context.Context, string, protocol.A
 func (m *MockHubClient) ExtractAndPostMusicStems(context.Context, string, protocol.AgentInfo, agent.MusicExtractRequest) error {
 	return nil
 }
+func (m *MockHubClient) ArenaEnabled() bool { return false }
+func (m *MockHubClient) ArenaSidecarGet(context.Context, string) (map[string]any, error) { return nil, nil }
+func (m *MockHubClient) ArenaSidecarPost(context.Context, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
 func (m *MockHubClient) AskUserQuestion(string, string, string, string, []string) (string, error) {
 	return "", nil
 }

@@ -10,6 +10,7 @@ import (
 )
 
 type imageGenTestHub struct {
+	hubArenaNoop
 	enabled bool
 	posted  bool
 	prompt  string
@@ -69,6 +70,25 @@ func TestAgentToolDefinitionsIncludesGenerateImage(t *testing.T) {
 	}
 	if !names[generateImageToolName] {
 		t.Fatalf("expected generate_image tool, got %+v", tools)
+	}
+}
+
+func TestAgentToolDefinitionsSuppressesToolsDuringCollabPlanning(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture},
+		Hub:  &imageGenTestHub{enabled: true},
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-test",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"Propose a minimal plan.",
+	)
+	msg.SetCollaborationID("550e8400-e29b-41d4-a716-446655440000")
+	msg.SetCollaborationPhase("planning")
+
+	if tools := a.agentToolDefinitions(msg); len(tools) != 0 {
+		t.Fatalf("collaboration planning must not expose tools, got %+v", tools)
 	}
 }
 

@@ -391,6 +391,16 @@ func (h *httpHubClient) ExtractAndPostMusicStems(ctx context.Context, channel st
 	return fmt.Errorf("music stem extraction requires an in-process hub connection")
 }
 
+func (h *httpHubClient) ArenaEnabled() bool { return false }
+
+func (h *httpHubClient) ArenaSidecarGet(context.Context, string) (map[string]any, error) {
+	return nil, fmt.Errorf("model arena requires an in-process hub connection")
+}
+
+func (h *httpHubClient) ArenaSidecarPost(context.Context, string, map[string]any) (map[string]any, error) {
+	return nil, fmt.Errorf("model arena requires an in-process hub connection")
+}
+
 func (h *httpHubClient) AskUserQuestion(agentID, agentName, channel, question string, options []string) (string, error) {
 	body, err := json.Marshal(map[string]interface{}{
 		"agent_id":   agentID,

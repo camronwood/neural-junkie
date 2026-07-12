@@ -21,9 +21,9 @@ const (
 	// MaxSessionRestoreBytes: files larger than this are auto-archived on startup (not loaded).
 	MaxSessionRestoreBytes = 64 * 1024 * 1024
 	// Disk persistence uses stricter caps than in-memory hub history (5000/2000).
-	MaxSessionPersistChannelHistory = 500
-	MaxSessionPersistThreadHistory  = 200
-	maxPersistDiscussionMessages    = 20
+	MaxSessionPersistChannelHistory  = 500
+	MaxSessionPersistThreadHistory   = 200
+	maxPersistDiscussionMessages     = 20
 	maxPersistTerminalCollaborations = 10
 )
 
@@ -574,6 +574,7 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 	h.threads = make(map[string][]*protocol.Message)
 	h.threadMetadata = make(map[string]*protocol.ThreadMetadata)
 	h.subscribers = make(map[string][]chan *protocol.Message)
+	h.uiSubscribers = make(map[string][]chan *protocol.Message)
 	h.threadSubscribers = make(map[string][]chan *protocol.Message)
 	h.channelContext = make(map[string]*ChannelContextState)
 	h.channelSummaryRefreshGen = make(map[string]uint64)
@@ -597,6 +598,7 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		h.channels[name] = channel
 		h.messages[name] = append([]*protocol.Message(nil), ch.Messages...)
 		h.subscribers[name] = []chan *protocol.Message{}
+		h.uiSubscribers[name] = []chan *protocol.Message{}
 		if strings.TrimSpace(ch.SessionSummary) != "" {
 			h.channelContext[name] = &ChannelContextState{
 				Summary:   ch.SessionSummary,
@@ -619,6 +621,7 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		h.channels[channel.Name] = channel
 		h.messages[channel.Name] = []*protocol.Message{}
 		h.subscribers[channel.Name] = []chan *protocol.Message{}
+		h.uiSubscribers[channel.Name] = []chan *protocol.Message{}
 	}
 	for threadID, thread := range snapshot.Threads {
 		if thread == nil {

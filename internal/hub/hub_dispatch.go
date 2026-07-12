@@ -1123,7 +1123,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			)
 		}
 		body := formatCollabTaskDispatchBody(snap, task, mentionName, handoffLimit, workspaceNote)
-		body += collaboration.TaskDispatchFileDeliverableNote(task)
+		body += collaboration.TaskDispatchFileDeliverableNote(task, snap.Description)
 		for _, t := range snap.Tasks {
 			if t.ID == task.ID {
 				task = t

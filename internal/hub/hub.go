@@ -23,7 +23,7 @@ type Hub struct {
 	messages map[string][]*protocol.Message // channel -> messages
 
 	// Ephemeral room sessions (LAN room chat)
-	rooms      map[string]*Room // room_id -> room
+	rooms       map[string]*Room  // room_id -> room
 	roomsByCode map[string]string // join_code -> room_id
 
 	// Thread management
@@ -32,7 +32,8 @@ type Hub struct {
 	threadParentAuthors map[string]string                   // thread ID -> parent message author ID
 
 	// Subscribers for real-time updates
-	subscribers       map[string][]chan *protocol.Message // channel -> subscriber channels
+	subscribers       map[string][]chan *protocol.Message // channel -> agent/integration tier
+	uiSubscribers     map[string][]chan *protocol.Message // channel -> frontend UI tier
 	threadSubscribers map[string][]chan *protocol.Message // thread ID -> subscriber channels
 
 	// Removed agents tracking (agents not in any channel but still registered)
@@ -42,8 +43,8 @@ type Hub struct {
 	commandHandler *CommandHandler
 
 	// File change manager for handling file change approvals
-	fileChangeManager *filechange.FileChangeManager
-	gitChangeManager  *gitchange.Manager
+	fileChangeManager   *filechange.FileChangeManager
+	gitChangeManager    *gitchange.Manager
 	fileChangeBackendFn func(workspaceRoot string) filechange.WorkspaceIO
 
 	// Workspace manager for handling workspace operations
@@ -84,11 +85,11 @@ type Hub struct {
 	durableChannels map[string]bool
 
 	// Collaboration idle watchdog (in-memory, not persisted).
-	collabWatchdogMu               sync.Mutex
-	collabWatchdogRedispatch       map[string]int
-	collabWatchdogAutoAckTried     map[string]bool
-	collabWatchdogPlanningHandoff  map[string]time.Time
-	collabAsyncWG                  sync.WaitGroup // approve-plan review assets + task dispatch
+	collabWatchdogMu              sync.Mutex
+	collabWatchdogRedispatch      map[string]int
+	collabWatchdogAutoAckTried    map[string]bool
+	collabWatchdogPlanningHandoff map[string]time.Time
+	collabAsyncWG                 sync.WaitGroup // approve-plan review assets + task dispatch
 
 	collabActionConfigMu sync.RWMutex
 	collabActionConfig   actions.Config
@@ -99,23 +100,24 @@ type Hub struct {
 // NewHub creates a new chat hub
 func NewHub() *Hub {
 	hub := &Hub{
-		channels:                   make(map[string]*protocol.Channel),
-		agents:                     make(map[string]*protocol.AgentInfo),
-		messages:                   make(map[string][]*protocol.Message),
-		rooms:                      make(map[string]*Room),
-		roomsByCode:                make(map[string]string),
-		threads:                    make(map[string][]*protocol.Message),
-		threadMetadata:             make(map[string]*protocol.ThreadMetadata),
-		threadParentAuthors:        make(map[string]string),
-		subscribers:                make(map[string][]chan *protocol.Message),
-		threadSubscribers:          make(map[string][]chan *protocol.Message),
-		removedAgents:              make(map[string]*protocol.AgentInfo),
-		channelContext:             make(map[string]*ChannelContextState),
-		channelHolds:               make(map[string]ChannelHold),
+		channels:                      make(map[string]*protocol.Channel),
+		agents:                        make(map[string]*protocol.AgentInfo),
+		messages:                      make(map[string][]*protocol.Message),
+		rooms:                         make(map[string]*Room),
+		roomsByCode:                   make(map[string]string),
+		threads:                       make(map[string][]*protocol.Message),
+		threadMetadata:                make(map[string]*protocol.ThreadMetadata),
+		threadParentAuthors:           make(map[string]string),
+		subscribers:                   make(map[string][]chan *protocol.Message),
+		uiSubscribers:                 make(map[string][]chan *protocol.Message),
+		threadSubscribers:             make(map[string][]chan *protocol.Message),
+		removedAgents:                 make(map[string]*protocol.AgentInfo),
+		channelContext:                make(map[string]*ChannelContextState),
+		channelHolds:                  make(map[string]ChannelHold),
 		collabWatchdogRedispatch:      make(map[string]int),
 		collabWatchdogAutoAckTried:    make(map[string]bool),
 		collabWatchdogPlanningHandoff: make(map[string]time.Time),
-		channelSummaryRefreshGen:   make(map[string]uint64),
+		channelSummaryRefreshGen:      make(map[string]uint64),
 	}
 
 	// Create default channel
@@ -175,6 +177,7 @@ func NewHub() *Hub {
 
 	return hub
 }
+
 // GetWorkspaceManager returns the workspace manager
 func (h *Hub) GetWorkspaceManager() *WorkspaceManager {
 	return h.workspaceManager
@@ -437,6 +440,7 @@ func (h *Hub) updateThreadMetadata(threadID string, msg *protocol.Message) {
 		metadata.Participants = append(metadata.Participants, participantName)
 	}
 }
+
 // shouldAutoCreateRepoAgent determines if we should auto-create a repo agent for this message
 func (h *Hub) GetCommandHandler() agent.CommandHandlerInterface {
 	return h.commandHandler

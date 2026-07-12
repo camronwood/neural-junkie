@@ -17,6 +17,7 @@ const (
 	PackIncidentManagement  = "incident-management"
 	PackWebBrowser          = "web-browser"
 	PackMusicCreation       = "music-creation"
+	PackModelArena          = "model-arena"
 	PackRoomChat            = "room-chat"
 )
 

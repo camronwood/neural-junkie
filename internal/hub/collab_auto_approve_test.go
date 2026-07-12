@@ -43,12 +43,13 @@ func TestMaybeAutoApproveCollabFileChange_ApprovesUnderCollabsDir(t *testing.T) 
 
 	rel := collaboration.ProjectCollabRelPath(collab.ID) + "/findings.md"
 	task := collaboration.CollaborationTask{
-		ID:           "t1",
-		Title:        "Write findings",
-		Description:  "Write " + rel,
-		AssignedTo:   "a1",
-		AssignedName: "Assistant",
-		Status:       collaboration.TaskInProgress,
+		ID:               "t1",
+		Title:            "Write findings",
+		Description:      "Write " + rel,
+		AssignedTo:       "a1",
+		AssignedName:     "Assistant",
+		Status:           collaboration.TaskPending,
+		PromptDispatched: true,
 	}
 	_ = cm.SetTasks(collab.ID, []collaboration.CollaborationTask{task})
 

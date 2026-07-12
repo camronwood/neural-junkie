@@ -24,6 +24,37 @@ describe('packsStore', () => {
     expect(usePacksStore.getState().hasCapability('ide-v2')).toBe(false);
   });
 
+  it('hasCapability falls back to enabled pack manifest capabilities', () => {
+    usePacksStore.setState({
+      capabilities: ['model-arena-launcher'],
+      capabilityRegistry: [
+        {
+          id: 'model-arena-launcher',
+          qualified_id: 'model-arena/model-arena-launcher',
+          pack_id: 'model-arena',
+          kind: 'toolbar-chip',
+          ui: { toolbar: { id: 'arena', label: 'Arena' }, modal: 'model-arena' },
+        },
+      ],
+      shortIdCollisions: [],
+      packs: [
+        {
+          id: 'model-arena',
+          title: 'Model Arena',
+          description: '',
+          installed: true,
+          enabled: true,
+          capabilities: ['model-arena', 'model-arena-workbench', 'model-arena-launcher'],
+        },
+      ],
+      catalog: [],
+      layoutOwner: '',
+      layoutProfile: 'team',
+    });
+    expect(usePacksStore.getState().hasCapability('model-arena-workbench')).toBe(true);
+    expect(usePacksStore.getState().hasCapability('model-arena-launcher')).toBe(true);
+  });
+
   it('softwareDevelopmentEnabled falls back to pack row when capability missing', () => {
     usePacksStore.setState({
       capabilities: [],

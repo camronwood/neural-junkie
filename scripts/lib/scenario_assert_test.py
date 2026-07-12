@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from deliverable_judge import (
+    build_judge_prompt,
     cloud_judge_tripped,
     judge_deliverable,
     parse_judge_response,
@@ -17,13 +19,18 @@ from deliverable_judge import (
 from scenario_assert import (
     check_contains_all,
     check_file_deliverable,
+    check_min_markdown_bullets,
     check_text_patterns,
+    count_markdown_bullets,
     expand_deliverable_steps,
+    is_harness_control_send,
     looks_like_read_only_inspection_command,
     looks_like_stack_tool_command,
     merge_deliverable_step,
     scenario_question,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class StackToolCommandTest(unittest.TestCase):
@@ -105,6 +112,15 @@ class DeliverableAssertTest(unittest.TestCase):
         self.assertEqual(len(extra), 1)
         self.assertEqual(extra[0]["path"], "b.txt")
 
+
+class ScenarioQuestionTest(unittest.TestCase):
+    def test_harness_control_send_detection(self) -> None:
+        self.assertTrue(is_harness_control_send("/resume-plan <collab-id>"))
+        self.assertTrue(is_harness_control_send("/complete-collab <collab-id> --force"))
+        self.assertTrue(is_harness_control_send("/cancel-plan abc12345"))
+        self.assertFalse(is_harness_control_send("implement theme toggle"))
+        self.assertFalse(is_harness_control_send("@BackendEngineer write findings.md"))
+
     def test_scenario_question_from_send(self) -> None:
         scenario = {
             "steps": [
@@ -114,6 +130,50 @@ class DeliverableAssertTest(unittest.TestCase):
         }
         self.assertEqual(scenario_question(scenario), "implement theme toggle")
 
+    def test_scenario_question_prefers_collaborate_goal_over_send(self) -> None:
+        scenario_path = _REPO_ROOT / "scenarios/collab/document-findings-execution.json"
+        scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
+        goal = scenario["collaborate"]["goal"].strip()
+        question = scenario_question(scenario)
+        self.assertEqual(question, goal)
+        self.assertIn("Document findings", question)
+        self.assertNotIn("/resume-plan", question)
+
+    def test_scenario_question_skips_harness_send_for_genuine_message(self) -> None:
+        genuine = "@BackendEngineer Complete Task 1: write collabs/<collab-id>/findings.md."
+        scenario = {
+            "steps": [
+                {"action": "send", "content": "/resume-plan <collab-id>"},
+                {"action": "send", "content": genuine},
+            ]
+        }
+        self.assertEqual(scenario_question(scenario), genuine)
+
+    def test_scenario_question_description_when_only_harness_sends(self) -> None:
+        description = "Task phrased as Document findings in collabs/<id>/findings.md."
+        scenario = {
+            "description": description,
+            "steps": [
+                {"action": "send", "content": "/resume-plan <collab-id>"},
+                {"action": "send", "content": "/complete-collab <collab-id> --force"},
+            ],
+        }
+        self.assertEqual(scenario_question(scenario), description)
+
+    def test_build_judge_prompt_uses_collaborate_goal_not_harness_send(self) -> None:
+        scenario_path = _REPO_ROOT / "scenarios/collab/document-findings-execution.json"
+        scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
+        question = scenario_question(scenario)
+        prompt = build_judge_prompt(
+            question=question,
+            rel_path="collabs/<collab-id>/findings.md",
+            file_body="# Findings\nREADME and main.go\n",
+        )
+        self.assertIn("Document findings", prompt)
+        self.assertNotIn("/resume-plan", prompt)
+
+
+class DeliverableJudgeTest(unittest.TestCase):
     def test_parse_judge_response(self) -> None:
         ok, reason = parse_judge_response("PASS\nGrounded in main.go")
         self.assertTrue(ok)
@@ -212,6 +272,72 @@ class DeliverableAssertTest(unittest.TestCase):
         ok, detail = check_contains_all("hello", ["hello", "world"])
         self.assertFalse(ok)
         self.assertIn("world", detail)
+        ok, _ = check_contains_all("see README.md and core/sample/main.go", [r"README\.md", r"core/sample/main\.go"])
+        self.assertTrue(ok)
+        ok, detail = check_contains_all("only README.md here", [r"README\.md", r"core/sample/main\.go"])
+        self.assertFalse(ok)
+        self.assertIn("missing contains_all", detail)
+        self.assertIn("core/sample/main", detail)
+        ok, detail = check_contains_all("text", ["("])
+        self.assertFalse(ok)
+        self.assertIn("invalid contains_all", detail)
+
+
+class MarkdownBulletAssertTest(unittest.TestCase):
+    def test_count_markdown_bullets(self) -> None:
+        body = "- one\n* two\n+ three\n"
+        self.assertEqual(count_markdown_bullets(body), 3)
+        self.assertEqual(count_markdown_bullets("- one\n- two\n"), 2)
+        ordered = "1. first\n2. second\n3. third\n"
+        self.assertEqual(count_markdown_bullets(ordered), 3)
+
+    def test_min_markdown_bullets_pass_and_fail(self) -> None:
+        two = "- a\n- b\n"
+        ok, _ = check_min_markdown_bullets(two, 2)
+        self.assertTrue(ok)
+        ok, detail = check_min_markdown_bullets(two, 3)
+        self.assertFalse(ok)
+        self.assertIn("2 < 3", detail)
+
+    def test_check_file_deliverable_min_bullets_and_contains_all(self) -> None:
+        good = "# Findings\n- README.md describes the repo.\n- core/sample/main.go prints HelloWorld.\n- Both are minimal Go fixtures.\n"
+        bad_bullets = "# Findings\n- README.md only.\n- Missing second source.\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "collabs" / "abc" / "findings.md"
+            path.parent.mkdir(parents=True)
+            spec = {
+                "for_question": {
+                    "min_markdown_bullets": 3,
+                    "contains_all": [r"README\.md", r"core/sample/main\.go"],
+                }
+            }
+            path.write_text(good, encoding="utf-8")
+            ok, detail = check_file_deliverable(root=tmp, rel="collabs/abc/findings.md", spec=spec)
+            self.assertTrue(ok, detail)
+
+            path.write_text(bad_bullets, encoding="utf-8")
+            ok, detail = check_file_deliverable(root=tmp, rel="collabs/abc/findings.md", spec=spec)
+            self.assertFalse(ok)
+            self.assertIn("min_markdown_bullets", detail)
+
+            missing_source = "- README.md\n- line two\n- line three\n"
+            path.write_text(missing_source, encoding="utf-8")
+            ok, detail = check_file_deliverable(root=tmp, rel="collabs/abc/findings.md", spec=spec)
+            self.assertFalse(ok)
+            self.assertIn("missing contains_all", detail)
+            self.assertIn("core/sample/main", detail)
+
+    def test_check_file_deliverable_ordered_bullets(self) -> None:
+        body = "1. README.md\n2. core/sample/main.go\n3. minimal repo\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "findings.md"
+            path.write_text(body, encoding="utf-8")
+            ok, detail = check_file_deliverable(
+                root=tmp,
+                rel="findings.md",
+                spec={"for_question": {"min_markdown_bullets": 3, "contains_all": [r"README\.md", r"core/sample/main\.go"]}},
+            )
+            self.assertTrue(ok, detail)
 
 
 if __name__ == "__main__":

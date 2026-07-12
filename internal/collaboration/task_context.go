@@ -19,8 +19,7 @@ func InferTaskContextPaths(task CollaborationTask, repoRoot string) []string {
 	seen := make(map[string]bool)
 	var paths []string
 	add := func(p string) {
-		p = strings.Trim(p, "`\"' ")
-		p = strings.TrimPrefix(p, "./")
+		p = normalizeInferredPathCandidate(p)
 		if p == "" || seen[p] {
 			return
 		}
@@ -65,6 +64,28 @@ func InferTaskContextPaths(task CollaborationTask, repoRoot string) []string {
 		paths = paths[:10]
 	}
 	return paths
+}
+
+// normalizeInferredPathCandidate trims quotes and trailing prose punctuation from path tokens.
+func normalizeInferredPathCandidate(p string) string {
+	p = strings.Trim(p, "`\"' ")
+	p = strings.TrimPrefix(p, "./")
+	for len(p) > 0 {
+		last := p[len(p)-1]
+		switch last {
+		case ')', ']', ',', ';', ':', '!', '?':
+			p = strings.TrimSpace(p[:len(p)-1])
+		case '.':
+			trimmed := strings.TrimSuffix(p, ".")
+			if trimmed == "" {
+				return p
+			}
+			p = trimmed
+		default:
+			return p
+		}
+	}
+	return p
 }
 
 // MergeContextPaths combines path lists in order, deduplicated.

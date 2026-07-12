@@ -76,6 +76,7 @@ func TestMessageDefersToRepoExpert_pendingReview(t *testing.T) {
 }
 
 type deferRepoTestHub struct {
+	hubArenaNoop
 	pending map[string]bool
 }
 

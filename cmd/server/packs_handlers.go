@@ -96,6 +96,18 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 		handleMusicSidecarRestart(w, r, packID)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "sidecar-status" {
+		handleArenaSidecarStatus(w, r, packID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "install-sidecar-deps" {
+		handleArenaSidecarInstall(w, r, packID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "arena-restart-sidecar" {
+		handleArenaSidecarRestart(w, r, packID)
+		return
+	}
 	if len(parts) == 2 && parts[1] == "upgrade" {
 		handlePackUpgrade(w, r, packID)
 		return

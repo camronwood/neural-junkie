@@ -126,7 +126,7 @@ func TestAugmentPromptWithCLIImages_AppendsPaths(t *testing.T) {
 	}
 }
 
-type hubStub struct{}
+type hubStub struct{ hubArenaNoop }
 
 func (hubStub) SendMessage(*protocol.Message) error       { return nil }
 func (hubStub) BroadcastDirect(string, *protocol.Message) {}

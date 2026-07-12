@@ -11,6 +11,11 @@ var walkIgnoreDirs = map[string]bool{
 	"dist": true, "build": true, ".neural-junkie": true,
 }
 
+// IsWalkIgnoreDir reports whether a directory name should be skipped during workspace walks.
+func IsWalkIgnoreDir(name string) bool {
+	return walkIgnoreDirs[name]
+}
+
 // ListFilesRecursive returns relative file paths under rel (BFS), up to maxFiles.
 func ListFilesRecursive(ctx context.Context, b Backend, rel string, maxFiles int) ([]string, error) {
 	if maxFiles <= 0 {

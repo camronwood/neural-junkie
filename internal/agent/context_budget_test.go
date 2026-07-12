@@ -29,6 +29,28 @@ func TestApplyContextBudget_preservesUserRulesSection(t *testing.T) {
 	}
 }
 
+func TestApplyContextBudget_capsOversizedProtectedRules(t *testing.T) {
+	rules := strings.Repeat("specialist rule with substantial detail\n", 6000)
+	prompt := rulesSectionStart + "\n" + rules + rulesSectionEnd + "\n\n" +
+		"=== PERSONA ===\nBackend specialist\n" +
+		ai.SystemPromptSeparator + "USER MESSAGE:\nplan one task"
+
+	const limit = 32 * 1024
+	out, stats := applyContextBudgetWithLimit(prompt, limit, maxBudgetWorkspaceOutline, "")
+	if !stats.Truncated {
+		t.Fatal("expected oversized protected rules to be truncated")
+	}
+	if len(out) > limit {
+		t.Fatalf("budget not enforced: got %d bytes, limit %d", len(out), limit)
+	}
+	if !strings.Contains(out, rulesSectionStart) || !strings.Contains(out, rulesSectionEnd) {
+		t.Fatal("truncated rules must retain section markers")
+	}
+	if !strings.Contains(out, "plan one task") {
+		t.Fatal("latest user message must remain")
+	}
+}
+
 func TestApplyContextBudget_sectionCCR(t *testing.T) {
 	contextcompress.SetDefaultStore(contextcompress.NewStore(50, 60, ""))
 	t.Cleanup(func() { contextcompress.SetDefaultStore(nil) })
