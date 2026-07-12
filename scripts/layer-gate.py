@@ -18,7 +18,7 @@ PY = sys.executable
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
-from lib.regression_boot import maybe_boot_regression  # noqa: E402
+from lib.regression_boot import ensure_ollama_stack, maybe_boot_regression  # noqa: E402
 from lib.release_prep_layers import (  # noqa: E402
     LAYER_ORDER,
     get_layer,
@@ -45,15 +45,19 @@ def run_cmd(cmd: list[str], *, env: dict | None = None, cwd: Path = ROOT) -> tup
 
 
 def ensure_hub_for_layer(hub_url: str, *, no_restart: bool, layer: str = "", cwd: Path = ROOT) -> bool:
+    repo = cwd.resolve()
     restart_layers = {"implement", "collab", "collab-core", "collab-full"}
     if layer in restart_layers and not no_restart:
+        print("\n=== Layer gate Ollama prep ===")
+        if not ensure_ollama_stack(repo):
+            return False
         from lib.regression_boot import restart_hub_for_live_run
 
         label = f"layer-gate-{layer}"
-        return restart_hub_for_live_run(cwd.resolve(), hub_url, label=label)
+        return restart_hub_for_live_run(repo, hub_url, label=label)
     return maybe_boot_regression(
         hub_url,
-        root=cwd.resolve(),
+        root=repo,
         label="layer-gate",
         no_restart_hub=no_restart,
     )

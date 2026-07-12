@@ -202,6 +202,13 @@ def run_release_prep_ready(root: Path, hub_url: str) -> bool:
     return proc.returncode == 0
 
 
+def ensure_ollama_stack(root: Path) -> bool:
+    """Start Ollama when down and warm/pull regression models."""
+    if not require_ollama(root):
+        return False
+    return ensure_models_ready(root)
+
+
 def boot_regression_stack(
     root: Path,
     hub_url: str,
