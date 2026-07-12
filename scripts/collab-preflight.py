@@ -270,11 +270,15 @@ def check_regression_agent_models(base: str) -> bool:
 
 
 def check_agents(base: str, *, require_gemini: bool) -> bool:
-    ok, missing = hub.verify_agents_online(base, DEFAULT_ROSTER)
+    from lib.regression_collab import resolve_preflight_roster
+
+    roster = resolve_preflight_roster()
+    ok, missing = hub.verify_agents_online(base, roster)
     if not ok:
         _fail(f"agents offline: {', '.join(missing)}")
         return False
-    _ok(f"default roster online: {', '.join(DEFAULT_ROSTER)}")
+    label = "core roster" if roster != DEFAULT_ROSTER else "default roster"
+    _ok(f"{label} online: {', '.join(roster)}")
 
     if require_gemini:
         gok, gmissing = hub.verify_agents_online(base, ["Gemini"])

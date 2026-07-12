@@ -224,6 +224,10 @@ def prepare_claude_for_collab(*, scenario_names: list[str], require: bool = Fals
         _claude_probe_ok = True
         return True
 
+    if os.environ.get("NJ_REGRESSION_CLAUDE_CLOUD", "").strip().lower() not in ("1", "true", "yes"):
+        _claude_probe_ok = True
+        return True
+
     from lib.claude_judge_auth import ensure_claude_for_testing  # noqa: E402
 
     print("\n>>> Claude preflight...", flush=True)
@@ -1950,7 +1954,6 @@ def main() -> int:
     if args.core:
         os.environ["NJ_REQUIRE_FULL_BOOT"] = "1"
         os.environ.setdefault("NJ_REGRESSION_SLIM_ROSTER", "1")
-        os.environ.setdefault("NJ_REGRESSION_CLAUDE_CLOUD", "1")
         os.environ.setdefault("NJ_SCENARIO_PROFILE", "core")
         os.environ.pop("SKIP_BOOT", None)
         os.environ.pop("NJ_BOOT_DONE", None)

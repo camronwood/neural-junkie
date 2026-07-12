@@ -159,7 +159,7 @@ slack-smoke: ## Slack integration smoke (CI: unit tests; LIVE=1: synthetic inbou
 	fi
 
 collab-preflight: ## Fail-fast checks before collab-scenarios-all (hub, Ollama, agents, scenario list)
-	@bash -c 'source load-env.sh && python3 scripts/collab-preflight.py $(if $(REQUIRE_GEMINI),--require-gemini,)'
+	@bash -c 'source load-env.sh && NJ_REGRESSION_SLIM_ROSTER=1 python3 scripts/collab-preflight.py $(if $(REQUIRE_GEMINI),--require-gemini,)'
 
 learning-lora-smoke: ## Personal learning + LoRA expert-context smoke (CI, no GPU)
 	@go test ./cmd/server/ -run TestLearningLoRASmoke -count=1
@@ -192,7 +192,7 @@ collab-scenarios-all: collab-scenarios ## Alias: full collab sweep (25 scenarios
 
 collab-scenarios-core: ## Collab core participation/planning (~8 scenarios; hub restart between)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 NJ_RESTART_HUB_BETWEEN_SCENARIOS=1 \
-		NJ_REQUIRE_FULL_BOOT=1 NJ_REGRESSION_SLIM_ROSTER=1 NJ_REGRESSION_CLAUDE_CLOUD=1 \
+		NJ_REQUIRE_FULL_BOOT=1 NJ_REGRESSION_SLIM_ROSTER=1 \
 		NJ_SCENARIO_PROFILE=core python3 scripts/collab-scenarios.py --core \
 		$(if $(PROFILE),--profile $(PROFILE),--profile core) \
 		$(if $(VERBOSE),--verbose,) \
@@ -201,7 +201,7 @@ collab-scenarios-core: ## Collab core participation/planning (~8 scenarios; hub 
 collab-scenarios-core-debug: ## Serial collab-core repro (one scenario at a time; stop on FAIL)
 	@chmod +x scripts/collab-sweep-serial.sh
 	@CORE=1 RETRIES=$(or $(RETRIES),1) RESUME=$(RESUME) VERBOSE=$(VERBOSE) \
-		NJ_REQUIRE_FULL_BOOT=1 NJ_REGRESSION_SLIM_ROSTER=1 NJ_REGRESSION_CLAUDE_CLOUD=1 \
+		NJ_REQUIRE_FULL_BOOT=1 NJ_REGRESSION_SLIM_ROSTER=1 \
 		NJ_SCENARIO_PROFILE=core ./scripts/collab-sweep-serial.sh
 
 collab-sweep-serial: ## Run collab scenarios one-by-one; stop on FAIL (RESUME=1 skips PASS in docs/testing/collab-matrix.tsv)
@@ -395,7 +395,7 @@ layer-gate: ## Run one layer gate (LAYER=ci|implement|chat|collab|collab-core|co
 	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-gate LAYER=implement [VERBOSE=1] [NO_RESTART_HUB=1]"; $(MAKE) layer-list; exit 1; fi
 	@chmod +x scripts/layer-gate.py
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 \
-		$(if $(filter collab collab-core,$(LAYER)),NJ_REQUIRE_FULL_BOOT=1 NJ_REGRESSION_SLIM_ROSTER=1 NJ_REGRESSION_CLAUDE_CLOUD=1,) \
+		$(if $(filter collab collab-core,$(LAYER)),NJ_REQUIRE_FULL_BOOT=1 NJ_REGRESSION_SLIM_ROSTER=1,) \
 		python3 scripts/layer-gate.py \
 		--layer "$(LAYER)" \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \

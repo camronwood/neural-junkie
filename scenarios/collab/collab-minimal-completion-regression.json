@@ -1,10 +1,10 @@
 {
   "name": "collab-minimal-completion-regression",
-  "description": "Fast minimal-repo happy path: single implementor, one-task execute findings.md, /complete-collab to completed phase.",
+  "description": "Fast minimal-repo happy path: two-agent planning, single implementor executes findings.md, /complete-collab to completed phase.",
   "tags": ["collab", "regression", "completion"],
   "channel": "collab-scenarios",
-  "agents": "@BackendEngineer",
-  "required_agents": ["BackendEngineer"],
+  "agents": "@BackendEngineer @SoftwareArchitect",
+  "required_agents": ["BackendEngineer", "SoftwareArchitect"],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,
@@ -13,7 +13,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@BackendEngineer Plan one task: @BackendEngineer Write collabs/<id>/findings.md with three bullets citing README.md and core/sample/main.go only."
+    "goal": "@SoftwareArchitect @BackendEngineer Plan exactly one execution task for @BackendEngineer: Write collabs/<id>/findings.md with three bullets citing README.md and core/sample/main.go only."
   },
   "expect_deliverables": [
     {
@@ -31,12 +31,12 @@
     {"action": "wait_phase", "phase": "planning", "timeout": 20},
     {
       "action": "wait_discussion",
-      "min_total": 1,
+      "min_total": 2,
       "min_per_agent": 1,
-      "required_agents": ["BackendEngineer"],
+      "required_agents": ["BackendEngineer", "SoftwareArchitect"],
       "timeout": "180s",
       "retries": 1,
-      "nudge_agents": ["BackendEngineer"],
+      "nudge_agents": ["BackendEngineer", "SoftwareArchitect"],
       "retry_on_generation_error": true
     },
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},

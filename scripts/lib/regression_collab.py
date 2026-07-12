@@ -119,11 +119,43 @@ def switch_claude_to_cloud(hub_url: str) -> tuple[bool, str]:
     return True, "Claude → cloud (claude provider)"
 
 
+def switch_claude_to_ollama(hub_url: str, model: str) -> tuple[bool, str]:
+    """Route @Claude to Ollama during regression so collab gates avoid flaky cloud turns."""
+    base = hub_url.rstrip("/")
+    agent_id = hub.resolve_agent_id(base, "Claude")
+    if not agent_id:
+        return True, "Claude not configured (skip ollama switch)"
+    tag = (model or "").strip()
+    if not tag:
+        return False, "regression agent model unset"
+    code, data = hub.hub_request(
+        base,
+        "POST",
+        f"/api/agents/{agent_id}/provider",
+        {"provider": "ollama", "model": tag},
+    )
+    if code != 200:
+        detail = data if isinstance(data, str) else str(data)
+        return False, f"Claude ollama switch HTTP {code}: {detail}"
+    return True, f"Claude → ollama ({tag})"
+
+
 def apply_collab_regression_tuning(hub_url: str) -> tuple[bool, str]:
-    """Apply slim roster + cloud Claude when regression collab env flags are set."""
+    """Apply slim roster + Claude routing when regression collab env flags are set."""
     parts: list[str] = []
     if _env_truthy("NJ_REGRESSION_CLAUDE_CLOUD"):
         ok, detail = switch_claude_to_cloud(hub_url)
+        if not ok:
+            return False, detail
+        parts.append(detail)
+    elif _env_truthy("NJ_REGRESSION_SLIM_ROSTER"):
+        from pathlib import Path
+
+        from lib.regression_models import resolve_regression_agent_model
+
+        root = Path(__file__).resolve().parents[2]
+        model = resolve_regression_agent_model(root)
+        ok, detail = switch_claude_to_ollama(hub_url, model)
         if not ok:
             return False, detail
         parts.append(detail)
@@ -147,6 +179,23 @@ def apply_collab_regression_tuning(hub_url: str) -> tuple[bool, str]:
 
 def collab_core_keep_agents() -> list[str]:
     return list(COLLAB_CORE_KEEP_AGENTS)
+
+
+def resolve_preflight_roster() -> list[str]:
+    """Agents that must be online before collab sweeps (slim roster when enabled)."""
+    if _env_truthy("NJ_REGRESSION_SLIM_ROSTER"):
+        keep = list(COLLAB_CORE_KEEP_AGENTS)
+        extra = os.environ.get("NJ_REGRESSION_KEEP_AGENTS", "").strip()
+        if extra:
+            keep.extend(n.strip() for n in extra.split(",") if n.strip())
+        return keep
+    return [
+        "BackendEngineer",
+        "SoftwareArchitect",
+        "PlatformEngineer",
+        "FrontendEngineer",
+        "SecurityReviewer",
+    ]
 
 
 def is_collab_core_scenario(name: str) -> bool:

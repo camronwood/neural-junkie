@@ -91,6 +91,9 @@
       "timeout": 45
     },
     {
+      "action": "workspace_ack"
+    },
+    {
       "action": "assert_deliverable_stubs",
       "min_stubs": 1,
       "require_plan_md": true,
@@ -107,8 +110,9 @@
     },
     {
       "action": "wait_tasks",
-      "settle_only": true,
-      "timeout": "120s"
+      "min_completed": 1,
+      "all_match": false,
+      "timeout": "300s"
     },
     {
       "action": "approve_file_changes",

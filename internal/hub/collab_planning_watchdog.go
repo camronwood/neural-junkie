@@ -1,7 +1,6 @@
 package hub
 
 import (
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -129,12 +128,6 @@ func (h *Hub) sendPlanningTurnHandoff(c *collaboration.Collaboration, agentID st
 	}
 
 	body := "Collaboration turn handoff: next participant, please continue the plan discussion and refine task assignments."
-	if c.Discussion != nil && c.Discussion.TotalMessageCount == 0 {
-		body = fmt.Sprintf(
-			"@%s -- You're up first for: %s\n\nPropose a **minimal** task list (3–6 lines) with concrete deliverable paths (`- Task N: @Agent - Write collabs/<id>/file.md …`). Defer debate until tasks are drafted; use each participant's lane.",
-			name, strings.TrimSpace(c.Description),
-		)
-	}
 
 	msg := protocol.NewMessage(
 		protocol.MessageTypeCollabDiscussion,
