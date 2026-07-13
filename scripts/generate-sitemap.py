@@ -23,7 +23,7 @@ def page_priority(html_path: Path) -> str:
     rel = html_path.relative_to(DOCS).as_posix()
     if rel == "index.html":
         return "1.0"
-    if rel in {"download.html", "start-here.html", "packs.html"}:
+    if rel in {"download.html", "start-here.html", "packs.html", "built-for-zero.html", "install-trust.html"}:
         return "0.9"
     if rel in {"features/index.html", "articles/index.html", "benchmarks/index.html"}:
         return "0.8"

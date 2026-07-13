@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Built for $0 — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie is an experiment: ship a multi-agent desktop app that is free for users and built, distributed, and marketed with free open-source tools only." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/built-for-zero.html" />
+  <meta property="og:title" content="Built for $0 — Neural Junkie" />
+  <meta property="og:description" content="Neural Junkie is an experiment: ship a multi-agent desktop app that is free for users and built, distributed, and marketed with free open-source tools only." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/built-for-zero.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Built for $0 — Neural Junkie" />
+  <meta name="twitter:description" content="Neural Junkie is an experiment: ship a multi-agent desktop app that is free for users and built, distributed, and marketed with free open-source tools only." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
+<!-- NJ-SITE-SEO:END -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="packs.html">Packs</a>
+        <a class="btn btn-ghost" href="features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="security.html">Security</a>
+        <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Home</a> · Built for $0
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Built for $0</h1>
+      <p class="feature-deep-lead">
+        Neural Junkie is an experiment: <strong>what can one team ship when the product, toolchain, hosting, and marketing stack are all free and open source?</strong>
+        No mandatory cloud bill. No app-store cut. No paid analytics SaaS. Users can run local models forever without a credit card.
+      </p>
+      <p class="release-landing-actions" style="margin-top: 1rem;">
+        <a class="btn btn-primary" href="download.html">Download free</a>
+        <a class="btn btn-ghost" href="install-trust.html">Install trust guide</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie">View source (MIT)</a>
+      </p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>The thesis</h2>
+      <p>Most “free” AI tools subsidize inference with VC money or upsell cloud APIs. Neural Junkie inverts that:</p>
+      <ul>
+        <li><strong>Free for users</strong> — MIT license, local-first runtime, optional cloud only if you add keys.</li>
+        <li><strong>Free to build</strong> — Tauri, React, Go, Ollama, GitHub Actions on a public repo.</li>
+        <li><strong>Free to market</strong> — static GitHub Pages site, GoatCounter, LinkedIn article pipeline, public benchmarks.</li>
+      </ul>
+      <p>This page is the reproducible recipe. Clone the repo, read the tables, and run the same stack.</p>
+
+      <h2>Build stack (OSS)</h2>
+      <table class="release-install-table hardware-tier-table" aria-label="Build toolchain">
+        <thead>
+          <tr><th scope="col">Layer</th><th scope="col">Tool</th><th scope="col">License</th><th scope="col">Cost</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Desktop shell</td><td>Tauri 1.x + Rust</td><td>MIT / Apache-2.0</td><td>$0</td></tr>
+          <tr><td>UI</td><td>React + TypeScript + Vite</td><td>MIT</td><td>$0</td></tr>
+          <tr><td>Hub / agents</td><td>Go</td><td>BSD-3</td><td>$0</td></tr>
+          <tr><td>Local inference</td><td>Ollama (bundled macOS)</td><td>MIT</td><td>$0</td></tr>
+          <tr><td>Editor</td><td>Monaco + LSP</td><td>MIT</td><td>$0</td></tr>
+          <tr><td>Specialists</td><td>LoRA / MLX (Apple Silicon)</td><td>Apache-2.0</td><td>$0</td></tr>
+          <tr><td>CI</td><td>GitHub Actions</td><td>Free for public repos</td><td>$0</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Ship &amp; operate (free tiers)</h2>
+      <table class="release-install-table hardware-tier-table" aria-label="Distribution stack">
+        <thead>
+          <tr><th scope="col">Function</th><th scope="col">Service</th><th scope="col">Cost</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Source + issues</td><td>GitHub public repo</td><td>$0</td></tr>
+          <tr><td>Installers</td><td>GitHub Releases</td><td>$0</td></tr>
+          <tr><td>macOS install</td><td>Homebrew tap (<code>camronwood/tap</code>)</td><td>$0</td></tr>
+          <tr><td>Marketing site</td><td>GitHub Pages (<code>/docs</code>)</td><td>$0</td></tr>
+          <tr><td>Slack OAuth relay</td><td>Cloudflare Workers (optional)</td><td>Free tier</td></tr>
+          <tr><td>Analytics</td><td>GoatCounter</td><td>Free at our scale</td></tr>
+          <tr><td>SEO</td><td>Generated sitemap + meta (<code>make site-seo-sync</code>)</td><td>$0</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Market (no ad spend)</h2>
+      <ul>
+        <li><strong>47-page static site</strong> — landing, guides, download funnel, security, packs.</li>
+        <li><strong>Article pipeline</strong> — <code>docs/marketing/</code> → <code>make articles-sync</code> → long-form SEO pages.</li>
+        <li><strong>Public benchmarks</strong> — <a href="benchmarks/index.html">local model pass rates</a> as both engineering artifact and content.</li>
+        <li><strong>Gallery + release notes</strong> — screenshots and honest beta changelog.</li>
+        <li><strong>GitHub discoverability</strong> — topics, homepage, pack ecosystem repos.</li>
+      </ul>
+
+      <h2>User runtime: free path vs optional paid</h2>
+      <table class="release-install-table hardware-tier-table" aria-label="User cost paths">
+        <thead>
+          <tr><th scope="col">Need</th><th scope="col">Free path</th><th scope="col">Optional paid</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Chat &amp; agents</td><td>Ollama + bundled/local models</td><td>Claude, OpenAI-compatible APIs</td></tr>
+          <tr><td>Specialists</td><td>LoRA train locally</td><td>Cloud GPU (your choice)</td></tr>
+          <tr><td>Slack</td><td>Connect Slack via free relay</td><td>—</td></tr>
+          <tr><td>Storage</td><td>Local disk</td><td>—</td></tr>
+          <tr><td>Updates</td><td>GitHub Releases + in-app beta channel</td><td>—</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Platform taxes (honest limits)</h2>
+      <p>Some gates cost money <em>or</em> user friction. We document both — no pretending Gatekeeper does not exist.</p>
+      <table class="release-install-table hardware-tier-table" aria-label="Platform friction">
+        <thead>
+          <tr><th scope="col">Gate</th><th scope="col">Paid fix</th><th scope="col">Free path today</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>macOS Gatekeeper</td><td>Apple Developer + notarization ($99/yr)</td><td>Homebrew cask, Right-click → Open, <a href="install-trust.html">install trust guide</a></td></tr>
+          <tr><td>Windows SmartScreen</td><td>EV code signing cert</td><td>“More info” → Run anyway, SHA256 verify, build from source</td></tr>
+          <tr><td>Official Homebrew Cask</td><td>Notability / maintainer time</td><td>Custom tap works today</td></tr>
+          <tr><td>Custom domain</td><td>Registrar fee</td><td><code>camronwood.github.io/neural-junkie</code> (free)</td></tr>
+        </tbody>
+      </table>
+      <p>CI already supports notarization when Apple secrets are present — we stay on ad-hoc signing until paying Apple aligns with the experiment budget (zero).</p>
+
+      <h2>Reproduce it yourself</h2>
+      <pre><code>git clone https://github.com/camronwood/neural-junkie.git
+cd neural-junkie
+make gui-install   # first time
+make gui           # run desktop + hub
+
+# Marketing site locally
+python3 -m http.server 8765 --directory docs
+
+# Regenerate SEO after editing pages
+make site-seo-sync</code></pre>
+
+      <aside class="repo-links">
+        <h2>Related</h2>
+        <ul>
+          <li><a href="install-trust.html">Install trust</a> — Gatekeeper &amp; SmartScreen without paid certs</li>
+          <li><a href="security.html">Security &amp; privacy</a> — local-first, no telemetry page</li>
+          <li><a href="benchmarks/index.html">Model benchmarks</a> — public local-AI results</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/BUILT_FOR_ZERO.md">BUILT_FOR_ZERO.md</a> — repo copy of this manifesto</li>
+        </ul>
+      </aside>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="articles/index.html">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p>
+        <a href="https://github.com/camronwood/neural-junkie">Neural Junkie</a>
+        — open source · MIT
+      </p>
+    </div>
+  </footer>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

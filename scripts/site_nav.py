@@ -48,6 +48,8 @@ NAV_ITEMS: tuple[dict, ...] = (
 
 FOOTER_EXPLORE_ITEMS: tuple[dict, ...] = (
     {"id": "start-here", "label": "Start here", "path": "start-here.html"},
+    {"id": "built-for-zero", "label": "Built for $0", "path": "built-for-zero.html"},
+    {"id": "install-trust", "label": "Install trust", "path": "install-trust.html"},
     {"id": "packs", "label": "Packs", "path": "packs.html"},
     {"id": "security", "label": "Security", "path": "security.html"},
     {"id": "guides", "label": "Guides", "path": "features/index.html"},

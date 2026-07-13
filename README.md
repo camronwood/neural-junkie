@@ -312,6 +312,10 @@ python3 -m http.server 8765 --bind 127.0.0.1
 
 Then open `http://127.0.0.1:8765/` in a browser. Do not commit API keys or other secrets into this repo; keep hosting tokens in CI or provider dashboards only.
 
+## Built for $0
+
+Neural Junkie is an experiment: free for users **and** built, shipped, and marketed with free open-source tools only. See [docs/BUILT_FOR_ZERO.md](docs/BUILT_FOR_ZERO.md) and the [marketing page](https://camronwood.github.io/neural-junkie/built-for-zero.html). Install without paid signing: [INSTALL_TRUST.md](docs/INSTALL_TRUST.md).
+
 ## License
 
 MIT

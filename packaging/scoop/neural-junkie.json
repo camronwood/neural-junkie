@@ -1,0 +1,15 @@
+{
+  "version": "1.2.0-beta.5",
+  "description": "Multi-agent AI desktop workspace — local-first, open source",
+  "homepage": "https://camronwood.github.io/neural-junkie/",
+  "license": "MIT",
+  "url": "https://github.com/camronwood/neural-junkie/releases/download/v1.2.0-beta.5/Neural.Junkie_1.2.0.5_x64_en-US.msi",
+  "hash": "REPLACE_WITH_SHA256_AFTER_RELEASE",
+  "bin": "Neural Junkie",
+  "checkver": {
+    "github": "https://github.com/camronwood/neural-junkie"
+  },
+  "autoupdate": {
+    "url": "https://github.com/camronwood/neural-junkie/releases/download/v$version/Neural.Junkie_$matchHead_x64_en-US.msi"
+  }
+}

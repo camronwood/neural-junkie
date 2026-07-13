@@ -73,10 +73,15 @@
 
     <section class="download-brew" id="homebrew" aria-labelledby="dl-brew">
       <h2 id="dl-brew">macOS · Homebrew <span class="download-brew__badge">recommended</span></h2>
-      <p class="download-brew__lead">Apple Silicon and Intel — same signed app as the GitHub <code>.dmg</code>. Ollama bundled; upgrades via <code>brew upgrade --cask neural-junkie</code>.</p>
+      <p class="download-brew__lead">Apple Silicon and Intel — same app as the GitHub <code>.dmg</code>. Fewer Gatekeeper prompts than a raw download. Ollama bundled; upgrades via <code>brew upgrade --cask neural-junkie</code>.</p>
       <pre class="download-brew__cmd"><code>brew tap camronwood/tap
 brew install --cask neural-junkie</code></pre>
-      <p class="download-brew__note">Tap repo: <a href="https://github.com/camronwood/homebrew-tap">github.com/camronwood/homebrew-tap</a>. Maintainer docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/HOMEBREW.md">HOMEBREW.md</a>.</p>
+      <p class="download-brew__note">Tap repo: <a href="https://github.com/camronwood/homebrew-tap">github.com/camronwood/homebrew-tap</a>. Gatekeeper or SmartScreen? See <a href="install-trust.html">Install trust</a> (free, no paid certs).</p>
+    </section>
+
+    <section class="feature-prose" style="margin-bottom: 2rem;" aria-labelledby="install-trust-dl">
+      <h2 id="install-trust-dl">Trust without paid signing</h2>
+      <p>We ship ad-hoc macOS and unsigned Windows builds as part of the <a href="built-for-zero.html">Built for $0</a> experiment. Full guide: <a href="install-trust.html">Install trust</a> — Homebrew, Right-click → Open, SHA256 verification, and build-from-source.</p>
     </section>
 
     <h2 class="download-section-title">Direct downloads</h2>
@@ -87,7 +92,7 @@ brew install --cask neural-junkie</code></pre>
         <p class="download-card__meta">M1 / M2 / M3 / M4 · <code>.dmg</code></p>
         <p class="download-card__file">Neural.Junkie_1.2.0-beta.5_aarch64.dmg</p>
             <a class="btn btn-primary download-card__btn" href="https://github.com/camronwood/neural-junkie/releases/download/v1.2.0-beta.5/Neural.Junkie_1.2.0-beta.5_aarch64.dmg" download>Download .dmg</a>
-        <p class="download-card__note">First launch: right-click → <strong>Open</strong> if Gatekeeper blocks (ad-hoc signed).</p>
+        <p class="download-card__note">First launch: right-click → <strong>Open</strong> if Gatekeeper blocks. <a href="install-trust.html">Install trust guide</a></p>
       </section>
 
       <section class="download-card" aria-labelledby="dl-macos-intel">
@@ -104,6 +109,7 @@ brew install --cask neural-junkie</code></pre>
         <p class="download-card__file">Neural.Junkie_1.2.0.5_x64_en-US.msi</p>
             <a class="btn btn-primary download-card__btn" href="https://github.com/camronwood/neural-junkie/releases/download/v1.2.0-beta.5/Neural.Junkie_1.2.0.5_x64_en-US.msi" download>Download .msi</a>
             <a class="btn btn-ghost download-card__btn-secondary" href="https://github.com/camronwood/neural-junkie/releases/download/v1.2.0-beta.5/Neural.Junkie_1.2.0-5_x64-setup.exe" download>Download setup .exe</a>
+        <p class="download-card__note">SmartScreen: <strong>More info</strong> → <strong>Run anyway</strong>. <a href="install-trust.html#windows">Windows guide</a></p>
       </section>
 
       <section class="download-card" aria-labelledby="dl-linux">
@@ -136,6 +142,8 @@ brew install --cask neural-junkie</code></pre>
     <nav class="doc-strip footer-explore" aria-label="Explore site">
       <span class="doc-strip-label">Explore:</span>
         <a class="btn btn-ghost btn-sm" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="install-trust.html">Install trust</a>
         <a class="btn btn-ghost btn-sm" href="packs.html">Packs</a>
         <a class="btn btn-ghost btn-sm" href="security.html">Security</a>
         <a class="btn btn-ghost btn-sm" href="features/index.html">Guides</a>

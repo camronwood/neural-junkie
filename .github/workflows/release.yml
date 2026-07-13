@@ -443,7 +443,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: chmod +x scripts/publish-updater-manifests.sh && ./scripts/publish-updater-manifests.sh "${{ github.ref_name }}" "${{ github.repository }}"
 
-  publish-release:
+  publish-release-checksums:
     needs:
       - create-release
       - build-macos
@@ -451,6 +451,26 @@ jobs:
       - build-linux
       - publish-updater-manifests
     if: ${{ needs.create-release.result == 'success' && needs.publish-updater-manifests.result == 'success' && needs.build-macos.result == 'success' && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish SHA256SUMS
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: chmod +x scripts/publish-release-checksums.sh && ./scripts/publish-release-checksums.sh "${{ github.ref_name }}" "${{ github.repository }}"
+
+  publish-release:
+    needs:
+      - create-release
+      - build-macos
+      - build-windows
+      - build-linux
+      - publish-updater-manifests
+      - publish-release-checksums
+    if: ${{ needs.create-release.result == 'success' && needs.publish-updater-manifests.result == 'success' && needs.publish-release-checksums.result == 'success' && needs.build-macos.result == 'success' && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Publish release (undraft)

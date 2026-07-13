@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Install trust — Neural Junkie</title>
+  <meta name="description" content="Install Neural Junkie without paid code signing: Homebrew on macOS, Gatekeeper and SmartScreen workarounds, SHA256 verification, and build-from-source." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/install-trust.html" />
+  <meta property="og:title" content="Install trust — Neural Junkie" />
+  <meta property="og:description" content="Install Neural Junkie without paid code signing: Homebrew on macOS, Gatekeeper and SmartScreen workarounds, SHA256 verification, and build-from-source." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/install-trust.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Install trust — Neural Junkie" />
+  <meta name="twitter:description" content="Install Neural Junkie without paid code signing: Homebrew on macOS, Gatekeeper and SmartScreen workarounds, SHA256 verification, and build-from-source." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
+<!-- NJ-SITE-SEO:END -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="packs.html">Packs</a>
+        <a class="btn btn-ghost" href="features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="security.html">Security</a>
+        <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Home</a> · Install trust
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Install trust (no paid certs)</h1>
+      <p class="feature-deep-lead">
+        Neural Junkie ships as <strong>ad-hoc signed macOS</strong> and <strong>unsigned Windows</strong> builds — a deliberate choice to keep the
+        <a href="built-for-zero.html">$0 experiment</a> honest. Apple notarization and EV code signing cost money; this guide is the free path to a trusted install.
+      </p>
+      <p class="release-landing-actions" style="margin-top: 1rem;">
+        <a class="btn btn-primary" href="download.html">Download</a>
+        <a class="btn btn-ghost" href="download.html#homebrew">Homebrew (macOS)</a>
+      </p>
+    </header>
+
+    <article class="feature-prose">
+      <h2 id="quick-picks">Quick picks</h2>
+      <table class="release-install-table hardware-tier-table" aria-label="Recommended install paths">
+        <thead>
+          <tr><th scope="col">Platform</th><th scope="col">Best free path</th><th scope="col">Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>macOS</td><td><code>brew install --cask neural-junkie</code></td><td>Same binary as GitHub; familiar trust model for developers</td></tr>
+          <tr><td>macOS (.dmg)</td><td>Right-click app → <strong>Open</strong></td><td>Bypasses first-launch Gatekeeper without paid notarization</td></tr>
+          <tr><td>Windows</td><td>Download <code>.msi</code> → SmartScreen “More info” → <strong>Run anyway</strong></td><td>Expected for unsigned OSS installers</td></tr>
+          <tr><td>Linux</td><td><code>sudo dpkg -i neural-junkie_*.deb</code></td><td>No store gatekeepers; distro package manager</td></tr>
+          <tr><td>Any</td><td>Verify SHA256 + build from source</td><td>Maximum trust — you compiled it</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="macos">macOS · Gatekeeper</h2>
+      <h3>Option A — Homebrew (recommended)</h3>
+      <pre><code>brew tap camronwood/tap
+brew install --cask neural-junkie</code></pre>
+      <p>Upgrades: <code>brew upgrade --cask neural-junkie</code>. Tap: <a href="https://github.com/camronwood/homebrew-tap">camronwood/homebrew-tap</a>.</p>
+
+      <h3>Option B — Right-click → Open</h3>
+      <ol>
+        <li>Download the <code>.dmg</code> from <a href="download.html">Downloads</a>.</li>
+        <li>Drag <strong>Neural Junkie</strong> to Applications.</li>
+        <li>In Finder, <strong>right-click</strong> the app → <strong>Open</strong> (do not double-click the first time).</li>
+        <li>Confirm <strong>Open</strong> in the dialog. macOS remembers after one approval.</li>
+      </ol>
+
+      <h3>Option C — Clear quarantine flag</h3>
+      <p>If macOS still blocks launch after download, remove the download quarantine attribute:</p>
+      <pre><code># After copying the repo, or download the script from GitHub:
+./scripts/open-macos-app.sh "/Applications/Neural Junkie.app"</code></pre>
+      <p>Equivalent manual command: <code>xattr -dr com.apple.quarantine "/Applications/Neural Junkie.app"</code></p>
+
+      <h2 id="windows">Windows · SmartScreen</h2>
+      <ol>
+        <li>Download the <code>.msi</code> or setup <code>.exe</code> from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/latest">GitHub Releases</a>.</li>
+        <li>If SmartScreen appears: click <strong>More info</strong> → <strong>Run anyway</strong>.</li>
+        <li>Complete the setup wizard — it can install Ollama via <code>winget</code> on first launch.</li>
+      </ol>
+      <p><strong>Community packaging (future):</strong> Scoop and WinGet manifests live under <code>packaging/</code> for volunteer submission — no paid cert required, reputation builds over time.</p>
+
+      <h2 id="verify">Verify download integrity</h2>
+      <p>Each GitHub Release publishes <code>SHA256SUMS</code> for installer assets (generated in CI). Verify before install:</p>
+      <pre><code># macOS / Linux
+./scripts/verify-release-checksums.sh v1.2.0-beta.5 ~/Downloads/Neural.Junkie_1.2.0-beta.5_aarch64.dmg
+
+# Or manually
+curl -LO https://github.com/camronwood/neural-junkie/releases/download/v1.2.0-beta.5/SHA256SUMS
+shasum -a 256 -c SHA256SUMS --ignore-missing</code></pre>
+      <p>On Windows, compare the hash from <code>SHA256SUMS</code> with PowerShell: <code>Get-FileHash .\Neural.Junkie_*.msi -Algorithm SHA256</code></p>
+
+      <h2 id="source">Build from source (ultimate trust)</h2>
+      <pre><code>git clone https://github.com/camronwood/neural-junkie.git
+cd neural-junkie
+make gui-install
+make gui-build
+make gui</code></pre>
+      <p>You get a locally built binary with no download gatekeepers. Requires Go, Node, and Rust — see <a href="https://github.com/camronwood/neural-junkie#quick-start">README Quick start</a>.</p>
+
+      <h2 id="linux">Linux</h2>
+      <pre><code>sudo dpkg -i neural-junkie_1.2.0-beta.5_amd64.deb
+neural-junkie</code></pre>
+      <p>Slim <code>.deb</code> — wizard installs Ollama on first launch. No Snap/Flatpak gatekeeper; trust is your package manager + our GitHub repo.</p>
+
+      <h2 id="faq">FAQ</h2>
+      <ul>
+        <li><strong>Is this malware?</strong> MIT-licensed source on GitHub. Inspect, verify hashes, or build yourself.</li>
+        <li><strong>When will you pay for notarization?</strong> When the project exits the $0 experiment or a sponsor covers Apple/Microsoft gate fees — tracked as optional v1.2.1+.</li>
+        <li><strong>Why not Snap/Flatpak?</strong> On the backlog; <code>.deb</code> + source build cover Linux today without store fees.</li>
+      </ul>
+
+      <aside class="repo-links">
+        <h2>Related</h2>
+        <ul>
+          <li><a href="built-for-zero.html">Built for $0</a> — why we skip paid signing</li>
+          <li><a href="known-issues.html#macos-adhoc-sign">Known issue #13</a> — macOS ad-hoc signing</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/INSTALL_TRUST.md">INSTALL_TRUST.md</a> — repo copy</li>
+        </ul>
+      </aside>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="articles/index.html">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p>
+        <a href="https://github.com/camronwood/neural-junkie">Neural Junkie</a>
+        — open source · MIT
+      </p>
+    </div>
+  </footer>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>
