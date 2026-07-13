@@ -1,6 +1,6 @@
 {
-  "updated": "2026-06-28T11:04:28Z",
-  "count": 59,
+  "updated": "2026-07-13T21:17:23Z",
+  "count": 67,
   "items": [
     {
       "id": "ide-v4-carousel-01",
@@ -131,6 +131,15 @@
       "filename": "neural-junkie-beta21-test-ad-1200.png"
     },
     {
+      "id": "neural-junkie-beta5-1200",
+      "src": "../media/gallery/ads/neural-junkie-beta5-1200.png",
+      "title": "Beta5 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-beta5-1200.png"
+    },
+    {
       "id": "neural-junkie-biology-pack-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-biology-pack-ad-1080.png",
       "title": "Biology Pack",
@@ -245,6 +254,15 @@
       "filename": "neural-junkie-hardware-stacks-ad-1080.png"
     },
     {
+      "id": "neural-junkie-hub-1200",
+      "src": "../media/gallery/ads/neural-junkie-hub-1200.png",
+      "title": "Hub 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-hub-1200.png"
+    },
+    {
       "id": "neural-junkie-inference-gate-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-inference-gate-ad-1080.png",
       "title": "Inference Gate",
@@ -306,6 +324,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-lora-ad-1200.png"
+    },
+    {
+      "id": "neural-junkie-lora-v2-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-lora-v2-ad-1080.png",
+      "title": "Lora V2",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-lora-v2-ad-1080.png"
     },
     {
       "id": "neural-junkie-mcp-lora-ad-1200",
@@ -398,6 +425,33 @@
       "filename": "neural-junkie-oss-contributors-ad-1080.png"
     },
     {
+      "id": "neural-junkie-personal-learning-1200",
+      "src": "../media/gallery/ads/neural-junkie-personal-learning-1200.png",
+      "title": "Personal Learning 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-personal-learning-1200.png"
+    },
+    {
+      "id": "neural-junkie-personal-learning-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-personal-learning-ad-1080.png",
+      "title": "Personal Learning",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-personal-learning-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-react-tools-1200",
+      "src": "../media/gallery/ads/neural-junkie-react-tools-1200.png",
+      "title": "React Tools 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-react-tools-1200.png"
+    },
+    {
       "id": "neural-junkie-routing-badge-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-routing-badge-ad-1080.png",
       "title": "Routing Badge",
@@ -479,6 +533,15 @@
       "filename": "neural-junkie-social-ad-1080.png"
     },
     {
+      "id": "neural-junkie-stream-subscriptions-1200",
+      "src": "../media/gallery/ads/neural-junkie-stream-subscriptions-1200.png",
+      "title": "Stream Subscriptions 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-stream-subscriptions-1200.png"
+    },
+    {
       "id": "neural-junkie-test-harness-ad-1200",
       "src": "../media/gallery/ads/neural-junkie-test-harness-ad-1200.png",
       "title": "Test Harness Ad 1200",
@@ -495,6 +558,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-tiff-previewer-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-try-local-ai-camps",
+      "src": "../media/gallery/ads/neural-junkie-try-local-ai-camps.png",
+      "title": "Try Local Ai Camps",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-try-local-ai-camps.png"
     },
     {
       "id": "neural-junkie-two-tier-lora-ad-1200",
