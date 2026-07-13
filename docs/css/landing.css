@@ -118,7 +118,8 @@ a:hover {
   backdrop-filter: blur(10px);
 }
 
-.site-header .wrap {
+.site-header-bar,
+.site-header .wrap.site-header-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -163,6 +164,120 @@ a:hover {
 .site-header .nav-actions .btn {
   padding: 0.45rem 0.85rem;
   font-size: 0.82rem;
+}
+
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.nav-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.nav-toggle-bars,
+.nav-toggle-bars::before,
+.nav-toggle-bars::after {
+  display: block;
+  width: 1.1rem;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.nav-toggle-bars {
+  position: relative;
+}
+
+.nav-toggle-bars::before,
+.nav-toggle-bars::after {
+  content: "";
+  position: absolute;
+  left: 0;
+}
+
+.nav-toggle-bars::before {
+  top: -6px;
+}
+
+.nav-toggle-bars::after {
+  top: 6px;
+}
+
+.site-header.is-nav-open .nav-toggle-bars {
+  background: transparent;
+}
+
+.site-header.is-nav-open .nav-toggle-bars::before {
+  top: 0;
+  transform: rotate(45deg);
+}
+
+.site-header.is-nav-open .nav-toggle-bars::after {
+  top: 0;
+  transform: rotate(-45deg);
+}
+
+.nav-mobile {
+  display: none;
+  border-top: 1px solid var(--border);
+  background: rgba(13, 15, 20, 0.97);
+  max-height: min(70vh, calc(100dvh - 4.5rem));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nav-mobile-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.85rem 0 1.1rem;
+}
+
+.nav-mobile .btn {
+  width: 100%;
+  justify-content: flex-start;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+body.nav-open {
+  overflow: hidden;
+}
+
+@media (max-width: 980px) {
+  .nav-actions {
+    display: none;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .nav-mobile:not([hidden]) {
+    display: block;
+  }
+
+  .site-header {
+    padding: 0.75rem 0 0;
+  }
+
+  .site-header-bar {
+    padding-bottom: 0.75rem;
+  }
 }
 
 .btn {

@@ -109,16 +109,13 @@ def render_dev_banner(*, prefix: str, version: str) -> str:
   </div>"""
 
 
-def render_site_header(
+def _render_nav_links(
     *,
-    depth: int,
-    is_landing: bool = False,
-    active: str | None = None,
+    prefix: str,
+    is_landing: bool,
+    active: str | None,
+    indent: str = "        ",
 ) -> str:
-    prefix = asset_prefix(depth)
-    logo_href = f"{prefix}index.html" if not is_landing else "index.html"
-    icon_src = f"{prefix}assets/icon/favicon-32.png"
-
     links: list[str] = []
     for item in NAV_ITEMS:
         href = _href(item, prefix=prefix, is_landing=is_landing)
@@ -134,11 +131,76 @@ def render_site_header(
         attrs = f'class="{" ".join(classes)}" href="{href}"'
         if is_active:
             attrs += ' aria-current="page"'
-        links.append(f"        <a {attrs}>{item['label']}</a>")
+        links.append(f"{indent}<a {attrs}>{item['label']}</a>")
+    return "\n".join(links)
 
-    nav_inner = "\n".join(links)
+
+def render_mobile_nav_script() -> str:
+    """Tiny inline controller for the small-screen site menu."""
+    return """  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>"""
+
+
+def render_site_header(
+    *,
+    depth: int,
+    is_landing: bool = False,
+    active: str | None = None,
+) -> str:
+    prefix = asset_prefix(depth)
+    logo_href = f"{prefix}index.html" if not is_landing else "index.html"
+    icon_src = f"{prefix}assets/icon/favicon-32.png"
+
+    nav_inner = _render_nav_links(
+        prefix=prefix,
+        is_landing=is_landing,
+        active=active,
+        indent="        ",
+    )
+    mobile_inner = _render_nav_links(
+        prefix=prefix,
+        is_landing=is_landing,
+        active=active,
+        indent="          ",
+    )
     return f"""  <header class="site-header">
-    <div class="wrap">
+    <div class="wrap site-header-bar">
       <a class="logo" href="{logo_href}" aria-label="Neural Junkie home">
         <span class="logo-mark" aria-hidden="true"><img src="{icon_src}" alt="" width="32" height="32" decoding="async" /></span>
         Neural Junkie
@@ -146,8 +208,23 @@ def render_site_header(
       <nav class="nav-actions" aria-label="Primary">
 {nav_inner}
       </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
     </div>
-  </header>"""
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+{mobile_inner}
+      </div>
+    </nav>
+  </header>
+{render_mobile_nav_script()}"""
 
 
 def render_site_chrome(

@@ -29,7 +29,7 @@
 <!-- NJ-SITE-CHROME:START -->
 
   <header class="site-header">
-    <div class="wrap">
+    <div class="wrap site-header-bar">
       <a class="logo" href="index.html" aria-label="Neural Junkie home">
         <span class="logo-mark" aria-hidden="true"><img src="assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
         Neural Junkie
@@ -48,8 +48,71 @@
         <a class="btn btn-ghost" href="download.html">Download</a>
         <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
       </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
     </div>
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+          <a class="btn btn-ghost" href="start-here.html">Start here</a>
+          <a class="btn btn-ghost" href="index.html#pillars">Product</a>
+          <a class="btn btn-ghost" href="packs.html">Packs</a>
+          <a class="btn btn-ghost" href="features/index.html">Guides</a>
+          <a class="btn btn-ghost" href="articles/index.html">Articles</a>
+          <a class="btn btn-ghost" href="benchmarks/index.html">Benchmarks</a>
+          <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
+          <a class="btn btn-ghost" href="security.html">Security</a>
+          <a class="btn btn-primary" href="release-notes.html" aria-current="page">Release notes</a>
+          <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
+          <a class="btn btn-ghost" href="download.html">Download</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </div>
+    </nav>
   </header>
+  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>
 
 <!-- NJ-SITE-CHROME:END -->
 

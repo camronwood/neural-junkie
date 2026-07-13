@@ -18,6 +18,7 @@ from site_nav import (  # noqa: E402
     apply_site_seo,
     extract_goatcounter_count_url,
     page_canonical_url,
+    render_site_header,
 )
 
 
@@ -51,6 +52,32 @@ def _sample_page() -> str:
         </html>
         """
     )
+
+
+class SiteNavMobileTest(unittest.TestCase):
+    def test_render_site_header_includes_mobile_toggle_and_panel(self) -> None:
+        header = render_site_header(depth=0, is_landing=True, active="product")
+
+        self.assertIn('class="nav-toggle"', header)
+        self.assertIn('aria-controls="site-nav-mobile"', header)
+        self.assertIn('id="site-nav-mobile"', header)
+        self.assertIn('aria-label="Primary mobile"', header)
+        self.assertIn("site-header-bar", header)
+        self.assertIn("nav-open", header)
+        self.assertEqual(header.count('href="#pillars"'), 2)
+        self.assertEqual(header.count('aria-current="page"'), 2)
+
+    def test_apply_site_chrome_keeps_mobile_nav_markup(self) -> None:
+        html_path = SCRIPTS_DIR.parent / "docs" / "index.html"
+        updated = apply_site_chrome(
+            html_path,
+            _sample_page(),
+            version="1.2.0-beta.4",
+        )
+
+        self.assertIn('class="nav-toggle"', updated)
+        self.assertIn('id="site-nav-mobile"', updated)
+        self.assertIn("is-nav-open", updated)
 
 
 class SiteNavAnalyticsTest(unittest.TestCase):
