@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from site_nav import (  # noqa: E402
     apply_site_analytics,
     apply_site_chrome,
+    apply_site_seo,
     discover_goatcounter_count_url,
     iter_site_html,
     read_site_version,
@@ -39,11 +40,17 @@ def main() -> int:
             if "no site chrome block found" not in str(exc):
                 failed.append(str(exc))
                 continue
+            new_text = text
             try:
-                new_text = apply_site_analytics(text, goatcounter_count_url=goatcounter_count_url)
+                new_text = apply_site_analytics(new_text, goatcounter_count_url=goatcounter_count_url)
             except ValueError as analytics_exc:
                 failed.append(str(analytics_exc))
                 continue
+        try:
+            new_text = apply_site_seo(path, new_text)
+        except ValueError as seo_exc:
+            failed.append(str(seo_exc))
+            continue
         if new_text != text:
             path.write_text(new_text, encoding="utf-8")
             updated += 1

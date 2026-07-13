@@ -1,6 +1,7 @@
 """Canonical site chrome (dev banner + header nav) for docs/ GitHub Pages."""
 from __future__ import annotations
 
+import html
 import json
 import re
 from pathlib import Path
@@ -8,6 +9,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 GITHUB_REPO = "https://github.com/camronwood/neural-junkie"
+SITE_BASE_URL = "https://www.neuraljunkie.com"
+SITE_GITHUB_PAGES_URL = "https://camronwood.github.io/neural-junkie"
+DEFAULT_OG_IMAGE_PATH = "/assets/icon/og-image.png"
+DEFAULT_SITE_DESCRIPTION = (
+    "Neural Junkie — open-source multi-agent AI workspace. Local-first specialists, "
+    "bounded collaboration, routing you can audit, and human approval in one desktop app."
+)
 
 CHROME_START = "<!-- NJ-SITE-CHROME:START -->"
 CHROME_END = "<!-- NJ-SITE-CHROME:END -->"
@@ -15,6 +23,8 @@ FOOTER_NAV_START = "<!-- NJ-SITE-FOOTER-NAV:START -->"
 FOOTER_NAV_END = "<!-- NJ-SITE-FOOTER-NAV:END -->"
 ANALYTICS_START = "<!-- NJ-SITE-ANALYTICS:START -->"
 ANALYTICS_END = "<!-- NJ-SITE-ANALYTICS:END -->"
+SEO_START = "<!-- NJ-SITE-SEO:START -->"
+SEO_END = "<!-- NJ-SITE-SEO:END -->"
 
 NAV_ITEMS: tuple[dict, ...] = (
     {"id": "start-here", "label": "Start here", "path": "start-here.html"},
@@ -357,3 +367,165 @@ def apply_site_chrome(
 
 def iter_site_html() -> list[Path]:
     return sorted(DOCS.rglob("*.html"))
+
+
+_TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL | re.IGNORECASE)
+_DESC_RE = re.compile(
+    r'<meta\s+name="description"\s+content="([^"]*)"\s*/?>',
+    re.IGNORECASE,
+)
+_MARKED_SEO_RE = re.compile(
+    re.escape(SEO_START) + r".*?" + re.escape(SEO_END),
+    re.DOTALL,
+)
+_HEAD_SOCIAL_TAG_RE = re.compile(
+    r"\n\s*<(?:meta\s+(?:property=\"og:[^\"]+\"|name=\"twitter:[^\"]+\")|link\s+rel=\"canonical\")[^>]*>",
+    re.IGNORECASE,
+)
+
+
+def extract_page_title(text: str) -> str:
+    match = _TITLE_RE.search(text)
+    if not match:
+        return "Neural Junkie"
+    return re.sub(r"\s+", " ", match.group(1)).strip()
+
+
+def extract_meta_description(text: str) -> str:
+    match = _DESC_RE.search(text)
+    if not match:
+        return DEFAULT_SITE_DESCRIPTION
+    return match.group(1).strip()
+
+
+def page_canonical_url(html_path: Path) -> str:
+    rel = html_path.relative_to(DOCS).as_posix()
+    if rel == "index.html":
+        return f"{SITE_BASE_URL}/"
+    return f"{SITE_BASE_URL}/{rel}"
+
+
+def default_og_image_url() -> str:
+    return f"{SITE_BASE_URL}{DEFAULT_OG_IMAGE_PATH}"
+
+
+def page_og_type(html_path: Path) -> str:
+    rel = html_path.relative_to(DOCS).as_posix()
+    if rel.startswith("articles/") and rel != "articles/index.html":
+        return "article"
+    return "website"
+
+
+def render_json_ld(html_path: Path, *, title: str, description: str) -> str | None:
+    rel = html_path.relative_to(DOCS).as_posix()
+    if rel == "index.html":
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "Neural Junkie",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "macOS, Windows, Linux",
+            "description": description,
+            "softwareVersion": read_site_version(),
+            "url": SITE_BASE_URL,
+            "downloadUrl": f"{SITE_BASE_URL}/download.html",
+            "license": "https://opensource.org/licenses/MIT",
+            "author": {"@type": "Organization", "name": "Neural Junkie"},
+        }
+    elif rel.startswith("articles/") and rel != "articles/index.html":
+        headline = title.removesuffix(" — Neural Junkie").strip() or title
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Article",
+            "headline": headline,
+            "description": description,
+            "url": page_canonical_url(html_path),
+            "publisher": {"@type": "Organization", "name": "Neural Junkie"},
+        }
+    else:
+        return None
+    return (
+        '  <script type="application/ld+json">\n'
+        f"{json.dumps(payload, indent=2)}\n"
+        "  </script>"
+    )
+
+
+def render_seo_block(html_path: Path, *, title: str, description: str) -> str:
+    url = page_canonical_url(html_path)
+    og_image = default_og_image_url()
+    title_attr = html.escape(title, quote=True)
+    desc_attr = html.escape(description, quote=True)
+    og_type = page_og_type(html_path)
+
+    lines = [
+        SEO_START,
+        f'  <link rel="canonical" href="{url}" />',
+        f'  <meta property="og:title" content="{title_attr}" />',
+        f'  <meta property="og:description" content="{desc_attr}" />',
+        f'  <meta property="og:type" content="{og_type}" />',
+        f'  <meta property="og:url" content="{url}" />',
+        f'  <meta property="og:image" content="{og_image}" />',
+        '  <meta name="twitter:card" content="summary_large_image" />',
+        f'  <meta name="twitter:title" content="{title_attr}" />',
+        f'  <meta name="twitter:description" content="{desc_attr}" />',
+        f'  <meta name="twitter:image" content="{og_image}" />',
+    ]
+    json_ld = render_json_ld(html_path, title=title, description=description)
+    if json_ld:
+        lines.append(json_ld)
+    lines.append(SEO_END)
+    return "\n".join(lines)
+
+
+def strip_head_social_tags(text: str) -> str:
+    head_open = text.lower().find("<head>")
+    head_close = text.lower().find("</head>")
+    if head_open < 0 or head_close < 0 or head_close <= head_open:
+        return text
+    head = text[head_open:head_close]
+    seo_start = head.find(SEO_START)
+    seo_end = head.find(SEO_END)
+    if seo_start >= 0 and seo_end > seo_start:
+        before = _HEAD_SOCIAL_TAG_RE.sub("", head[:seo_start])
+        after = _HEAD_SOCIAL_TAG_RE.sub("", head[seo_end + len(SEO_END) :])
+        cleaned_head = before + head[seo_start : seo_end + len(SEO_END)] + after
+    else:
+        cleaned_head = _HEAD_SOCIAL_TAG_RE.sub("", head)
+    return text[:head_open] + cleaned_head + text[head_close:]
+
+
+def repair_broken_description_seo(text: str) -> str:
+    text = re.sub(
+        re.escape(SEO_END) + r"\s*/>",
+        SEO_END,
+        text,
+    )
+    return re.sub(
+        r'(<meta\s+name="description"\s+content="[^"]*")\s*\n\s*' + re.escape(SEO_START),
+        r"\1 />\n" + SEO_START,
+        text,
+        flags=re.IGNORECASE,
+    )
+
+
+def apply_site_seo(html_path: Path, text: str) -> str:
+    text = repair_broken_description_seo(text)
+    title = extract_page_title(text)
+    description = extract_meta_description(text)
+    seo = render_seo_block(html_path, title=title, description=description)
+
+    if SEO_START in text and SEO_END in text:
+        text = _MARKED_SEO_RE.sub(lambda _match: seo, text, count=1)
+        return text
+
+    text = strip_head_social_tags(text)
+    desc_match = _DESC_RE.search(text)
+    if desc_match:
+        insert_at = desc_match.end()
+        return text[:insert_at] + "\n" + seo + text[insert_at:]
+
+    head_close = text.lower().find("</head>")
+    if head_close < 0:
+        raise ValueError(f"no </head> tag found for SEO injection in {html_path}")
+    return text[:head_close] + "\n" + seo + "\n" + text[head_close:]

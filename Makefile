@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -98,6 +98,14 @@ articles-sync: ## Regenerate docs/articles from docs/marketing LinkedIn sources
 
 site-nav-sync: ## Unify header navigation across all docs/*.html pages
 	@python3 ./scripts/sync-site-nav.py
+
+site-seo-sync: ## Sync nav + SEO meta (canonical, OG, Twitter) and regenerate sitemap/robots
+	@python3 ./scripts/sync-site-nav.py
+	@python3 ./scripts/generate-sitemap.py
+
+github-metadata-sync: ## Update GitHub repo descriptions, homepages, and topics (requires gh auth)
+	@chmod +x ./scripts/sync-github-repo-metadata.sh
+	@./scripts/sync-github-repo-metadata.sh
 
 build: ## Build all binaries
 	@echo "🔨 Building server... $(if $(SERVER_GO_TAGS),[Slack vendor embedded],)"

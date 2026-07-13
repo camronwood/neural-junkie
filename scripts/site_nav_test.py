@@ -12,8 +12,12 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from site_nav import (  # noqa: E402
     ANALYTICS_START,
+    SEO_END,
+    SEO_START,
     apply_site_chrome,
+    apply_site_seo,
     extract_goatcounter_count_url,
+    page_canonical_url,
 )
 
 
@@ -104,6 +108,51 @@ class SiteNavAnalyticsTest(unittest.TestCase):
             extract_goatcounter_count_url(updated),
             "https://kept.goatcounter.com/count",
         )
+
+
+class SiteNavSeoTest(unittest.TestCase):
+    def test_apply_site_seo_injects_canonical_and_social_tags(self) -> None:
+        html_path = SCRIPTS_DIR.parent / "docs" / "articles" / "beta-5.html"
+        page = _sample_page().replace(
+            "<title>Sample</title>",
+            "<title>Beta 5 — Neural Junkie</title>\n"
+            '  <meta name="description" content="Release notes for beta 5." />',
+        )
+        updated = apply_site_seo(html_path, page)
+
+        self.assertIn(SEO_START, updated)
+        self.assertIn(SEO_END, updated)
+        self.assertIn(f'<link rel="canonical" href="{page_canonical_url(html_path)}" />', updated)
+        self.assertIn('property="og:title"', updated)
+        self.assertIn('name="twitter:card" content="summary_large_image"', updated)
+        self.assertIn('"@type": "Article"', updated)
+
+    def test_apply_site_seo_preserves_description_tag_closure(self) -> None:
+        html_path = SCRIPTS_DIR.parent / "docs" / "index.html"
+        page = _sample_page().replace(
+            "<title>Sample</title>",
+            "<title>Neural Junkie</title>\n"
+            '  <meta name="description" content="Multi-agent workspace." />',
+        )
+        updated = apply_site_seo(html_path, page)
+
+        self.assertIn('content="Multi-agent workspace." />', updated)
+        self.assertNotIn(f"{SEO_END} />", updated)
+
+    def test_apply_site_seo_replaces_legacy_social_tags(self) -> None:
+        html_path = SCRIPTS_DIR.parent / "docs" / "index.html"
+        page = _sample_page().replace(
+            "<title>Sample</title>",
+            "<title>Neural Junkie</title>\n"
+            '  <meta name="description" content="Multi-agent workspace." />\n'
+            '  <meta property="og:title" content="Old title" />\n'
+            '  <meta name="twitter:image" content="https://example.com/old.png" />',
+        )
+        updated = apply_site_seo(html_path, page)
+
+        self.assertNotIn("Old title", updated)
+        self.assertNotIn("example.com/old.png", updated)
+        self.assertIn('"@type": "SoftwareApplication"', updated)
 
 
 if __name__ == "__main__":
