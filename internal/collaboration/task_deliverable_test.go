@@ -102,6 +102,9 @@ func TestTaskDispatchFileDeliverableNote_researchScopeLimit(t *testing.T) {
 	if !strings.Contains(note, "App.tsx") {
 		t.Fatalf("expected frontend exclusion in scope limit, got: %q", note)
 	}
+	if !strings.Contains(note, "server/main.go") {
+		t.Fatalf("expected server/main.go exclusion in scope limit, got: %q", note)
+	}
 }
 
 func TestTaskDispatchFileDeliverableNote_nonResearchFindings(t *testing.T) {

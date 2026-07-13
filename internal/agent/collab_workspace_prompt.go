@@ -73,7 +73,7 @@ func collaborationWorkspaceFocusHint(goal string) string {
 	if strings.Contains(lower, "core/sample/main.go") &&
 		(strings.Contains(lower, "readme.md") || strings.Contains(lower, "readme")) &&
 		(strings.Contains(lower, " only") || strings.Contains(lower, "only.")) {
-		return "- **Focus paths:** `README.md` and `core/sample/main.go` only — do not cite or discuss `src/`, React, or frontend files unless the task names them.\n"
+		return "- **Focus paths:** `README.md` and `core/sample/main.go` only — do not cite or discuss `src/`, React, `server/main.go`, or other paths outside scope (no disclaimers about excluded files).\n"
 	}
 	return ""
 }
