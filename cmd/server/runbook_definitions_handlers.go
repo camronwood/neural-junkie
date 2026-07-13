@@ -170,31 +170,13 @@ func handleRunbookDefinitionTrigger(w http.ResponseWriter, r *http.Request, id s
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	if len(body.AgentIDs) < 1 {
-		http.Error(w, "agent_ids required", http.StatusBadRequest)
-		return
-	}
-	if body.Channel == "" {
-		body.Channel = "general"
-	}
-	if body.CreatedBy == "" {
-		body.CreatedBy = "trigger"
-	}
-	result, err := chatHub.InstantiateDefinition(id, body.Version, hub.RunbookCreateRequest{
+	result, err := chatHub.TriggerRunbookDefinition(id, body.Version, hub.RunbookCreateRequest{
 		AgentIDs:  body.AgentIDs,
 		Channel:   body.Channel,
 		CreatedBy: body.CreatedBy,
 		RunInputs: body.Inputs,
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if _, err := chatHub.SubmitRunbookForReview(result.CollaborationID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if _, err := chatHub.StartRunbook(result.CollaborationID, body.Inputs); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

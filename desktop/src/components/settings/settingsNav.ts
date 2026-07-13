@@ -12,6 +12,7 @@ export type SettingsTab =
   | 'integrations'
   | 'assistant-tools'
   | 'slack'
+  | 'streams'
   | 'security'
   | 'server-network'
   | 'automation'
@@ -60,6 +61,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       { id: 'integrations', label: 'Integrations' },
       { id: 'assistant-tools', label: 'Assistant tools' },
       { id: 'slack', label: 'Slack' },
+      { id: 'streams', label: 'Streams' },
     ],
   },
   {

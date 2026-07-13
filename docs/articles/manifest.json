@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-10T14:45:39Z",
-  "count": 20,
+  "updated": "2026-07-13T21:14:14Z",
+  "count": 21,
   "items": [
     {
       "slug": "beta-5",
@@ -385,6 +385,27 @@
       "sourceFile": "CONVERSATIONAL-TEST-HARNESS.md",
       "sourcePath": "docs/marketing/CONVERSATIONAL-TEST-HARNESS.md",
       "href": "conversational-test-harness.html"
+    },
+    {
+      "slug": "stream-subscriptions",
+      "title": "Streams In. Agents Out: MQTT and Kafka Triggers for Local Runbooks",
+      "teaser": "MQTT and Kafka don't need a chatbot sitting on the topic. Neural Junkie adds long-lived stream subscriptions that match messages and fire a runbook, post into a hub channel, or call a webhook \u2014 Settings UI included.",
+      "cover": "assets/neural-junkie-stream-subscriptions-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-stream-subscriptions-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "mqtt",
+        "kafka",
+        "developertools",
+        "opensource",
+        "localfirst"
+      ],
+      "sourceFile": "STREAM-SUBSCRIPTIONS-LINKEDIN.md",
+      "sourcePath": "docs/marketing/STREAM-SUBSCRIPTIONS-LINKEDIN.md",
+      "href": "stream-subscriptions.html"
     }
   ]
 }
