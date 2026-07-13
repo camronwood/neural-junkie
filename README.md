@@ -314,7 +314,7 @@ Then open `http://127.0.0.1:8765/` in a browser. Do not commit API keys or other
 
 ## Built for $0
 
-Neural Junkie is an experiment: free for users **and** built, shipped, and marketed with free open-source tools only. See [docs/BUILT_FOR_ZERO.md](docs/BUILT_FOR_ZERO.md) and the [marketing page](https://camronwood.github.io/neural-junkie/built-for-zero.html). Install without paid signing: [INSTALL_TRUST.md](docs/INSTALL_TRUST.md).
+Neural Junkie is an experiment: free for users **and** built, shipped, and marketed with free open-source tools only. See [docs/BUILT_FOR_ZERO.md](docs/BUILT_FOR_ZERO.md), [docs/THANKS.md](docs/THANKS.md), and the [marketing pages](https://camronwood.github.io/neural-junkie/built-for-zero.html). Install without paid signing: [INSTALL_TRUST.md](docs/INSTALL_TRUST.md).
 
 ## License
 
@@ -324,5 +324,6 @@ MIT
 
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
+- [Thank you — open source](docs/THANKS.md)
 - [Known issues](docs/KNOWN_ISSUES.md)
 - [Report a bug](https://github.com/camronwood/neural-junkie/issues/new?template=bug_report.yml)
