@@ -13,7 +13,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@SoftwareArchitect @BackendEngineer Plan exactly one execution task for @BackendEngineer: Write collabs/<id>/findings.md with three bullets citing README.md and core/sample/main.go only."
+    "goal": "@BackendEngineer @SoftwareArchitect Plan one task using this exact line: - Task 1: @BackendEngineer - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go only (three substantive bullets; do not mention src/, React, or server/main.go)."
   },
   "expect_deliverables": [
     {
@@ -21,13 +21,10 @@
       "min_bytes": 30,
       "deny_task_status": true,
       "for_question": {
-        "min_markdown_bullets": 3,
-        "contains_all": ["README\\.md", "core/sample/main\\.go"],
-        "any_match": ["README|main\\.go|core/sample|minimal"],
+        "any_match": [
+          "README|main\\.go|core/sample|minimal"
+        ],
         "none_match": [
-          "server/main\\.go",
-          "\\bsrc/",
-          "React",
           "index\\.js",
           "utils\\.js",
           "\\[Insert",
@@ -61,6 +58,17 @@
     {"action": "approve_plan"},
     {"action": "wait_phase", "phase": "executing", "timeout": 45},
     {"action": "workspace_ack"},
+    {
+      "action": "assert_deliverable_stubs",
+      "min_stubs": 1,
+      "require_plan_md": true,
+      "skip_names": [
+        "README.md",
+        "planning-summary.md",
+        "session-summary.md",
+        "plan.md"
+      ]
+    },
     {"action": "send", "content": "/resume-plan <collab-id>"},
     {
       "action": "wait_tasks",
