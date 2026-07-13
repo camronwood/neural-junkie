@@ -160,6 +160,40 @@ func (h *Hub) StartRunbook(collabID string, inputs map[string]string) (*collabor
 	return h.finalizeCollaborationExecutionStart(collabID, "✅ **Runbook execution started**")
 }
 
+// TriggerRunbookResult is returned when a definition is instantiated and started.
+type TriggerRunbookResult struct {
+	CollaborationID      string `json:"collaboration_id"`
+	CollaborationChannel string `json:"collaboration_channel"`
+}
+
+// TriggerRunbookDefinition instantiates a library definition, submits for review, and starts execution.
+// Used by HTTP /trigger and stream subscriptions.
+func (h *Hub) TriggerRunbookDefinition(defID string, version int, req RunbookCreateRequest) (*TriggerRunbookResult, error) {
+	if len(req.AgentIDs) < 1 {
+		return nil, fmt.Errorf("agent_ids required")
+	}
+	if strings.TrimSpace(req.Channel) == "" {
+		req.Channel = "general"
+	}
+	if strings.TrimSpace(req.CreatedBy) == "" {
+		req.CreatedBy = "trigger"
+	}
+	result, err := h.InstantiateDefinition(defID, version, req)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := h.SubmitRunbookForReview(result.CollaborationID); err != nil {
+		return nil, err
+	}
+	if _, err := h.StartRunbook(result.CollaborationID, req.RunInputs); err != nil {
+		return nil, err
+	}
+	return &TriggerRunbookResult{
+		CollaborationID:      result.CollaborationID,
+		CollaborationChannel: result.CollaborationChannel,
+	}, nil
+}
+
 // InstantiateDefinition creates a draft runbook from a library definition.
 func (h *Hub) InstantiateDefinition(defID string, version int, req RunbookCreateRequest) (*RunbookCreateResult, error) {
 	def, err := runbooklibrary.LoadDefinition(defID, version, h.GetCollaborationAssetsRoot(), h.packRunbookDefinitions())

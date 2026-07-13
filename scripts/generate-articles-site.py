@@ -42,6 +42,7 @@ ARTICLE_ORDER = [
     "collaboration",
     "solo-vs-collab-parity",
     "conversational-test-harness",
+    "stream-subscriptions",
 ]
 
 SOURCE_BY_SLUG = {
@@ -65,6 +66,7 @@ SOURCE_BY_SLUG = {
     "collaboration": "COLLABORATION-LINKEDIN.md",
     "solo-vs-collab-parity": "SOLO-VS-COLLAB-PARITY-LINKEDIN.md",
     "conversational-test-harness": "CONVERSATIONAL-TEST-HARNESS.md",
+    "stream-subscriptions": "STREAM-SUBSCRIPTIONS-LINKEDIN.md",
 }
 
 COVER_OVERRIDES = {
@@ -100,6 +102,15 @@ META_OVERRIDES: dict[str, dict[str, object]] = {
         ),
         "tags": ["ai", "developertools", "opensource", "localfirst", "ide"],
     },
+    "stream-subscriptions": {
+        "title": "Streams In. Agents Out: MQTT and Kafka Triggers for Local Runbooks",
+        "teaser": (
+            "MQTT and Kafka don't need a chatbot sitting on the topic. Neural Junkie adds long-lived "
+            "stream subscriptions that match messages and fire a runbook, post into a hub channel, "
+            "or call a webhook — Settings UI included."
+        ),
+        "tags": ["ai", "localai", "multiagent", "mqtt", "kafka", "developertools", "opensource", "localfirst"],
+    },
 }
 
 TOPIC_BY_SLUG = {
@@ -123,6 +134,7 @@ TOPIC_BY_SLUG = {
     "collaboration": "collaboration",
     "solo-vs-collab-parity": "collaboration",
     "conversational-test-harness": "testing",
+    "stream-subscriptions": "architecture",
 }
 
 

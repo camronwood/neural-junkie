@@ -121,6 +121,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://camronwood.github.io/neural-junkie/articles/stream-subscriptions.html</loc>
+    <lastmod>2026-07-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://camronwood.github.io/neural-junkie/articles/two-tier-lora.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
@@ -248,6 +254,12 @@
   </url>
   <url>
     <loc>https://camronwood.github.io/neural-junkie/gallery/index.html</loc>
+    <lastmod>2026-07-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://camronwood.github.io/neural-junkie/googlede9704cbd82ada53.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>

@@ -20,6 +20,8 @@ const (
 	TypeWebhook  ProfileType = "webhook"
 	TypeHTTPAuth ProfileType = "http_auth"
 	TypeSMS      ProfileType = "sms"
+	TypeMQTT     ProfileType = "mqtt"
+	TypeKafka    ProfileType = "kafka"
 )
 
 // Profile is a named integration credential.

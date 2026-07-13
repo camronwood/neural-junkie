@@ -1246,6 +1246,70 @@ export interface ConnectorProfile {
   updated_at?: string;
 }
 
+export type StreamProtocol = 'mqtt' | 'kafka';
+export type StreamActionType = 'runbook' | 'channel' | 'webhook';
+export type StreamMatchOp = 'equals' | 'contains';
+
+export interface StreamMatchSpec {
+  json_path?: string;
+  op?: StreamMatchOp;
+  value?: string;
+}
+
+export interface StreamActionSpec {
+  type: StreamActionType;
+  definition_id?: string;
+  version?: number;
+  agent_ids?: string[];
+  channel?: string;
+  input_map?: Record<string, string>;
+  hub_channel?: string;
+  message_template?: string;
+  mention_agent_ids?: string[];
+  webhook_connector_id?: string;
+  url_override?: string;
+  body_template?: string;
+}
+
+export interface StreamSubscription {
+  id: string;
+  label: string;
+  enabled: boolean;
+  protocol: StreamProtocol;
+  connector_id: string;
+  topic: string;
+  match?: StreamMatchSpec | null;
+  debounce_ms?: number;
+  action: StreamActionSpec;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface StreamSubStatus {
+  subscription_id: string;
+  label?: string;
+  enabled: boolean;
+  connected: boolean;
+  last_message_at?: string | null;
+  last_fire_at?: string | null;
+  last_error?: string;
+  fire_count: number;
+  skip_count: number;
+}
+
+export interface StreamManagerStatus {
+  running: boolean;
+  subscriptions: StreamSubStatus[];
+}
+
+export interface StreamDispatchResult {
+  matched: boolean;
+  fired: boolean;
+  skipped: boolean;
+  reason?: string;
+  error?: string;
+}
+
 export interface RunbookTemplate {
   name: string;
   title: string;

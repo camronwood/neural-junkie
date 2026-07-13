@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Streams In. Agents Out: MQTT and Kafka Triggers for Local Runbooks — Neural Junkie</title>
+  <meta name="description" content="MQTT and Kafka don&#x27;t need a chatbot sitting on the topic. Neural Junkie adds long-lived stream subscriptions that match messages and fire a runbook, post into a hub channel, or call a webhook — Settings UI included." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/articles/stream-subscriptions.html" />
+  <meta property="og:title" content="Streams In. Agents Out: MQTT and Kafka Triggers for Local Runbooks — Neural Junkie" />
+  <meta property="og:description" content="MQTT and Kafka don&amp;#x27;t need a chatbot sitting on the topic. Neural Junkie adds long-lived stream subscriptions that match messages and fire a runbook, post into a hub channel, or call a webhook — Settings UI included." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/articles/stream-subscriptions.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Streams In. Agents Out: MQTT and Kafka Triggers for Local Runbooks — Neural Junkie" />
+  <meta name="twitter:description" content="MQTT and Kafka don&amp;#x27;t need a chatbot sitting on the topic. Neural Junkie adds long-lived stream subscriptions that match messages and fire a runbook, post into a hub channel, or call a webhook — Settings UI included." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Streams In. Agents Out: MQTT and Kafka Triggers for Local Runbooks",
+  "description": "MQTT and Kafka don&#x27;t need a chatbot sitting on the topic. Neural Junkie adds long-lived stream subscriptions that match messages and fire a runbook, post into a hub channel, or call a webhook \u2014 Settings UI included.",
+  "url": "https://camronwood.github.io/neural-junkie/articles/stream-subscriptions.html",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Neural Junkie"
+  }
+}
+  </script>
+<!-- NJ-SITE-SEO:END -->
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap site-header-bar">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+          <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+          <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+          <a class="btn btn-ghost" href="../packs.html">Packs</a>
+          <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+          <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+          <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+          <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+          <a class="btn btn-ghost" href="../security.html">Security</a>
+          <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+          <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+          <a class="btn btn-ghost" href="../download.html">Download</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Streams In. Agents Out: MQTT and Kafka Triggers for Local Runbooks
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Streams In. Agents Out: MQTT and Kafka Triggers for Local Runbooks</h1>
+      <p class="article-lead">MQTT and Kafka don&#x27;t need a chatbot sitting on the topic. Neural Junkie adds long-lived stream subscriptions that match messages and fire a runbook, post into a hub channel, or call a webhook — Settings UI included.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">mqtt</span><span class="article-tag">kafka</span><span class="article-tag">developertools</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-stream-subscriptions-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>Most multi-agent demos start when a human types.</p>
+<p>The real world often starts when <strong>a message arrives</strong>: a device telemetry spike on MQTT, an ops event on Kafka, an alert someone already publishes to a bus you run.</p>
+<p>The wrong answer is to park an LLM on that topic and let it improvise forever.</p>
+<p>The right shape is closer to <strong>AWS Step Functions</strong>: a long-lived consumer decides <em>that something happened</em>, then a <strong>finite workflow</strong> decides <em>what to do</em>.</p>
+<p>That is what <strong>stream subscriptions</strong> add to Neural Junkie.</p>
+<h2>Two pieces (don't fuse them)</h2>
+<ol>
+<li><strong>Long-lived stream processor</strong> — stays connected to MQTT or Kafka, tracks offset/group membership, filters noise, debounces bursts.</li>
+<li><strong>Action</strong> — what happens when a message is worth caring about:<br />
+   - <strong>Runbook</strong> — start a saved SOP (agents + HTTP actions + approvals)<br />
+   - <strong>Hub channel</strong> — post into a channel so always-on agents can react<br />
+   - <strong>Webhook</strong> — forward to something else you already operate</li>
+</ol>
+<p>Runbooks stay runbooks. Streams stay streams. The subscription is the binding between them.</p>
+<h2>Why not "just put an agent on Kafka"?</h2>
+<p>High-volume buses and generative agents are a bad couple:</p>
+<ul>
+<li>Agents are expensive and stateful; buses are chatty and idempotent</li>
+<li>You want offsets, retries, and consumer groups — not prompt cache</li>
+<li>You often need a <strong>human-shaped SOP</strong> (triage → investigate → notify), not a freeform chat loop</li>
+</ul>
+<p>So the hub owns a small <strong>stream manager</strong> (same idea as our Slack Socket Mode bridge): start on boot, restart from Settings, one worker per enabled subscription.</p>
+<h2>What ships</h2>
+<p><strong>Connectors</strong> for broker credentials (<code>mqtt</code> / <code>kafka</code>) — same encrypted connector store we use for webhooks.</p>
+<p><strong>Subscriptions</strong> saved under <code>~/.neural-junkie/stream/</code>:</p>
+<ul>
+<li>Protocol + connector + topic</li>
+<li>Optional JSON field match (<code>status</code> equals <code>alert</code>, or <code>contains</code>)</li>
+<li>Optional debounce window</li>
+<li>Action: runbook, channel, or webhook</li>
+</ul>
+<p><strong>Settings → Streams</strong> for status, CRUD, restart, and a <strong>Test</strong> button that injects a synthetic payload without a broker.</p>
+<p>Docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STREAM_SUBSCRIPTIONS.md">STREAM_SUBSCRIPTIONS.md</a></p>
+<h2>Runbook path (Step Functions style)</h2>
+<p>When the action is a runbook, the hub reuses the same path as <code>POST /api/runbook-definitions/:id/trigger</code>:</p>
+<p>instantiate → submit → start</p>
+<p>Inputs always include <code>topic</code> and <code>payload</code> (plus Kafka <code>key</code>). You can map JSON fields into named runbook inputs.</p>
+<p>If you're already at the concurrent collaboration cap, we <strong>skip and surface the error</strong> on the subscription status instead of queueing an unbounded backlog. Honest beats silent.</p>
+<h2>Channel and webhook paths</h2>
+<p>Not every event deserves a full DAG.</p>
+<ul>
+<li><strong>Channel</strong> posts as author <code>Stream</code> into a hub channel — mention an agent if you want a specialist to wake up.</li>
+<li><strong>Webhook</strong> POSTs outbound (connector auth optional) when another system should own the next hop.</li>
+</ul>
+<p>Same matcher. Same manager. Different consequence.</p>
+<h2>The product bet</h2>
+<p>Local-first multi-agent work is not only chat UX.</p>
+<p>It is an orchestrator that can sit next to the buses you already trust — device MQTT in the lab, Kafka in the platform — and still enforce <strong>human-visible workflows</strong>, approvals, and agent pools you control.</p>
+<p>Streams in. Agents out — on purpose.</p>
+<h2>Try it</h2>
+<ol>
+<li>Open <strong>Settings → Integrations</strong> and add an MQTT or Kafka connector.</li>
+<li>Open <strong>Settings → Streams</strong>, create a subscription, pick an action.</li>
+<li>Hit <strong>Test</strong> with a JSON payload, then point the connector at a real broker when you're ready.</li>
+</ol>
+<p>Neural Junkie is open source. Download the latest release, or build from source, and wire your bus to a runbook instead of another zombie listener.</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/STREAM-SUBSCRIPTIONS-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="../thanks.html">Thank you</a>
+        <a class="btn btn-ghost btn-sm" href="../install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="stream-subscriptions.html">Streams In. Agents Out: MQTT and Kafka Triggers for Local Runbooks</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

@@ -240,6 +240,11 @@ func registerRoutes() {
 	http.HandleFunc("/api/assistant/google/disconnect", corsMiddleware(handleAssistantGoogleDisconnect))
 	http.HandleFunc("/api/assistant/google/sync", corsMiddleware(handleAssistantGoogleSync))
 
+	http.HandleFunc("/api/stream/status", corsMiddleware(localOnly(handleStreamStatus)))
+	http.HandleFunc("/api/stream/restart", corsMiddleware(localOnly(handleStreamRestart)))
+	http.HandleFunc("/api/stream/subscriptions", corsMiddleware(localOnly(handleStreamSubscriptions)))
+	http.HandleFunc("/api/stream/subscriptions/", corsMiddleware(localOnly(handleStreamSubscriptions)))
+
 	http.HandleFunc("/api/slack/status", corsMiddleware(handleSlackStatus))
 	http.HandleFunc("/api/slack/connection", corsMiddleware(handleSlackConnection))
 	http.HandleFunc("/api/slack/config", corsMiddleware(localOnly(handleSlackConfig)))

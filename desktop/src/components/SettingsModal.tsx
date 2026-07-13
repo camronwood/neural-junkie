@@ -19,6 +19,7 @@ import { ApiCredentialsSettingsTab } from './settings/ApiCredentialsSettingsTab'
 import { IntegrationsSettingsTab } from './settings/IntegrationsSettingsTab';
 import { AssistantToolsSettingsTab } from './settings/AssistantToolsSettingsTab';
 import { SlackSettingsTab } from './settings/SlackSettingsTab';
+import { StreamsSettingsTab } from './settings/StreamsSettingsTab';
 import { SecuritySettingsTab } from './settings/SecuritySettingsTab';
 import { ServerNetworkSettingsTab } from './settings/ServerNetworkSettingsTab';
 import { ConnectionSettingsTab } from './settings/ConnectionSettingsTab';
@@ -125,6 +126,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <IntegrationsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'integrations'} />
             <AssistantToolsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'assistant-tools'} />
             <SlackSettingsTab hubHttp={hubHttp} isActive={activeTab === 'slack'} />
+            <StreamsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'streams'} />
             <SecuritySettingsTab hubHttp={hubHttp} isActive={activeTab === 'security'} />
             <ServerNetworkSettingsTab hubHttp={hubHttp} isActive={activeTab === 'server-network'} />
             <AutomationSettingsTab hubHttp={hubHttp} isActive={activeTab === 'automation'} />

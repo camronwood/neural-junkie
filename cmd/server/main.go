@@ -249,6 +249,7 @@ func main() {
 
 	slackBridgeCtx, stopSlackBridgeCtx = context.WithCancel(context.Background())
 	defer stopSlackBridgeCtx()
+	streamBridgeCtx = slackBridgeCtx
 
 	if sessionRestored {
 		rebindRuntimeAgentsToRestoredDMs()
@@ -337,6 +338,7 @@ func main() {
 		// Outbound bridge uses WebSocket to localhost; start after the hub is listening.
 		time.Sleep(300 * time.Millisecond)
 		startSlackBridge(slackBridgeCtx)
+		startStreamManager(streamBridgeCtx)
 	}()
 	go func() {
 		sigCh := make(chan os.Signal, 1)
@@ -346,6 +348,7 @@ func main() {
 		stopSessionSaver()
 		stopSlackBridgeCtx()
 		stopSlackBridge()
+		stopStreamManager()
 		sessionSaverWG.Wait()
 		log.Println("🛑 Shutdown signal received, saving session...")
 		if err := chatHub.SaveSessionToFile(sessionPath); err != nil {

@@ -158,6 +158,7 @@ See `internal/collaboration/edges.go`.
 | Slack | @mention the bot with the same slash command in a bound channel |
 | HTTP | `POST /api/runbook-definitions/:id/trigger` with `{ agent_ids, channel, inputs }` |
 | CLI | `python3 scripts/nj_runbook.py list\|run\|history` |
+| Stream subscription | MQTT/Kafka message → runbook action (see [STREAM_SUBSCRIPTIONS.md](./STREAM_SUBSCRIPTIONS.md)) |
 
 ## Scheduled runs
 
