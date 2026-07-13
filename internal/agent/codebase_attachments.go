@@ -88,6 +88,7 @@ func mergeCodebaseSearchIntoMessage(msg *protocol.Message, repoPaths []string, q
 	if msg.Metadata["injected_codebase_count"] == nil {
 		msg.Metadata["injected_codebase_count"] = len(hits)
 	}
+	msg.Metadata["codebase_answer_from_attachments"] = true
 	return true
 }
 
@@ -169,6 +170,7 @@ func mergeCodebaseSearchFallback(msg *protocol.Message, repoPaths []string, quer
 	if msg.Metadata["injected_codebase_count"] == nil {
 		msg.Metadata["injected_codebase_count"] = len(results)
 	}
+	msg.Metadata["codebase_answer_from_attachments"] = true
 	return true
 }
 

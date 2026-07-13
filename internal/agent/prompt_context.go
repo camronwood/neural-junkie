@@ -120,6 +120,9 @@ func AppendPromptAttachments(user *strings.Builder, msg *protocol.Message) {
 
 	user.WriteString("\n=== ATTACHED FILES (USER UPLOAD) ===\n")
 	user.WriteString("The user attached the following files for this message. Use them as primary context when relevant.\n")
+	if codebaseMentionRE.MatchString(msg.Content) {
+		user.WriteString("This is an @codebase lookup: answer from the attached source chunks below. Do not ask the user to clarify symbol definitions that appear in these files.\n")
+	}
 	user.WriteString("Each line is prefixed with its line number.\n\n")
 
 	for _, item := range arr {

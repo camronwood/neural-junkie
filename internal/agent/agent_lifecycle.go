@@ -83,7 +83,12 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 				if msg == nil {
 					return
 				}
-				a.handleMessage(listenerCtx, msg)
+				// Cancel in-flight generation so closure / follow-up turns are not
+				// stuck behind a long prior reply on the same channel.
+				if protocol.IsUserLikeSender(msg.From) {
+					a.AbortChannel(msg.Channel)
+				}
+				go a.handleMessage(listenerCtx, msg)
 			}
 		}
 	}()

@@ -182,7 +182,9 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 	if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
 		tools = append(tools, fileEditToolDefinitions()...)
 	}
-	tools = append(tools, askUserToolDefinition())
+	if shouldOfferAskUserTool(a, msg) {
+		tools = append(tools, askUserToolDefinition())
+	}
 	return tools
 }
 

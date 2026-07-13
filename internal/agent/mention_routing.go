@@ -92,7 +92,8 @@ func isAgentChatReply(m *protocol.Message) bool {
 		return false
 	}
 	switch m.Type {
-	case protocol.MessageTypeChat, protocol.MessageTypeAnswer, protocol.MessageTypeCollabDiscussion:
+	case protocol.MessageTypeChat, protocol.MessageTypeAnswer, protocol.MessageTypeCollabDiscussion,
+		protocol.MessageTypeUserQuestion:
 		return true
 	default:
 		return false

@@ -729,6 +729,9 @@ func shouldProactiveScanWorkspaceForMessage(a *Agent, msg *protocol.Message) boo
 	if msg == nil {
 		return false
 	}
+	if explicitCodebaseLookupWithChunks(msg) {
+		return false
+	}
 	if a != nil && userRequestsImplementationForMessage(a, msg) {
 		return true
 	}

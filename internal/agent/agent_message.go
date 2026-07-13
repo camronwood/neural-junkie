@@ -130,6 +130,17 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	log.Printf("[%s] ⬇️ RECEIVED msg ID %s from %s (mentions: %v)", a.Info.Name, msg.ID[:8], msg.From.Name, msg.Mentions)
 	log.Printf("[%s] ✅ MARKED msg %s as responded", a.Info.Name, msg.ID[:8])
 
+	if intent := a.classifyTurnIntentForMessage(msg); intent == IntentClosure {
+		if resp, ok := tryConversationalClosure(a, msg); ok {
+			log.Printf("[%s] Conversational closure (fast path): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+			if err := a.sendQuickChatReply(msg, resp); err != nil {
+				log.Printf("[%s] Error sending closure: %v", a.Info.Name, err)
+				clearResponded()
+			}
+			return
+		}
+	}
+
 	log.Printf("[%s] 💬 WILL RESPOND to msg %s from %s: %s", a.Info.Name, msg.ID[:8], msg.From.Name, msg.Content[:min(50, len(msg.Content))])
 	log.Printf("[%s] 🔍 Message details - ThreadID: '%s', IsThreadReply: %v, ReplyTo: '%s'", a.Info.Name, msg.ThreadID, msg.IsThreadReply, msg.ReplyTo)
 
@@ -475,6 +486,29 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if collabID != "" && collabPhase == "planning" {
 		a.promptNextCollaborationTurn(responseMsg, collabID)
 	}
+}
+
+// sendQuickChatReply posts a short chat/answer without streaming or tool loops.
+func (a *Agent) sendQuickChatReply(msg *protocol.Message, response string) error {
+	if a == nil || msg == nil || a.Hub == nil {
+		return fmt.Errorf("agent or hub unavailable")
+	}
+	response = strings.TrimSpace(response)
+	if response == "" {
+		return fmt.Errorf("empty quick reply")
+	}
+	responseMsg := protocol.NewMessage(protocol.MessageTypeChat, msg.Channel, a.Info, response)
+	responseMsg.ReplyTo = msg.ID
+	if msg.IsInThread() {
+		responseMsg.ThreadID = msg.GetThreadID()
+		responseMsg.IsThreadReply = true
+	}
+	if err := a.Hub.SendMessage(responseMsg); err != nil {
+		return err
+	}
+	a.addToHistory(responseMsg)
+	learning.MaybeSuggestAfterAgentReply(msg.Channel, a.Info.ID, a.Info.Name, string(a.Info.Type), msg.Content, response)
+	return nil
 }
 
 // promptNextCollaborationTurn emits a deterministic handoff prompt so the next

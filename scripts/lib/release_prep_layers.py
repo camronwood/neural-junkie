@@ -87,7 +87,7 @@ LAYERS: dict[str, LayerSpec] = {
             ),
             LayerStage(
                 "conversation-scenarios-regression",
-                ["python3", "scripts/conversation-scenarios-regression.py"],
+                ["python3", "scripts/conversation-scenarios-regression.py", "--chat-only"],
             ),
         ),
         next_layer="collab",

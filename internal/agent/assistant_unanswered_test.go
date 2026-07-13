@@ -151,6 +151,33 @@ func TestUnansweredMessageTracker_marksChannelOnAgentReply(t *testing.T) {
 	}
 }
 
+func TestUnansweredMessageTracker_marksChannelOnUserQuestion(t *testing.T) {
+	mockAI := ai.NewMockProvider()
+	hub := channelTypeHubStub{shouldRespondTestHub: shouldRespondTestHub{}, chType: protocol.ChannelTypePublic}
+	ag := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, mockAI, hub)
+	tracker := newUnansweredMessageTracker(ag)
+
+	user := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "anyone there?")
+	user.Timestamp = time.Now()
+	tracker.observe(user)
+
+	question := protocol.NewMessage(
+		protocol.MessageTypeUserQuestion,
+		"general",
+		protocol.AgentInfo{ID: "be", Name: "BackendEngineer", Type: protocol.AgentTypeBackend},
+		"Which approach do you prefer?",
+	)
+	question.Timestamp = time.Now()
+	tracker.observe(question)
+
+	tracker.trackerMutex.RLock()
+	tracked := tracker.trackedMessages[user.ID]
+	tracker.trackerMutex.RUnlock()
+	if tracked == nil || !tracked.HasResponse {
+		t.Fatal("expected specialist user_question to mark channel responded")
+	}
+}
+
 func TestUnansweredMessageTracker_skipsStaleReplayedMessages(t *testing.T) {
 	mockAI := ai.NewMockProvider()
 	hub := channelTypeHubStub{shouldRespondTestHub: shouldRespondTestHub{}, chType: protocol.ChannelTypePublic}
