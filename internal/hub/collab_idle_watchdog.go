@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/workflow"
 )
 
 const (
 	collabIdleRedispatchAfter = 90 * time.Second
 	collabMaxTaskRedispatches = 2
+	collabHubTaskTimeout      = 5 * time.Minute
 )
 
 // TickCollaborationIdleWatchdog heals post-approve stalls: workspace ack retry,
@@ -97,7 +99,21 @@ func (h *Hub) tickCollaborationIdleWatchdogOne(c *collaboration.Collaboration, n
 		}
 		key := snap.ID + ":" + task.ID
 		count := h.collabWatchdogRedispatchCount(key)
+		taskID := task.ID
 		if count >= collabMaxTaskRedispatches {
+			if now.Sub(task.UpdatedAt) >= collabHubTaskTimeout {
+				reason := "hub_timeout: task idle after redispatch attempts"
+				if _, err := h.collabManager.UpdateTaskStatusWithEffects(snap.ID, taskID, collaboration.TaskBlocked, reason); err != nil {
+					log.Printf("[Collaboration] Watchdog task timeout %s: %v", taskID[:8], err)
+				} else {
+					workflow.LogTaskFailed(snap.ID, task.ID, reason)
+					h.broadcastCollabSystem(channel, snap.ID, fmt.Sprintf(
+						"⚠️ **Task timed out** (`%s`) — **%s** marked blocked after idle. Use `/resume-plan %s` or skip the task.",
+						snap.ID[:8], task.Title, snap.ID[:8],
+					))
+				}
+				continue
+			}
 			if count == collabMaxTaskRedispatches {
 				h.collabWatchdogBumpRedispatch(key)
 				assignee := task.AssignedName
@@ -111,7 +127,6 @@ func (h *Hub) tickCollaborationIdleWatchdogOne(c *collaboration.Collaboration, n
 			}
 			continue
 		}
-		taskID := task.ID
 		filter := func(t collaboration.CollaborationTask) bool { return t.ID == taskID }
 		if n := h.dispatchCollabTaskMessagesFilter(snap, nil, filter, true); n > 0 {
 			h.collabWatchdogBumpRedispatch(key)

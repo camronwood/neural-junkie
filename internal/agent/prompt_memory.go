@@ -48,7 +48,7 @@ func AppendMemoryForMessage(system *strings.Builder, msg *protocol.Message, hist
 }
 
 func (a *Agent) appendMemoryForMessage(system *strings.Builder, msg *protocol.Message, history []*protocol.Message) memory.PromptResult {
-	plan := a.effectiveKnowledgePlan(msg)
+	plan := a.effectiveKnowledgePlanFromMessage(msg)
 	pr := AppendMemoryForMessage(system, msg, history, plan)
 	if pr.Count > 0 {
 		a.recordKnowledgeExecuted(knowledgeExecutedPathForMemory(plan))

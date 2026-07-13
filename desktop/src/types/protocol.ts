@@ -259,15 +259,34 @@ export type TurnTraceRetrieval = {
   codebase_count?: number;
 };
 
+export type TurnTraceSpan = {
+  id?: string;
+  parent_id?: string;
+  name?: string;
+  start_ms?: number;
+  end_ms?: number;
+  status?: string;
+  attrs?: Record<string, unknown>;
+};
+
 export type TurnTraceResponse = {
   message_id?: string;
   channel?: string;
   query?: string;
   reply_message_id?: string;
-  routing?: TurnTraceRouting;
+  trace_id?: string;
+  routing?: TurnTraceRouting & {
+    classifier?: {
+      intent?: string;
+      tool_need?: boolean;
+      confidence?: number;
+      lora_tag?: string;
+    };
+  };
   retrieval?: TurnTraceRetrieval;
   governance?: RoutingGovernanceMeta;
   tool_steps?: unknown;
+  spans?: TurnTraceSpan[];
   reasoning_text?: string;
   compress?: {
     strategy?: string;

@@ -13,6 +13,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/collabworktree"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/workflow"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/google/uuid"
 )
@@ -615,8 +616,10 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 		}
 	}
 
+	fromPhase := c.Phase
 	c.Phase = PhaseExecuting
 	c.UpdatedAt = now
+	workflow.LogPhaseTransition(collabID, string(fromPhase), string(PhaseExecuting))
 
 	execMode := c.ExecutionMode
 	if execMode == "" {

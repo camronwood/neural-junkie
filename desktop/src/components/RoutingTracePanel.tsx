@@ -74,6 +74,37 @@ function StructuredTrace({ trace }: { trace: TurnTraceResponse }) {
       {Array.isArray(trace.tool_steps) && trace.tool_steps.length > 0 && (
         <TraceSection title="Tools">
           <div>{trace.tool_steps.length} step(s)</div>
+          <ul className="list-disc pl-4">
+            {(trace.tool_steps as Array<Record<string, unknown>>).map((step, i) => (
+              <li key={i}>
+                {String(step.name ?? 'tool')} · {String(step.kind ?? '')}
+                {typeof step.iteration === 'number' ? ` (#${step.iteration})` : ''}
+              </li>
+            ))}
+          </ul>
+        </TraceSection>
+      )}
+      {Array.isArray(trace.spans) && trace.spans.length > 0 && (
+        <TraceSection title="Spans">
+          <ul className="space-y-0.5">
+            {trace.spans.map((span) => {
+              const dur =
+                span.start_ms != null && span.end_ms != null
+                  ? `${span.end_ms - span.start_ms}ms`
+                  : '';
+              return (
+                <li key={span.id ?? span.name} className="font-mono text-[11px]">
+                  <span className={span.status === 'error' ? 'text-red-300' : 'text-slate-300'}>
+                    {span.name}
+                  </span>
+                  {dur ? <span className="text-slate-500"> · {dur}</span> : null}
+                  {span.parent_id ? (
+                    <span className="text-slate-600"> · parent {span.parent_id.slice(0, 8)}</span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
         </TraceSection>
       )}
       {compress && (compress.strategy || compress.bytes_in || compress.bytes_out) && (

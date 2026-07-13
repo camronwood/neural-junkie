@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/schema"
 	"github.com/google/uuid"
 )
 
@@ -374,6 +375,9 @@ func ParsePlanTasks(markdown string, agents []CollaborationAgent) ([]Collaborati
 	}
 	if err := ValidateDAG(tasks); err != nil {
 		return nil, err
+	}
+	if irErrs := ValidateTaskIRs(TasksToIR(tasks)); len(irErrs) > 0 {
+		return nil, fmt.Errorf("task validation: %s", schema.FormatErrors(irErrs...))
 	}
 	return tasks, nil
 }

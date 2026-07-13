@@ -7,6 +7,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/routing"
+	tracelib "github.com/camronwood/neural-junkie/internal/trace"
 )
 
 func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +77,12 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 			"cost_tier":   meta.CostTier,
 			"reason":      meta.Reason,
 			"source":      meta.Source,
+			"classifier": map[string]interface{}{
+				"intent":     meta.ClassifierIntent,
+				"tool_need":  meta.ClassifierToolNeed,
+				"confidence": meta.ClassifierConfidence,
+				"lora_tag":   meta.ClassifierLoRATag,
+			},
 		}
 		trace["retrieval"] = map[string]interface{}{
 			"mode":     meta.KnowledgeRoute,
@@ -111,6 +118,14 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 			}
 			if rt, ok := target.Metadata["reasoning_text"].(string); ok && rt != "" {
 				trace["reasoning_text"] = rt
+			}
+			if traceID, ok := target.Metadata[protocol.MetadataTraceID].(string); ok && traceID != "" {
+				trace["trace_id"] = traceID
+				if spans, ok := target.Metadata[protocol.MetadataTraceSpans]; ok {
+					trace["spans"] = spans
+				} else if loaded, err := tracelib.Load(traceID); err == nil && len(loaded.Spans) > 0 {
+					trace["spans"] = loaded.Spans
+				}
 			}
 		}
 		compress := protocol.ExtractCompressMeta(target)

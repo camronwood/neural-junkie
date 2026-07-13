@@ -14,6 +14,8 @@ import (
 	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/workflow"
+	"github.com/google/uuid"
 )
 
 func (h *Hub) SendMessage(msg *protocol.Message) error {
@@ -1187,6 +1189,8 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			taskMsg.Metadata = map[string]interface{}{}
 		}
 		taskMsg.Metadata["execution_timeout_seconds"] = timeoutSec
+		dispatchToken := uuid.New().String()
+		taskMsg.Metadata[protocol.MetadataDispatchToken] = dispatchToken
 		if collaboration.TaskRequiresFileDeliverable(task) {
 			taskMsg.Metadata[protocol.IdeMetaImplementationSession] = true
 		}
@@ -1199,6 +1203,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
 			continue
 		}
+		workflow.LogTaskDispatched(collabID, task.ID, dispatchToken)
 		if h.collabManager != nil {
 			if err := h.collabManager.MarkTaskPromptDispatched(collabID, task.ID); err != nil {
 				log.Printf("[Collaboration] MarkTaskPromptDispatched %s: %v", task.ID[:8], err)

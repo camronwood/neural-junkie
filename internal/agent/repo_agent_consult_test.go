@@ -43,7 +43,7 @@ func TestShouldRunRepoConsult_TaskWithWorkspace(t *testing.T) {
 			},
 		},
 	}
-	a.recordKnowledgeRoute(msg)
+	a.recordKnowledgeRoute(msg, IntentSubstantive)
 	if !a.shouldRunRepoConsult(t.Context(), msg, IntentTask) {
 		t.Fatal("expected repo consult on task with workspace")
 	}

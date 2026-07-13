@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"context"
+
 	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/routing"
@@ -49,7 +51,7 @@ func knowledgePlanFromSnapshot(snap RoutingSnapshot) routing.KnowledgePlan {
 	return plan
 }
 
-func (a *Agent) effectiveKnowledgePlan(msg *protocol.Message) routing.KnowledgePlan {
+func (a *Agent) effectiveKnowledgePlan(msg *protocol.Message, intent TurnIntent) routing.KnowledgePlan {
 	if a == nil {
 		return routing.KnowledgePlan{}
 	}
@@ -61,9 +63,19 @@ func (a *Agent) effectiveKnowledgePlan(msg *protocol.Message) routing.KnowledgeP
 		return knowledgePlanFromSnapshot(snap)
 	}
 	if msg != nil {
-		return routing.PlanKnowledgeRoute(msg.Content)
+		skipDefault := intent == IntentClosure || intent == IntentLowSignal
+		return routing.PlanKnowledgeRouteForTurn(msg.Content, skipDefault)
 	}
 	return routing.KnowledgePlan{}
+}
+
+// effectiveKnowledgePlanFromMessage classifies intent when no turn pipeline state exists.
+func (a *Agent) effectiveKnowledgePlanFromMessage(msg *protocol.Message) routing.KnowledgePlan {
+	intent := IntentSubstantive
+	if a != nil && msg != nil && a.Hub != nil {
+		intent = a.classifyTurnIntentForMessage(msg)
+	}
+	return a.effectiveKnowledgePlan(msg, intent)
 }
 
 // ShouldInjectMemory reports whether conversation memory retrieval should run.
@@ -127,14 +139,10 @@ func knowledgeExecutedPathForMemory(plan routing.KnowledgePlan) string {
 	}
 }
 
-func (a *Agent) applyKnowledgePlanEarly(msg *protocol.Message) {
+func (a *Agent) applyKnowledgePlanEarly(msg *protocol.Message, intent TurnIntent) {
 	if a == nil || msg == nil || skipKnowledgeRetrievalForMessage(msg) {
 		return
 	}
-	plan := a.effectiveKnowledgePlan(msg)
-	if ShouldRunCodebaseSearch(plan) {
-		if MergeCodebaseForRoute(msg, plan) {
-			a.recordKnowledgeExecuted("codebase")
-		}
-	}
+	plan := a.effectiveKnowledgePlan(msg, intent)
+	a.ExecuteKnowledgePlan(context.Background(), msg, plan, intent, KnowledgePhaseEarly)
 }

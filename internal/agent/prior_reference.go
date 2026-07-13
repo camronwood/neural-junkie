@@ -104,7 +104,7 @@ const priorReferenceMissingHistoryReply = "I don't have that earlier reply in th
 
 // tryPriorReferenceResponse answers deterministically when prior content is referenced but missing.
 func (a *Agent) tryPriorReferenceResponse(msg *protocol.Message) (string, bool) {
-	if a == nil || msg == nil || !ShouldRunPriorReference(a.effectiveKnowledgePlan(msg)) {
+	if a == nil || msg == nil || !ShouldRunPriorReference(a.effectiveKnowledgePlanFromMessage(msg)) {
 		return "", false
 	}
 	history := a.historyForPriorReference(msg.Channel)
@@ -133,7 +133,7 @@ func (a *Agent) appendPriorReferenceGuidance(prompt string, msg *protocol.Messag
 	if a == nil || msg == nil {
 		return prompt
 	}
-	plan := a.effectiveKnowledgePlan(msg)
+	plan := a.effectiveKnowledgePlanFromMessage(msg)
 	runPrior := ShouldRunPriorReference(plan)
 	runExport := userRequestsFileExport(msg.Content) || msg.IdeEditorModeIsExport()
 	if !runPrior && !runExport {

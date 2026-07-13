@@ -12,6 +12,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/integrations/ticketing"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/schema"
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
@@ -72,11 +73,9 @@ func executeMCPTool(ctx context.Context, mcpServer *server.MCPServer, name strin
 		return "", fmt.Errorf("tool %q not found", name)
 	}
 
-	var args map[string]any
-	if len(input) > 0 {
-		if err := json.Unmarshal(input, &args); err != nil {
-			return "", fmt.Errorf("invalid tool input: %w", err)
-		}
+	args, err := schema.ParseObject(input, schema.ObjectSpec{})
+	if err != nil {
+		return "", fmt.Errorf("tool %q input schema: %w", name, err)
 	}
 
 	req := mcpgo.CallToolRequest{}

@@ -24,7 +24,7 @@ Same bet as Neural Junkie’s [Conversation Context Stack](CONTEXT_MODEL.md) —
 | **Cache before compute** | Semantic cache deflects 30–50% traffic | No answer-level semantic cache | **Gap** (low priority for local desktop) |
 | **Cheapest capable handler** | Rules / ML / agentic escalation | `IntentClosure` → canned reply (no LLM); slash commands; MCP tool loops vs pure chat; delegation skipped for closure/casual | **Built** |
 | **Classify intent first** | Lightweight router: task type, complexity, sensitivity | `turn_intent.go` + `conversation_mode` (chat / code / collab) | **Built** — primary differentiator |
-| **Match knowledge to topology** | Vector vs hybrid vs graph per question shape | Split across: conversation memory, `@codebase` hybrid search, workspace scan (task only), `prior_reference.go`, collab artifacts | **Partial** — topology-aware, not unified |
+| **Match knowledge to topology** | Vector vs hybrid vs graph per question shape | Unified planner (`PlanKnowledgeRoute`) + retriever registry (`ExecuteKnowledgePlan`); memory, codebase, learnings, prior_reference, repo_consult | **Built** — see [TURN_PIPELINE.md](TURN_PIPELINE.md) |
 | **Govern before generate** | Policy bound to request through pipeline | Tool approval hook; `context_budget.go` byte caps; collab blocked-upstream policies; memory channel/collab scoping | **Partial** — strong on tools/actions, light on model/data policy |
 | **Right-size every call** | Tiered model registry per agent role | Utility tier (`qwen2.5:7b` summaries); light Ollama collab routing; wizard RAM tiers; two-tier inference vs LoRA; per-specialist provider tags; delegation model split (chat vs tools) | **Built** |
 
@@ -43,7 +43,7 @@ flowchart TB
     N1[Not built]
     N2[closure + tools + delegation gates]
     N3[turn_intent + conversation_mode]
-    N4[memory + codebase + collab + prior_reference]
+    N4[unified knowledge executor + turn pipeline]
     N5[tool approval + budgets + collab policy]
     N6[utility/light/quality tiers + collab routing]
   end

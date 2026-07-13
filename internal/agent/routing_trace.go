@@ -25,12 +25,13 @@ func (a *Agent) recordClassifierRouting(msg *protocol.Message) {
 		Text:      msg.Content,
 		AgentType: string(a.Info.Type),
 	})
-	snap := RoutingSnapshot{}
-	if dec.Domain != "" {
-		snap.Domain = dec.Domain
-	}
-	if dec.CostTier != "" {
-		snap.CostTier = dec.CostTier
+	snap := RoutingSnapshot{
+		Domain:               dec.Domain,
+		CostTier:             dec.CostTier,
+		ClassifierIntent:     dec.Intent,
+		ClassifierToolNeed:   dec.ToolNeed,
+		ClassifierConfidence: dec.Confidence,
+		ClassifierLoRATag:    dec.LoRATag,
 	}
 	a.RecordRoutingSnapshot(snap)
 }

@@ -14,6 +14,7 @@ const (
 	RouteCodebase           RouteTarget = "codebase"
 	RouteCollabArtifact     RouteTarget = "collab_artifact"
 	RoutePriorReference     RouteTarget = "prior_reference"
+	RouteLearning           RouteTarget = "learning"
 )
 
 // Decision captures routing output for trace/debug (primary target only).
@@ -80,7 +81,15 @@ func PlanKnowledgeRoute(text string) KnowledgePlan {
 	return plan
 }
 
-// ClassifyKnowledgeRoute picks the primary retrieval strategy (backward compatible).
+// PlanKnowledgeRouteForTurn plans retrieval; skipDefaultMemory avoids vector search on casual turns.
+func PlanKnowledgeRouteForTurn(text string, skipDefaultMemory bool) KnowledgePlan {
+	plan := PlanKnowledgeRoute(text)
+	if skipDefaultMemory && plan.Reason == "default" && len(plan.Targets) == 1 && plan.Targets[0] == RouteConversationMemory {
+		return KnowledgePlan{Reason: "low_signal_skip"}
+	}
+	return plan
+}
+
 func ClassifyKnowledgeRoute(text string) Decision {
 	plan := PlanKnowledgeRoute(text)
 	return Decision{Target: plan.Primary(), Reason: plan.Reason}

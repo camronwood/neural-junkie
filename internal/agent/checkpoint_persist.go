@@ -24,6 +24,22 @@ func implCheckpointStore() *checkpoint.Store {
 	return checkpointStore
 }
 
+func implCheckpointID(msg *protocol.Message) string {
+	if msg == nil {
+		return ""
+	}
+	collabID := msg.GetCollaborationID()
+	taskID := msg.GetTaskID()
+	if collabID != "" && taskID != "" {
+		return collabID + ":" + taskID
+	}
+	id := msg.Channel
+	if msg.ThreadID != "" {
+		id = msg.Channel + ":" + msg.ThreadID
+	}
+	return id
+}
+
 func restoreImplSessionFromCheckpoint(msg *protocol.Message, state *ImplementationSessionState) {
 	if msg == nil || state == nil || !agentRuntimeV2ForMessage(msg) {
 		return
@@ -32,7 +48,7 @@ func restoreImplSessionFromCheckpoint(msg *protocol.Message, state *Implementati
 	if st == nil {
 		return
 	}
-	ck, err := st.LoadLatest(msg.Channel)
+	ck, err := st.LoadLatest(implCheckpointID(msg))
 	if err != nil || ck == nil || ck.Payload == nil {
 		return
 	}
@@ -53,6 +69,9 @@ func restoreImplSessionFromCheckpoint(msg *protocol.Message, state *Implementati
 			}
 		}
 	}
+	if v, ok := ck.Payload["verify_output"].(string); ok {
+		state.VerifyOutput = v
+	}
 }
 
 func persistImplSessionCheckpoint(msg *protocol.Message, state *ImplementationSessionState, step int) {
@@ -67,10 +86,7 @@ func persistImplSessionCheckpoint(msg *protocol.Message, state *ImplementationSe
 	for i, f := range state.FilesChanged {
 		files[i] = f
 	}
-	id := msg.Channel
-	if msg.ThreadID != "" {
-		id = msg.Channel + ":" + msg.ThreadID
-	}
+	id := implCheckpointID(msg)
 	_ = st.Save(checkpoint.State{
 		ID:       id,
 		Channel:  msg.Channel,
@@ -82,6 +98,9 @@ func persistImplSessionCheckpoint(msg *protocol.Message, state *ImplementationSe
 			"phase":            state.Phase,
 			"files_changed":    files,
 			"proposed_count":   state.ProposedCount,
+			"verify_output":    state.VerifyOutput,
+			"collab_id":        msg.GetCollaborationID(),
+			"task_id":          msg.GetTaskID(),
 			"agent_runtime_v2": true,
 		},
 	})

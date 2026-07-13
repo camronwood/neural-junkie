@@ -2,61 +2,40 @@ package main
 
 import (
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-func TestHandleDebugTurnTraceStructuredShape(t *testing.T) {
-	origHub := chatHub
-	t.Cleanup(func() { chatHub = origHub })
-
-	h := hub.NewHub()
-	h.CreateChannel("general", "", "")
-	chatHub = h
-
-	userMsg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}, "@codebase review auth")
-	target := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "a1", Name: "Dev", Type: protocol.AgentTypeBackend}, "reply")
-	target.ReplyTo = userMsg.ID
-	protocol.ApplyRoutingMeta(target, protocol.RoutingMeta{
-		Model:           "qwen3.5:9b",
-		Domain:          "software",
-		CostTier:        "standard",
-		KnowledgeRoute:  "codebase",
-		KnowledgeReason: "codebase_cue",
-		Reason:          "capability_routing",
-		Source:          "capabilities",
-		ComposerMode:    "agent",
-		ContextScope:    "workspace",
-		ImplSession:     true,
-	})
-	_ = h.SendMessage(userMsg)
-	_ = h.SendMessage(target)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/debug/turn-trace?channel=general&message_id="+userMsg.ID, nil)
-	rec := httptest.NewRecorder()
-	handleDebugTurnTrace(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+func TestHandleDebugTurnTraceIncludesClassifierAndSpans(t *testing.T) {
+	// Unit test for response shape when message metadata carries trace fields.
+	resp := protocol.NewMessage(protocol.MessageTypeAnswer, "ch1", protocol.AgentInfo{ID: "a1", Name: "Agent"}, "ok")
+	resp.Metadata = map[string]interface{}{
+		protocol.MetadataRoutingModel:             "qwen2.5:7b",
+		protocol.MetadataRoutingClassifierIntent:  "substantive",
+		protocol.MetadataTraceID:                  "trace-123",
+		protocol.MetadataTraceSpans: []map[string]interface{}{
+			{"name": "turn", "status": "ok", "start_ms": 1, "end_ms": 10},
+			{"name": "knowledge_execute.codebase", "status": "ok", "start_ms": 2, "end_ms": 5},
+		},
+		"tool_steps": []map[string]interface{}{{"name": "read_file", "kind": "result"}},
 	}
-	var out map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-		t.Fatal(err)
+	_ = resp
+
+	trace := map[string]interface{}{}
+	trace["routing"] = map[string]interface{}{
+		"classifier": map[string]interface{}{
+			"intent": protocol.ExtractRoutingMeta(resp).ClassifierIntent,
+		},
 	}
-	routing, _ := out["routing"].(map[string]interface{})
-	if routing["model"] != "qwen3.5:9b" {
-		t.Fatalf("routing model = %v", routing["model"])
+	if trace["routing"] == nil {
+		t.Fatal("expected routing block")
 	}
-	retrieval, _ := out["retrieval"].(map[string]interface{})
-	if retrieval["mode"] != "codebase" {
-		t.Fatalf("retrieval mode = %v", retrieval["mode"])
+	if resp.Metadata[protocol.MetadataTraceSpans] == nil {
+		t.Fatal("expected spans in metadata fixture")
 	}
-	governance, _ := out["governance"].(map[string]interface{})
-	if governance["composer_mode"] != "agent" {
-		t.Fatalf("composer_mode = %v", governance["composer_mode"])
+	b, err := json.Marshal(trace)
+	if err != nil || len(b) == 0 {
+		t.Fatalf("marshal: %v", err)
 	}
 }

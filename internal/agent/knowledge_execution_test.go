@@ -65,7 +65,7 @@ func TestSkipKnowledgeRetrievalForMessage_collabOrchestration(t *testing.T) {
 	if skipKnowledgeRetrievalForMessage(human) {
 		t.Fatal("human steering during collab should not skip knowledge retrieval")
 	}
-	plan := (&Agent{}).effectiveKnowledgePlan(handoff)
+	plan := (&Agent{}).effectiveKnowledgePlan(handoff, IntentSubstantive)
 	if len(plan.Targets) != 0 || plan.Reason != "collab_turn" {
 		t.Fatalf("expected empty collab plan, got %+v", plan)
 	}

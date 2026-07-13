@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/camronwood/neural-junkie/internal/workflow"
 )
 
 // UpdateTaskStatusResult describes side effects after a task status change.
@@ -37,6 +39,13 @@ func (cm *CollaborationManager) UpdateTaskStatusWithEffects(collabID, taskID str
 		c.Tasks[i].UpdatedAt = time.Now()
 		c.UpdatedAt = time.Now()
 
+		switch status {
+		case TaskCompleted:
+			workflow.LogTaskCompleted(collabID, taskID, truncateOutput(output))
+		case TaskBlocked:
+			workflow.LogTaskFailed(collabID, taskID, output)
+		}
+
 		if status == TaskBlocked && policy == BlockedPolicyFailRun {
 			result.ShouldFailRun = true
 			result.FailRunReason = fmt.Sprintf("task %q is blocked", c.Tasks[i].Title)
@@ -50,6 +59,14 @@ func (cm *CollaborationManager) UpdateTaskStatusWithEffects(collabID, taskID str
 		return result, nil
 	}
 	return UpdateTaskStatusResult{}, fmt.Errorf("task %s not found in collaboration %s", taskID, collabID)
+}
+
+func truncateOutput(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= 200 {
+		return s
+	}
+	return s[:200] + "..."
 }
 
 func (cm *CollaborationManager) markSkippedDownstreamLocked(c *Collaboration, blockedID string) {

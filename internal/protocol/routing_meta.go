@@ -16,6 +16,12 @@ const (
 	MetadataRoutingComposerMode          = "routing_composer_mode"
 	MetadataRoutingContextScope          = "routing_context_scope"
 	MetadataRoutingImplSession           = "routing_impl_session"
+	MetadataRoutingClassifierIntent      = "routing_classifier_intent"
+	MetadataRoutingClassifierToolNeed    = "routing_classifier_tool_need"
+	MetadataRoutingClassifierConfidence  = "routing_classifier_confidence"
+	MetadataRoutingClassifierLoRATag     = "routing_classifier_lora_tag"
+	MetadataTraceID                      = "trace_id"
+	MetadataTraceSpans                   = "trace_spans"
 )
 
 // RoutingMeta captures per-turn model routing decisions for UI display.
@@ -34,6 +40,10 @@ type RoutingMeta struct {
 	ComposerMode        string   `json:"composer_mode,omitempty"`
 	ContextScope        string   `json:"context_scope,omitempty"`
 	ImplSession         bool     `json:"impl_session,omitempty"`
+	ClassifierIntent    string   `json:"classifier_intent,omitempty"`
+	ClassifierToolNeed  bool     `json:"classifier_tool_need,omitempty"`
+	ClassifierConfidence float64 `json:"classifier_confidence,omitempty"`
+	ClassifierLoRATag   string   `json:"classifier_lora_tag,omitempty"`
 }
 
 // ApplyRoutingMeta writes routing fields onto message metadata.
@@ -89,6 +99,18 @@ func ApplyRoutingMeta(msg *Message, meta RoutingMeta) {
 	if meta.ImplSession {
 		msg.Metadata[MetadataRoutingImplSession] = true
 	}
+	if meta.ClassifierIntent != "" {
+		msg.Metadata[MetadataRoutingClassifierIntent] = meta.ClassifierIntent
+	}
+	if meta.ClassifierToolNeed {
+		msg.Metadata[MetadataRoutingClassifierToolNeed] = true
+	}
+	if meta.ClassifierConfidence > 0 {
+		msg.Metadata[MetadataRoutingClassifierConfidence] = meta.ClassifierConfidence
+	}
+	if meta.ClassifierLoRATag != "" {
+		msg.Metadata[MetadataRoutingClassifierLoRATag] = meta.ClassifierLoRATag
+	}
 }
 
 // ExtractRoutingMeta reads routing metadata from a message.
@@ -134,6 +156,20 @@ func ExtractRoutingMeta(msg *Message) RoutingMeta {
 	}
 	if v, ok := msg.Metadata[MetadataRoutingImplSession].(bool); ok {
 		out.ImplSession = v
+	}
+	if v, ok := msg.Metadata[MetadataRoutingClassifierIntent].(string); ok {
+		out.ClassifierIntent = v
+	}
+	if v, ok := msg.Metadata[MetadataRoutingClassifierToolNeed].(bool); ok {
+		out.ClassifierToolNeed = v
+	}
+	if v, ok := msg.Metadata[MetadataRoutingClassifierConfidence].(float64); ok {
+		out.ClassifierConfidence = v
+	} else if v, ok := msg.Metadata[MetadataRoutingClassifierConfidence].(int); ok {
+		out.ClassifierConfidence = float64(v)
+	}
+	if v, ok := msg.Metadata[MetadataRoutingClassifierLoRATag].(string); ok {
+		out.ClassifierLoRATag = v
 	}
 	return out
 }

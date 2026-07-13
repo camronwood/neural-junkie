@@ -15,7 +15,7 @@ func TestRecordKnowledgeRoute_mixedTargets(t *testing.T) {
 		protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"},
 		"what did we decide about auth, and where is it in the repo?",
 	)
-	a.recordKnowledgeRoute(msg)
+	a.recordKnowledgeRoute(msg, IntentSubstantive)
 	snap := a.LastRoutingSnapshot()
 	want := []string{"conversation_memory", "codebase"}
 	if !reflect.DeepEqual(snap.KnowledgeTargets, want) {
@@ -34,7 +34,7 @@ func TestApplyRoutingMetadataKnowledgePlan(t *testing.T) {
 		protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"},
 		"thanks!",
 	)
-	a.recordKnowledgeRoute(msg)
+	a.recordKnowledgeRoute(msg, IntentClosure)
 	a.recordKnowledgeExecuted("conversation_memory")
 	resp := protocol.NewMessage(protocol.MessageTypeAnswer, "#general", a.Info, "You're welcome!")
 	a.ApplyRoutingMetadataToResponse(resp)

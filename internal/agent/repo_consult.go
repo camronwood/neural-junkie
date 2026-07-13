@@ -120,7 +120,7 @@ func (a *Agent) shouldRunRepoConsult(ctx context.Context, msg *protocol.Message,
 	if a.shouldSkipRepoConsult(msg) {
 		return false
 	}
-	if !ShouldRunCodebaseSearch(a.effectiveKnowledgePlan(msg)) {
+	if !ShouldRunCodebaseSearch(a.effectiveKnowledgePlanFromMessage(msg)) {
 		return false
 	}
 	wsPath := workspacePathFromMetadata(msg)

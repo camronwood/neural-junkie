@@ -24,6 +24,10 @@ type RoutingSnapshot struct {
 	ComposerMode    string
 	ContextScope    string
 	ImplSession     bool
+	ClassifierIntent   string
+	ClassifierToolNeed bool
+	ClassifierConfidence float64
+	ClassifierLoRATag  string
 }
 
 type routingSnapshotHolder struct {
@@ -100,6 +104,16 @@ func (a *Agent) RecordRoutingSnapshot(snap RoutingSnapshot) {
 	if snap.ImplSession {
 		a.routingSnap.snap.ImplSession = true
 	}
+	if snap.ClassifierIntent != "" {
+		a.routingSnap.snap.ClassifierIntent = snap.ClassifierIntent
+	}
+	if snap.ClassifierLoRATag != "" {
+		a.routingSnap.snap.ClassifierLoRATag = snap.ClassifierLoRATag
+	}
+	if snap.ClassifierConfidence > 0 {
+		a.routingSnap.snap.ClassifierConfidence = snap.ClassifierConfidence
+	}
+	a.routingSnap.snap.ClassifierToolNeed = snap.ClassifierToolNeed || a.routingSnap.snap.ClassifierToolNeed
 }
 
 // RecordRoutingFromProvider captures provider id and model from an AI provider.
@@ -175,5 +189,9 @@ func (a *Agent) ApplyRoutingMetadataToResponse(msg *protocol.Message) {
 		ComposerMode:       snap.ComposerMode,
 		ContextScope:       snap.ContextScope,
 		ImplSession:        snap.ImplSession,
+		ClassifierIntent:   snap.ClassifierIntent,
+		ClassifierToolNeed: snap.ClassifierToolNeed,
+		ClassifierConfidence: snap.ClassifierConfidence,
+		ClassifierLoRATag:  snap.ClassifierLoRATag,
 	})
 }

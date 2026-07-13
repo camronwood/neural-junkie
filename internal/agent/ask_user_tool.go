@@ -8,6 +8,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/schema"
 )
 
 const askUserToolName = "ask_user"
@@ -102,14 +103,12 @@ func askUserToolDefinition() ai.ClaudeToolDefinition {
 }
 
 func (a *Agent) executeAskUserTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
-	var args struct {
+	args, err := schema.ParseInto[struct {
 		Question string   `json:"question"`
 		Options  []string `json:"options"`
-	}
-	if len(input) > 0 {
-		if err := json.Unmarshal(input, &args); err != nil {
-			return "", fmt.Errorf("invalid ask_user input: %w", err)
-		}
+	}](input, schema.ObjectSpec{Required: []string{"question"}})
+	if err != nil {
+		return "", fmt.Errorf("ask_user schema: %w", err)
 	}
 	args.Question = strings.TrimSpace(args.Question)
 	if args.Question == "" {

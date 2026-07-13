@@ -7,7 +7,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/routing"
 )
 
-func (a *Agent) recordKnowledgeRoute(msg *protocol.Message) {
+func (a *Agent) recordKnowledgeRoute(msg *protocol.Message, intent TurnIntent) {
 	if a == nil || msg == nil {
 		return
 	}
@@ -18,7 +18,8 @@ func (a *Agent) recordKnowledgeRoute(msg *protocol.Message) {
 		})
 		return
 	}
-	plan := routing.PlanKnowledgeRoute(msg.Content)
+	skipDefault := intent == IntentClosure || intent == IntentLowSignal
+	plan := routing.PlanKnowledgeRouteForTurn(msg.Content, skipDefault)
 	a.RecordRoutingSnapshot(RoutingSnapshot{
 		KnowledgeRoute:   string(plan.Primary()),
 		KnowledgeReason:  plan.Reason,

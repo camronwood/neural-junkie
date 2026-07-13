@@ -19,6 +19,8 @@ type RunRecord struct {
 	Phase             string    `json:"phase"`
 	Channel           string    `json:"channel,omitempty"`
 	Title             string    `json:"title,omitempty"`
+	EventLogPath      string    `json:"event_log_path,omitempty"`
+	Outcome           string    `json:"outcome,omitempty"`
 }
 
 type indexFile struct {
