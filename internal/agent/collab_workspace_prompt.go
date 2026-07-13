@@ -70,6 +70,11 @@ func collaborationWorkspaceFocusHint(goal string) string {
 	if strings.Contains(lower, "schema") || strings.Contains(lower, "standardiz") || strings.Contains(lower, "registr") {
 		return "- **Focus paths:** start with `resource-api/json_endpoints/` for schema/registration work; cite real filenames from the tree.\n"
 	}
+	if strings.Contains(lower, "core/sample/main.go") &&
+		(strings.Contains(lower, "readme.md") || strings.Contains(lower, "readme")) &&
+		(strings.Contains(lower, " only") || strings.Contains(lower, "only.")) {
+		return "- **Focus paths:** `README.md` and `core/sample/main.go` only — do not cite or discuss `src/`, React, or frontend files unless the task names them.\n"
+	}
 	return ""
 }
 

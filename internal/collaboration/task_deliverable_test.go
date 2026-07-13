@@ -90,6 +90,20 @@ func TestTaskDispatchFileDeliverableNote_researchFindings(t *testing.T) {
 	}
 }
 
+func TestTaskDispatchFileDeliverableNote_researchScopeLimit(t *testing.T) {
+	task := CollaborationTask{
+		Description: "Write collabs/x/findings.md summarizing README.md and core/sample/main.go only",
+	}
+	goal := "Plan one task: findings.md from README.md and core/sample/main.go only."
+	note := TaskDispatchFileDeliverableNote(task, goal)
+	if !strings.Contains(note, "Scope limit") {
+		t.Fatalf("expected scope limit for 'only' research task, got: %q", note)
+	}
+	if !strings.Contains(note, "App.tsx") {
+		t.Fatalf("expected frontend exclusion in scope limit, got: %q", note)
+	}
+}
+
 func TestTaskDispatchFileDeliverableNote_nonResearchFindings(t *testing.T) {
 	cases := []CollaborationTask{
 		{Description: "Write collabs/x/findings.md with implementation notes"},

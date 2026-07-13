@@ -22,6 +22,8 @@ PREFIXES = (
     "parity-stable",
     "parity-stable-restart",
     "regression-bundle-",
+    "layer-gate-",
+    "layer-fix-loop-",
 )
 
 # Permanent docs that never move.

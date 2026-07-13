@@ -151,6 +151,17 @@ func researchSourcePathsForDeliverable(t CollaborationTask, collabGoal string) [
 	return sources
 }
 
+func taskRestrictsSourcesToListedPaths(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	return strings.Contains(lower, " only") ||
+		strings.Contains(lower, " only.") ||
+		strings.Contains(lower, " only)") ||
+		strings.HasSuffix(lower, " only")
+}
+
 // TaskDispatchFileDeliverableNote returns extra instructions for file-shaped tasks.
 func TaskDispatchFileDeliverableNote(t CollaborationTask, collabGoal string) string {
 	if !TaskRequiresFileDeliverable(t) {
@@ -166,6 +177,9 @@ func TaskDispatchFileDeliverableNote(t CollaborationTask, collabGoal string) str
 		note += "\n\n**Research deliverable:** Read each source file named in this task from the project workspace (MCP read tools). Write `findings.md` with **at least three substantive Markdown bullet lines** (`-`, `*`, `+`, or numbered) grounded in those files. **Cite or reference every source path named in this task** in the bullets — not a task list, plan recap, or guessed stack."
 		if sources := researchSourcePathsForDeliverable(t, collabGoal); len(sources) > 0 {
 			note += "\nSource paths to read and cite: " + strings.Join(sources, ", ") + "."
+		}
+		if taskRestrictsSourcesToListedPaths(t.Title+" "+t.Description) || taskRestrictsSourcesToListedPaths(collabGoal) {
+			note += "\n**Scope limit:** Discuss and cite ONLY the source paths listed for this task — do not mention React, `src/`, `App.tsx`, or other files not named in the task or collaboration goal."
 		}
 	}
 	return note

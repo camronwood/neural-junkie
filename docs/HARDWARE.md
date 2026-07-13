@@ -107,7 +107,7 @@ LoRA adapters (~tens of MB each) reduce “five full 14B downloads” — see [L
 |---------|-------------------|
 | **LoRA training** | Specialist tuning pack; Python `.venv-lora` (`make deps-lora`); **CUDA strongly recommended** — see [LORA_TRAINING.md](LORA_TRAINING.md) |
 | **Repo agents** | Index capped at **2000** source file bodies in memory; large monorepos are trimmed |
-| **Personal learning** | Ollama embeddings; no CUDA required — [PERSONAL_LEARNING.md](PERSONAL_LEARNING.md) |
+| **Personal learning** | Ollama embeddings; no CUDA required — [PERSONAL_LEARNING_V2.md](PERSONAL_LEARNING_V2.md) |
 | **Collaboration** | Local 7B/14B variance in plan quality — [KNOWN_ISSUES.md](KNOWN_ISSUES.md) (`collab-model-variance`) |
 | **Slack bridge** | Hub must stay running locally (Socket Mode) |
 

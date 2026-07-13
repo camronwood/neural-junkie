@@ -81,8 +81,8 @@ Successfully implemented a system-level moderator agent that auto-starts with th
 
 ### 6. Documentation
 **Files Created**:
-- `docs/MODERATOR_AGENT.md` - Comprehensive technical documentation
-- `docs/MODERATOR_QUICK_START.md` - User-friendly quick start guide
+- `docs/archive/MODERATOR_AGENT.md` - Comprehensive technical documentation (removed; see Assistant)
+- `docs/archive/MODERATOR_QUICK_START.md` - User-friendly quick start guide (removed)
 - `docs/archive/MODERATOR_IMPLEMENTATION.md` - This implementation summary
 
 ## Technical Decisions
@@ -202,8 +202,8 @@ Successfully implemented a system-level moderator agent that auto-starts with th
 ### Created Files (4)
 1. `internal/agent/moderator_agent.go` (~350 lines)
 2. `test/moderator_test.go` (~200 lines)
-3. `docs/MODERATOR_AGENT.md` (comprehensive docs)
-4. `docs/MODERATOR_QUICK_START.md` (user guide)
+3. `docs/archive/MODERATOR_AGENT.md` (comprehensive docs)
+4. `docs/archive/MODERATOR_QUICK_START.md` (user guide)
 5. `docs/archive/MODERATOR_IMPLEMENTATION.md` (this file)
 
 **Total**: ~600 lines of new code + documentation
@@ -302,8 +302,8 @@ make chat
 
 ## Related Documentation
 
-- [MODERATOR_AGENT.md](../MODERATOR_AGENT.md) - Technical documentation
-- [MODERATOR_QUICK_START.md](../MODERATOR_QUICK_START.md) - User guide
+- [MODERATOR_AGENT.md](MODERATOR_AGENT.md) - Technical documentation (removed)
+- [MODERATOR_QUICK_START.md](MODERATOR_QUICK_START.md) - User guide (removed)
 - [ARCHITECTURE.md](../ARCHITECTURE.md) - System architecture
 - [GETTING_STARTED.md](../GETTING_STARTED.md) - Setup guide
 

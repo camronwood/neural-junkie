@@ -27,6 +27,7 @@ Thumbs.db
 
 # Logs
 *.log
+docs/testing/*.log
 
 # Environment
 .env

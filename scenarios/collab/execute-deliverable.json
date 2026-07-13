@@ -21,7 +21,7 @@
       "--messages",
       "3"
     ],
-    "goal": "@BackendEngineer @BackendEngineer Plan one task: @BackendEngineer writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @BackendEngineer - Write findings.md with paths and facts from those files."
+    "goal": "@BackendEngineer @SoftwareArchitect Plan one task using this exact line: - Task 1: @BackendEngineer - Write collabs/<collab-id>/findings.md summarizing README.md and core/sample/main.go only (three substantive bullets; do not mention src/, React, or server/main.go)."
   },
   "expect_deliverables": [
     {
@@ -38,6 +38,10 @@
           "index\\.js",
           "utils\\.js",
           "\\bapp\\.js\\b",
+          "App\\.tsx",
+          "src/",
+          "React",
+          "server/main\\.go",
           "data handling module",
           "security vulnerabilities identified"
         ]
@@ -99,6 +103,7 @@
     },
     {
       "action": "assert_messages",
+      "phase": "executing",
       "require_task_status": true,
       "deny_task_status_blocked": true,
       "deny_failed_command_output": true,
@@ -106,6 +111,10 @@
         "index\\.js",
         "utils\\.js",
         "\\bapp\\.js\\b",
+        "App\\.tsx",
+        "src/",
+        "React",
+        "server/main\\.go",
         "data handling module"
       ]
     },
@@ -132,6 +141,10 @@
         "index\\.js",
         "utils\\.js",
         "\\bapp\\.js\\b",
+        "App\\.tsx",
+        "src/",
+        "React",
+        "server/main\\.go",
         "data handling module",
         "security vulnerabilities identified"
       ]

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -83,9 +84,9 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 				if msg == nil {
 					return
 				}
-				// Cancel in-flight generation so closure / follow-up turns are not
-				// stuck behind a long prior reply on the same channel.
-				if protocol.IsUserLikeSender(msg.From) {
+				// Cancel in-flight generation only for closure turns (e.g. "ok thanks")
+				// so collab recaps and slash commands are not aborted mid-flight.
+				if shouldAbortInFlightForUserMessage(msg) {
 					a.AbortChannel(msg.Channel)
 				}
 				go a.handleMessage(listenerCtx, msg)
@@ -94,6 +95,23 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 	}()
 
 	return nil
+}
+
+// shouldAbortInFlightForUserMessage reports whether a new user line should cancel
+// in-flight generations on the same channel. Limited to conversational closure so
+// collab recaps and hub slash commands are not disrupted.
+func shouldAbortInFlightForUserMessage(msg *protocol.Message) bool {
+	if msg == nil || !protocol.IsUserLikeSender(msg.From) {
+		return false
+	}
+	content := strings.TrimSpace(msg.Content)
+	if content == "" {
+		return false
+	}
+	if content[0] == '/' {
+		return false
+	}
+	return classifyConversationalClosure(content) != ClosureNone
 }
 
 const unrespondedHistoryReplayDelay = 250 * time.Millisecond

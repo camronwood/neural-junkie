@@ -52,7 +52,7 @@ When the **Specialist tuning** pack and **personal learning** opt-in are enabled
 - `/learning-list` — list saved learnings
 - Natural phrases like “remember that I prefer …” propose a save (nothing stored until you confirm)
 
-See [PERSONAL_LEARNING.md](PERSONAL_LEARNING.md).
+See [PERSONAL_LEARNING_V2.md](PERSONAL_LEARNING_V2.md).
 
 ## Commands
 

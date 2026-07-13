@@ -2,7 +2,7 @@
 
 Multi-scope memory with **Ollama embedding retrieval**, edit/lifecycle APIs, collaboration scope, agent-suggested proposals, per-user isolation, and optional LoRA JSONL export.
 
-See [PERSONAL_LEARNING.md](PERSONAL_LEARNING.md) for v1 baseline. v2 keeps the same gates: **Specialist tuning** pack + **`personal-learning`** capability + Settings opt-in. Nothing is persisted without user confirmation.
+See [archive/PERSONAL_LEARNING.md](archive/PERSONAL_LEARNING.md) for v1 baseline. v2 keeps the same gates: **Specialist tuning** pack + **`personal-learning`** capability + Settings opt-in. Nothing is persisted without user confirmation.
 
 ## Scopes
 
