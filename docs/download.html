@@ -4,17 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Download 1.2.0-beta.5 — Neural Junkie</title>
-  <meta name="description" content="Download Neural Junkie 1.2.0-beta.5 for macOS (Homebrew or .dmg), Windows, and Linux — direct installer links from GitHub Releases." />
+  <meta name="description" content="Download Neural Junkie 1.2.0-beta.5 — macOS (Homebrew cask or .dmg), Linux (Homebrew formula or .deb), Windows (.msi) from GitHub Releases." />
 <!-- NJ-SITE-SEO:START -->
   <link rel="canonical" href="https://camronwood.github.io/neural-junkie/download.html" />
   <meta property="og:title" content="Download 1.2.0-beta.5 — Neural Junkie" />
-  <meta property="og:description" content="Download Neural Junkie 1.2.0-beta.5 for macOS (Homebrew or .dmg), Windows, and Linux — direct installer links from GitHub Releases." />
+  <meta property="og:description" content="Download Neural Junkie 1.2.0-beta.5 — macOS (Homebrew cask or .dmg), Linux (Homebrew formula or .deb), Windows (.msi) from GitHub Releases." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://camronwood.github.io/neural-junkie/download.html" />
   <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Download 1.2.0-beta.5 — Neural Junkie" />
-  <meta name="twitter:description" content="Download Neural Junkie 1.2.0-beta.5 for macOS (Homebrew or .dmg), Windows, and Linux — direct installer links from GitHub Releases." />
+  <meta name="twitter:description" content="Download Neural Junkie 1.2.0-beta.5 — macOS (Homebrew cask or .dmg), Linux (Homebrew formula or .deb), Windows (.msi) from GitHub Releases." />
   <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
 <!-- NJ-SITE-SEO:END -->
   <link rel="icon" type="image/png" sizes="32x32" href="assets/icon/favicon-32.png" />
@@ -62,21 +62,33 @@
       <p class="feature-deep-lead">
         Latest beta: <strong>1.2.0-beta.5</strong>
         <time datetime="2026-07-06T00:00:00Z">July 6, 2026</time>.
-        On <strong>macOS</strong>, install with <strong>Homebrew</strong> (recommended) or pick a direct <code>.dmg</code> below.
-        Windows and Linux use the installers in the grid, or browse
+        On <strong>macOS</strong>, install with <strong>Homebrew cask</strong> (recommended) or a direct <code>.dmg</code>.
+        On <strong>Linux</strong>, use <strong>Homebrew formula</strong> or the <code>.deb</code> below.
+        <strong>Windows</strong> uses the <code>.msi</code> in the grid, or browse
         <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5">all assets on GitHub</a>.
-        <strong>macOS</strong> bundles Ollama. <strong>Windows</strong> and <strong>Linux</strong> use slim installers — setup wizard auto-installs Ollama on first launch.
+        <strong>macOS</strong> bundles Ollama; <strong>Windows</strong> and <strong>Linux</strong> slim builds install Ollama via the setup wizard on first launch.
         In-app auto-updates on macOS and Windows (beta channel).
         <strong>v1.2.0-beta.5</strong> adds ReAct tools on Gemma, per-turn routing trace, Runbooks v2, multi-repo workspace scope, collab hardening, and LoRA v2 specialists.
       </p>
     </header>
 
     <section class="download-brew" id="homebrew" aria-labelledby="dl-brew">
-      <h2 id="dl-brew">macOS · Homebrew <span class="download-brew__badge">recommended</span></h2>
-      <p class="download-brew__lead">Apple Silicon and Intel — same app as the GitHub <code>.dmg</code>. Fewer Gatekeeper prompts than a raw download. Ollama bundled; upgrades via <code>brew upgrade --cask neural-junkie</code>.</p>
+      <h2 id="dl-brew">Homebrew <span class="download-brew__badge">recommended</span></h2>
+      <p class="download-brew__lead">Same GitHub Release artifacts as direct downloads — managed installs and upgrades via <a href="https://github.com/camronwood/homebrew-tap">camronwood/tap</a>.</p>
+
+      <h3 class="download-section-title" style="margin-top: 1.25rem;">macOS · cask</h3>
+      <p class="download-brew__lead">Apple Silicon and Intel <code>.dmg</code>. Ollama bundled. Fewer Gatekeeper prompts than a raw download.</p>
       <pre class="download-brew__cmd"><code>brew tap camronwood/tap
 brew install --cask neural-junkie</code></pre>
-      <p class="download-brew__note">Tap repo: <a href="https://github.com/camronwood/homebrew-tap">github.com/camronwood/homebrew-tap</a>. Gatekeeper or SmartScreen? See <a href="install-trust.html">Install trust</a> (free, no paid certs).</p>
+      <p class="download-brew__note">Upgrade: <code>brew upgrade --cask neural-junkie</code></p>
+
+      <h3 class="download-section-title" style="margin-top: 1.25rem;">Linux · formula</h3>
+      <p class="download-brew__lead">Requires <a href="https://docs.brew.sh/Homebrew-on-Linux">Homebrew on Linux</a>. Installs the published <code>.deb</code> binary into the Homebrew prefix — <strong>not</strong> <code>--cask</code> (casks are macOS-only).</p>
+      <pre class="download-brew__cmd"><code>brew tap camronwood/tap
+brew install neural-junkie</code></pre>
+      <p class="download-brew__note">Upgrade: <code>brew upgrade neural-junkie</code> · Wizard installs Ollama on first launch if needed.</p>
+
+      <p class="download-brew__note">Maintainer docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/HOMEBREW.md">HOMEBREW.md</a> · Gatekeeper or SmartScreen? <a href="install-trust.html">Install trust</a></p>
     </section>
 
     <section class="feature-prose" style="margin-bottom: 2rem;" aria-labelledby="install-trust-dl">

@@ -520,9 +520,11 @@ release-prep: ## Full release gate: test-everything-full + parity-restart + rele
 
 overnight-release-prep: overnight
 
-bump-homebrew-cask: ## Regenerate ../homebrew-tap cask (TAG=v1.2.0-beta.5 TAP_DIR=../homebrew-tap)
-	@chmod +x scripts/bump-homebrew-cask.sh
-	@./scripts/bump-homebrew-cask.sh '$(or $(TAG),v1.2.0-beta.5)' '$(or $(TAP_DIR),$(CURDIR)/../homebrew-tap)'
+bump-homebrew-cask: bump-homebrew-tap ## Regenerate homebrew tap (cask + Linux formula)
+
+bump-homebrew-tap: ## Regenerate ../homebrew-tap cask + Linux formula (TAG=v1.2.0-beta.5 TAP_DIR=../homebrew-tap)
+	@chmod +x scripts/bump-homebrew-tap.sh scripts/bump-homebrew-cask.sh
+	@./scripts/bump-homebrew-tap.sh '$(or $(TAG),v1.2.0-beta.5)' '$(or $(TAP_DIR),$(CURDIR)/../homebrew-tap)'
 
 ensure-ollama-models-ready: ## Pull/warm/smoke Ollama models before release prep (SUITE=release; NO_PULL=1 to skip pulls)
 	@chmod +x scripts/ensure-ollama-models-ready.py

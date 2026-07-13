@@ -9,7 +9,8 @@ Install Neural Junkie without Apple notarization or Windows EV signing.
 | Platform | Recommended |
 |----------|-------------|
 | macOS | `brew tap camronwood/tap && brew install --cask neural-junkie` |
-| macOS (.dmg) | Right-click app → **Open** (first launch) |
+| Linux | `brew tap camronwood/tap && brew install neural-junkie` |
+| Linux (.deb) | `sudo dpkg -i neural-junkie_*.deb` |
 | Windows | SmartScreen → **More info** → **Run anyway** |
 | Linux | `sudo dpkg -i neural-junkie_*.deb` |
 | Any | `./scripts/verify-release-checksums.sh <tag> <file>` or build from source |

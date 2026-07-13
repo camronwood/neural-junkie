@@ -77,6 +77,8 @@
         </thead>
         <tbody>
           <tr><td>macOS</td><td><code>brew install --cask neural-junkie</code></td><td>Same binary as GitHub; familiar trust model for developers</td></tr>
+          <tr><td>Linux</td><td><code>brew install neural-junkie</code></td><td>Homebrew formula unpacks the release <code>.deb</code></td></tr>
+          <tr><td>Linux (.deb)</td><td><code>sudo dpkg -i neural-junkie_*.deb</code></td><td>Direct install without Homebrew</td></tr>
           <tr><td>macOS (.dmg)</td><td>Right-click app → <strong>Open</strong></td><td>Bypasses first-launch Gatekeeper without paid notarization</td></tr>
           <tr><td>Windows</td><td>Download <code>.msi</code> → SmartScreen “More info” → <strong>Run anyway</strong></td><td>Expected for unsigned OSS installers</td></tr>
           <tr><td>Linux</td><td><code>sudo dpkg -i neural-junkie_*.deb</code></td><td>No store gatekeepers; distro package manager</td></tr>
@@ -131,6 +133,12 @@ make gui</code></pre>
       <p>You get a locally built binary with no download gatekeepers. Requires Go, Node, and Rust — see <a href="https://github.com/camronwood/neural-junkie#quick-start">README Quick start</a>.</p>
 
       <h2 id="linux">Linux</h2>
+      <h3>Option A — Homebrew (recommended)</h3>
+      <pre><code>brew tap camronwood/tap
+brew install neural-junkie</code></pre>
+      <p>Requires <a href="https://docs.brew.sh/Homebrew-on-Linux">Homebrew on Linux</a>. Use <code>brew install</code> — not <code>--cask</code>. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/HOMEBREW.md">HOMEBREW.md</a>.</p>
+
+      <h3>Option B — .deb</h3>
       <pre><code>sudo dpkg -i neural-junkie_1.2.0-beta.5_amd64.deb
 neural-junkie</code></pre>
       <p>Slim <code>.deb</code> — wizard installs Ollama on first launch. No Snap/Flatpak gatekeeper; trust is your package manager + our GitHub repo.</p>

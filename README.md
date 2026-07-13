@@ -73,7 +73,8 @@ Main workspace — files, editor, multi-agent collaboration, and chat (same as t
 
 ```bash
 brew tap camronwood/tap
-brew install --cask neural-junkie
+brew install --cask neural-junkie   # macOS
+brew install neural-junkie        # Linux (Homebrew on Linux)
 ```
 
 See [docs/HOMEBREW.md](docs/HOMEBREW.md) for upgrades, tap setup, and the path to official Homebrew Cask.

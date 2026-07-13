@@ -1,8 +1,15 @@
 # Homebrew distribution
 
-Neural Junkie ships on macOS via a **custom Homebrew tap** today. **Official `homebrew-cask`** is the planned next step once the app is stable and meets Homebrew notability guidelines.
+Neural Junkie ships via the **custom Homebrew tap** `camronwood/tap`:
 
-## Install (macOS, custom tap)
+| Platform | Install command | Artifact |
+|----------|-----------------|----------|
+| **macOS** | `brew install --cask neural-junkie` | `.dmg` (Ollama bundled) |
+| **Linux** | `brew install neural-junkie` | `.deb` binary (slim; wizard installs Ollama) |
+
+**Official `homebrew-cask`** (macOS, no tap) is the planned next step once the app is stable and meets Homebrew notability guidelines.
+
+## Install (macOS — cask)
 
 ```bash
 brew tap camronwood/tap
@@ -21,7 +28,34 @@ Uninstall (including `~/.neural-junkie`):
 brew uninstall --cask --zap neural-junkie
 ```
 
-The cask installs the same signed `.dmg` artifacts from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases). Ollama is bundled on macOS; first launch runs the setup wizard and a one-time model pull.
+The cask installs the GitHub Release `.dmg`. Ollama is bundled on macOS; first launch runs the setup wizard and a one-time model pull.
+
+## Install (Linux — formula)
+
+Requires [Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux) (same `brew` CLI as macOS).
+
+```bash
+brew tap camronwood/tap
+brew install neural-junkie
+```
+
+Upgrade:
+
+```bash
+brew upgrade neural-junkie
+```
+
+Uninstall:
+
+```bash
+brew uninstall neural-junkie
+```
+
+The formula unpacks the published `neural-junkie_<version>_amd64.deb` into the Homebrew prefix (`neural-junkie`, `nj-server`, desktop entry). **Do not** use `--cask` on Linux — casks are macOS-only. GTK/WebKit runtime deps are pulled via Homebrew (`gtk+3`, `webkit2gtk`, etc.).
+
+First launch: complete the setup wizard; use **Install Ollama** if you have not installed it separately (internet required).
+
+**Direct `.deb` alternative:** `sudo dpkg -i neural-junkie_*.deb` — see [DOWNLOAD.md](DOWNLOAD.md).
 
 **Tap repo:** [github.com/camronwood/homebrew-tap](https://github.com/camronwood/homebrew-tap)
 
@@ -32,7 +66,7 @@ The cask installs the same signed `.dmg` artifacts from [GitHub Releases](https:
 1. **Create the tap repo** on GitHub: `camronwood/homebrew-tap` (local scaffold lives at `../homebrew-tap` next to this repo).
 2. Push the initial contents (`Casks/neural-junkie.rb`, `README.md`, `.github/workflows/audit.yml`).
 3. **Configure the deploy key** (recommended — see [Secrets](#secrets) below).
-4. Publish a release — [`.github/workflows/bump-homebrew-tap.yml`](../.github/workflows/bump-homebrew-tap.yml) regenerates the cask and pushes to the tap.
+4. Publish a release — [`.github/workflows/bump-homebrew-tap.yml`](../.github/workflows/bump-homebrew-tap.yml) regenerates the **cask** (macOS) and **formula** (Linux) and pushes to the tap.
 
 ### Secrets
 
@@ -90,9 +124,9 @@ Only maintainers with release permission can publish tags that run the bump work
 ### Manual cask bump
 
 ```bash
-make bump-homebrew-cask TAG=v1.2.0-beta.5 TAP_DIR=../homebrew-tap
+make bump-homebrew-tap TAG=v1.2.0-beta.5 TAP_DIR=../homebrew-tap
 # or
-./scripts/bump-homebrew-cask.sh v1.2.0-beta.5 ../homebrew-tap
+./scripts/bump-homebrew-tap.sh v1.2.0-beta.5 ../homebrew-tap
 ```
 
 Then commit and push `homebrew-tap`.
@@ -103,8 +137,9 @@ Then commit and push `homebrew-tap`.
 brew tap camronwood/tap /path/to/homebrew-tap
 brew audit --cask camronwood/tap/neural-junkie
 brew style --cask camronwood/tap/neural-junkie
-# Optional full install smoke:
-brew install --cask camronwood/tap/neural-junkie
+# Linux formula (on Linux or audit syntax only):
+brew audit camronwood/tap/neural-junkie
+brew style camronwood/tap/neural-junkie
 ```
 
 `brew audit --cask --online --strict` currently fails on **beta prereleases** (expected). Re-enable strict online audit in the tap CI after the first **stable** non-prerelease tag.

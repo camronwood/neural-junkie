@@ -47,12 +47,12 @@ jobs:
         with:
           path: neural-junkie
 
-      - name: Regenerate neural-junkie cask
+      - name: Regenerate neural-junkie cask and Linux formula
         if: steps.deploy_key.outputs.configured == 'true'
         working-directory: neural-junkie
         run: |
-          chmod +x scripts/bump-homebrew-cask.sh
-          ./scripts/bump-homebrew-cask.sh "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}" ../homebrew-tap
+          chmod +x scripts/bump-homebrew-tap.sh
+          ./scripts/bump-homebrew-tap.sh "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}" ../homebrew-tap
 
       - name: Commit and push tap
         if: steps.deploy_key.outputs.configured == 'true'
@@ -62,7 +62,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Casks/neural-junkie.rb
+          git add Casks/neural-junkie.rb Formula/neural-junkie.rb
           if git diff --staged --quiet; then
             echo "Cask unchanged; skipping push"
             exit 0
