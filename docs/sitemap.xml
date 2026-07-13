@@ -1,283 +1,283 @@
 <?xml version='1.0' encoding='utf-8'?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://www.neuraljunkie.com/articles/beta-5.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/beta-5.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/collaboration.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/collaboration.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/conversation-memory.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/conversation-memory.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/conversational-test-harness.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/conversational-test-harness.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/fix-growth-loops.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/fix-growth-loops.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/fix-loop.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/fix-loop.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/hardware.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/hardware.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/hub.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/hub.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/ide-v4.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/ide-v4.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/index.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/index.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/inference-layer.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/inference-layer.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/loop-stack.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/loop-stack.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/lora-v2.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/lora-v2.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/lora.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/lora.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/mcp-lora.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/mcp-lora.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/model-layering.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/model-layering.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/modular-ai-composition.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/modular-ai-composition.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/personal-learning.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/personal-learning.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/react-tools.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/react-tools.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/solo-vs-collab-parity.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/solo-vs-collab-parity.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/articles/two-tier-lora.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/articles/two-tier-lora.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/benchmarks/index.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/benchmarks/index.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/download.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/download.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/agents-and-experts.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/agents-and-experts.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/bundled-ollama.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/bundled-ollama.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/desktop-workspace.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/desktop-workspace.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/domain-packs.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/domain-packs.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/file-changes-workspaces.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/file-changes-workspaces.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/fix-loop.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/fix-loop.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/hardware-requirements.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/hardware-requirements.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/ide-v3.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/ide-v3.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/ide-v4.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/ide-v4.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/index.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/index.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/life-sciences.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/life-sciences.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/model-app-store.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/model-app-store.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/multi-agent-collaboration.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/multi-agent-collaboration.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/personal-learning.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/personal-learning.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/providers-mcp-packaging.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/providers-mcp-packaging.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/slack-connect.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/slack-connect.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/features/slash-commands.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/features/slash-commands.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/gallery/index.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/gallery/index.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/</loc>
+    <loc>https://camronwood.github.io/neural-junkie/</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/known-issues.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/known-issues.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/packs.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/packs.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/release-notes.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/release-notes.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/security.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/security.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://www.neuraljunkie.com/start-here.html</loc>
+    <loc>https://camronwood.github.io/neural-junkie/start-here.html</loc>
     <lastmod>2026-07-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>

@@ -2,7 +2,7 @@
 # Update GitHub repo descriptions, homepages, and topics for Neural Junkie + packs.
 set -euo pipefail
 
-SITE_URL="${NJ_SITE_URL:-https://www.neuraljunkie.com}"
+SITE_URL="${NJ_SITE_URL:-https://camronwood.github.io/neural-junkie}"
 PACKS_URL="${SITE_URL}/packs.html"
 MAIN_TOPICS=(
   multi-agent

@@ -9,8 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 GITHUB_REPO = "https://github.com/camronwood/neural-junkie"
-SITE_BASE_URL = "https://www.neuraljunkie.com"
-SITE_GITHUB_PAGES_URL = "https://camronwood.github.io/neural-junkie"
+SITE_BASE_URL = "https://camronwood.github.io/neural-junkie"
+SITE_CUSTOM_DOMAIN_URL = "https://www.neuraljunkie.com"
 DEFAULT_OG_IMAGE_PATH = "/assets/icon/og-image.png"
 DEFAULT_SITE_DESCRIPTION = (
     "Neural Junkie — open-source multi-agent AI workspace. Local-first specialists, "

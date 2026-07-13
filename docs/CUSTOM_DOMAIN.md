@@ -1,65 +1,32 @@
-# Custom domain — www.neuraljunkie.com
+# Custom domain (optional)
 
-Neural Junkie marketing site canonical URLs use **https://www.neuraljunkie.com**. GitHub Pages also serves the site from `https://camronwood.github.io/neural-junkie/` until DNS is live.
+The live site is **https://camronwood.github.io/neural-junkie/** — no domain registrar required.
 
-## 1. GitHub Pages settings
+Canonical URLs, sitemap, and Open Graph tags all use that GitHub Pages URL.
 
-1. Open **Settings → Pages** on [camronwood/neural-junkie](https://github.com/camronwood/neural-junkie/settings/pages).
-2. Confirm **Source** is `main` / `/docs`.
-3. Under **Custom domain**, enter `www.neuraljunkie.com` and save.
-4. Wait for DNS check, then enable **Enforce HTTPS**.
+## If you add a custom domain later
 
-The repo includes `docs/CNAME` with `www.neuraljunkie.com` so merges keep the domain configured.
+`neuraljunkie.com` currently resolves to WordPress.com (not this repo). To use it with GitHub Pages you would need:
 
-## 2. DNS (at your registrar)
+1. DNS control at a registrar (or transfer the domain away from WordPress)
+2. `docs/CNAME` with your chosen hostname (e.g. `www.neuraljunkie.com`)
+3. Update `SITE_BASE_URL` in `scripts/site_nav.py` to match
+4. Run `make site-seo-sync` and `make github-metadata-sync`
+5. GitHub **Settings → Pages → Custom domain** + Enforce HTTPS
+6. Google Search Console with the new property + sitemap
 
-Add a **CNAME** record:
+### DNS records (when ready)
 
-| Type  | Name | Value                    | TTL  |
-|-------|------|--------------------------|------|
-| CNAME | www  | camronwood.github.io     | 3600 |
+| Type  | Name | Value                |
+|-------|------|----------------------|
+| CNAME | www  | camronwood.github.io |
 
-Optional apex redirect (`neuraljunkie.com` → `www`):
+Optional apex (`@`) A records: `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
 
-| Type | Name | Value              |
-|------|------|--------------------|
-| A    | @    | 185.199.108.153    |
-| A    | @    | 185.199.109.153    |
-| A    | @    | 185.199.110.153    |
-| A    | @    | 185.199.111.153    |
+## Google Search Console (GitHub Pages URL)
 
-Then in GitHub Pages, add `neuraljunkie.com` as a second custom domain or configure registrar forwarding to `https://www.neuraljunkie.com`.
+1. Add property **https://camronwood.github.io/neural-junkie/**
+2. Verify via HTML file or GitHub OAuth
+3. Submit sitemap: **https://camronwood.github.io/neural-junkie/sitemap.xml**
 
-## 3. Verify
-
-```bash
-# DNS
-dig +short www.neuraljunkie.com CNAME
-
-# HTTPS + redirects
-curl -sI https://www.neuraljunkie.com/ | head -5
-curl -sI https://camronwood.github.io/neural-junkie/ | head -5
-```
-
-## 4. Google Search Console
-
-1. Add property **https://www.neuraljunkie.com**
-2. Verify via DNS TXT or HTML file
-3. Submit sitemap: **https://www.neuraljunkie.com/sitemap.xml**
-
-Regenerate sitemap after adding pages:
-
-```bash
-make site-seo-sync
-```
-
-## 5. Related files
-
-| File | Purpose |
-|------|---------|
-| `docs/CNAME` | GitHub Pages custom domain |
-| `docs/sitemap.xml` | Generated URL list |
-| `docs/robots.txt` | Crawler rules + sitemap pointer |
-| `scripts/site_nav.py` | `SITE_BASE_URL`, canonical + OG tags |
-| `scripts/generate-sitemap.py` | Sitemap + robots generator |
-| `scripts/sync-github-repo-metadata.sh` | GitHub topics + descriptions |
+Regenerate sitemap after adding pages: `make site-seo-sync`
