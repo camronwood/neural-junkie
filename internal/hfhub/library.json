@@ -293,6 +293,56 @@
     ]
   },
   {
+    "repo_id": "prism-ml/Bonsai-27B-gguf",
+    "title": "1-bit Bonsai 27B",
+    "description": "PrismML 1-bit (Q1_0) multimodal 27B from Qwen3.6 — reasoning, tools, vision at ~3.9 GB. Requires Ollama 0.30+. Import as nj-bonsai:27b (includes mmproj).",
+    "tags": ["reasoning", "vision", "recommended"],
+    "size_hint": "~3.9 GB (+0.63 GB mmproj)",
+    "icon_key": "qwen",
+    "publisher": "PrismML",
+    "modes": ["local"],
+    "default_ollama_tag": "nj-bonsai:27b",
+    "files": [
+      {
+        "filename": "Bonsai-27B-Q1_0.gguf",
+        "quant": "Q1_0",
+        "size_hint": "~3.9 GB",
+        "role": "main"
+      },
+      {
+        "filename": "Bonsai-27B-mmproj-Q8_0.gguf",
+        "quant": "Q8_0",
+        "size_hint": "~0.63 GB",
+        "role": "mmproj"
+      }
+    ]
+  },
+  {
+    "repo_id": "prism-ml/Ternary-Bonsai-27B-gguf",
+    "title": "Ternary Bonsai 27B",
+    "description": "PrismML ternary (Q2_0) multimodal 27B — quality-oriented ~7.2 GB footprint. Requires recent Ollama (Metal/CPU). Import as nj-ternary-bonsai:27b.",
+    "tags": ["reasoning", "vision", "recommended"],
+    "size_hint": "~7.2 GB (+0.63 GB mmproj)",
+    "icon_key": "qwen",
+    "publisher": "PrismML",
+    "modes": ["local"],
+    "default_ollama_tag": "nj-ternary-bonsai:27b",
+    "files": [
+      {
+        "filename": "Ternary-Bonsai-27B-Q2_0.gguf",
+        "quant": "Q2_0",
+        "size_hint": "~7.2 GB",
+        "role": "main"
+      },
+      {
+        "filename": "Ternary-Bonsai-27B-mmproj-Q8_0.gguf",
+        "quant": "Q8_0",
+        "size_hint": "~0.63 GB",
+        "role": "mmproj"
+      }
+    ]
+  },
+  {
     "kind": "adapter",
     "repo_id": "Pk3112/medmcqa-lora-llama3-8b-instruct",
     "title": "MedMCQA LoRA (Llama 3 8B)",

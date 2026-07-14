@@ -169,6 +169,41 @@ func TestOrnithGGUFDefaultFilename(t *testing.T) {
 	}
 }
 
+func TestBonsaiGGUFPrimaryAndMmproj(t *testing.T) {
+	entry, err := FindCatalogEntry("prism-ml/Bonsai-27B-gguf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fn, err := ResolveDownloadFilename(entry, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fn != "Bonsai-27B-Q1_0.gguf" {
+		t.Fatalf("primary = %q", fn)
+	}
+	mm := MmprojCatalogFile(entry)
+	if mm == nil || mm.Filename != "Bonsai-27B-mmproj-Q8_0.gguf" {
+		t.Fatalf("mmproj = %#v", mm)
+	}
+	if entry.DefaultOllamaTag != "nj-bonsai:27b" {
+		t.Fatalf("default tag = %q", entry.DefaultOllamaTag)
+	}
+}
+
+func TestTernaryBonsaiGGUFPrimary(t *testing.T) {
+	entry, err := FindCatalogEntry("prism-ml/Ternary-Bonsai-27B-gguf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fn, err := ResolveDownloadFilename(entry, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fn != "Ternary-Bonsai-27B-Q2_0.gguf" {
+		t.Fatalf("primary = %q", fn)
+	}
+}
+
 func TestResolveDownloadFilenameLoRACompanion(t *testing.T) {
 	entry, err := FindCatalogEntry("scthornton/llama-3.2-3b-securecode")
 	if err != nil {

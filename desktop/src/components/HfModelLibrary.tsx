@@ -17,7 +17,7 @@ export interface HfCatalogEntry {
   agent_type?: string;
   deprecated?: boolean;
   ollama_compose_supported?: boolean;
-  files?: { filename: string; quant?: string; size_hint?: string }[];
+  files?: { filename: string; quant?: string; size_hint?: string; role?: string }[];
 }
 
 const DEFAULT_LORA_BASE = 'llama3.1:8b';
@@ -40,6 +40,29 @@ function adapterComposeSupported(entry: HfCatalogEntry): boolean {
 function isAdapterEntry(entry: HfCatalogEntry): boolean {
   const kind = (entry.kind ?? '').toLowerCase();
   return kind === 'adapter' || kind === 'lora';
+}
+
+function fileRole(f: { role?: string }): string {
+  const role = (f.role ?? '').trim().toLowerCase();
+  if (role === 'mmproj' || role === 'projector') return 'mmproj';
+  return 'main';
+}
+
+function primaryFilename(entry: HfCatalogEntry): string | undefined {
+  const files = entry.files ?? [];
+  const explicit = files.find((f) => (f.role ?? '').trim().toLowerCase() === 'main');
+  if (explicit?.filename) return explicit.filename;
+  return files.find((f) => fileRole(f) === 'main')?.filename;
+}
+
+function mmprojFilename(entry: HfCatalogEntry): string | undefined {
+  return (entry.files ?? []).find((f) => fileRole(f) === 'mmproj')?.filename;
+}
+
+function catalogFilenames(entry: HfCatalogEntry): string[] {
+  const main = primaryFilename(entry);
+  const mmproj = mmprojFilename(entry);
+  return [main, mmproj].filter((x): x is string => Boolean(x));
 }
 
 interface HubProvider {
@@ -374,11 +397,50 @@ export function HfModelLibrary({
   }
 
   function isDownloaded(entry: HfCatalogEntry): boolean {
-    const fn = entry.files?.[0]?.filename;
-    if (fn) {
-      return localFiles.some((f) => f.repo_id === entry.repo_id && f.filename === fn);
+    const names = catalogFilenames(entry);
+    if (names.length > 0) {
+      return names.every((fn) => localFiles.some((f) => f.repo_id === entry.repo_id && f.filename === fn));
     }
     return localFiles.some((f) => f.repo_id === entry.repo_id);
+  }
+
+  async function downloadOneFile(repoId: string, filename: string): Promise<void> {
+    const st = await pollDownloadStatus(repoId, filename);
+    if (st?.status === 'success') {
+      return;
+    }
+
+    let streamError: string | null = null;
+    const resp = await fetch(`${serverAddr}/api/hf/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo_id: repoId, filename }),
+    });
+    if (!resp.ok) {
+      throw new Error(await resp.text());
+    }
+    const reader = resp.body?.getReader();
+    if (!reader) throw new Error('No response body');
+    await parseSSEChunks(reader, (data) => {
+      if (data.status === 'error' || data.error) {
+        streamError = String(data.error || 'Download failed');
+        setDownloadProgress(streamError);
+        return;
+      }
+      const pct = data.percent;
+      if (typeof pct === 'number' && pct > 0) {
+        setDownloadProgress(`${filename}: ${pct.toFixed(1)}%`);
+      } else if (typeof data.status === 'string') {
+        setDownloadProgress(`${filename}: ${String(data.status)}`);
+      }
+    });
+    if (streamError) {
+      throw new Error(streamError);
+    }
+    const done = await pollDownloadStatus(repoId, filename);
+    if (done?.status !== 'success') {
+      throw new Error(`Download of ${filename} did not complete`);
+    }
   }
 
   async function addHostedProvider(entry: HfCatalogEntry) {
@@ -460,77 +522,45 @@ export function HfModelLibrary({
       setActionMessage({ kind: 'err', text: e instanceof Error ? e.message : String(e) });
       return;
     }
-    const filename = resolved.files?.[0]?.filename;
-    if (!filename) {
+    const filenames = catalogFilenames(resolved);
+    if (filenames.length === 0) {
       setActionMessage({ kind: 'err', text: 'No GGUF file available for this model.' });
       return;
     }
-    const key = `${resolved.repo_id}:${filename}`;
+    const key = `${resolved.repo_id}:${filenames[0]}`;
     setDownloadingKey(key);
     setDownloadProgress('Starting…');
     setActionMessage(null);
 
-    const st = await pollDownloadStatus(resolved.repo_id, filename);
-    if (st?.status === 'success') {
-      setActionMessage({ kind: 'ok', text: `${filename} is already on disk.` });
-      setDownloadingKey(null);
-      setDownloadProgress('');
-      await refreshLocal();
-      return;
-    }
-
-    let streamError: string | null = null;
     try {
-      const resp = await fetch(`${serverAddr}/api/hf/download`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repo_id: resolved.repo_id, filename }),
-      });
-      if (!resp.ok) {
-        throw new Error(await resp.text());
+      for (const filename of filenames) {
+        setDownloadProgress(`Downloading ${filename}…`);
+        await downloadOneFile(resolved.repo_id, filename);
       }
-      const reader = resp.body?.getReader();
-      if (!reader) throw new Error('No response body');
-      await parseSSEChunks(reader, (data) => {
-        if (data.status === 'error' || data.error) {
-          streamError = String(data.error || 'Download failed');
-          setDownloadProgress(streamError);
-          return;
-        }
-        const pct = data.percent;
-        if (typeof pct === 'number' && pct > 0) {
-          setDownloadProgress(`${pct.toFixed(1)}%`);
-        } else if (typeof data.status === 'string') {
-          setDownloadProgress(String(data.status));
-        }
+      setActionMessage({
+        kind: 'ok',
+        text:
+          filenames.length > 1
+            ? `Downloaded ${filenames.join(' + ')}`
+            : `Downloaded ${filenames[0]}`,
       });
-      if (streamError) {
-        setActionMessage({ kind: 'err', text: streamError });
-      } else {
-        const done = await pollDownloadStatus(resolved.repo_id, filename);
-        if (done?.status === 'success') {
-          setActionMessage({ kind: 'ok', text: `Downloaded ${filename}` });
-        }
-      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      const filename = filenames[0];
       const still = await pollDownloadStatus(resolved.repo_id, filename);
       if (still?.status === 'downloading' || still?.status === 'starting' || still?.status === 'queued') {
         setActionMessage({
           kind: 'ok',
           text: 'Download continues on the hub in the background. Reopen Model Library to see progress.',
         });
-      } else if (still?.status === 'success') {
+      } else if (still?.status === 'success' && filenames.length === 1) {
         setActionMessage({ kind: 'ok', text: `Downloaded ${filename}` });
       } else {
         setActionMessage({ kind: 'err', text: msg });
       }
     } finally {
-      const finalSt = await pollDownloadStatus(resolved.repo_id, filename);
-      if (finalSt?.status === 'success' || finalSt?.status === 'error' || finalSt?.status === 'idle') {
-        setDownloadingKey(null);
-        setDownloadProgress('');
-      }
+      setDownloadingKey(null);
+      setDownloadProgress('');
       await refreshLocal();
     }
   }
@@ -543,7 +573,7 @@ export function HfModelLibrary({
       setActionMessage({ kind: 'err', text: e instanceof Error ? e.message : String(e) });
       return;
     }
-    const filename = resolved.files?.[0]?.filename;
+    const filename = primaryFilename(resolved);
     if (!filename) return;
     const adapter = isAdapterEntry(resolved);
     if (adapter && !canComposeLoRA) {
@@ -580,7 +610,7 @@ export function HfModelLibrary({
           filename,
           kind: adapter ? 'adapter' : undefined,
           base_ollama_tag: adapter ? baseTag : undefined,
-          ollama_tag: adapter ? resolved.default_ollama_tag : undefined,
+          ollama_tag: resolved.default_ollama_tag || undefined,
         }),
       });
       if (!resp.ok) throw new Error(await resp.text());
@@ -617,16 +647,21 @@ export function HfModelLibrary({
   }
 
   async function deleteLocal(entry: HfCatalogEntry) {
-    const filename = entry.files?.[0]?.filename;
-    if (!filename) return;
+    const filenames = catalogFilenames(entry);
+    if (filenames.length === 0) return;
     try {
-      const resp = await fetch(`${serverAddr}/api/hf/delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repo_id: entry.repo_id, filename }),
+      for (const filename of filenames) {
+        const resp = await fetch(`${serverAddr}/api/hf/delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo_id: entry.repo_id, filename }),
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+      }
+      setActionMessage({
+        kind: 'ok',
+        text: filenames.length > 1 ? `Removed cached ${filenames.join(' + ')}` : `Removed cached ${filenames[0]}`,
       });
-      if (!resp.ok) throw new Error(await resp.text());
-      setActionMessage({ kind: 'ok', text: `Removed cached ${filename}` });
       await refreshLocal();
     } catch (e) {
       setActionMessage({ kind: 'err', text: e instanceof Error ? e.message : String(e) });
@@ -635,8 +670,9 @@ export function HfModelLibrary({
 
   const storeItems = useMemo((): StoreModelItem[] => {
     return filtered.map((entry) => {
-      const file = entry.files?.[0];
-      const dlKey = file ? `${entry.repo_id}:${file.filename}` : entry.repo_id;
+      const mainName = primaryFilename(entry);
+      const file = (entry.files ?? []).find((f) => f.filename === mainName) ?? entry.files?.[0];
+      const dlKey = mainName ? `${entry.repo_id}:${mainName}` : entry.repo_id;
       const downloaded = tab === 'local' && isDownloaded(entry);
       const isHosted = tab === 'hosted';
 
@@ -663,9 +699,12 @@ export function HfModelLibrary({
         : [{ label: 'Repository', value: entry.repo_id }];
 
       if (entry.files && entry.files.length > 1) {
-        for (const f of entry.files.slice(1)) {
+        for (const f of entry.files) {
+          if (f.filename === file?.filename) continue;
+          const label =
+            fileRole(f) === 'mmproj' ? 'Vision projector' : f.quant || 'Variant';
           detailRows.push({
-            label: f.quant || 'Variant',
+            label,
             value: `${f.filename}${f.size_hint ? ` (${f.size_hint})` : ''}`,
           });
         }

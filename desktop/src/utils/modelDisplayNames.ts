@@ -24,6 +24,12 @@ export function formatModelDisplayName(tag: string): string {
   if (t === 'nj-ornith:9b' || t.startsWith('nj-ornith:') || t.includes('ornith-1.0-9b')) {
     return 'Ornith 1.0 9B';
   }
+  if (t === 'nj-ternary-bonsai:27b' || t.startsWith('nj-ternary-bonsai:') || t.includes('ternary-bonsai-27b')) {
+    return 'Ternary Bonsai 27B';
+  }
+  if (t === 'nj-bonsai:27b' || t.startsWith('nj-bonsai:') || t.includes('bonsai-27b')) {
+    return '1-bit Bonsai 27B';
+  }
   if (t.includes('codegemma:7b') || t.startsWith('codegemma:')) {
     return 'CodeGemma 7B';
   }

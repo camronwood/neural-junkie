@@ -27,6 +27,24 @@
     "publisher": "DeepReinforce"
   },
   {
+    "name": "nj-bonsai:27b",
+    "title": "1-bit Bonsai 27B (GGUF import)",
+    "description": "PrismML 1-bit multimodal 27B. Install via Model Library → Hugging Face → Download + Import to Ollama. Needs Ollama 0.30+.",
+    "tags": ["reasoning", "vision", "recommended"],
+    "size_hint": "~3.9 GB (Q1_0)",
+    "icon_key": "qwen",
+    "publisher": "PrismML"
+  },
+  {
+    "name": "nj-ternary-bonsai:27b",
+    "title": "Ternary Bonsai 27B (GGUF import)",
+    "description": "PrismML ternary multimodal 27B. Install via Model Library → Hugging Face → Download + Import to Ollama.",
+    "tags": ["reasoning", "vision", "recommended"],
+    "size_hint": "~7.2 GB (Q2_0)",
+    "icon_key": "qwen",
+    "publisher": "PrismML"
+  },
+  {
     "name": "qwen2.5-coder:14b",
     "title": "Qwen 2.5 Coder 14B",
     "description": "Strong coding and tool use; default for Neural Junkie specialists.",

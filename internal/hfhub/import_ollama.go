@@ -116,7 +116,8 @@ func ImportAdapterToOllama(ctx context.Context, baseTag, adapterPath, ollamaTag 
 }
 
 // ImportToOllama creates an Ollama model tag from a downloaded GGUF via `ollama create`.
-func ImportToOllama(ctx context.Context, ggufPath, ollamaTag string) error {
+// Optional mmprojPath adds a second FROM line for vision projector GGUFs.
+func ImportToOllama(ctx context.Context, ggufPath, ollamaTag, mmprojPath, repoID string) error {
 	ggufPath = strings.TrimSpace(ggufPath)
 	ollamaTag = strings.TrimSpace(ollamaTag)
 	if ggufPath == "" || ollamaTag == "" {
@@ -129,6 +130,16 @@ func ImportToOllama(ctx context.Context, ggufPath, ollamaTag string) error {
 	if _, err := os.Stat(abs); err != nil {
 		return fmt.Errorf("gguf file not found: %w", err)
 	}
+	mmprojAbs := ""
+	if p := strings.TrimSpace(mmprojPath); p != "" {
+		mmprojAbs, err = filepath.Abs(p)
+		if err != nil {
+			return err
+		}
+		if _, err := os.Stat(mmprojAbs); err != nil {
+			return fmt.Errorf("mmproj file not found: %w", err)
+		}
+	}
 
 	mgr := ollama.NewManager("")
 	st := mgr.DetectInstallation()
@@ -136,7 +147,7 @@ func ImportToOllama(ctx context.Context, ggufPath, ollamaTag string) error {
 		return fmt.Errorf("ollama is not installed")
 	}
 
-	modelfile := openBioGGUFModelfile(abs)
+	modelfile := ggufModelfile(abs, mmprojAbs, repoID)
 	tmp, err := os.CreateTemp("", "nj-modelfile-*.txt")
 	if err != nil {
 		return err
@@ -174,6 +185,20 @@ func runOllamaCreate(ctx context.Context, ollamaBin, ollamaTag, modelfilePath st
 	return nil
 }
 
+// ggufModelfile builds a Modelfile for a full GGUF import.
+// OpenBio keeps the Llama 3 instruct template; other models use bare FROM (+ optional mmproj).
+func ggufModelfile(ggufPath, mmprojPath, repoID string) string {
+	if strings.Contains(strings.ToLower(repoID), "openbiollm") {
+		return openBioGGUFModelfile(ggufPath)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "FROM %q\n", ggufPath)
+	if p := strings.TrimSpace(mmprojPath); p != "" {
+		fmt.Fprintf(&b, "FROM %q\n", p)
+	}
+	return b.String()
+}
+
 // openBioGGUFModelfile builds a Modelfile with Llama 3 chat template for OpenBio GGUF imports.
 func openBioGGUFModelfile(ggufPath string) string {
 	return fmt.Sprintf(`FROM %q
@@ -192,6 +217,12 @@ func DefaultOllamaTag(repoID, filename string) string {
 	}
 	if strings.Contains(repoLower, "ornith") {
 		return "nj-ornith:9b"
+	}
+	if strings.Contains(repoLower, "ternary-bonsai") {
+		return "nj-ternary-bonsai:27b"
+	}
+	if strings.Contains(repoLower, "bonsai-27b") || strings.Contains(repoLower, "bonsai_27b") {
+		return "nj-bonsai:27b"
 	}
 	base := strings.TrimSuffix(filename, filepath.Ext(filename))
 	base = strings.ToLower(base)

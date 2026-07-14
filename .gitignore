@@ -109,3 +109,5 @@ scenarios/fixtures/minimal-repo/server
 .cloudflare-api-token
 .cloud-flayer-analytics-snippet
 .goatcounter-snippet
+# Local spike / verify scratch (large GGUFs)
+scripts/tmp-bonsai-verify/

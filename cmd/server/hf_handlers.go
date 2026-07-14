@@ -309,15 +309,24 @@ func handleHfImportOllama(w http.ResponseWriter, r *http.Request) {
 	if kind == "" && entry != nil && hfhub.IsAdapterEntry(entry) {
 		kind = "adapter"
 	}
-	path, err := hfMgr.LocalPath(req.RepoID, req.Filename)
+	fn := strings.TrimSpace(req.Filename)
+	if fn == "" && entry != nil {
+		if primary := hfhub.PrimaryCatalogFile(entry); primary != nil {
+			fn = primary.Filename
+		}
+	}
+	path, err := hfMgr.LocalPath(req.RepoID, fn)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	tag := strings.TrimSpace(req.OllamaTag)
-	fn := req.Filename
-	if entry != nil && fn == "" && len(entry.Files) > 0 {
-		fn = entry.Files[0].Filename
+	if tag == "" {
+		if entry != nil {
+			if t := strings.TrimSpace(entry.DefaultOllamaTag); t != "" {
+				tag = t
+			}
+		}
 	}
 	if tag == "" {
 		if entry != nil && hfhub.IsAdapterEntry(entry) {
@@ -343,9 +352,22 @@ func handleHfImportOllama(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	} else if err := hfhub.ImportToOllama(ctx, path, tag); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	} else {
+		mmprojPath := ""
+		if entry != nil {
+			if mm := hfhub.MmprojCatalogFile(entry); mm != nil {
+				if p, err := hfMgr.LocalPath(req.RepoID, mm.Filename); err == nil {
+					mmprojPath = p
+				} else {
+					http.Error(w, fmt.Sprintf("mmproj %s not downloaded — download the model (includes projector) first: %v", mm.Filename, err), http.StatusBadRequest)
+					return
+				}
+			}
+		}
+		if err := hfhub.ImportToOllama(ctx, path, tag, mmprojPath, req.RepoID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "imported", "ollama_tag": tag, "kind": kind})

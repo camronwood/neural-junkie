@@ -42,6 +42,28 @@ func TestDefaultOllamaTagOrnith(t *testing.T) {
 	}
 }
 
+func TestDefaultOllamaTagBonsai(t *testing.T) {
+	if tag := DefaultOllamaTag("prism-ml/Bonsai-27B-gguf", "Bonsai-27B-Q1_0.gguf"); tag != "nj-bonsai:27b" {
+		t.Fatalf("1-bit tag = %q", tag)
+	}
+	if tag := DefaultOllamaTag("prism-ml/Ternary-Bonsai-27B-gguf", "Ternary-Bonsai-27B-Q2_0.gguf"); tag != "nj-ternary-bonsai:27b" {
+		t.Fatalf("ternary tag = %q", tag)
+	}
+}
+
+func TestGgufModelfileMmproj(t *testing.T) {
+	s := ggufModelfile("/tmp/model.gguf", "/tmp/mmproj.gguf", "prism-ml/Bonsai-27B-gguf")
+	if !strings.Contains(s, `FROM "/tmp/model.gguf"`) {
+		t.Fatalf("missing main FROM: %q", s)
+	}
+	if !strings.Contains(s, `FROM "/tmp/mmproj.gguf"`) {
+		t.Fatalf("missing mmproj FROM: %q", s)
+	}
+	if strings.Contains(s, "TEMPLATE") {
+		t.Fatal("bonsai should not use OpenBio Llama 3 template")
+	}
+}
+
 func TestDefaultAdapterOllamaTag(t *testing.T) {
 	entry := &LibraryModel{
 		DefaultOllamaTag: "nj-security:14b",

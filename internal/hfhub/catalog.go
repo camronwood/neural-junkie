@@ -15,6 +15,8 @@ type CatalogFile struct {
 	Filename string `json:"filename"`
 	Quant    string `json:"quant,omitempty"`
 	SizeHint string `json:"size_hint,omitempty"`
+	// Role is "main" (weights) or "mmproj" (vision projector). Empty means main.
+	Role string `json:"role,omitempty"`
 }
 
 // LibraryModel is one row in the in-app HF model library.
@@ -98,6 +100,58 @@ func FindCatalogEntry(repoID string) (*LibraryModel, error) {
 	return nil, fmt.Errorf("repo_id %q is not in the curated catalog", repoID)
 }
 
+func fileRole(f CatalogFile) string {
+	role := strings.ToLower(strings.TrimSpace(f.Role))
+	switch role {
+	case "mmproj", "projector":
+		return "mmproj"
+	case "main", "":
+		return "main"
+	default:
+		return role
+	}
+}
+
+// PrimaryCatalogFile returns the main weights file (skips mmproj companions).
+func PrimaryCatalogFile(entry *LibraryModel) *CatalogFile {
+	if entry == nil {
+		return nil
+	}
+	var fallback *CatalogFile
+	for i := range entry.Files {
+		f := &entry.Files[i]
+		switch fileRole(*f) {
+		case "mmproj":
+			continue
+		case "main":
+			if strings.EqualFold(strings.TrimSpace(f.Role), "main") {
+				return f
+			}
+			if fallback == nil {
+				fallback = f
+			}
+		default:
+			if fallback == nil {
+				fallback = f
+			}
+		}
+	}
+	return fallback
+}
+
+// MmprojCatalogFile returns the vision projector companion, if any.
+func MmprojCatalogFile(entry *LibraryModel) *CatalogFile {
+	if entry == nil {
+		return nil
+	}
+	for i := range entry.Files {
+		if fileRole(entry.Files[i]) == "mmproj" {
+			return &entry.Files[i]
+		}
+	}
+	return nil
+}
+
 // ResolveDownloadFilename picks filename from request or catalog default.
 func ResolveDownloadFilename(entry *LibraryModel, filename string) (string, error) {
 	filename = strings.TrimSpace(filename)
@@ -115,10 +169,10 @@ func ResolveDownloadFilename(entry *LibraryModel, filename string) (string, erro
 		}
 		return filename, nil
 	}
-	if entry == nil || len(entry.Files) == 0 {
-		return "", fmt.Errorf("filename is required")
+	if primary := PrimaryCatalogFile(entry); primary != nil {
+		return primary.Filename, nil
 	}
-	return entry.Files[0].Filename, nil
+	return "", fmt.Errorf("filename is required")
 }
 
 // ResolveDownloadRepoID returns the Hub repo used for resolve/main GGUF downloads.
