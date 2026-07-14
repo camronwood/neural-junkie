@@ -454,6 +454,10 @@ _DESC_RE = re.compile(
     r'<meta\s+name="description"\s+content="([^"]*)"\s*/?>',
     re.IGNORECASE,
 )
+_ARTICLE_COVER_RE = re.compile(
+    r'<figure\s+class="article-cover"[^>]*>\s*<img\b[^>]*\bsrc="([^"]+)"',
+    re.IGNORECASE | re.DOTALL,
+)
 _MARKED_SEO_RE = re.compile(
     re.escape(SEO_START) + r".*?" + re.escape(SEO_END),
     re.DOTALL,
@@ -462,6 +466,8 @@ _HEAD_SOCIAL_TAG_RE = re.compile(
     r"\n\s*<(?:meta\s+(?:property=\"og:[^\"]+\"|name=\"twitter:[^\"]+\")|link\s+rel=\"canonical\")[^>]*>",
     re.IGNORECASE,
 )
+ARTICLE_OG_IMAGE_WIDTH = 1200
+ARTICLE_OG_IMAGE_HEIGHT = 627
 
 
 def extract_page_title(text: str) -> str:
@@ -489,14 +495,86 @@ def default_og_image_url() -> str:
     return f"{SITE_BASE_URL}{DEFAULT_OG_IMAGE_PATH}"
 
 
-def page_og_type(html_path: Path) -> str:
+def is_article_page(html_path: Path) -> bool:
     rel = html_path.relative_to(DOCS).as_posix()
-    if rel.startswith("articles/") and rel != "articles/index.html":
+    return rel.startswith("articles/") and rel != "articles/index.html"
+
+
+def absolute_site_asset_url(html_path: Path, src: str) -> str | None:
+    src = src.strip()
+    if not src:
+        return None
+    if src.startswith("https://") or src.startswith("http://"):
+        return src
+    if src.startswith("//"):
+        return f"https:{src}"
+    if src.startswith("/"):
+        return f"{SITE_BASE_URL}{src}"
+    resolved = (html_path.parent / src).resolve()
+    try:
+        rel = resolved.relative_to(DOCS.resolve()).as_posix()
+    except ValueError:
+        return None
+    return f"{SITE_BASE_URL}/{rel}"
+
+
+def article_cover_from_html(text: str) -> str | None:
+    match = _ARTICLE_COVER_RE.search(text)
+    if not match:
+        return None
+    return match.group(1).strip() or None
+
+
+def article_cover_from_manifest(html_path: Path) -> str | None:
+    if not is_article_page(html_path):
+        return None
+    slug = html_path.stem
+    manifest_path = DOCS / "articles" / "manifest.json"
+    if not manifest_path.is_file():
+        return None
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        return None
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if item.get("slug") != slug and item.get("href") != f"{slug}.html":
+            continue
+        cover = item.get("coverWeb") or item.get("cover")
+        if isinstance(cover, str) and cover.strip():
+            return cover.strip()
+    return None
+
+
+def page_og_image_url(html_path: Path, text: str = "") -> str:
+    if is_article_page(html_path):
+        cover_src = article_cover_from_html(text) if text else None
+        if not cover_src:
+            cover_src = article_cover_from_manifest(html_path)
+        if cover_src:
+            absolute = absolute_site_asset_url(html_path, cover_src)
+            if absolute:
+                return absolute
+    return default_og_image_url()
+
+
+def page_og_type(html_path: Path) -> str:
+    if is_article_page(html_path):
         return "article"
     return "website"
 
 
-def render_json_ld(html_path: Path, *, title: str, description: str) -> str | None:
+def render_json_ld(
+    html_path: Path,
+    *,
+    title: str,
+    description: str,
+    og_image: str | None = None,
+) -> str | None:
     rel = html_path.relative_to(DOCS).as_posix()
     if rel == "index.html":
         payload = {
@@ -512,7 +590,7 @@ def render_json_ld(html_path: Path, *, title: str, description: str) -> str | No
             "license": "https://opensource.org/licenses/MIT",
             "author": {"@type": "Organization", "name": "Neural Junkie"},
         }
-    elif rel.startswith("articles/") and rel != "articles/index.html":
+    elif is_article_page(html_path):
         headline = title.removesuffix(" — Neural Junkie").strip() or title
         payload = {
             "@context": "https://schema.org",
@@ -522,6 +600,8 @@ def render_json_ld(html_path: Path, *, title: str, description: str) -> str | No
             "url": page_canonical_url(html_path),
             "publisher": {"@type": "Organization", "name": "Neural Junkie"},
         }
+        if og_image:
+            payload["image"] = [og_image]
     else:
         return None
     return (
@@ -531,12 +611,13 @@ def render_json_ld(html_path: Path, *, title: str, description: str) -> str | No
     )
 
 
-def render_seo_block(html_path: Path, *, title: str, description: str) -> str:
+def render_seo_block(html_path: Path, *, title: str, description: str, text: str = "") -> str:
     url = page_canonical_url(html_path)
-    og_image = default_og_image_url()
+    og_image = page_og_image_url(html_path, text)
     title_attr = html.escape(title, quote=True)
     desc_attr = html.escape(description, quote=True)
     og_type = page_og_type(html_path)
+    use_article_image_dims = is_article_page(html_path) and og_image != default_og_image_url()
 
     lines = [
         SEO_START,
@@ -546,12 +627,24 @@ def render_seo_block(html_path: Path, *, title: str, description: str) -> str:
         f'  <meta property="og:type" content="{og_type}" />',
         f'  <meta property="og:url" content="{url}" />',
         f'  <meta property="og:image" content="{og_image}" />',
-        '  <meta name="twitter:card" content="summary_large_image" />',
-        f'  <meta name="twitter:title" content="{title_attr}" />',
-        f'  <meta name="twitter:description" content="{desc_attr}" />',
-        f'  <meta name="twitter:image" content="{og_image}" />',
     ]
-    json_ld = render_json_ld(html_path, title=title, description=description)
+    if use_article_image_dims:
+        lines.append(f'  <meta property="og:image:width" content="{ARTICLE_OG_IMAGE_WIDTH}" />')
+        lines.append(f'  <meta property="og:image:height" content="{ARTICLE_OG_IMAGE_HEIGHT}" />')
+    lines.extend(
+        [
+            '  <meta name="twitter:card" content="summary_large_image" />',
+            f'  <meta name="twitter:title" content="{title_attr}" />',
+            f'  <meta name="twitter:description" content="{desc_attr}" />',
+            f'  <meta name="twitter:image" content="{og_image}" />',
+        ]
+    )
+    json_ld = render_json_ld(
+        html_path,
+        title=title,
+        description=description,
+        og_image=og_image if is_article_page(html_path) else None,
+    )
     if json_ld:
         lines.append(json_ld)
     lines.append(SEO_END)
@@ -593,7 +686,7 @@ def apply_site_seo(html_path: Path, text: str) -> str:
     text = repair_broken_description_seo(text)
     title = extract_page_title(text)
     description = extract_meta_description(text)
-    seo = render_seo_block(html_path, title=title, description=description)
+    seo = render_seo_block(html_path, title=title, description=description, text=text)
 
     if SEO_START in text and SEO_END in text:
         text = _MARKED_SEO_RE.sub(lambda _match: seo, text, count=1)

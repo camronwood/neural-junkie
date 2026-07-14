@@ -14,8 +14,10 @@ from site_nav import (  # noqa: E402
     ANALYTICS_START,
     SEO_END,
     SEO_START,
+    SITE_BASE_URL,
     apply_site_chrome,
     apply_site_seo,
+    default_og_image_url,
     extract_goatcounter_count_url,
     page_canonical_url,
     render_site_header,
@@ -180,6 +182,48 @@ class SiteNavSeoTest(unittest.TestCase):
         self.assertNotIn("Old title", updated)
         self.assertNotIn("example.com/old.png", updated)
         self.assertIn('"@type": "SoftwareApplication"', updated)
+
+    def test_apply_site_seo_uses_article_cover_for_social_image(self) -> None:
+        html_path = SCRIPTS_DIR.parent / "docs" / "articles" / "stream-subscriptions.html"
+        cover = "../media/articles/covers/neural-junkie-stream-subscriptions-1200.png"
+        expected = (
+            f"{SITE_BASE_URL}/media/articles/covers/"
+            "neural-junkie-stream-subscriptions-1200.png"
+        )
+        page = _sample_page().replace(
+            "<title>Sample</title>",
+            "<title>Streams In. Agents Out — Neural Junkie</title>\n"
+            '  <meta name="description" content="MQTT and Kafka triggers." />',
+        ).replace(
+            "<main id=\"main\">Hello</main>",
+            f'<main id="main">'
+            f'<figure class="article-cover">'
+            f'<img src="{cover}" alt="" width="1200" height="627" />'
+            f"</figure>"
+            f"</main>",
+        )
+        updated = apply_site_seo(html_path, page)
+
+        self.assertIn(f'property="og:image" content="{expected}"', updated)
+        self.assertIn(f'name="twitter:image" content="{expected}"', updated)
+        self.assertIn('property="og:image:width" content="1200"', updated)
+        self.assertIn('property="og:image:height" content="627"', updated)
+        self.assertIn(f'"{expected}"', updated)
+        self.assertNotIn(default_og_image_url(), updated)
+
+    def test_apply_site_seo_falls_back_to_default_og_without_cover(self) -> None:
+        html_path = SCRIPTS_DIR.parent / "docs" / "download.html"
+        page = _sample_page().replace(
+            "<title>Sample</title>",
+            "<title>Download — Neural Junkie</title>\n"
+            '  <meta name="description" content="Get Neural Junkie." />',
+        )
+        updated = apply_site_seo(html_path, page)
+
+        self.assertIn(
+            f'property="og:image" content="{default_og_image_url()}"',
+            updated,
+        )
 
 
 if __name__ == "__main__":
