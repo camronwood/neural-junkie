@@ -78,6 +78,10 @@ func NeuralJunkieModelsDir() string {
 }
 
 func resolveBundledBinary() (path string, bundled bool) {
+	// Prefer user-updated runtime so POST /api/ollama/update takes effect without rewriting the app bundle.
+	if p := UserRuntimeBinary(); p != "" {
+		return p, true
+	}
 	if p := BundledBinaryPath(); p != "" {
 		return p, true
 	}

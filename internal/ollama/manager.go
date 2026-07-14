@@ -20,10 +20,16 @@ import (
 )
 
 type InstallStatus struct {
-	Installed bool   `json:"installed"`
-	Bundled   bool   `json:"bundled,omitempty"`
-	Version   string `json:"version,omitempty"`
-	Path      string `json:"path,omitempty"`
+	Installed          bool   `json:"installed"`
+	Bundled            bool   `json:"bundled,omitempty"`
+	Version            string `json:"version,omitempty"`
+	Path               string `json:"path,omitempty"`
+	RecommendedVersion string `json:"recommended_version,omitempty"`
+	MinVersion         string `json:"min_version,omitempty"`
+	UpdateAvailable    bool   `json:"update_available,omitempty"`
+	MeetsMinimum       bool   `json:"meets_minimum,omitempty"`
+	UpdateSupported    bool   `json:"update_supported,omitempty"`
+	EffectiveVersion   string `json:"effective_version,omitempty"`
 }
 
 // BundledBinaryPath returns the app-shipped Ollama binary when NJ_BUNDLED_OLLAMA is set.
@@ -67,17 +73,40 @@ func NewManager(endpoint string) *Manager {
 }
 
 func (m *Manager) DetectInstallation() InstallStatus {
+	fill := func(st InstallStatus) InstallStatus {
+		raw := st.Version
+		if parsed, ok := ParseOllamaVersion(raw); ok {
+			st.Version = parsed
+		}
+		st.RecommendedVersion = RecommendedOllamaVersion
+		st.MinVersion = MinOllamaVersion
+		st.UpdateSupported = UpdateSupported(st)
+		effective := st.Version
+		// Prefer live server version for feature gates when reachable.
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if m.IsServerRunning(ctx) {
+			if ver, ok := m.fetchAPIVersion(ctx); ok {
+				effective = ver
+			}
+		}
+		st.EffectiveVersion = effective
+		st.UpdateAvailable = st.Installed && NeedsUpdate(st.Version)
+		st.MeetsMinimum = MeetsMinimum(effective)
+		return st
+	}
+
 	if bundled, isBundled := resolveBundledBinary(); bundled != "" {
 		version := ""
 		if out, err := exec.Command(bundled, "--version").Output(); err == nil {
 			version = strings.TrimSpace(string(out))
 		}
-		return InstallStatus{
+		return fill(InstallStatus{
 			Installed: true,
 			Bundled:   isBundled,
 			Version:   version,
 			Path:      bundled,
-		}
+		})
 	}
 
 	paths := []string{}
@@ -123,9 +152,13 @@ func (m *Manager) DetectInstallation() InstallStatus {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if m.IsServerRunning(ctx) {
-			return InstallStatus{Installed: true, Version: "", Path: ""}
+			st := fill(InstallStatus{Installed: true, Version: "", Path: ""})
+			if st.EffectiveVersion != "" {
+				st.Version = st.EffectiveVersion
+			}
+			return st
 		}
-		return InstallStatus{Installed: false}
+		return fill(InstallStatus{Installed: false})
 	}
 
 	binPath := paths[0]
@@ -134,11 +167,31 @@ func (m *Manager) DetectInstallation() InstallStatus {
 		version = strings.TrimSpace(string(out))
 	}
 
-	return InstallStatus{
+	return fill(InstallStatus{
 		Installed: true,
 		Version:   version,
 		Path:      binPath,
+	})
+}
+
+func (m *Manager) fetchAPIVersion(ctx context.Context) (string, bool) {
+	req, err := http.NewRequestWithContext(ctx, "GET", m.endpoint+"/api/version", nil)
+	if err != nil {
+		return "", false
 	}
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if err != nil {
+		return "", false
+	}
+	return ParseAPIVersion(string(body))
 }
 
 func (m *Manager) IsServerRunning(ctx context.Context) bool {

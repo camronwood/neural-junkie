@@ -29,9 +29,15 @@ func handleOllamaInstallStatus(w http.ResponseWriter, r *http.Request) {
 		"installed":              status.Installed,
 		"bundled":                status.Bundled,
 		"version":                status.Version,
+		"effective_version":      status.EffectiveVersion,
 		"path":                   status.Path,
 		"running":                running,
 		"auto_install_supported": ollamaManager.AutoInstallSupported(),
+		"recommended_version":    status.RecommendedVersion,
+		"min_version":            status.MinVersion,
+		"update_available":       status.UpdateAvailable,
+		"meets_minimum":          status.MeetsMinimum,
+		"update_supported":       status.UpdateSupported,
 	})
 }
 
@@ -52,6 +58,35 @@ func handleOllamaInstall(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := ollamaMgr.InstallOllama(r.Context(), func(msg string) {
+		fmt.Fprintf(w, "data: %s\n\n", ollamaManager.SSESafeLine(msg))
+		flusher.Flush()
+	})
+	if err != nil {
+		fmt.Fprintf(w, "data: ERROR: %s\n\n", ollamaManager.SSESafeLine(err.Error()))
+		flusher.Flush()
+		return
+	}
+	fmt.Fprintf(w, "data: DONE\n\n")
+	flusher.Flush()
+}
+
+func handleOllamaUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	err := ollamaMgr.UpdateOllama(r.Context(), func(msg string) {
 		fmt.Fprintf(w, "data: %s\n\n", ollamaManager.SSESafeLine(msg))
 		flusher.Flush()
 	})

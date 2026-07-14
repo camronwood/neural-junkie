@@ -37,6 +37,7 @@ type LibraryModel struct {
 	AgentType              string        `json:"agent_type,omitempty"` // optional specialist slug for assign-to-agent UX
 	Deprecated             bool          `json:"deprecated,omitempty"`
 	OllamaComposeSupported *bool         `json:"ollama_compose_supported,omitempty"`
+	MinOllamaVersion       string        `json:"min_ollama_version,omitempty"`
 }
 
 // Library returns the embedded catalog.

@@ -193,6 +193,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/providers/", corsMiddleware(localOnly(handleProviderByID)))
 	http.HandleFunc("/api/ollama/install-status", corsMiddleware(localOnly(handleOllamaInstallStatus)))
 	http.HandleFunc("/api/ollama/install", corsMiddleware(localOnly(handleOllamaInstall)))
+	http.HandleFunc("/api/ollama/update", corsMiddleware(localOnly(handleOllamaUpdate)))
 	http.HandleFunc("/api/ollama/start", corsMiddleware(localOnly(handleOllamaStart)))
 	http.HandleFunc("/api/ollama/stop", corsMiddleware(localOnly(handleOllamaStop)))
 	http.HandleFunc("/api/ollama/pull", corsMiddleware(localOnly(handleOllamaPull)))

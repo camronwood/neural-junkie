@@ -22,6 +22,7 @@ func TestLocalOnlyRoutesRejectRemote(t *testing.T) {
 		{"git-push", http.MethodPost, "/api/git-push", handleGitPush},
 		{"files", http.MethodGet, "/api/files?workspace_id=x&path=.", handleFiles},
 		{"ollama-install", http.MethodPost, "/api/ollama/install", handleOllamaInstall},
+		{"ollama-update", http.MethodPost, "/api/ollama/update", handleOllamaUpdate},
 		{"hf-download", http.MethodPost, "/api/hf/download", handleHfDownload},
 	}
 

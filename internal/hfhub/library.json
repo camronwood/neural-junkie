@@ -302,6 +302,7 @@
     "publisher": "PrismML",
     "modes": ["local"],
     "default_ollama_tag": "nj-bonsai:27b",
+    "min_ollama_version": "0.30.0",
     "files": [
       {
         "filename": "Bonsai-27B-Q1_0.gguf",
@@ -327,6 +328,7 @@
     "publisher": "PrismML",
     "modes": ["local"],
     "default_ollama_tag": "nj-ternary-bonsai:27b",
+    "min_ollama_version": "0.30.0",
     "files": [
       {
         "filename": "Ternary-Bonsai-27B-Q2_0.gguf",

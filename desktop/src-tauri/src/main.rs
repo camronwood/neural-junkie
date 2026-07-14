@@ -1088,7 +1088,17 @@ fn target_triple() -> &'static str {
 }
 
 fn bundled_ollama_runtime_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
-    let rel = format!("ollama/{}", target_triple());
+    let triple = target_triple();
+    // Prefer user-updated runtime (~/.neural-junkie/ollama-runtime/{triple}) over app resources.
+    let user_runtime = default_home()
+        .join(".neural-junkie")
+        .join("ollama-runtime")
+        .join(&triple);
+    if bundled_ollama_binary(&user_runtime).exists() {
+        return Some(user_runtime);
+    }
+
+    let rel = format!("ollama/{}", triple);
     if let Some(p) = app.path_resolver().resolve_resource(&rel) {
         if bundled_ollama_binary(&p).exists() {
             return Some(p);

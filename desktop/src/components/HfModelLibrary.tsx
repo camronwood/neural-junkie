@@ -18,6 +18,7 @@ export interface HfCatalogEntry {
   deprecated?: boolean;
   ollama_compose_supported?: boolean;
   files?: { filename: string; quant?: string; size_hint?: string; role?: string }[];
+  min_ollama_version?: string;
 }
 
 const DEFAULT_LORA_BASE = 'llama3.1:8b';
@@ -63,6 +64,26 @@ function catalogFilenames(entry: HfCatalogEntry): string[] {
   const main = primaryFilename(entry);
   const mmproj = mmprojFilename(entry);
   return [main, mmproj].filter((x): x is string => Boolean(x));
+}
+
+function ollamaVersionAtLeast(installed: string | undefined, required: string | undefined): boolean {
+  if (!required?.trim()) return true;
+  if (!installed?.trim()) return false;
+  const parts = (v: string) =>
+    v
+      .trim()
+      .replace(/^v/i, '')
+      .split(/[^\d]+/)
+      .filter(Boolean)
+      .map((n) => parseInt(n, 10) || 0);
+  const a = parts(installed);
+  const b = parts(required);
+  for (let i = 0; i < Math.max(a.length, b.length, 3); i++) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    if (av !== bv) return av > bv;
+  }
+  return true;
 }
 
 interface HubProvider {
@@ -192,6 +213,8 @@ export function HfModelLibrary({
   const [hfStatus, setHfStatus] = useState<{ token_configured: boolean; router_reachable: boolean } | null>(null);
   const [localFiles, setLocalFiles] = useState<HfLocalFile[]>([]);
   const [ollamaRunning, setOllamaRunning] = useState(false);
+  const [ollamaEffectiveVersion, setOllamaEffectiveVersion] = useState<string | undefined>();
+  const [ollamaUpdateSupported, setOllamaUpdateSupported] = useState(false);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [hfToken, setHfToken] = useState('');
@@ -220,6 +243,14 @@ export function HfModelLibrary({
     try {
       const st = await fetch(`${serverAddr}/api/ollama/install-status`).then((res) => res.json());
       setOllamaRunning(Boolean(st.running));
+      setOllamaEffectiveVersion(
+        typeof st.effective_version === 'string' && st.effective_version
+          ? st.effective_version
+          : typeof st.version === 'string'
+            ? st.version
+            : undefined,
+      );
+      setOllamaUpdateSupported(Boolean(st.update_supported));
       if (st.running) {
         const modelsR = await fetch(`${serverAddr}/api/ollama/models`);
         if (modelsR.ok) {
@@ -234,6 +265,8 @@ export function HfModelLibrary({
       }
     } catch {
       setOllamaRunning(false);
+      setOllamaEffectiveVersion(undefined);
+      setOllamaUpdateSupported(false);
       setOllamaModels([]);
     }
     try {
@@ -598,6 +631,16 @@ export function HfModelLibrary({
       });
       return;
     }
+    const minVer = resolved.min_ollama_version?.trim();
+    if (minVer && !ollamaVersionAtLeast(ollamaEffectiveVersion, minVer)) {
+      setActionMessage({
+        kind: 'err',
+        text: `This model needs Ollama ${minVer}+ (current: ${ollamaEffectiveVersion || 'unknown'}). Use Update Ollama in the toolbar chip${
+          ollamaUpdateSupported ? '' : ' or upgrade from https://ollama.com/download'
+        }.`,
+      });
+      return;
+    }
     const key = `${resolved.repo_id}:${filename}`;
     setImportingKey(key);
     setActionMessage(null);
@@ -858,6 +901,7 @@ export function HfModelLibrary({
           Downloads GGUF or LoRA adapter files, then imports or composes in Ollama. LoRA adapters compose on
           Llama/Mistral bases (default llama3.1:8b for training); inference specialists may still use qwen2.5-coder:14b.
           {!ollamaRunning && ' (Ollama is not running.)'}
+          {ollamaEffectiveVersion && ` Running Ollama ${ollamaEffectiveVersion}.`}
         </p>
       )}
 

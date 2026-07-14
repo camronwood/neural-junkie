@@ -188,6 +188,9 @@ func TestBonsaiGGUFPrimaryAndMmproj(t *testing.T) {
 	if entry.DefaultOllamaTag != "nj-bonsai:27b" {
 		t.Fatalf("default tag = %q", entry.DefaultOllamaTag)
 	}
+	if entry.MinOllamaVersion != "0.30.0" {
+		t.Fatalf("min_ollama_version = %q", entry.MinOllamaVersion)
+	}
 }
 
 func TestTernaryBonsaiGGUFPrimary(t *testing.T) {

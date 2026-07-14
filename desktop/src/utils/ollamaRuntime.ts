@@ -8,7 +8,13 @@ export interface OllamaRuntimeStatus {
   managed?: boolean;
   autoInstallSupported?: boolean;
   version?: string;
+  effectiveVersion?: string;
   path?: string;
+  recommendedVersion?: string;
+  minVersion?: string;
+  updateAvailable?: boolean;
+  meetsMinimum?: boolean;
+  updateSupported?: boolean;
 }
 
 interface TauriOllamaRuntimeStatus {
@@ -30,7 +36,13 @@ async function fetchHubOllamaStatus(serverAddr: string): Promise<OllamaRuntimeSt
       running: Boolean(data.running),
       autoInstallSupported: data.auto_install_supported,
       version: data.version,
+      effectiveVersion: data.effective_version,
       path: data.path,
+      recommendedVersion: data.recommended_version,
+      minVersion: data.min_version,
+      updateAvailable: Boolean(data.update_available),
+      meetsMinimum: data.meets_minimum !== false,
+      updateSupported: Boolean(data.update_supported),
     };
   } catch {
     return null;
@@ -178,4 +190,23 @@ export async function installOllamaRuntime(
     throw new Error(text || 'Failed to install Ollama');
   }
   await readOllamaInstallSSE(resp, onProgress);
+}
+
+/** Upgrade bundled user-runtime or re-run the system installer toward the NJ-recommended version. */
+export async function updateOllamaRuntime(
+  serverAddr: string,
+  onProgress: (message: string) => void,
+): Promise<void> {
+  const resp = await fetch(`${serverAddr}/api/ollama/update`, { method: 'POST' });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text || 'Failed to update Ollama');
+  }
+  await readOllamaInstallSSE(resp, onProgress);
+  // Prefer restart so Tauri/hub pick up the new binary.
+  try {
+    await restartOllamaRuntime(serverAddr);
+  } catch {
+    // Binary may still be usable once the user starts it manually.
+  }
 }

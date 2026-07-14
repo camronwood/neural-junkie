@@ -8,6 +8,7 @@ import {
   restartOllamaRuntime,
   startOllamaRuntime,
   stopOllamaRuntime,
+  updateOllamaRuntime,
   type OllamaRuntimeStatus,
 } from '../utils/ollamaRuntime';
 
@@ -52,6 +53,7 @@ export function OllamaRuntimeChip({
   const [status, setStatus] = useState<OllamaRuntimeStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [updateProgress, setUpdateProgress] = useState('');
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
   const anchorRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -93,7 +95,7 @@ export function OllamaRuntimeChip({
     if (top < pad) top = pad;
 
     setPopoverPos({ top, left });
-  }, [open, isVertical, status, error, defaultModel]);
+  }, [open, isVertical, status, error, defaultModel, updateProgress]);
 
   const runAction = async (action: 'start' | 'stop' | 'restart') => {
     setBusy(true);
@@ -111,8 +113,23 @@ export function OllamaRuntimeChip({
     }
   };
 
+  const runUpdate = async () => {
+    setBusy(true);
+    setError(null);
+    setUpdateProgress('Starting update…');
+    try {
+      await updateOllamaRuntime(serverAddr, (msg) => setUpdateProgress(msg));
+      setUpdateProgress('');
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ollama update failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const chipTitle = status?.running
-    ? `Ollama running${defaultModel ? ` — default ${defaultModel}` : ''}`
+    ? `Ollama running${defaultModel ? ` — default ${defaultModel}` : ''}${status.updateAvailable ? ' — update available' : ''}`
     : 'Ollama local runtime';
 
   const popover = open
@@ -138,7 +155,15 @@ export function OllamaRuntimeChip({
                 <span className="text-xs text-slack-textMuted">{statusLabel(status)}</span>
               </div>
               {status?.version && (
-                <p className="mt-1 text-[11px] text-slack-textMuted font-mono truncate">{status.version}</p>
+                <p className="mt-1 text-[11px] text-slack-textMuted font-mono truncate">
+                  {status.version}
+                  {status.recommendedVersion ? ` → want ${status.recommendedVersion}` : ''}
+                </p>
+              )}
+              {status?.updateAvailable && (
+                <p className="mt-1 text-[11px] text-amber-300">
+                  Update available{status.recommendedVersion ? ` (${status.recommendedVersion})` : ''}.
+                </p>
               )}
               {defaultModel && (
                 <p className="mt-1 text-[11px] text-slack-textMuted">
@@ -148,10 +173,20 @@ export function OllamaRuntimeChip({
             </div>
 
             {error && <p className="text-xs text-red-400">{error}</p>}
+            {updateProgress && <p className="text-[11px] text-slack-textMuted">{updateProgress}</p>}
 
             <div className="flex flex-wrap gap-2">
-              {status?.running ? (
+              {status?.updateAvailable && status.updateSupported !== false && (
                 <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void runUpdate()}
+                  className="px-2.5 py-1 text-xs rounded bg-amber-700/50 text-amber-100 hover:bg-amber-700/70 disabled:opacity-50"
+                >
+                  Update Ollama
+                </button>
+              )}
+              {status?.running ? (                <button
                   type="button"
                   disabled={busy}
                   onClick={() => void runAction('stop')}
@@ -231,7 +266,9 @@ export function OllamaRuntimeChip({
       >
         OLL
         <span
-          className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-slack-bgHover ${statusDotClass(status)}`}
+          className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-slack-bgHover ${
+            status?.updateAvailable ? 'bg-amber-400' : statusDotClass(status)
+          }`}
           aria-hidden
         />
       </button>

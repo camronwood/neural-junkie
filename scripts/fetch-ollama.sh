@@ -3,12 +3,12 @@
 # Usage:
 #   ./scripts/fetch-ollama.sh                    # current host triple
 #   ./scripts/fetch-ollama.sh aarch64-apple-darwin x86_64-unknown-linux-gnu
-#   OLLAMA_VERSION=v0.30.5 ./scripts/fetch-ollama.sh all
+#   OLLAMA_VERSION=v0.32.0 ./scripts/fetch-ollama.sh all
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_ROOT="${ROOT}/desktop/src-tauri/ollama"
-VERSION="${OLLAMA_VERSION:-v0.30.5}"
+VERSION="${OLLAMA_VERSION:-v0.32.0}"
 BASE_URL="https://github.com/ollama/ollama/releases/download/${VERSION}"
 
 extract_tar_zst() {
