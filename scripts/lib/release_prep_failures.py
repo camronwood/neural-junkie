@@ -100,14 +100,16 @@ def _read(path: Path) -> str:
 def _classify(name: str, detail: str, *, phase: str = "") -> FailureKind:
     if phase == "model-benchmark" or name.startswith("model-benchmark"):
         return FailureKind.MODEL_BENCHMARK
-    # Live scenario harness failures are product regressions — not retry-only flakes.
-    if name.startswith("implement:") or name.startswith("collab:") or name.startswith("chat:"):
-        return FailureKind.CODE
     lower = detail.lower()
+    # Infra / flake markers win even for live scenario names so fix-loop can
+    # re-boot/rerun instead of thrashing product code on timeouts and hub outages.
     if any(m.lower() in lower for m in INFRA_MARKERS):
         return FailureKind.INFRA
     if any(m.lower() in lower for m in FLAKE_MARKERS):
         return FailureKind.FLAKE
+    # Live scenario harness assertion failures default to product regressions.
+    if name.startswith("implement:") or name.startswith("collab:") or name.startswith("chat:"):
+        return FailureKind.CODE
     if name in CI_STAGES or name.startswith("test-"):
         return FailureKind.CODE
     return FailureKind.UNKNOWN

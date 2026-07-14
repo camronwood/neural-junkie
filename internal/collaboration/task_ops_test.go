@@ -131,6 +131,52 @@ func TestApproveTaskDispatchClearsGate(t *testing.T) {
 	}
 }
 
+func TestMarkTaskPromptDispatchedAdvancesPending(t *testing.T) {
+	h := newRunbookMockHub()
+	h.addAgent("a1", "A", protocol.AgentTypeBackend, nil)
+	h.addAgent("a2", "B", protocol.AgentTypeFrontend, nil)
+	cm := NewCollaborationManager(h)
+	c, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, "general", "u", DiscussionConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	_ = cm.SetTasks(c.ID, []CollaborationTask{
+		{ID: "task-pending-dispatch", Title: "Work", AssignedTo: "a1", AssignedName: "A", Status: TaskPending, CreatedAt: now, UpdatedAt: now},
+	})
+	if err := cm.MarkTaskPromptDispatched(c.ID, "task-pending-dispatch"); err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := cm.GetCollaborationSnapshot(c.ID)
+	task := snap.Tasks[0]
+	if !task.PromptDispatched || task.Status != TaskInProgress {
+		t.Fatalf("dispatched=%v status=%s want in_progress", task.PromptDispatched, task.Status)
+	}
+}
+
+func TestClearTaskPromptDispatchedReturnsToPending(t *testing.T) {
+	h := newRunbookMockHub()
+	h.addAgent("a1", "A", protocol.AgentTypeBackend, nil)
+	h.addAgent("a2", "B", protocol.AgentTypeFrontend, nil)
+	cm := NewCollaborationManager(h)
+	c, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, "general", "u", DiscussionConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	_ = cm.SetTasks(c.ID, []CollaborationTask{
+		{ID: "task-clear-dispatch", Title: "Work", AssignedTo: "a1", AssignedName: "A", Status: TaskInProgress, PromptDispatched: true, CreatedAt: now, UpdatedAt: now},
+	})
+	if err := cm.ClearTaskPromptDispatched(c.ID, "task-clear-dispatch"); err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := cm.GetCollaborationSnapshot(c.ID)
+	task := snap.Tasks[0]
+	if task.PromptDispatched || task.Status != TaskPending {
+		t.Fatalf("dispatched=%v status=%s want pending cleared", task.PromptDispatched, task.Status)
+	}
+}
+
 func TestNormalizeTaskOnSaveRequiresApproval(t *testing.T) {
 	task := CollaborationTask{Options: &TaskExecutionOptions{RequiresApproval: true}}
 	normalizeTaskOnSave(&task)

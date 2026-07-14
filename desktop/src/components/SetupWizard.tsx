@@ -315,7 +315,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
                 <div className="font-medium text-white">Team chat &amp; productivity</div>
                 <div className="text-xs text-gray-400">
                   Assistant and auto-detected CLI tools when their binaries are on your PATH.
-                  Enable the Software development pack later for in-process coding specialists.
+                  Enable the IDE and Software development packs later for editor depth and coding specialists.
                 </div>
               </button>
             </div>
@@ -533,7 +533,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               </div>
             ) : wizardTrack === 'developer' ? (
               <p className="text-sm text-gray-400 text-center">
-                Assistant is configured here. Six engineering specialists are added via the Software development pack (enabled for this track).
+                Assistant is configured here. The IDE pack (editor depth) and Software development pack (engineering specialists) are enabled for this track.
               </p>
             ) : (
               <p className="text-sm text-gray-400 text-center">Choose which specialist agents to enable.</p>

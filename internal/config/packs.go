@@ -9,6 +9,7 @@ import (
 
 // Pack IDs for domain packs.
 const (
+	PackIDE                 = "ide"
 	PackLifeSciences        = "life-sciences"
 	PackSoftwareDevelopment = "software-development"
 	PackSpecialistTuning    = "specialist-tuning"
@@ -35,12 +36,12 @@ var legacyDevSpecialistTypes []string
 
 // PacksConfig stores installed packs, enable toggles, and layout ownership.
 type PacksConfig struct {
-	Installed        []string                       `json:"installed,omitempty"`
-	Enabled          map[string]bool                `json:"enabled"`
-	LayoutOwner      string                         `json:"layout_owner,omitempty"`
-	AppliedOverlays  map[string]map[string]string     `json:"applied_overlays,omitempty"`
-	DevSources       map[string]string              `json:"dev_sources,omitempty"` // pack_id -> absolute dev folder
-	CatalogURL       string                         `json:"catalog_url,omitempty"`
+	Installed       []string                     `json:"installed,omitempty"`
+	Enabled         map[string]bool              `json:"enabled"`
+	LayoutOwner     string                       `json:"layout_owner,omitempty"`
+	AppliedOverlays map[string]map[string]string `json:"applied_overlays,omitempty"`
+	DevSources      map[string]string            `json:"dev_sources,omitempty"` // pack_id -> absolute dev folder
+	CatalogURL      string                       `json:"catalog_url,omitempty"`
 }
 
 // DomainPack describes an installed pack merged from its manifest.
@@ -77,11 +78,17 @@ func manifestToDomainPack(m *packs.Manifest) DomainPack {
 		LoRAAdapters:   append([]packs.LoRAAdapterSpec(nil), m.LoRAAdapters...),
 	}
 	for _, a := range m.Agents {
+		agentType := strings.TrimSpace(a.Type)
+		if builtinType, ok := packs.ParseBuiltinImplementation(a.Implementation); ok {
+			// Implementation wins over empty or mismatched type (music pilot).
+			agentType = builtinType
+		}
 		ac := AgentConfig{
-			Type:       a.Type,
-			Name:       a.Name,
-			Enabled:    true,
-			ProviderID: "ollama-local",
+			Type:           agentType,
+			Name:           a.Name,
+			Enabled:        true,
+			ProviderID:     "ollama-local",
+			Implementation: strings.TrimSpace(a.Implementation),
 		}
 		if strings.TrimSpace(a.OllamaModel) != "" {
 			ac.Model = strings.TrimSpace(a.OllamaModel)
@@ -490,11 +497,12 @@ func (c *Config) MigrateInstalledPacks() {
 	if c == nil {
 		return
 	}
+	c.migrateIdePackIfNeeded()
 	if c.Packs.Enabled == nil {
 		c.Packs.Enabled = make(map[string]bool)
 	}
 	// Legacy: packs.enabled keys without installed — treat as installed+enabled.
-	for _, id := range []string{PackSoftwareDevelopment, PackLifeSciences, PackCAD} {
+	for _, id := range []string{PackIDE, PackSoftwareDevelopment, PackLifeSciences, PackCAD} {
 		if c.Packs.Enabled[id] {
 			if !c.packInstalledLocked(id) {
 				_ = packs.InstallOfficialPack(id)
@@ -502,9 +510,14 @@ func (c *Config) MigrateInstalledPacks() {
 			}
 		}
 	}
+	if c.Packs.LayoutOwner == PackSoftwareDevelopment {
+		c.Packs.LayoutOwner = PackIDE
+	}
 	if c.Packs.LayoutOwner == "" {
-		if c.Packs.Enabled[PackSoftwareDevelopment] {
-			c.Packs.LayoutOwner = PackSoftwareDevelopment
+		if c.Packs.Enabled[PackIDE] {
+			c.Packs.LayoutOwner = PackIDE
+		} else if c.Packs.Enabled[PackSoftwareDevelopment] {
+			c.Packs.LayoutOwner = PackIDE
 		} else if c.Packs.Enabled[PackLifeSciences] {
 			c.Packs.LayoutOwner = PackLifeSciences
 		}
@@ -603,6 +616,12 @@ func (c *Config) SyncAgentsFromPacks() {
 				}
 				if strings.TrimSpace(want.Model) != "" {
 					c.Agents[idx].Model = strings.TrimSpace(want.Model)
+				}
+				if strings.TrimSpace(want.Implementation) != "" {
+					c.Agents[idx].Implementation = strings.TrimSpace(want.Implementation)
+				}
+				if strings.TrimSpace(want.Type) != "" {
+					c.Agents[idx].Type = strings.TrimSpace(want.Type)
 				}
 			}
 		}
@@ -962,20 +981,20 @@ func IsDevSpecialistType(agentType string) bool {
 
 // PackStatus is returned by GET /api/packs.
 type PackStatus struct {
-	ID             string   `json:"id"`
-	Title          string   `json:"title"`
-	Description    string   `json:"description"`
-	Installed      bool     `json:"installed"`
-	Enabled        bool     `json:"enabled"`
-	LayoutProfile  string   `json:"layout_profile,omitempty"`
-	Capabilities   []string `json:"capabilities,omitempty"`
-	ExpertSlug     string   `json:"expert_slug,omitempty"`
-	ExpertLabel    string   `json:"expert_label,omitempty"`
-	Version        string   `json:"version,omitempty"`
-	Custom         bool     `json:"custom,omitempty"`
-	RequiresPacks  []string `json:"requires_packs,omitempty"`
-	DevLinked      bool     `json:"dev_linked,omitempty"`
-	DevSourcePath  string   `json:"dev_source_path,omitempty"`
+	ID            string   `json:"id"`
+	Title         string   `json:"title"`
+	Description   string   `json:"description"`
+	Installed     bool     `json:"installed"`
+	Enabled       bool     `json:"enabled"`
+	LayoutProfile string   `json:"layout_profile,omitempty"`
+	Capabilities  []string `json:"capabilities,omitempty"`
+	ExpertSlug    string   `json:"expert_slug,omitempty"`
+	ExpertLabel   string   `json:"expert_label,omitempty"`
+	Version       string   `json:"version,omitempty"`
+	Custom        bool     `json:"custom,omitempty"`
+	RequiresPacks []string `json:"requires_packs,omitempty"`
+	DevLinked     bool     `json:"dev_linked,omitempty"`
+	DevSourcePath string   `json:"dev_source_path,omitempty"`
 }
 
 // PackCatalogStatus is a store row from GET /api/packs/catalog.
@@ -999,12 +1018,12 @@ type PackCatalogStatus struct {
 
 // PacksAPIResponse is GET /api/packs payload.
 type PacksAPIResponse struct {
-	Packs              []PackStatus                   `json:"packs"`
-	LayoutOwner        string                         `json:"layout_owner,omitempty"`
-	LayoutProfile      string                         `json:"layout_profile,omitempty"`
-	Capabilities       []string                       `json:"capabilities,omitempty"`
-	CapabilityRegistry []packs.ResolvedCapability     `json:"capability_registry,omitempty"`
-	ShortIDCollisions  []string                       `json:"short_id_collisions,omitempty"`
+	Packs              []PackStatus               `json:"packs"`
+	LayoutOwner        string                     `json:"layout_owner,omitempty"`
+	LayoutProfile      string                     `json:"layout_profile,omitempty"`
+	Capabilities       []string                   `json:"capabilities,omitempty"`
+	CapabilityRegistry []packs.ResolvedCapability `json:"capability_registry,omitempty"`
+	ShortIDCollisions  []string                   `json:"short_id_collisions,omitempty"`
 }
 
 // ListPackStatus returns installed packs with status.
@@ -1163,6 +1182,33 @@ func ConfigurableSpecialistTypes() map[string]bool {
 		types[t] = true
 	}
 	return types
+}
+
+func (c *Config) migrateIdePackIfNeeded() {
+	if c == nil {
+		return
+	}
+	if c.Packs.Enabled == nil {
+		c.Packs.Enabled = make(map[string]bool)
+	}
+	if _, explicit := c.Packs.Enabled[PackIDE]; explicit {
+		if c.Packs.LayoutOwner == PackSoftwareDevelopment {
+			c.Packs.LayoutOwner = PackIDE
+		}
+		return
+	}
+	shouldEnable := c.Packs.Enabled[PackSoftwareDevelopment] || c.Packs.LayoutOwner == PackSoftwareDevelopment
+	if !shouldEnable {
+		return
+	}
+	c.Packs.Enabled[PackIDE] = true
+	if !c.packInstalledLocked(PackIDE) {
+		_ = packs.InstallOfficialPack(PackIDE)
+		c.Packs.Installed = append(c.Packs.Installed, PackIDE)
+	}
+	if c.Packs.LayoutOwner == "" || c.Packs.LayoutOwner == PackSoftwareDevelopment {
+		c.Packs.LayoutOwner = PackIDE
+	}
 }
 
 func (c *Config) migrateSoftwareDevelopmentPackIfNeeded() {

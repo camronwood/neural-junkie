@@ -3,7 +3,7 @@ package packs
 import "strings"
 
 // OfficialPackIDs are known official domain pack ids (catalog ordering and ID collision checks).
-var OfficialPackIDs = []string{"software-development", "life-sciences", "specialist-tuning", "cad", "aws", "incident-management", "web-browser", "music-creation", "model-arena"}
+var OfficialPackIDs = []string{"ide", "software-development", "life-sciences", "specialist-tuning", "cad", "aws", "incident-management", "web-browser", "music-creation", "model-arena", "room-chat"}
 
 // KnownSpecialistAgentTypes lists in-process specialist agent types gated by domain packs.
 var KnownSpecialistAgentTypes = []string{

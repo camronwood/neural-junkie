@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -67,12 +67,15 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  make collab-scenario SCENARIO=planning-two-agent"
 	@echo "  make *-scenarios-list                   # list scenario names"
 	@echo ""
-	@echo "Details: docs/TESTING.md"
+	@echo "  make gen-pack-capabilities             # regenerate TS capability tokens from JSON"
 
 test-regression-live: release-help
 
 docs: ## Show documentation guide
 	@cat DOCS.md
+
+gen-pack-capabilities: ## Regenerate desktop pack capability tokens from JSON
+	@python3 scripts/gen-pack-capabilities.py
 
 slack-vendor-json: ## Generate gitignored vendor/oauth.json from sandbox scripts/.slack-creds
 	@bash ../../sandbox/scripts/slack-creds-to-vendor.sh
@@ -241,19 +244,10 @@ collab-parity: ## Solo vs collab deliverable parity on minimal-repo fixture
 		$(if $(PROFILE),--profile $(PROFILE),--profile fast,) \
 		$(if $(VERBOSE),--verbose,)
 
-collab-scenario-regression: ## Collab edge-case regression (~13 scenarios; prefer: make layer-gate LAYER=collab)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collab-minimal-completion-regression $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-dependency-prose-regression $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-findings-task-regression $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-distinct-deliverables-same-agent $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario execute-deliverable $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario document-findings-execution $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario execution-no-stack-commands $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collab-conversation-quality-regression $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collab-no-edit-after-cancel $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collaboration-station-website $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collaboration-station-website-sa $(if $(VERBOSE),--verbose,)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario make-me-a-website $(if $(VERBOSE),--verbose,)
+collab-scenario-regression: ## Collab edge-case regression (~12 scenarios, one process; prefer: make layer-gate LAYER=collab)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 NJ_REGRESSION_SLIM_ROSTER=1 NJ_REGRESSION_COLLAB_EDGE=1 \
+		NJ_OLLAMA_MAX_CONCURRENCY=2 NJ_REQUIRE_FULL_BOOT=1 \
+		python3 scripts/collab-scenarios.py --suite edge $(if $(VERBOSE),--verbose,)
 
 conversation-scenarios-regression:
 	@echo "Use: make layer-gate LAYER=chat  (chat + conversation regression are the chat layer)" >&2
@@ -288,8 +282,11 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
-	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py test_growth_candidates_test.py test_growth_guardrails_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py release_prep_failures_test.py fix_loop_git_test.py hub_cleanup_test.py scenario_flake_retry_test.py release_prep_layers_test.py
+	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py test_growth_candidates_test.py test_growth_guardrails_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py release_prep_failures_test.py fix_loop_git_test.py hub_cleanup_test.py scenario_flake_retry_test.py release_prep_layers_test.py regression_boot_test.py regression_models_test.py regression_collab_test.py
 	@PYTHONPATH=scripts python3 scripts/lib/scenario_contract.py
+
+check-catalog-downloads: ## Opt-in network check: each packs/catalog.json download_url returns HTTP 200
+	@python3 scripts/check-catalog-downloads.py
 
 chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)
 	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make chat-scenario SCENARIO=greeting-chat-mode [VERBOSE=1] [KEEP=1]"; exit 1; fi
@@ -392,8 +389,8 @@ layer-list: ## List release-prep layers in recommended order (ci → implement �
 	@chmod +x scripts/layer-gate.py
 	@python3 scripts/layer-gate.py --layer ci --list
 
-layer-climb: ## Run layers in order until one fails (ci → implement → chat → collab → collab-full → bundle → parity)
-	@set -e; for layer in ci implement chat collab collab-full bundle parity; do \
+layer-climb: ## Run layers in order until one fails (ci → implement → chat → collab → collab-core → collab-full → bundle → parity)
+	@set -e; for layer in ci implement chat collab collab-core collab-full bundle parity; do \
 	  echo "=== layer-climb: $$layer ==="; \
 	  $(MAKE) layer-gate LAYER=$$layer VERBOSE=$(VERBOSE) NO_RESTART_HUB=$(NO_RESTART_HUB) || exit $$?; \
 	done; \

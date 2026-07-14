@@ -133,7 +133,7 @@ func handlePackExtensionRoute(w http.ResponseWriter, r *http.Request) {
 
 func packExtensionRoutePrefix(path string) string {
 	path = strings.TrimSpace(path)
-	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music", "/api/arena", "/api/browser", "/api/aws", "/api/biology", "/api/cad", "/api/lora/sidecar"} {
+	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music", "/api/arena", "/api/ai-interview", "/api/browser", "/api/aws", "/api/biology", "/api/cad", "/api/lora/sidecar"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return prefix
 		}
@@ -142,6 +142,12 @@ func packExtensionRoutePrefix(path string) string {
 }
 
 func routeCapabilityForRoute(prefix string) string {
+	if appConfig != nil {
+		if capID := appConfig.CapabilityForRoutePrefix(prefix); capID != "" {
+			return capID
+		}
+	}
+	// Fallback for packs that declare routes without registry sidecars (legacy/customer).
 	switch prefix {
 	case "/api/phoenix":
 		return "phoenix-import"
@@ -153,6 +159,8 @@ func routeCapabilityForRoute(prefix string) string {
 		return "music-sidecar"
 	case "/api/arena":
 		return "model-arena-sidecar"
+	case "/api/ai-interview":
+		return "ai-interview-sidecar"
 	case "/api/lora/sidecar":
 		return "lora-training-sidecar"
 	case "/api/browser":
@@ -235,6 +243,14 @@ func handleArenaRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Error(w, "Arena API requires the Model Arena pack", http.StatusForbidden)
+}
+
+func handleAIInterviewRoute(w http.ResponseWriter, r *http.Request) {
+	if appConfig != nil && appConfig.RouteOwnerPackID("/api/ai-interview") != "" {
+		handlePackExtensionRoute(w, r)
+		return
+	}
+	http.Error(w, "AI Interview API requires the AI Interview Prep pack", http.StatusForbidden)
 }
 
 func handlePhoenixRoute(w http.ResponseWriter, r *http.Request) {

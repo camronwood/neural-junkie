@@ -24,11 +24,11 @@
     "flags": [
       "--workspace",
       "--rounds",
-      "3",
+      "2",
       "--messages",
-      "18"
+      "12"
     ],
-    "goal": "@FrontendEngineer @SoftwareArchitect @Claude Design a website named Collaboration Station. Colors: black, white, gray, blue, red. Three pages: home, about, contact. Review existing work under collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/ before planning. End with exactly three file tasks under collabs/<id>/: Task 1 @SoftwareArchitect Write site-structure.md (navigation and page hierarchy); Task 2 @FrontendEngineer Write design-system.md (color palette, typography, spacing); Task 3 @FrontendEngineer Write layout-specs.md (responsive templates for home, about, contact)."
+    "goal": "@FrontendEngineer @SoftwareArchitect @Claude Design Collaboration Station (colors: black, white, gray, blue, red; pages: home, about, contact). Review collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/ first. Produce EXACTLY three tasks and no others:\n- Task 1: @SoftwareArchitect - Write collabs/<id>/site-structure.md (navigation and page hierarchy)\n- Task 2: @FrontendEngineer - Write collabs/<id>/design-system.md (color palette, typography, spacing)\n- Task 3: @FrontendEngineer - Write collabs/<id>/layout-specs.md (responsive templates for home, about, contact)"
   },
   "expect_deliverables": [
     {
@@ -141,9 +141,19 @@
     },
     {
       "action": "wait_tasks",
+      "min_completed": 1,
+      "all_match": false,
+      "timeout": "300s"
+    },
+    {
+      "action": "send",
+      "content": "/resume-plan <collab-id>"
+    },
+    {
+      "action": "wait_tasks",
       "min_completed": 2,
       "all_match": false,
-      "timeout": "420s"
+      "timeout": "540s"
     },
     {
       "action": "approve_file_changes",

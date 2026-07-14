@@ -58,6 +58,10 @@ func (cm *CollaborationManager) AnalyzeConsensus(collabID string, msg *protocol.
 		}
 	}()
 
+	if isCollabConsultMessage(msg) {
+		return ConsensusUndecided
+	}
+
 	c, ok := cm.collaborations[collabID]
 	if !ok || c.Discussion == nil {
 		return ConsensusUndecided

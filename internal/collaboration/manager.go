@@ -1155,7 +1155,8 @@ func (cm *CollaborationManager) SetTasks(collabID string, tasks []CollaborationT
 	return nil
 }
 
-// MarkTaskPromptDispatched records that a collaboration_task prompt was sent for one task.
+// MarkTaskPromptDispatched records that a collaboration_task prompt was sent for one task
+// and advances pending → in_progress so idle/watchdog healing and UI status match delivery.
 func (cm *CollaborationManager) MarkTaskPromptDispatched(collabID, taskID string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -1166,6 +1167,34 @@ func (cm *CollaborationManager) MarkTaskPromptDispatched(collabID, taskID string
 	for i := range c.Tasks {
 		if c.Tasks[i].ID == taskID {
 			c.Tasks[i].PromptDispatched = true
+			if c.Tasks[i].Status == TaskPending {
+				c.Tasks[i].Status = TaskInProgress
+			}
+			c.Tasks[i].UpdatedAt = time.Now()
+			c.UpdatedAt = time.Now()
+			return nil
+		}
+	}
+	return fmt.Errorf("task %s not found in collaboration %s", taskID, collabID)
+}
+
+// ClearTaskPromptDispatched resets PromptDispatched so the idle watchdog / resume path
+// can re-send a task prompt after a failed assignee turn. Tasks that were advanced to
+// in_progress solely by the dispatch marker return to pending so DAG-ready dispatch
+// picks them up again.
+func (cm *CollaborationManager) ClearTaskPromptDispatched(collabID, taskID string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	for i := range c.Tasks {
+		if c.Tasks[i].ID == taskID {
+			c.Tasks[i].PromptDispatched = false
+			if c.Tasks[i].Status == TaskInProgress {
+				c.Tasks[i].Status = TaskPending
+			}
 			c.Tasks[i].UpdatedAt = time.Now()
 			c.UpdatedAt = time.Now()
 			return nil

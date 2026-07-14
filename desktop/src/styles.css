@@ -110,10 +110,38 @@
   --text-secondary: var(--nj-text-muted);
 }
 
+/* Retro — Model Arena arcade navy / gold (dark) */
+[data-theme='retro'] {
+  --nj-bg: #0c1a2e;
+  --nj-bg-hover: #142847;
+  --nj-text: #f1f5f9;
+  --nj-text-muted: #94a3b8;
+  --nj-accent: #ffd447;
+  --nj-accent-hover: #c9a832;
+  --nj-success: #06d6a0;
+  --nj-border: #2a4a7a;
+  --nj-surface-elevated: #0a1220;
+  --nj-header-accent: #3a86ff;
+  --nj-scrollbar-thumb-hover: #3d5a8a;
+  --nj-slider-track: #142847;
+  --nj-prose-text: #f1f5f9;
+  --nj-prose-heading: #f8fafc;
+  --nj-prose-muted: #94a3b8;
+  --nj-prose-link: #ffd447;
+  --nj-prose-link-hover: #ffe066;
+  --nj-prose-code-bg: #142847;
+  --nj-prose-pre-bg: #0a1220;
+  --nj-prose-border: #2a4a7a;
+  --nj-prose-img-border: #2a4a7a;
+  --text-primary: var(--nj-text);
+  --text-secondary: var(--nj-text-muted);
+}
+
 html,
 [data-theme='slack'],
 [data-theme='flat'],
-[data-theme='brand'] {
+[data-theme='brand'],
+[data-theme='retro'] {
   color-scheme: dark;
 }
 

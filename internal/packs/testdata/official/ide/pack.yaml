@@ -1,0 +1,13 @@
+id: ide
+version: "1.0.0"
+title: IDE
+description: IDE layout, Git SCM, LSP, inline completion, and Ask/Agent composer on top of core workspace editing.
+layout_profile: ide
+capabilities:
+  - ide-v2
+  - ide-v3-composer
+  - ide-v4
+  - git-rest
+  - inline-completion
+assets:
+  workspace_guide: assets/WORKSPACE.md

@@ -18,7 +18,7 @@ import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { isTauriRuntime } from '../utils/promptAttachments';
 import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
-import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
+import { MIN_COLLAB_AGENTS, MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 
 const CLAUDE_MODELS = ['claude-sonnet', 'claude-haiku'] as const;
 const CUSTOM_EXPERT_TYPE = '__custom__';
@@ -253,7 +253,7 @@ export function CommandForm({
 
     if (isCollaborateCommand) {
       const description = values.description?.trim() || '';
-      if (selectedCollaborators.size < 2 || !description) {
+      if (selectedCollaborators.size < MIN_COLLAB_AGENTS || !description) {
         return;
       }
       const mentions = agents
@@ -363,7 +363,7 @@ export function CommandForm({
       : customExpertType.trim().length > 0);
 
   const canSubmit = isCollaborateCommand
-    ? selectedCollaborators.size >= 2 &&
+    ? selectedCollaborators.size >= MIN_COLLAB_AGENTS &&
       selectedCollaborators.size <= MAX_COLLAB_AGENTS &&
       !!values.description?.trim() &&
       collabNumericOptsOk &&
@@ -819,7 +819,7 @@ export function CommandForm({
             <div>
               <label className="block text-xs font-medium text-slack-textMuted mb-1">
                 agents<span className="text-red-400 ml-0.5">*</span>
-                <span className="ml-1 opacity-60">({selectedCollaborators.size} selected, 2–{MAX_COLLAB_AGENTS})</span>
+                <span className="ml-1 opacity-60">({selectedCollaborators.size} selected, {MIN_COLLAB_AGENTS}–{MAX_COLLAB_AGENTS})</span>
               </label>
               <div className="max-h-28 sm:max-h-40 overflow-y-auto overscroll-contain border border-slack-border rounded bg-slack-bgHover p-1 space-y-0.5">
                 {selectableCollaborators.map(agent => {
@@ -855,7 +855,8 @@ export function CommandForm({
               <span>
                 <span className="block font-medium">Allow agent expansion requests</span>
                 <span className="block text-xs text-slack-textMuted">
-                  Agents may suggest adding other agents. You approve each request before anyone joins.
+                  Level 2: agents may request to add specialists to the roster (you approve each join).
+                  Without this, @mentions of non-members are Level 1 consults — ask/answer only, no join.
                 </span>
               </span>
             </label>

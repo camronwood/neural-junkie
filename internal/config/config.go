@@ -44,12 +44,13 @@ type AgentModelProfile struct {
 }
 
 type AgentConfig struct {
-	Type          string             `json:"type"`
-	Name          string             `json:"name"`
-	Enabled       bool               `json:"enabled"`
-	ProviderID    string             `json:"provider_id,omitempty"`
-	Model         string             `json:"model,omitempty"` // overrides provider row model for this agent
-	ModelProfile  *AgentModelProfile `json:"model_profile,omitempty"`
+	Type           string             `json:"type"`
+	Name           string             `json:"name"`
+	Enabled        bool               `json:"enabled"`
+	ProviderID     string             `json:"provider_id,omitempty"`
+	Model          string             `json:"model,omitempty"` // overrides provider row model for this agent
+	ModelProfile   *AgentModelProfile `json:"model_profile,omitempty"`
+	Implementation string             `json:"implementation,omitempty"` // pack AgentSpec implementation (e.g. builtin/music)
 }
 
 type AIConfig struct {
@@ -87,12 +88,12 @@ type UpdateConfig struct {
 }
 
 type ImplementationConfig struct {
-	RoutingEnabled       bool     `json:"routing_enabled"`
-	LocalProviderID      string   `json:"local_provider_id,omitempty"`
-	LocalToolModel       string   `json:"local_tool_model,omitempty"`
-	ReliableToolModel    string   `json:"reliable_tool_model,omitempty"`
-	ReliableProviderID   string   `json:"reliable_provider_id,omitempty"`
-	FallbackProviderIDs  []string `json:"fallback_provider_ids,omitempty"`
+	RoutingEnabled      bool     `json:"routing_enabled"`
+	LocalProviderID     string   `json:"local_provider_id,omitempty"`
+	LocalToolModel      string   `json:"local_tool_model,omitempty"`
+	ReliableToolModel   string   `json:"reliable_tool_model,omitempty"`
+	ReliableProviderID  string   `json:"reliable_provider_id,omitempty"`
+	FallbackProviderIDs []string `json:"fallback_provider_ids,omitempty"`
 }
 
 // LocalToolModel returns the configured implementation tool-loop model or default.
@@ -152,41 +153,41 @@ type FeaturesConfig struct {
 }
 
 type Config struct {
-	Server         ServerConfig         `json:"server"`
-	AI             AIConfig             `json:"ai"`
-	Agents         []AgentConfig        `json:"agents"`
-	Packs          PacksConfig          `json:"packs"`
-	MCP            MCPConfig            `json:"mcp"`
-	Ollama         OllamaConfig         `json:"ollama"`
-	HF             HFConfig             `json:"hf"`
-	Updates        UpdateConfig         `json:"updates"`
-	Collaboration  CollaborationConfig  `json:"collaboration"`
-	Implementation ImplementationConfig `json:"implementation"`
-	Delegation     DelegationConfig     `json:"delegation"`
-	WorkspaceIndex WorkspaceIndexConfig `json:"workspace_index"`
-	Routing           RoutingConfig                        `json:"routing"`
-	SpecialistCompose map[string]SpecialistComposeEntry    `json:"specialist_compose,omitempty"`
-	Features          FeaturesConfig                       `json:"features"`
-	Slack          SlackConfig          `json:"slack"`
-	WebSearch      WebSearchConfig      `json:"web_search"`
-	Performance    PerformanceConfig    `json:"performance"`
-	Phoenix        PhoenixConfig        `json:"phoenix"`
-	AWS            AWSConfig            `json:"aws"`
-	Jira           JiraConfig           `json:"jira"`
-	Incident       IncidentConfig       `json:"incident"`
-	GitHubIssues   GitHubIssuesConfig   `json:"github_issues"`
-	Linear         LinearConfig         `json:"linear"`
-	PagerDuty      PagerDutyConfig      `json:"pagerduty"`
-	Sentry         SentryConfig         `json:"sentry"`
-	Security       SecurityConfig       `json:"security"`
-	Session        SessionConfig        `json:"session"`
-	SessionSummary SessionSummaryConfig `json:"session_summary"`
-	ImageGen       ImageGenSettings     `json:"image_gen"`
-	CLIAgents      CLIAgentsConfig      `json:"cli_agents"`
-	MCPResources   MCPResourcesConfig   `json:"mcp_resources"`
-	Debug          DebugSettings        `json:"debug"`
-	Automation     AutomationConfig     `json:"automation"`
-	Storage        StorageConfig        `json:"storage"`
+	Server            ServerConfig                      `json:"server"`
+	AI                AIConfig                          `json:"ai"`
+	Agents            []AgentConfig                     `json:"agents"`
+	Packs             PacksConfig                       `json:"packs"`
+	MCP               MCPConfig                         `json:"mcp"`
+	Ollama            OllamaConfig                      `json:"ollama"`
+	HF                HFConfig                          `json:"hf"`
+	Updates           UpdateConfig                      `json:"updates"`
+	Collaboration     CollaborationConfig               `json:"collaboration"`
+	Implementation    ImplementationConfig              `json:"implementation"`
+	Delegation        DelegationConfig                  `json:"delegation"`
+	WorkspaceIndex    WorkspaceIndexConfig              `json:"workspace_index"`
+	Routing           RoutingConfig                     `json:"routing"`
+	SpecialistCompose map[string]SpecialistComposeEntry `json:"specialist_compose,omitempty"`
+	Features          FeaturesConfig                    `json:"features"`
+	Slack             SlackConfig                       `json:"slack"`
+	WebSearch         WebSearchConfig                   `json:"web_search"`
+	Performance       PerformanceConfig                 `json:"performance"`
+	Phoenix           PhoenixConfig                     `json:"phoenix"`
+	AWS               AWSConfig                         `json:"aws"`
+	Jira              JiraConfig                        `json:"jira"`
+	Incident          IncidentConfig                    `json:"incident"`
+	GitHubIssues      GitHubIssuesConfig                `json:"github_issues"`
+	Linear            LinearConfig                      `json:"linear"`
+	PagerDuty         PagerDutyConfig                   `json:"pagerduty"`
+	Sentry            SentryConfig                      `json:"sentry"`
+	Security          SecurityConfig                    `json:"security"`
+	Session           SessionConfig                     `json:"session"`
+	SessionSummary    SessionSummaryConfig              `json:"session_summary"`
+	ImageGen          ImageGenSettings                  `json:"image_gen"`
+	CLIAgents         CLIAgentsConfig                   `json:"cli_agents"`
+	MCPResources      MCPResourcesConfig                `json:"mcp_resources"`
+	Debug             DebugSettings                     `json:"debug"`
+	Automation        AutomationConfig                  `json:"automation"`
+	Storage           StorageConfig                     `json:"storage"`
 
 	mu       sync.RWMutex `json:"-"`
 	filePath string       `json:"-"`
@@ -225,15 +226,15 @@ func DefaultConfig() *Config {
 			AutoApproveDeliverables: boolPtr(true),
 		},
 		Implementation: ImplementationConfig{
-			RoutingEnabled:  true,
-			LocalToolModel:  "qwen2.5-coder:14b",
+			RoutingEnabled: true,
+			LocalToolModel: "qwen2.5-coder:14b",
 		},
 		Delegation:     DefaultDelegationConfig(),
 		WorkspaceIndex: DefaultWorkspaceIndexConfig(),
 		Routing:        DefaultRoutingConfig(),
-		Features: FeaturesConfig{PersonalLearningEnabled: false, AgentRuntimeV2: boolPtr(true)},
-		Packs:      DefaultPacksConfig(),
-		MCP:        DefaultMCPConfig(),
+		Features:       FeaturesConfig{PersonalLearningEnabled: false, AgentRuntimeV2: boolPtr(true)},
+		Packs:          DefaultPacksConfig(),
+		MCP:            DefaultMCPConfig(),
 		AWS: AWSConfig{
 			DefaultRegion: DefaultAWSRegion,
 			ReadOnly:      boolPtr(true),
@@ -301,6 +302,7 @@ func Load() (*Config, error) {
 	cfg.migrateIfNeeded(data)
 	cfg.MigrateBiologyMCPModels()
 	cfg.migrateSoftwareDevelopmentPackIfNeeded()
+	cfg.migrateIdePackIfNeeded()
 	cfg.MigrateInstalledPacks()
 	cfg.EnsureMCPDefaults()
 	if err := cfg.DecryptSecretsAfterLoad(); err != nil {

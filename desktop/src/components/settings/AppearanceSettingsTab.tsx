@@ -58,6 +58,13 @@ export function AppearanceSettingsTab({ isActive }: SettingsTabProps) {
               previewBg: '#1a161a',
               previewAccent: '#f44a69',
             },
+            {
+              id: 'retro' as const,
+              label: 'Retro',
+              description: 'Arcade navy, gold accent, mint status',
+              previewBg: '#0c1a2e',
+              previewAccent: '#ffd447',
+            },
           ] as const
         ).map((option) => (
           <label

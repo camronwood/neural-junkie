@@ -158,9 +158,16 @@ func TestCreateCollaborationRequiresMinAgents(t *testing.T) {
 	hub.addAgent("rust-1", "RustExpert", protocol.AgentTypeRust, nil)
 
 	cm := collaboration.NewCollaborationManager(hub)
-	_, err := cm.CreateCollaboration("test", []string{"rust-1"}, "general", "user", collaboration.DiscussionConfig{})
+	collab, err := cm.CreateCollaboration("test", []string{"rust-1"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("expected single-agent collaboration to succeed: %v", err)
+	}
+	if !collab.IsSolo() {
+		t.Fatal("expected IsSolo() for one participant")
+	}
+	_, err = cm.CreateCollaboration("empty", nil, "general", "user", collaboration.DiscussionConfig{})
 	if err == nil {
-		t.Fatal("expected error for single agent collaboration")
+		t.Fatal("expected error for zero-agent collaboration")
 	}
 }
 

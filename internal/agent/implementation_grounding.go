@@ -152,7 +152,10 @@ func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *proto
 
 	st := implementationSessionStateFromContext(ctx)
 	if st != nil && !st.groundingSatisfied() {
-		if sourceMsg != nil && a != nil && userAffirmsPendingImplementation(sourceMsg.Content) &&
+		if sourceMsg != nil && collaborationRestrictsDiscoveryTools(sourceMsg) &&
+			len(collaborationFocusAllowedReadPaths(sourceMsg)) > 0 {
+			// Hub already merged focus sources into open_files; discovery tools are unavailable.
+		} else if sourceMsg != nil && a != nil && userAffirmsPendingImplementation(sourceMsg.Content) &&
 			(channelHasRecentImplementationAsk(a.channelHistory(sourceMsg.Channel), sourceMsg.ID) ||
 				channelHasRecentImplementationActivity(a.channelHistory(sourceMsg.Channel), sourceMsg.ID, a.Info.ID)) {
 			// continuation turn: prior user ask already grounded the session

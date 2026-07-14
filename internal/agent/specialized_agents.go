@@ -2,17 +2,19 @@ package agent
 
 import (
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
-	"github.com/camronwood/neural-junkie/internal/mcp/biology"
-	"github.com/camronwood/neural-junkie/internal/mcp/cad"
-	"github.com/camronwood/neural-junkie/internal/mcp/manufacturing"
 	"github.com/camronwood/neural-junkie/internal/mcp/aws"
-	"github.com/camronwood/neural-junkie/internal/mcp/incident"
+	"github.com/camronwood/neural-junkie/internal/mcp/biology"
 	"github.com/camronwood/neural-junkie/internal/mcp/browser"
+	"github.com/camronwood/neural-junkie/internal/mcp/cad"
+	"github.com/camronwood/neural-junkie/internal/mcp/incident"
+	"github.com/camronwood/neural-junkie/internal/mcp/manufacturing"
 	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
+	"github.com/camronwood/neural-junkie/internal/packs"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -506,4 +508,22 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 	default:
 		return NewAgent(agentType, name, []string{}, ai, hub), nil
 	}
+}
+
+// ResolveAgentTypeFromPackSpec picks the runtime agent type from a pack AgentSpec.
+// A valid implementation: builtin/<slug> wins over type (including empty or mismatched type).
+func ResolveAgentTypeFromPackSpec(spec packs.AgentSpec) protocol.AgentType {
+	if at, ok := packs.ParseBuiltinImplementation(spec.Implementation); ok {
+		return protocol.AgentType(at)
+	}
+	return protocol.AgentType(strings.TrimSpace(spec.Type))
+}
+
+// AgentFactoryFromPackSpec creates an in-process agent from a pack AgentSpec.
+// Pilot: implementation builtin/music -> NewMusicAgent even when type is empty or wrong.
+func AgentFactoryFromPackSpec(spec packs.AgentSpec, name string, aiProvider ai.AIProvider, hub HubClient) (*Agent, error) {
+	if strings.TrimSpace(name) == "" {
+		name = strings.TrimSpace(spec.Name)
+	}
+	return AgentFactory(ResolveAgentTypeFromPackSpec(spec), name, aiProvider, hub)
 }

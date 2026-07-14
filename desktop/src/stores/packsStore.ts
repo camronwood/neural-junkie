@@ -20,6 +20,7 @@ import {
 import type { ResolvedCapability } from '../api/chatAPI';
 
 export const PACK_LIFE_SCIENCES = 'life-sciences';
+export const PACK_IDE = 'ide';
 export const PACK_SOFTWARE_DEVELOPMENT = 'software-development';
 
 interface PacksState {
@@ -57,9 +58,13 @@ interface PacksState {
   getPackSettingsKeys: () => string[];
   /** True when software-development is installed and enabled (pack row, not capability union). */
   softwareDevelopmentPackActive: () => boolean;
+  /** True when ide pack is installed and enabled. */
+  idePackActive: () => boolean;
+  /** True when IDE capabilities are active (ide-v2 capability or ide pack enabled). */
+  ideEnabled: () => boolean;
   /** @deprecated use hasCapability(PACK_CAP.SCAN_SUMMARY_VIEWER) */
   lifeSciencesEnabled: () => boolean;
-  /** @deprecated use hasCapability(PACK_CAP.IDE_V2) */
+  /** @deprecated use ideEnabled() */
   softwareDevelopmentEnabled: () => boolean;
 }
 
@@ -225,7 +230,7 @@ export const usePacksStore = create<PacksState>((set, get) => ({
       if (!layoutSettings.sidebarAgentsVisible) {
         await updateLayoutSettings({ sidebarAgentsVisible: true });
       }
-      if (get().layoutOwner === packId && packId === PACK_SOFTWARE_DEVELOPMENT && !layoutSettings.devPackLayoutNudgeApplied) {
+      if (get().layoutOwner === packId && packId === PACK_IDE && !layoutSettings.devPackLayoutNudgeApplied) {
         const { panelsForPreset } = await import('../utils/layoutPresets');
         await updateLayoutSettings({
           ...panelsForPreset('ide'),
@@ -264,11 +269,17 @@ export const usePacksStore = create<PacksState>((set, get) => ({
     return pack?.installed === true && pack?.enabled === true;
   },
 
+  idePackActive: () => {
+    const pack = get().packs.find((p) => p.id === PACK_IDE);
+    return pack?.installed === true && pack?.enabled === true;
+  },
+
+  ideEnabled: () => get().hasCapability('ide-v2') || get().idePackActive(),
+
   lifeSciencesEnabled: () => {
     const pack = get().packs.find((p) => p.id === PACK_LIFE_SCIENCES);
     return pack?.installed === true && pack?.enabled === true;
   },
 
-  softwareDevelopmentEnabled: () =>
-    get().hasCapability('ide-v2') || get().softwareDevelopmentPackActive(),
+  softwareDevelopmentEnabled: () => get().ideEnabled(),
 }));

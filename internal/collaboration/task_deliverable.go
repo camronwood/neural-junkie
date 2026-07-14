@@ -179,7 +179,7 @@ func TaskDispatchFileDeliverableNote(t CollaborationTask, collabGoal string) str
 			note += "\nSource paths to read and cite: " + strings.Join(sources, ", ") + "."
 		}
 		if taskRestrictsSourcesToListedPaths(t.Title+" "+t.Description) || taskRestrictsSourcesToListedPaths(collabGoal) {
-			note += "\n**Scope limit:** Discuss and cite ONLY the source paths listed for this task. Do not mention React, `src/`, `App.tsx`, `server/main.go`, or any other path outside scope — including disclaimers like \"not included in the task\"."
+			note += "\n**Scope limit:** Discuss and cite ONLY the source paths listed for this task. Write substantive findings from those files — do not inventory repository layout, name unlisted directories/packages, or add exclusion/disclaimer bullets."
 		}
 	}
 	return note

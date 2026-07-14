@@ -143,6 +143,18 @@ func TestTryEarlyGoMainFixtureFix_alreadySatisfied(t *testing.T) {
 	}
 }
 
+func TestUserRequestsThemeCSSDeliverable(t *testing.T) {
+	if !userRequestsThemeCSSDeliverable("please create src/theme.css with light and dark variables") {
+		t.Fatal("expected affirmative theme request")
+	}
+	if userRequestsThemeCSSDeliverable("Do not reference src/theme.css or other paths. Write findings.md summarizing README.md") {
+		t.Fatal("negated theme.css mention must not count as a request")
+	}
+	if userRequestsThemeCSSDeliverable("Use ONLY README.md and core/sample/main.go") {
+		t.Fatal("findings-only goal should not request theme.css")
+	}
+}
+
 func TestTryEarlyThemeCSSFix(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -166,6 +178,28 @@ func TestTryEarlyThemeCSSFix(t *testing.T) {
 	}
 	if len(state.FilesChanged) != 1 || state.FilesChanged[0] != "src/theme.css" {
 		t.Fatalf("FilesChanged = %v", state.FilesChanged)
+	}
+}
+
+func TestTryEarlyThemeCSSFixSkipsNegatedMention(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{}
+	msg := protocol.NewMessage(protocol.MessageTypeCollabTask, "collab-scenarios",
+		protocol.AgentInfo{ID: "sys", Name: "System", Type: "system"},
+		"Do not reference src/theme.css. Write collabs/x/findings.md summarizing README.md and core/sample/main.go only.")
+	msg.SetCollaborationID("cid")
+	msg.SetCollaborationPhase("executing")
+	msg.SetTaskID("task-1")
+	if msg.Metadata == nil {
+		msg.Metadata = map[string]interface{}{}
+	}
+	msg.Metadata[MetadataContextScope] = ContextScopeFocus
+	msg.Metadata["task_context_paths"] = []string{"README.md", "core/sample/main.go"}
+	msg.Metadata["workspace_context"] = map[string]interface{}{"workspace_path": dir}
+	if ag.tryEarlyThemeCSSFix(context.Background(), msg, dir, state) {
+		t.Fatal("negated theme.css in focus-scoped findings task must not early-fix theme.css")
 	}
 }
 

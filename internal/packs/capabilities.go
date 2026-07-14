@@ -5,49 +5,13 @@ import (
 	"strings"
 )
 
-// PlatformCapabilityTokens are NJ-owned capabilities any pack may declare without capability_defs.
-var PlatformCapabilityTokens = []string{
-	"customer-pack",
-	"settings-overlay",
-	"workspace-guide",
-}
+// PlatformCapabilityTokens are thin NJ-owned tokens any pack may declare without capability_defs.
+// Source of truth: capability_tokens.json (keep TS in sync via scripts/gen-pack-capabilities.py).
+var PlatformCapabilityTokens = platformCapabilityTokensFromJSON()
 
-// OfficialDomainCapabilityTokens are platform capabilities owned by official catalog domain packs.
-var OfficialDomainCapabilityTokens = []string{
-	"ide-v2",
-	"ide-v3-composer",
-	"git-rest",
-	"inline-completion",
-	"cad-api",
-	"cad-viewer",
-	"cad-workbench",
-	"lora-training",
-	"lora-compose",
-	"lora-adapters",
-	"personal-learning",
-	"aws-api",
-	"aws-sso",
-	"incident-api",
-	"jira-integration",
-	"incident-triage",
-	"github-issues-integration",
-	"linear-integration",
-	"pagerduty-integration",
-	"sentry-integration",
-	"web-browser",
-	"web-preview",
-	"web-browser-workbench",
-	"biology-api",
-	"biology-workbench",
-	"biology-sidecar",
-	"music-generation",
-	"music-workbench",
-	"music-sidecar",
-	"model-arena",
-	"model-arena-sidecar",
-	"model-arena-workbench",
-	"lora-training-sidecar",
-}
+// OfficialDomainCapabilityTokens are official catalog domain feature tokens (may also have hub/mcp sidecar defs).
+// These are NOT the same as thin platform tokens — see IsThinPlatformCapability vs IsKnownCapabilityToken.
+var OfficialDomainCapabilityTokens = officialDomainCapabilityTokensFromJSON()
 
 // KnownExtensionKinds are valid capability_defs.kind values.
 var KnownExtensionKinds = []string{
@@ -59,7 +23,7 @@ var KnownExtensionKinds = []string{
 	"settings-schema",
 }
 
-// KnownCapabilityTokens is the union of platform + official domain tokens (for catalog packs).
+// KnownCapabilityTokens is the union of thin platform + official domain tokens (for catalog packs).
 // Pack-local capabilities are defined in capability_defs and are not listed here.
 var KnownCapabilityTokens = append(
 	append([]string{}, PlatformCapabilityTokens...),
@@ -143,8 +107,20 @@ func ParseQualifiedCapabilityID(raw string) (packID, capID string) {
 	return "", raw
 }
 
-// IsPlatformCapability reports whether cap is an NJ platform or official domain token.
-func IsPlatformCapability(cap string) bool {
+// IsThinPlatformCapability reports whether cap is a thin NJ platform token
+// (customer-pack / settings-overlay / workspace-guide), not an official domain token.
+func IsThinPlatformCapability(cap string) bool {
+	cap = strings.TrimSpace(cap)
+	for _, k := range PlatformCapabilityTokens {
+		if k == cap {
+			return true
+		}
+	}
+	return false
+}
+
+// IsKnownCapabilityToken reports whether cap is a thin platform or official domain token.
+func IsKnownCapabilityToken(cap string) bool {
 	cap = strings.TrimSpace(cap)
 	for _, k := range KnownCapabilityTokens {
 		if k == cap {
@@ -152,6 +128,12 @@ func IsPlatformCapability(cap string) bool {
 		}
 	}
 	return false
+}
+
+// IsPlatformCapability reports whether cap is an NJ-known token (thin platform OR official domain).
+// Prefer IsThinPlatformCapability / IsKnownCapabilityToken for clearer taxonomy.
+func IsPlatformCapability(cap string) bool {
+	return IsKnownCapabilityToken(cap)
 }
 
 // IsKnownExtensionKind reports whether kind is a supported capability_defs.kind.

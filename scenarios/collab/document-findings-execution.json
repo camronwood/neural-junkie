@@ -8,7 +8,7 @@
     "SoftwareArchitect"
   ],
   "workspace": {
-    "fixture": "minimal-repo",
+    "fixture": "findings-scope-repo",
     "workspace_flag": true,
     "outline": true,
     "file_tree": "README.md\ncore/sample/main.go\n"

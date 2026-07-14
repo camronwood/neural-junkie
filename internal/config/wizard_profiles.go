@@ -114,8 +114,11 @@ func (c *Config) ApplyWizardProfile(track WizardTrack, ollamaLocal bool) {
 		_ = c.InstallPack(PackCAD)
 		_ = c.SetPackEnabled(PackCAD, true)
 	case WizardTrackDeveloper:
+		_ = c.InstallPack(PackIDE)
+		_ = c.SetPackEnabled(PackIDE, true)
 		_ = c.InstallPack(PackSoftwareDevelopment)
 		_ = c.SetPackEnabled(PackSoftwareDevelopment, true)
+		_ = c.SetLayoutOwner(PackIDE)
 	default:
 		// general track: no packs
 	}

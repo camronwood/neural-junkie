@@ -27,13 +27,29 @@ func TestOfficialPackManifests(t *testing.T) {
 	}
 }
 
-func TestSoftwareDevCapabilities(t *testing.T) {
-	m := officialTestManifest(t, "software-development")
+func TestIdePackCapabilities(t *testing.T) {
+	m := officialTestManifest(t, "ide")
 	if !m.HasCapability("git-rest") {
 		t.Fatal("expected git-rest")
 	}
+	if !m.HasCapability("ide-v4") {
+		t.Fatal("expected ide-v4")
+	}
 	if m.DefaultLayoutProfile() != "ide" {
 		t.Fatalf("expected ide layout, got %s", m.DefaultLayoutProfile())
+	}
+}
+
+func TestSoftwareDevCapabilities(t *testing.T) {
+	m := officialTestManifest(t, "software-development")
+	if m.HasCapability("git-rest") {
+		t.Fatal("software-development should not declare git-rest")
+	}
+	if m.DefaultLayoutProfile() != "team" {
+		t.Fatalf("expected team layout, got %s", m.DefaultLayoutProfile())
+	}
+	if !m.HasCapability("sd-mcp-sidecar") {
+		t.Fatal("expected sd-mcp-sidecar")
 	}
 }
 

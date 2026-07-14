@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 )
@@ -706,6 +707,9 @@ func (a *Agent) proposeFileChangePreferEditOrCreate(ctx context.Context, channel
 		return fmt.Errorf("invalid file change path: %q", path)
 	}
 	content = a.substituteFileExportContent(sourceMsg, content)
+	if err := rejectFocusScopedInventoryDeliverable(sourceMsg, path, content); err != nil {
+		return err
+	}
 	wsPath := ""
 	if sourceMsg != nil {
 		wsPath = a.resolveWorkspacePath(sourceMsg)
@@ -721,6 +725,59 @@ func (a *Agent) proposeFileChangePreferEditOrCreate(ctx context.Context, channel
 		}
 	}
 	return a.proposeFileCreateInChannel(ctx, channel, path, content, sourceMsg)
+}
+
+// rejectFocusScopedInventoryDeliverable blocks research findings that inventory sibling packages.
+func rejectFocusScopedInventoryDeliverable(msg *protocol.Message, path, content string) error {
+	if msg == nil || !collaborationRestrictsDiscoveryTools(msg) {
+		return nil
+	}
+	rel := filepath.ToSlash(strings.TrimPrefix(strings.TrimSpace(path), "./"))
+	lowerPath := strings.ToLower(rel)
+	allowed := collaborationFocusAllowedReadPaths(msg)
+	if len(allowed) > 0 {
+		pathAllowed := strings.HasPrefix(lowerPath, collaboration.ProjectCollabsDirName+"/")
+		if !pathAllowed {
+			for _, a := range allowed {
+				if collaborationFocusPathMatches(normalizeFocusRelPath("", a), normalizeFocusRelPath("", rel)) {
+					pathAllowed = true
+					break
+				}
+			}
+		}
+		if !pathAllowed {
+			return fmt.Errorf(
+				"focus-scoped task cannot propose %q — allowed destinations are collabs/<id>/… or the task source paths (%s)",
+				rel,
+				strings.Join(allowed, ", "),
+			)
+		}
+	}
+	if !strings.HasSuffix(lowerPath, "findings.md") {
+		task := collaboration.CollaborationTask{Title: msg.Content, Description: msg.Content}
+		if title, _ := msg.Metadata["task_title"].(string); title != "" {
+			task.Title = title
+		}
+		if desc, _ := msg.Metadata["task_description"].(string); desc != "" {
+			task.Description = desc
+		}
+		policy := collaboration.NewDeliverablePolicy(task, "", allowed)
+		if !policy.ResearchFindings() && !isResearchDocumentationDeliverable(msg.Content) {
+			return nil
+		}
+	}
+	if len(allowed) == 0 {
+		return nil
+	}
+	policy := collaboration.NewDeliverablePolicy(
+		collaboration.CollaborationTask{},
+		"",
+		allowed,
+	)
+	if hit := policy.InventoryHit(content); hit != "" {
+		return collaboration.FocusScopedDeliverableInventoryError(hit, allowed)
+	}
+	return nil
 }
 
 func (a *Agent) proposeFileCreateInChannel(ctx context.Context, channel, path, content string, sourceMsg *protocol.Message) error {

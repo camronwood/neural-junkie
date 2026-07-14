@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -261,40 +262,5 @@ func looksLikePlaceholderProposalContent(content string) bool {
 	if LooksLikeCorruptSourceContent(content) {
 		return true
 	}
-	lower := strings.ToLower(content)
-	markers := []string{
-		"[insert ",
-		"[todo",
-		"[feature name]",
-		"[brief description",
-		"[step 1",
-		"[explanation of",
-		"[use case",
-		"insert file name",
-		"insert issues",
-		"insert recommendations",
-		"lorem ipsum",
-		"--- title:",
-		"# app name",
-		"overview of the app",
-		"feature 1",
-		"feature 2",
-		"feature 3",
-		"achievement 1",
-		"achievement 2",
-		"achievement 3",
-		"key achievements",
-		"## features",
-	}
-	for _, m := range markers {
-		if strings.Contains(lower, m) {
-			return true
-		}
-	}
-	bracketRE := regexp.MustCompile(`\[[a-z][a-z0-9 _-]{2,}\]`)
-	matches := bracketRE.FindAllString(lower, -1)
-	if len(matches) > 2 && len(content) < 4000 {
-		return true
-	}
-	return false
+	return collaboration.LooksLikePlaceholderContent(content)
 }

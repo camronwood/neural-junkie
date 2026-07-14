@@ -65,6 +65,38 @@ func (c *Config) HasPackCapability(query string) bool {
 	return false
 }
 
+// CapabilityForRoutePrefix returns the capability id that gates a hub route prefix,
+// preferring resolved registry hub-sidecar entries over hard-coded fallbacks.
+func (c *Config) CapabilityForRoutePrefix(routePrefix string) string {
+	routePrefix = strings.TrimSpace(routePrefix)
+	if routePrefix == "" || c == nil {
+		return ""
+	}
+	reg := c.ResolvedCapabilityRegistry()
+	for _, rc := range reg.CapabilityRegistry {
+		if rc.Kind != "hub-sidecar" {
+			continue
+		}
+		for _, r := range rc.Routes {
+			r = strings.TrimSpace(r)
+			if r == "" {
+				continue
+			}
+			if r == routePrefix || strings.HasPrefix(routePrefix, r+"/") {
+				id := strings.TrimSpace(rc.ID)
+				if id == "" {
+					id = strings.TrimSpace(rc.QualifiedID)
+				}
+				if i := strings.LastIndex(id, "/"); i >= 0 {
+					id = id[i+1:]
+				}
+				return id
+			}
+		}
+	}
+	return ""
+}
+
 // RouteOwnerPackID returns the pack id that owns a hub route prefix, or "".
 func (c *Config) RouteOwnerPackID(routePrefix string) string {
 	routePrefix = strings.TrimSpace(routePrefix)

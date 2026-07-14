@@ -78,6 +78,31 @@ function mermaidInitForTheme(theme: ColorTheme): void {
     });
     return;
   }
+  if (theme === 'retro') {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      securityLevel: 'strict',
+      fontFamily: 'ui-monospace, monospace',
+      themeVariables: {
+        darkMode: true,
+        background: '#0c1a2e',
+        primaryColor: '#142847',
+        primaryTextColor: '#f1f5f9',
+        primaryBorderColor: '#2a4a7a',
+        lineColor: '#ffd447',
+        secondaryColor: '#0a1220',
+        tertiaryColor: '#142847',
+        nodeTextColor: '#f1f5f9',
+        mainBkg: '#142847',
+        nodeBorder: '#ffd447',
+        clusterBkg: '#0a1220',
+        titleColor: '#3a86ff',
+        edgeLabelBackground: '#0c1a2e',
+      },
+    });
+    return;
+  }
   mermaid.initialize({
     startOnLoad: false,
     theme: 'dark',

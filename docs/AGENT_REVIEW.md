@@ -24,10 +24,11 @@ For larger, structured multi-agent work (planning + approval + execution), use t
 
 ### Review vs Collaboration
 
-- **Agent Review** is lightweight and fast: one agent reviews another response in-line.
-- **Collaboration** is structured: bounded agent discussion, shared plan artifact, user approval, then delegated execution.
-- Use **Agent Review** for quick "second opinion" checks.
-- Use **Collaboration** when multiple agents should jointly design and build.
+- **Agent Review** is lightweight and fast: one agent reviews another response in-line (user-driven).
+- **Collaboration** is structured: planning, shared plan artifact, user approval, then execution (solo or multi-agent).
+- Inside a collaboration, a participant `@mention` of a non-member is an **L1 consult** (visible answer, no roster join) unless expansion is enabled (L2). See [COLLABORATION.md](COLLABORATION.md).
+- Use **Agent Review** for quick "second opinion" checks outside a collab.
+- Use **Collaboration** when you want a task list, approval gate, and DAG execution.
 
 ### Key Features
 

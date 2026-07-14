@@ -87,13 +87,19 @@ const (
 	HardMaxTotalMessages = 50
 	HardMaxTimeout       = 30 * time.Minute
 
-	MaxConcurrentCollaborations  = 3
+	MaxConcurrentCollaborations   = 3
+	MinAgentsPerCollaboration     = 1
 	HardMaxAgentsPerCollaboration = 3
-	MaxTasksPerCollaboration     = 10
-	HardMaxTasksPerCollaboration = 25
+	MaxTasksPerCollaboration      = 10
+	HardMaxTasksPerCollaboration  = 25
 	// MaxExecutionMessages caps agent chat posts during the executing phase.
 	MaxExecutionMessages = 100
 )
+
+// IsSolo reports whether this collaboration has a single participant.
+func (c *Collaboration) IsSolo() bool {
+	return c != nil && len(c.Agents) == 1
+}
 
 // BlockedUpstreamPolicy controls how blocked upstream tasks affect downstream readiness.
 type BlockedUpstreamPolicy string
@@ -202,11 +208,20 @@ type DependencyGroup struct {
 // and all values clamped to hard maximums.
 // ScaledDiscussionConfig returns discussion caps scaled for participant count.
 func ScaledDiscussionConfig(agentCount int) DiscussionConfig {
-	if agentCount < 2 {
-		agentCount = 2
+	if agentCount < MinAgentsPerCollaboration {
+		agentCount = MinAgentsPerCollaboration
 	}
 	if agentCount > HardMaxAgentsPerCollaboration {
 		agentCount = HardMaxAgentsPerCollaboration
+	}
+	// Solo planning short-circuits after one plan draft; keep caps tight if that path misses.
+	if agentCount == 1 {
+		return DiscussionConfig{
+			MaxRounds:        1,
+			TurnBudget:       1,
+			MaxTotalMessages: 4,
+			Timeout:          3 * time.Minute,
+		}
 	}
 	extra := agentCount - 2
 	if extra < 0 {

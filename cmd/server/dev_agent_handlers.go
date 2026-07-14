@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,7 +19,7 @@ func handleDevAgentTurn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	var req struct {
@@ -60,7 +58,13 @@ func handleDevAgentTurn(w http.ResponseWriter, r *http.Request) {
 	chName := agent.EditorAgentChannelID(req.WorkspaceID)
 	sess := editorSessions.GetOrCreate(req.WorkspaceID, chName, string(info.Type), mode, strings.TrimSpace(req.SessionID))
 
+	ctx, cancel := context.WithTimeout(r.Context(), 300*time.Second)
+	defer cancel()
+
 	prompt := req.Instruction
+	if hist := editorHistoryPrompt(sess.SessionID); hist != "" {
+		prompt = hist + "\nCurrent instruction:\n" + prompt
+	}
 	if mode == "ask" {
 		prompt = "[ASK mode — read-only tools, no file edits]\n" + prompt
 	} else {
@@ -70,13 +74,7 @@ func handleDevAgentTurn(w http.ResponseWriter, r *http.Request) {
 		prompt += "\n\nSelected code:\n```\n" + req.Selection + "\n```"
 	}
 	relPath := strings.TrimSpace(req.Path)
-	content := ""
-	if relPath != "" {
-		full := filepath.Join(ws.Path, filepath.FromSlash(strings.TrimPrefix(relPath, "/")))
-		if b, err := os.ReadFile(full); err == nil {
-			content = string(b)
-		}
-	}
+	content := readWorkspaceRelFile(ctx, ws.ID, relPath)
 
 	msg := protocol.NewMessage(protocol.MessageTypeChat, chName, protocol.AgentInfo{
 		ID: "human", Name: "Developer", Type: "human",
@@ -101,9 +99,6 @@ func handleDevAgentTurn(w http.ResponseWriter, r *http.Request) {
 		msg.Metadata["prompt_attachments"] = req.Attachments
 	}
 
-	_ = editorSessions.HistoryMessages(sess.SessionID)
-	ctx, cancel := context.WithTimeout(r.Context(), 300*time.Second)
-	defer cancel()
 	cleaned, proposed, err := agent.RunDevAgentTurn(ctx, ag, chName, msg)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -113,17 +108,16 @@ func handleDevAgentTurn(w http.ResponseWriter, r *http.Request) {
 	editorSessions.AppendTurn(sess.SessionID, "assistant", cleaned)
 
 	out := map[string]interface{}{
-		"response":    cleaned,
-		"proposed":    proposed,
-		"session_id":  sess.SessionID,
-		"channel":     chName,
-		"agent":       info.Name,
-		"agent_type":  info.Type,
+		"response":   cleaned,
+		"proposed":   proposed,
+		"session_id": sess.SessionID,
+		"channel":    chName,
+		"agent":      info.Name,
+		"agent_type": info.Type,
 	}
 	if proposed {
-		pending := chatHub.GetFileChangeManager().ListPendingFileChanges("default")
-		if len(pending) > 0 {
-			out["change_ids"] = []string{pending[len(pending)-1].ID}
+		if cid := latestPendingChangeIDForChannel(chName); cid != "" {
+			out["change_ids"] = []string{cid}
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")

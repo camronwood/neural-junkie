@@ -370,6 +370,32 @@ func TestBuildImplementationSessionOutcome(t *testing.T) {
 	}
 }
 
+func TestAppendCollabExecutionTaskStatus(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeCollabTask, "collab-ch", protocol.AgentInfo{ID: "be", Name: "BackendEngineer"}, "Write collabs/x/findings.md")
+	msg.SetCollaborationID("collab-1111")
+	msg.SetCollaborationPhase("executing")
+	msg.SetTaskID("task-1")
+	state := &ImplementationSessionState{RegisteredFiles: []string{"collabs/x/findings.md"}}
+
+	got := appendCollabExecutionTaskStatus("Implementation session complete — proposals submitted for approval.", msg, state, true)
+	if !strings.Contains(got, "TASK_STATUS: completed") {
+		t.Fatalf("expected TASK_STATUS line, got %q", got)
+	}
+	if !strings.Contains(got, "findings.md") {
+		t.Fatalf("expected shipped paths in summary, got %q", got)
+	}
+
+	already := strings.TrimSpace("Done.\nTASK_STATUS: completed\n")
+	if appendCollabExecutionTaskStatus(already, msg, state, true) != already {
+		t.Fatal("should not duplicate TASK_STATUS when already present")
+	}
+
+	chat := protocol.NewMessage(protocol.MessageTypeQuestion, "general", protocol.AgentInfo{}, "fix bug")
+	if appendCollabExecutionTaskStatus("done", chat, state, true) != "done" {
+		t.Fatal("non-collab message should be unchanged")
+	}
+}
+
 func TestAppendUnique(t *testing.T) {
 	got := appendUnique([]string{"a"}, []string{"b", "a"})
 	if len(got) != 2 || got[0] != "a" || got[1] != "b" {

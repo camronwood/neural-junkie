@@ -36,7 +36,7 @@ export type PrepareOutboundPayloadOptions = {
   api?: ChatAPI;
   repoPath?: string;
   repoPaths?: string[];
-  devPackEnabled?: boolean;
+  ideEnabled?: boolean;
   channel?: string;
   channelMeta?: Pick<Channel, 'type' | 'agents' | 'description' | 'name'>;
 };
@@ -58,7 +58,7 @@ export async function prepareOutboundPayload(
     api,
     repoPath,
     repoPaths,
-    devPackEnabled = false,
+    ideEnabled = false,
   } = options;
 
   const slashCommand = isSlashCommandContent(content);
@@ -112,7 +112,7 @@ export async function prepareOutboundPayload(
     metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
   } else if (
     effectiveMode === 'agent' &&
-    devPackEnabled &&
+    ideEnabled &&
     !hasCodeReviewSignals(content)
   ) {
     const implMeta = buildImplementationSessionMetadata({

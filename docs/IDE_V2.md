@@ -1,6 +1,6 @@
-# IDE v2 (Software development pack)
+# IDE v2 (IDE pack)
 
-IDE v2 extends the dev pack with navigation/SCM depth (**v2a**), editor-integrated agent workflow (**v2b**), and editor depth (**v2c**). All features require the **Software development** pack.
+IDE v2 extends core workspace editing with navigation/SCM depth (**v2a**), editor-integrated agent workflow (**v2b**), and editor depth (**v2c**). All features require the **[IDE pack](IDE_PACK.md)** (core NJ includes file explorer and Monaco editor without this pack).
 
 See [IDE_V3.md](IDE_V3.md) for Cursor-like coding in the main chat (IDE layout).
 

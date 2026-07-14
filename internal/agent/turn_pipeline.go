@@ -343,8 +343,7 @@ func (st *turnState) handleGenerationCancelled() error {
 		cid := msg.GetCollaborationID()
 		phase := msg.GetCollaborationPhase()
 		if cid != "" && phase == "planning" && a.Collab.IsActive(cid) {
-			turnCount := a.Collab.ParticipantTurnCount(cid, a.Info.ID)
-			a.scheduleCollaborationTurnHandoffRetry(msg, cid, a.Info.ID, turnCount)
+			a.kickPlanningTurnWatchdog(cid)
 		}
 	}
 	return errTurnPipelineHalt
@@ -576,13 +575,7 @@ func (st *turnState) stepDeliverResponse(ctx context.Context) error {
 					st.clearResponded()
 					a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
 					if collabPhase == "planning" && a.Collab.IsActive(collabID) {
-						if nextID, nerr := a.Collab.GetCurrentTurnAgent(collabID); nerr == nil {
-							nextID = strings.TrimSpace(nextID)
-							if nextID != "" {
-								turnCount := a.Collab.ParticipantTurnCount(collabID, nextID)
-								a.scheduleCollaborationTurnHandoffRetry(msg, collabID, nextID, turnCount)
-							}
-						}
+						a.kickPlanningTurnWatchdog(collabID)
 					}
 					st.outcome = turnFailed
 					return errTurnPipelineHalt

@@ -56,6 +56,7 @@ export function modelsToEnsureForTrack(track: WizardTrack, providerType: 'ollama
 
 export function packsEnabledForTrack(track: WizardTrack): Record<string, boolean> {
   return {
+    ide: track === 'developer',
     'life-sciences': track === 'lifeSciences',
     'software-development': track === 'developer',
     cad: track === 'cad',

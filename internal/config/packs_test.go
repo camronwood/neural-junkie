@@ -274,18 +274,18 @@ func TestSetPackEnabledMultiPack(t *testing.T) {
 func TestSetLayoutOwner(t *testing.T) {
 	cfg := DefaultConfig()
 	installTestPack(t, cfg, PackLifeSciences)
-	installTestPack(t, cfg, PackSoftwareDevelopment)
+	installTestPack(t, cfg, PackIDE)
 	if err := cfg.SetPackEnabled(PackLifeSciences, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := cfg.SetPackEnabled(PackSoftwareDevelopment, true); err != nil {
+	if err := cfg.SetPackEnabled(PackIDE, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := cfg.SetLayoutOwner(PackSoftwareDevelopment); err != nil {
+	if err := cfg.SetLayoutOwner(PackIDE); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.LayoutOwnerPackID() != PackSoftwareDevelopment {
-		t.Fatalf("expected layout owner software-development, got %q", cfg.LayoutOwnerPackID())
+	if cfg.LayoutOwnerPackID() != PackIDE {
+		t.Fatalf("expected layout owner ide, got %q", cfg.LayoutOwnerPackID())
 	}
 	if cfg.LayoutProfile() != "ide" {
 		t.Fatalf("expected ide layout profile, got %q", cfg.LayoutProfile())
@@ -321,8 +321,8 @@ func TestLayoutOwnerClearedWhenAllDisabled(t *testing.T) {
 
 func TestAnyPackCapability(t *testing.T) {
 	cfg := DefaultConfig()
-	installTestPack(t, cfg, PackSoftwareDevelopment)
-	_ = cfg.SetPackEnabled(PackSoftwareDevelopment, true)
+	installTestPack(t, cfg, PackIDE)
+	_ = cfg.SetPackEnabled(PackIDE, true)
 	if !cfg.AnyPackCapability("git-rest") {
 		t.Fatal("expected git-rest capability")
 	}
@@ -366,6 +366,23 @@ func TestSetPackEnabledRequiresInstall(t *testing.T) {
 	}
 }
 
+func TestMigrateIdePackIfNeeded(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
+	cfg := DefaultConfig()
+	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
+	cfg.Packs.LayoutOwner = PackSoftwareDevelopment
+	cfg.migrateIdePackIfNeeded()
+	if !cfg.IsPackEnabled(PackIDE) {
+		t.Fatal("expected ide pack enabled when software-development was on")
+	}
+	if !cfg.IsPackInstalled(PackIDE) {
+		t.Fatal("expected ide pack installed")
+	}
+	if cfg.LayoutOwnerPackID() != PackIDE {
+		t.Fatalf("expected layout owner ide, got %q", cfg.LayoutOwnerPackID())
+	}
+}
+
 func TestMigrateInstalledPacksBothOn(t *testing.T) {
 	setupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
@@ -378,8 +395,11 @@ func TestMigrateInstalledPacksBothOn(t *testing.T) {
 	if !cfg.IsPackEnabled(PackSoftwareDevelopment) || !cfg.IsPackEnabled(PackLifeSciences) {
 		t.Fatal("expected both packs still enabled")
 	}
-	if cfg.LayoutOwnerPackID() != PackSoftwareDevelopment {
-		t.Fatalf("expected dev layout owner when both on, got %q", cfg.LayoutOwnerPackID())
+	if cfg.LayoutOwnerPackID() != PackIDE {
+		t.Fatalf("expected ide layout owner when both on, got %q", cfg.LayoutOwnerPackID())
+	}
+	if !cfg.IsPackEnabled(PackIDE) {
+		t.Fatal("expected ide pack enabled after migration when software-development was on")
 	}
 }
 

@@ -235,7 +235,7 @@ func (a *Agent) generateWithMCPTools(
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}
 
-	tools := claudeToolsFromMCPServer(mcpServer, a.MCPToolAllowlist)
+	tools := claudeToolsFromMCPServer(mcpServer, effectiveMCPToolAllowlist(a, nil))
 	if len(tools) == 0 {
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}

@@ -73,9 +73,17 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 
 
+### 0. IDE (`ide`)
+
+**v1 today:** Independent pack owning `layout_profile: ide` and IDE capability tokens (`ide-v2`, `ide-v3-composer`, `ide-v4`, `git-rest`, `inline-completion`). Core NJ includes file explorer and Monaco editor; IDE pack unlocks depth on top. Implementation lives in core; pack is the product boundary.
+
+**Repo:** [neural-junkie-pack-ide](https://github.com/camronwood/neural-junkie-pack-ide)
+
+---
+
 ### 1. Software development (`software-development`)
 
-**v1 today:** Platform pack. Seven in-process specialists, dev MCP matrix (ports 8081–8090), IDE capabilities (`ide-v2`, `ide-v3-composer`, `git-rest`, `inline-completion`), Qwen Coder models. Most implementation lives in core.
+**v1 today:** Engineering specialists, dev MCP sidecar, Qwen Coder models. IDE capabilities moved to the **IDE** pack (v2.1+). Most specialist implementation still lives in core.
 
 **v2 goals:**
 
@@ -87,7 +95,7 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 - **Runbooks in pack assets** — security review, migration planning, incident handoff SOPs.
 - **Explicit pack wiring** — documented consult/handoff patterns with incident-management, aws, and web-browser (today loosely coupled via `requires_packs` on satellite packs only).
 
-**North star:** Still the layout-owning pack, but v2 makes it the **orchestration hub** for eng-adjacent packs — with domain depth living in the pack repo.
+**North star:** Orchestration hub for eng-adjacent packs — with domain depth living in the pack repo. IDE layout owned by the separate **IDE** pack.
 
 **Repo:** [neural-junkie-pack-software-development](https://github.com/camronwood/neural-junkie-pack-software-development)
 

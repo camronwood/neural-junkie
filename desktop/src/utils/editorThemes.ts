@@ -10,6 +10,8 @@ export function getMonacoThemeId(theme: ColorTheme): string {
       return 'nj-roving';
     case 'brand':
       return 'nj-brand';
+    case 'retro':
+      return 'nj-retro';
     default:
       return 'vs-dark';
   }
@@ -86,6 +88,29 @@ export function getTerminalTheme(theme: ColorTheme): ITheme {
         brightMagenta: '#ff7a93',
         brightCyan: '#b0a8b0',
         brightWhite: '#ffffff',
+      };
+    case 'retro':
+      return {
+        background: '#0c1a2e',
+        foreground: '#f1f5f9',
+        cursor: '#ffd447',
+        selectionBackground: '#2a4a7a',
+        black: '#0a1220',
+        red: '#e63946',
+        green: '#06d6a0',
+        yellow: '#ffbe0b',
+        blue: '#3a86ff',
+        magenta: '#c084fc',
+        cyan: '#7dd3fc',
+        white: '#f1f5f9',
+        brightBlack: '#2a4a7a',
+        brightRed: '#f87171',
+        brightGreen: '#34d399',
+        brightYellow: '#ffd447',
+        brightBlue: '#60a5fa',
+        brightMagenta: '#d8b4fe',
+        brightCyan: '#a5e4fc',
+        brightWhite: '#f8fafc',
       };
     default:
       // Slack / Tokyo Night–adjacent default
@@ -233,6 +258,46 @@ export function registerMonacoThemes(monaco: typeof import('monaco-editor')): vo
       'minimap.background': '#1a161a',
       'scrollbarSlider.background': '#2d262d80',
       'scrollbarSlider.hoverBackground': '#4a424a80',
+    },
+  });
+
+  monaco.editor.defineTheme('nj-retro', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'comment', foreground: '94a3b8', fontStyle: 'italic' },
+      { token: 'keyword', foreground: 'ffd447' },
+      { token: 'string', foreground: '06d6a0' },
+      { token: 'number', foreground: 'ffbe0b' },
+      { token: 'type', foreground: '3a86ff' },
+      { token: 'type.identifier', foreground: '3a86ff' },
+      { token: 'identifier', foreground: 'f1f5f9' },
+      { token: 'delimiter', foreground: '94a3b8' },
+      { token: 'tag', foreground: 'ffd447' },
+      { token: 'attribute.name', foreground: 'c9a832' },
+      { token: 'attribute.value', foreground: '06d6a0' },
+    ],
+    colors: {
+      'editor.background': '#0c1a2e',
+      'editor.foreground': '#f1f5f9',
+      'editorLineNumber.foreground': '#2a4a7a',
+      'editorLineNumber.activeForeground': '#ffd447',
+      'editor.selectionBackground': '#2a4a7a',
+      'editor.inactiveSelectionBackground': '#142847',
+      'editorCursor.foreground': '#ffd447',
+      'editor.lineHighlightBackground': '#142847',
+      'editorIndentGuide.background': '#2a4a7a',
+      'editorIndentGuide.activeBackground': '#ffd447',
+      'editorWidget.background': '#0a1220',
+      'editorWidget.border': '#2a4a7a',
+      'input.background': '#142847',
+      'input.border': '#2a4a7a',
+      'dropdown.background': '#0a1220',
+      'list.hoverBackground': '#142847',
+      'list.activeSelectionBackground': '#2a4a7a',
+      'minimap.background': '#0c1a2e',
+      'scrollbarSlider.background': '#2a4a7a80',
+      'scrollbarSlider.hoverBackground': '#3d5a8a80',
     },
   });
 }

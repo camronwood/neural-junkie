@@ -36,8 +36,14 @@ func TestApplyWizardProfileDeveloperPack(t *testing.T) {
 	SetupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
 	cfg.ApplyWizardProfile(WizardTrackDeveloper, true)
+	if !cfg.IsPackEnabled(PackIDE) {
+		t.Fatal("expected ide pack on")
+	}
 	if !cfg.IsPackEnabled(PackSoftwareDevelopment) {
 		t.Fatal("expected software-development pack on")
+	}
+	if cfg.LayoutOwnerPackID() != PackIDE {
+		t.Fatalf("expected layout owner ide, got %q", cfg.LayoutOwnerPackID())
 	}
 	if !cfg.AgentTypeEnabled("backend") {
 		t.Fatal("expected backend from pack sync")

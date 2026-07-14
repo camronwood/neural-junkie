@@ -1,0 +1,16 @@
+:root {
+  --bg: #111111;
+  --fg: #ffffff;
+  --muted: #888888;
+  --accent: #1e6bff;
+  --danger: #d62828;
+}
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+a { color: var(--accent); }
+nav a { margin-right: 1rem; color: var(--muted); }
+button { background: var(--danger); color: var(--fg); border: 0; padding: 0.5rem 1rem; }

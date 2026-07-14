@@ -12,6 +12,24 @@ func isCollabTurnHandoffContent(content string) bool {
 		strings.Contains(content, "You're up first")
 }
 
+func messageHasCollabTurnHandoffFlag(msg *protocol.Message) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	v, ok := msg.Metadata["collab_turn_handoff"]
+	if !ok || v == nil {
+		return false
+	}
+	switch x := v.(type) {
+	case bool:
+		return x
+	case string:
+		return strings.EqualFold(strings.TrimSpace(x), "true") || strings.TrimSpace(x) == "1"
+	default:
+		return false
+	}
+}
+
 // resolveCollabParticipantLiveID maps a collaboration participant ID to the
 // in-process runtime agent ID (hub restart / re-register can change IDs).
 func (h *Hub) resolveCollabParticipantLiveID(c *collaboration.Collaboration, participantID string) string {
@@ -45,7 +63,7 @@ func (h *Hub) normalizeCollabTurnHandoffMentions(msg *protocol.Message) {
 	if msg.Type != protocol.MessageTypeCollabDiscussion || !msg.IsFromSystem() {
 		return
 	}
-	if !isCollabTurnHandoffContent(msg.Content) {
+	if !isCollabTurnHandoffContent(msg.Content) && !messageHasCollabTurnHandoffFlag(msg) {
 		return
 	}
 

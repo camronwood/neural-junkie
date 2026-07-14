@@ -107,6 +107,20 @@ func appendCollaborationLaneInstructions(b *strings.Builder, collabInfo Collabor
 	b.WriteString(lane.avoid)
 	b.WriteString("\n")
 
+	peers := 0
+	for _, ag := range collabInfo.Agents {
+		if strings.EqualFold(ag.Name, self.Name) {
+			continue
+		}
+		peers++
+	}
+	if peers == 0 {
+		b.WriteString("\n**Solo collaboration:** You own the full task list. Assign every task to yourself with `@")
+		b.WriteString(self.Name)
+		b.WriteString("`. @mention other specialists only to ask a question (consult); they will not join unless expansion is allowed.\n")
+		return
+	}
+
 	b.WriteString("\n=== PEER LANES (do not duplicate their work) ===\n")
 	for _, ag := range collabInfo.Agents {
 		if strings.EqualFold(ag.Name, self.Name) {

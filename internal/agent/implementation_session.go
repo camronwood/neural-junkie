@@ -41,6 +41,25 @@ func collaborationAllowsImplementationSession(msg *protocol.Message) bool {
 	return caps.CanRunImplSession || msg.IdeEditorModeIsExport() || msg.ImplementationSession()
 }
 
+// collabTaskPrefersLightExecution is true for markdown/doc deliverable tasks that should
+// read allowlisted sources → FILE_CHANGE → TASK_STATUS without the full impl session.
+func collabTaskPrefersLightExecution(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if kind, _ := msg.Metadata["deliverable_kind"].(string); kind != "" {
+		return kind == collaboration.DeliverableKindMarkdown
+	}
+	title, _ := msg.Metadata["task_title"].(string)
+	desc, _ := msg.Metadata["task_description"].(string)
+	if title == "" && desc == "" {
+		// Fall back to message body heuristics used by dispatch notes.
+		desc = msg.Content
+	}
+	task := collaboration.CollaborationTask{Title: title, Description: desc}
+	return collaboration.NewDeliverablePolicy(task, "", nil).MarkdownOnly()
+}
+
 type implSessionStateKey struct{}
 type implSessionRoundKey struct{}
 
@@ -154,6 +173,11 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 		return false
 	}
 	if msg.GetCollaborationID() != "" && !collaborationAllowsImplementationSession(msg) {
+		return false
+	}
+	// Markdown/doc collab deliverables use the light path (propose FILE_CHANGE + status),
+	// not the full multi-iteration implementation session.
+	if msg.Type == protocol.MessageTypeCollabTask && collabTaskPrefersLightExecution(msg) {
 		return false
 	}
 	if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() || msg.IdeEditorMode() == "ask" || msg.IdeEditorMode() == "plan" {
@@ -282,6 +306,12 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 		state.ReproCommand = inferReproCommand(wsPath, state.StackManifest, msg.Content)
 		state.DiagnosePhaseRequired = requiresDiagnoseGate(msg, state, wsPath)
+	}
+	// Focus-scoped collab tasks already carry source contents via open_files / task_context_paths.
+	if n := len(collaborationFocusAllowedReadPaths(msg)); n > 0 && collaborationRestrictsDiscoveryTools(msg) {
+		if state.SeedsLoaded < n {
+			state.SeedsLoaded = n
+		}
 	}
 	maxToolIter, maxEditRounds, maxFiles := implSessionLimitsForState(msg, state)
 	sessionCtx = ai.WithToolLoopMaxIterations(sessionCtx, maxToolIter)
@@ -519,7 +549,12 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		if propErr != nil {
 			log.Printf("[%s] impl session file proposal error: %v", a.Info.Name, propErr)
 			state.recordRepairFailureKind(RepairFailurePreflight)
-			repairNote = formatPreflightTypedRepairNote(state.PreflightErrors, state.StackManifest)
+			if strings.Contains(propErr.Error(), "focus-scoped deliverable") {
+				repairNote = propErr.Error() + "\nEmit a corrected [FILE_CHANGE] for findings.md grounded only in the allowed source paths."
+				state.PreflightErrors = append(state.PreflightErrors, propErr.Error())
+			} else {
+				repairNote = formatPreflightTypedRepairNote(state.PreflightErrors, state.StackManifest)
+			}
 			if round < maxEditRounds-1 {
 				continue
 			}
@@ -865,7 +900,8 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 		if round := implementationSessionRoundFromContext(ctx); round == 0 {
 		wsPath := a.resolveWorkspacePath(msg)
 		if wsPath != "" && a.shouldAugmentPromptWithWorkspace(intent, msg) {
-			if st := implementationSessionStateFromContext(ctx); st != nil && st.StackManifest != nil {
+			researchDocDeliverable := isResearchDocumentationDeliverable(msg.Content)
+			if st := implementationSessionStateFromContext(ctx); st != nil && st.StackManifest != nil && !researchDocDeliverable {
 				prompt += st.StackManifest.FormatPromptBlock()
 				seedContent := msg.Content
 				if userAffirmsPendingImplementation(msg.Content) {
@@ -914,6 +950,8 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 			}
 			prompt += referencedFiles.String()
 		}
+	} else if collaborationRestrictsDiscoveryTools(msg) {
+		prompt += "\n=== IMPLEMENTATION SESSION ===\nUse the provided source file contents (and read_file on those paths only). Do not list directories or invent a stack inventory — ship the deliverable via [FILE_CHANGE].\n\n"
 	} else {
 		prompt += "\n=== IMPLEMENTATION SESSION ===\nUse grep, glob_file_search, semantic_search, and read_file to find code. Do not guess file contents.\n\n"
 	}
@@ -1299,6 +1337,42 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 	}
 	body := sanitizeFailedImplementationResponse(lastResponse, state)
 	b.WriteString(body)
+	return appendCollabExecutionTaskStatus(strings.TrimSpace(b.String()), msg, state, proposed)
+}
+
+// appendCollabExecutionTaskStatus adds an explicit TASK_STATUS line when an implementation
+// session ships file proposals for a collaboration execution task. Hub task status may update
+// from proposals alone; scenario gates and assignee protocol expect the line in message text.
+func appendCollabExecutionTaskStatus(summary string, msg *protocol.Message, state *ImplementationSessionState, proposed bool) string {
+	summary = strings.TrimSpace(summary)
+	if summary == "" || msg == nil || !proposed {
+		return summary
+	}
+	if msg.GetTaskID() == "" || msg.GetCollaborationID() == "" {
+		return summary
+	}
+	if strings.TrimSpace(msg.GetCollaborationPhase()) != string(collaboration.PhaseExecuting) {
+		return summary
+	}
+	if collaboration.InferTaskStatusFromAgentReply(summary, true) == collaboration.TaskCompleted {
+		return summary
+	}
+	var b strings.Builder
+	b.WriteString(summary)
+	b.WriteString("\n\nTASK_STATUS: completed")
+	files := []string(nil)
+	if state != nil {
+		files = state.RegisteredFiles
+		if len(files) == 0 {
+			files = state.FilesChanged
+		}
+	}
+	if len(files) > 0 {
+		b.WriteString(" — shipped: ")
+		b.WriteString(strings.Join(files, ", "))
+	} else {
+		b.WriteString("\n")
+	}
 	return strings.TrimSpace(b.String())
 }
 
@@ -1406,6 +1480,9 @@ func appendImplementationSessionToolGuidance(prompt *strings.Builder, a *Agent, 
 	}
 	prompt.WriteString("\n=== IMPLEMENTATION SESSION (required delivery) ===\n")
 	prompt.WriteString("Ship working file changes in this turn — advice-only is not acceptable.\n")
+	if collaborationRestrictsDiscoveryTools(msg) {
+		prompt.WriteString("This task is focus-scoped: use the provided source file contents (and read_file on those paths only). Do not list directories or invent a stack inventory.\n")
+	}
 	if a.hasWorkspaceTools() {
 		prompt.WriteString("Prefer search_replace (exact unique old_string) or apply_patch for edits; propose_file_edit for new files or full small-file rewrites.\n")
 	}

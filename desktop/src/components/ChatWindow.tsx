@@ -95,11 +95,14 @@ import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
 import { TaskManagementPanel } from './TaskManagementPanel';
 import { SecondaryAnalysisPanel } from './SecondaryAnalysisPanel';
 import { useSecondaryAnalysisStore } from '../stores/secondaryAnalysisStore';
+import { useCollaborationsStore, collaborationsByIDSnapshot } from '../stores/collaborationsStore';
+import { useIdeOverlayStore } from '../stores/ideOverlayStore';
 import { ModelLibraryModal } from './ModelLibraryModal';
 import { DomainPacksModal } from './DomainPacksModal';
 import { PhoenixBrowserModal } from './PhoenixBrowserModal';
 import { RoomChatModal } from './RoomChatModal';
 import { ModelArenaModal } from './ModelArenaModal';
+import { AIInterviewPrepModal } from './AIInterviewPrepModal';
 import { LearningProposalModal } from './LearningProposalModal';
 import type { LearningProposalAction } from '../api/chatAPI';
 import type { LoraTrainPrefill } from './LoraTrainingPanel';
@@ -276,22 +279,44 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // State for file explorer and code editor panels
   const [fileExplorerOpen, setFileExplorerOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
-  const [quickOpenOpen, setQuickOpenOpen] = useState(false);
-  const [symbolModalOpen, setSymbolModalOpen] = useState(false);
-  const [fastEditOpen, setFastEditOpen] = useState(false);
-  const [problemsOpen, setProblemsOpen] = useState(false);
-  const [gitModalOpen, setGitModalOpen] = useState(false);
+  const {
+    quickOpenOpen,
+    symbolModalOpen,
+    fastEditOpen,
+    problemsOpen,
+    gitModalOpen,
+    setQuickOpenOpen,
+    setSymbolModalOpen,
+    setFastEditOpen,
+    setProblemsOpen,
+    setGitModalOpen,
+  } = useIdeOverlayStore(
+    (s) => ({
+      quickOpenOpen: s.quickOpenOpen,
+      symbolModalOpen: s.symbolModalOpen,
+      fastEditOpen: s.fastEditOpen,
+      problemsOpen: s.problemsOpen,
+      gitModalOpen: s.gitModalOpen,
+      setQuickOpenOpen: s.setQuickOpenOpen,
+      setSymbolModalOpen: s.setSymbolModalOpen,
+      setFastEditOpen: s.setFastEditOpen,
+      setProblemsOpen: s.setProblemsOpen,
+      setGitModalOpen: s.setGitModalOpen,
+    }),
+    shallow
+  );
   const [activePackModal, setActivePackModal] = useState<string | null>(null);
   const phoenixModalOpen = activePackModal === 'phoenix-import';
   const roomChatModalOpen = activePackModal === 'room-chat';
   const modelArenaModalOpen = activePackModal === 'model-arena';
+  const aiInterviewModalOpen = activePackModal === 'ai-interview-prep';
   const layoutProfile = usePacksStore((s) => s.layoutProfile);
   const hasIdeV2 = usePacksStore((s) => s.hasCapability('ide-v2'));
-  const softwareDevPackActive = usePacksStore((s) => s.softwareDevelopmentPackActive());
+  const idePackActive = usePacksStore((s) => s.idePackActive());
   const hasIdeComposer = usePacksStore((s) => s.hasCapability('ide-v3-composer'));
   const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
-  const devPackEnabled = hasIdeV2 || softwareDevPackActive;
-  const ideLayoutAvailable = softwareDevPackActive;
+  const ideEnabled = hasIdeV2 || idePackActive;
+  const ideLayoutAvailable = ideEnabled;
   const enabledPackCount = usePacksStore((s) => s.packs.filter((p) => p.enabled).length);
   const customPackToolbarActions = usePacksStore((s) => s.getToolbarActions());
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
@@ -564,7 +589,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [taskManagementOpen, setTaskManagementOpen] = useState(false);
   const secondaryAnalysisOpen = useSecondaryAnalysisStore((s) => s.panelOpen);
   const setSecondaryAnalysisOpen = useSecondaryAnalysisStore((s) => s.setPanelOpen);
-  const [collaborationsByID, setCollaborationsByID] = useState<Record<string, Collaboration>>({});
+  const collaborationsByID = useCollaborationsStore((s) => s.byID);
+  const setCollaborationsByID = useCollaborationsStore((s) => s.setByID);
+  const mergeCollabSnapshot = useCollaborationsStore((s) => s.mergeSnapshot);
   const [assistantTasks, setAssistantTasks] = useState<AssistantTask[]>([]);
   const [assistantReminders, setAssistantReminders] = useState<AssistantReminder[]>([]);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
@@ -890,34 +917,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const mergeCollaborationSnapshot = useCallback((snapshot: Collaboration) => {
     if (!snapshot?.id) return;
+    const prevSnap = collaborationsByIDSnapshot()[snapshot.id];
     const isTerminal = isTerminalCollaborationPhase(snapshot.phase);
-    const wasTerminal =
-      collaborationsByIDRef.current[snapshot.id] &&
-      isTerminalCollaborationPhase(collaborationsByIDRef.current[snapshot.id].phase);
+    const wasTerminal = prevSnap && isTerminalCollaborationPhase(prevSnap.phase);
 
-    setCollaborationsByID(prev => {
-      const existing = prev[snapshot.id];
-      if (
-        existing &&
-        existing.updated_at === snapshot.updated_at &&
-        existing.phase === snapshot.phase &&
-        existing.workspace_acknowledged === snapshot.workspace_acknowledged
-      ) {
-        return prev;
-      }
-      if (existing) {
-        const nextTime = Date.parse(snapshot.updated_at || '');
-        const existingTime = Date.parse(existing.updated_at || '');
-        if (!Number.isNaN(nextTime) && !Number.isNaN(existingTime) && nextTime < existingTime) {
-          return prev;
-        }
-      }
-      let next = { ...prev, [snapshot.id]: snapshot };
-      if (isTerminal && snapshot.channel) {
-        next = pruneTerminalCollaborations(next, snapshot.channel);
-      }
-      return next;
-    });
+    mergeCollabSnapshot(snapshot, pruneTerminalCollaborations);
 
     if (isTerminal && !wasTerminal) {
       const completed =
@@ -943,7 +947,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         syncCollabTurnThinking(snapshot, ch);
       }
     }
-  }, []);
+  }, [addToast, mergeCollabSnapshot]);
 
   const clearActiveCollabIf = useCallback((collaborationID: string) => {
     setActiveCollab(current => (current?.id === collaborationID ? null : current));
@@ -1949,10 +1953,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         activeTab: activeEditorTab,
         editorAgentTrust: resolveEditorAgentTrust(layoutSettings, composerMode),
         composerMetadata: metadata,
-        api: devPackEnabled ? api : undefined,
-        repoPath: devPackEnabled ? ws?.path : undefined,
-        repoPaths: devPackEnabled ? resolveScopedRepoPaths() : undefined,
-        devPackEnabled,
+        api: ideEnabled ? api : undefined,
+        repoPath: ideEnabled ? ws?.path : undefined,
+        repoPaths: ideEnabled ? resolveScopedRepoPaths() : undefined,
+        ideEnabled,
         channel,
         channelMeta: activeChannelMeta,
       });
@@ -1985,7 +1989,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       agents,
       activeEditorTab,
       layoutSettings,
-      devPackEnabled,
+      ideEnabled,
       explorerWorkspaces,
       activeWorkspaceId,
       resolveScopedRepoPaths,
@@ -2051,10 +2055,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         activeTab: activeEditorTab,
         editorAgentTrust: resolveEditorAgentTrust(layoutSettings, composerMode),
         composerMetadata: composerMeta,
-        api: devPackEnabled ? api : undefined,
-        repoPath: devPackEnabled ? ws?.path : undefined,
-        repoPaths: devPackEnabled ? resolveScopedRepoPaths() : undefined,
-        devPackEnabled,
+        api: ideEnabled ? api : undefined,
+        repoPath: ideEnabled ? ws?.path : undefined,
+        repoPaths: ideEnabled ? resolveScopedRepoPaths() : undefined,
+        ideEnabled,
         channel,
         channelMeta: activeChannelMeta,
       });
@@ -2182,7 +2186,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       addToast,
       updateSettings,
       ideLayout,
-      devPackEnabled,
+      ideEnabled,
       agents,
       activeEditorTab,
       composerMode,
@@ -2395,7 +2399,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     onOpenSettings: handleOpenSettings,
     channelSearchRef,
     inputRef,
-    devPackEnabled,
+    ideEnabled,
     ideLayout,
     codeEditorOpen,
     showAgentStop,
@@ -2405,13 +2409,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     setFileExplorerOpen,
     setCodeEditorOpen,
     setTaskManagementOpen,
-    setGitModalOpen,
-    setProblemsOpen,
     setPendingChangesOpen,
     setToolbarSidebarOpen,
-    setQuickOpenOpen,
-    setSymbolModalOpen,
-    setFastEditOpen,
     setCommandPaletteOpen,
     setModelLibraryOpen,
     setDomainPacksOpen,
@@ -2448,23 +2447,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   useChatShortcutOverlays({
     commandPaletteOpen,
     onCloseCommandPalette: closeCommandPalette,
-    quickOpenOpen,
-    devPackEnabled,
-    onCloseQuickOpen: () => setQuickOpenOpen(false),
-    symbolModalOpen,
-    onCloseSymbol: () => setSymbolModalOpen(false),
-    fastEditOpen,
-    onCloseFastEdit: () => setFastEditOpen(false),
+    ideEnabled,
     createChannelOpen,
     onCloseCreateChannel: () => setCreateChannelOpen(false),
     createNewDmOpen,
     onCloseCreateNewDm: () => setCreateNewDmOpen(false),
     channelInfoModal,
     onCloseChannelInfo: () => setChannelInfoModal(null),
-    gitModalOpen,
-    onCloseGit: () => setGitModalOpen(false),
-    problemsOpen,
-    onCloseProblems: () => setProblemsOpen(false),
     phoenixModalOpen,
     onClosePhoenix: () => setActivePackModal(null),
     learningProposalOpen,
@@ -2617,11 +2606,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       onNewRunbook: () => void handleNewRunbook(),
       onOpenMyAgents: () => setMyAgentsPanelOpen(true),
       totalAgentsCount,
-      devPackEnabled,
+      ideEnabled,
       ideLayoutAvailable,
       onOpenProblems: () => setProblemsOpen(true),
       gitModalOpen,
-      onToggleGitModal: () => setGitModalOpen((open) => !open),
+      onToggleGitModal: () => setGitModalOpen(!gitModalOpen),
       ideLayout,
       onToggleIdeLayout: () => {
         const next: LayoutPreset = ideLayout ? 'team' : 'ide';
@@ -2646,7 +2635,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       taskManagementOpen,
       handleNewRunbook,
       totalAgentsCount,
-      devPackEnabled,
+      ideEnabled,
       ideLayoutAvailable,
       customPackToolbarActions,
       gitModalOpen,
@@ -2907,7 +2896,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           onComposerModeChange={(mode) => {
             setComposerMode(mode);
             localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, mode);
-            if (devPackEnabled) {
+            if (ideEnabled) {
               void updateLayoutSettings({
                 editorAgentMode: mode,
               });
@@ -3151,10 +3140,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         />
       </div>
       
-      <GitModal isOpen={gitModalOpen && devPackEnabled} onClose={() => setGitModalOpen(false)} />
+      <GitModal isOpen={gitModalOpen && ideEnabled} onClose={() => setGitModalOpen(false)} />
 
       <QuickOpenModal
-        isOpen={quickOpenOpen && devPackEnabled}
+        isOpen={quickOpenOpen && ideEnabled}
         workspaceId={
           explorerWorkspaces.find((w) => w.id === activeWorkspaceId)?.id ??
           explorerWorkspaces[0]?.id
@@ -3164,7 +3153,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       />
 
       <SymbolModal
-        isOpen={symbolModalOpen && devPackEnabled}
+        isOpen={symbolModalOpen && ideEnabled}
         workspaceId={
           explorerWorkspaces.find((w) => w.id === activeWorkspaceId)?.id ??
           explorerWorkspaces[0]?.id
@@ -3174,13 +3163,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       />
 
       <ProblemsPanel
-        isOpen={problemsOpen && devPackEnabled}
+        isOpen={problemsOpen && ideEnabled}
         onClose={() => setProblemsOpen(false)}
         onOpenAt={handleOpenAtLine}
       />
 
       <FastEditModal
-        isOpen={fastEditOpen && devPackEnabled}
+        isOpen={fastEditOpen && ideEnabled}
         workspaceId={
           explorerWorkspaces.find((w) => w.id === activeWorkspaceId)?.id ??
           explorerWorkspaces[0]?.id
@@ -3268,6 +3257,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           setCodeEditorOpen(true);
           void updateLayoutSettings({ editorPanelVisible: true });
         }}
+      />
+      <AIInterviewPrepModal
+        isOpen={aiInterviewModalOpen}
+        onClose={() => setActivePackModal(null)}
       />
 
       <LearningProposalModal

@@ -57,6 +57,20 @@ func (ch *CommandHandler) Consult(ctx context.Context, req delegation.ConsultReq
 	if !cfg.Enabled {
 		return delegation.ConsultResult{}, fmt.Errorf("delegation disabled")
 	}
+	return ch.consultTarget(ctx, req, cfg)
+}
+
+// CollabVisibleConsult runs an in-process consult for collaboration L1 without requiring
+// global chat delegation to be enabled. The hub posts the answer visibly in-channel.
+func (ch *CommandHandler) CollabVisibleConsult(ctx context.Context, req delegation.ConsultRequest) (delegation.ConsultResult, error) {
+	if ch == nil || ch.appConfig == nil {
+		return delegation.ConsultResult{}, fmt.Errorf("command handler unavailable")
+	}
+	cfg := ch.appConfig.Delegation.Normalized()
+	return ch.consultTarget(ctx, req, cfg)
+}
+
+func (ch *CommandHandler) consultTarget(ctx context.Context, req delegation.ConsultRequest, cfg config.DelegationConfig) (delegation.ConsultResult, error) {
 	if req.FromID == req.ToID {
 		return delegation.ConsultResult{}, fmt.Errorf("cannot consult self")
 	}

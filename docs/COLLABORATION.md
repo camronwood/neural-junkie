@@ -1,15 +1,16 @@
 # Multi-Agent Collaboration
 
-Neural Junkie now supports structured multi-agent collaboration so agents can discuss, review, delegate, and execute work together under user control.
+Neural Junkie supports structured collaboration so agents can discuss, review, and execute work under user control — including **solo** (one agent owns the task list) and **multi-agent** (2–3 participants) sessions.
 
 This is different from lightweight `@mention` review flow: collaboration introduces bounded discussions, shared artifacts, explicit phases, and task tracking.
 
 ## Goals
 
 - Enable agent-to-agent discussions in a controlled mode
-- Let users assign multiple agents to a shared objective
+- Let users assign one or more agents to a shared objective
 - Require user approval before execution starts
 - Delegate tasks by agent strengths (type + expertise)
+- Allow Level 1 consults (ask specialists without joining) and Level 2 expansion (approve-to-join)
 - Prevent runaway conversations with hard limits
 
 ## Smart routing (execution tasks)
@@ -22,10 +23,39 @@ When **Collaboration smart routing** is enabled (Desktop **Settings → AI Provi
 
 | Path | Entry | Who defines tasks | Execution |
 |------|--------|-------------------|-----------|
-| **Collaborate** | `/collaborate` | Agents during bounded planning discussion | Hub orchestrates task DAG after `/approve-plan` |
+| **Collaborate** | `/collaborate` (1–3 agents) | Agents during planning (solo: one draft; multi: bounded discussion) | Hub orchestrates task DAG after `/approve-plan` |
 | **Runbook** | Desktop **RB** button, `/runbook`, or `POST /api/runbooks` | You in the Runbook builder (or import markdown) | Same orchestrator after **Start execution** |
 
 Both paths share the same execution engine: dependency-aware waves, workspace ack, file-change approvals, and sandbox/worktree modes.
+
+### Solo collaborate (N=1)
+
+`/collaborate @BackendEngineer harden auth middleware` starts a **solo** collaboration:
+
+1. The agent drafts a minimal task list (assigned to itself).
+2. After the first valid plan ingest, planning **short-circuits** to reviewing (no peer round-robin).
+3. You approve with `/approve-plan`; the same DAG executor runs the tasks.
+
+### Talking to other agents (L1 consult vs L2 join)
+
+| Level | When | Effect |
+|-------|------|--------|
+| **L1 Consult** (default) | A participant `@mentions` a non-member while **Allow agent expansion** is off | Hub posts a visible consult answer in-channel (`event: collab-consult`). Specialist does **not** join the roster or turn order. |
+| **L2 Join** | Same `@mention` with `--allow-agent-adds` / checkbox enabled | Existing participant-add request → you approve → agent joins (max 3). |
+
+Silent chat **delegation** ([DELEGATION.md](DELEGATION.md)) stays off during collaboration so mid-collab consults use the visible L1 path only.
+
+```mermaid
+flowchart TD
+  Start["/collaborate @Agents goal"] --> Count{Agent count}
+  Count -->|N equals 1| SoloDraft[Solo: one plan draft]
+  Count -->|N 2 to 3| MultiPlan[Multi-agent planning]
+  SoloDraft --> Review[PhaseReviewing]
+  MultiPlan --> Review
+  Review --> Need{Need specialist?}
+  Need -->|L1 no allow-adds| Consult[Visible consult in channel]
+  Need -->|L2 allow-adds| JoinReq[Approve join request]
+```
 
 ## Task dependencies (DAG orchestration)
 
@@ -432,7 +462,7 @@ Desktop updates include:
 
 ## Agent lanes (minimize overlap)
 
-During `/collaborate`, each participant gets **YOUR LANE** and **PEER LANES** in the system prompt: what they own, what to defer, and what to avoid. Planning tasks should have **one primary assignee** per deliverable.
+During `/collaborate`, each participant gets **YOUR LANE** in the system prompt (and **PEER LANES** when N≥2): what they own, what to defer, and what to avoid. Solo sessions assign every task to the single agent. Multi-agent planning tasks should have **one primary assignee** per deliverable.
 
 | Agent (examples) | Owns | Defers to |
 |------------------|------|-----------|

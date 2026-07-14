@@ -465,7 +465,16 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
             {message.from.type}
           </span>
         )}
-        {isCollab && (
+        {isCollab && message.metadata?.event === 'collab-consult' && (
+          <span
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded"
+            style={{ backgroundColor: 'rgba(14, 165, 233, 0.15)', color: '#38bdf8' }}
+            title="Level 1 consult — specialist answered without joining the collaboration"
+          >
+            consult
+          </span>
+        )}
+        {isCollab && message.metadata?.event !== 'collab-consult' && (
           <span
             className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded"
             style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa' }}

@@ -123,6 +123,8 @@ vi.mock('../stores/packsStore', () => {
     fetchPacks: vi.fn().mockResolvedValue(undefined),
     softwareDevelopmentEnabled: () => false,
     softwareDevelopmentPackActive: () => false,
+    ideEnabled: () => false,
+    idePackActive: () => false,
     lifeSciencesEnabled: () => false,
     hasCapability: () => false,
     layoutProfile: 'team' as const,

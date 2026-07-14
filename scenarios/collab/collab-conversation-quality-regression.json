@@ -13,7 +13,7 @@
     "SoftwareArchitect"
   ],
   "workspace": {
-    "fixture": "minimal-repo",
+    "fixture": "findings-scope-repo",
     "workspace_flag": true,
     "outline": true,
     "file_tree": "README.md\ncore/sample/main.go\n"
@@ -26,7 +26,7 @@
       "--messages",
       "3"
     ],
-    "goal": "Use ONLY README.md and core/sample/main.go from the workspace. Do not reference src/theme.css or other paths. Plan one task: - Task 1: @BackendEngineer - Write collabs/<id>/findings.md with three bullets about README.md and core/sample/main.go only."
+    "goal": "Use ONLY README.md and core/sample/main.go from the workspace. Plan one task: - Task 1: @BackendEngineer - Write collabs/<id>/findings.md with three bullets about README.md and core/sample/main.go only."
   },
   "expect_deliverables": [
     {
@@ -43,11 +43,13 @@
           "TASK_STATUS:",
           "index\\.js",
           "utils\\.js",
-          "\\bapp\\.js\\b"
+          "\\bapp\\.js\\b",
+          "theme\\.css",
+          "src/"
         ]
       },
       "llm_judge": {
-        "criteria": "PASS only if findings cite README.md and/or core/sample/main.go from minimal-repo. FAIL if findings cite src/theme.css, index.js, or other hallucinated paths."
+        "criteria": "PASS only if findings cite README.md and/or core/sample/main.go. FAIL if findings cite theme.css, index.js, or other out-of-scope paths."
       }
     }
   ],
@@ -114,16 +116,6 @@
       "timeout": "300s"
     },
     {
-      "action": "send",
-      "content": "@BackendEngineer Complete Task 1: write collabs/<collab-id>/findings.md with three bullets citing README.md and core/sample/main.go only."
-    },
-    {
-      "action": "wait_tasks",
-      "min_completed": 1,
-      "all_match": false,
-      "timeout": "180s"
-    },
-    {
       "action": "approve_file_changes",
       "path_match": "findings.md",
       "target_rel": "collabs/<collab-id>/findings.md",
@@ -146,7 +138,9 @@
         "TASK_STATUS:",
         "index\\.js",
         "utils\\.js",
-        "\\bapp\\.js\\b"
+        "\\bapp\\.js\\b",
+        "theme\\.css",
+        "src/"
       ]
     },
     {

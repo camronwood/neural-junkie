@@ -291,8 +291,8 @@ export function trimWorkspaceContext(
         if (active) files = [active];
       }
     }
-    const devPack = usePacksStore.getState().softwareDevelopmentEnabled();
-    const sel = devPack ? useEditorStore.getState().activeSelection : null;
+    const ideOn = usePacksStore.getState().ideEnabled();
+    const sel = ideOn ? useEditorStore.getState().activeSelection : null;
     const activePath = activeTabPath ?? files.find((t) => t.is_active)?.path;
     base.open_files = files.map((tab) => {
       const row = {
@@ -300,7 +300,7 @@ export function trimWorkspaceContext(
         content: tab.content.substring(0, scope === 'focus' ? 10000 : 10000),
       };
       if (
-        devPack &&
+        ideOn &&
         sel &&
         activePath &&
         tab.path === activePath &&

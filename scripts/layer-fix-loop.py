@@ -245,9 +245,14 @@ def main() -> int:
         os.environ["NJ_REQUIRE_FULL_BOOT"] = "1"
         os.environ.pop("SKIP_BOOT", None)
         os.environ.pop("NJ_BOOT_DONE", None)
-    if layer in ("collab", "collab-core"):
+    if layer == "collab-core":
         os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "1"
         os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "1"
+        os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
+    elif layer == "collab":
+        os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "1"
+        os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "2"
+        os.environ["NJ_REGRESSION_COLLAB_EDGE"] = "1"
     provision_hub_automation_key(ROOT)
     testing_dir = Path(args.log_dir)
     testing_dir.mkdir(parents=True, exist_ok=True)

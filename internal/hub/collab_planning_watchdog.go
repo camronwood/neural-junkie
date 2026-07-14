@@ -127,7 +127,7 @@ func (h *Hub) sendPlanningTurnHandoff(c *collaboration.Collaboration, agentID st
 		return false
 	}
 
-	body := "Collaboration turn handoff: next participant, please continue the plan discussion and refine task assignments."
+	body := collaboration.PlanningTurnHandoffBody
 
 	msg := protocol.NewMessage(
 		protocol.MessageTypeCollabDiscussion,
@@ -142,6 +142,7 @@ func (h *Hub) sendPlanningTurnHandoff(c *collaboration.Collaboration, agentID st
 		msg.Metadata = map[string]interface{}{}
 	}
 	msg.Metadata["collab_internal_event"] = true
+	msg.Metadata["collab_turn_handoff"] = true
 	if c.AttachWorkspaceContext {
 		if ctx := c.SourceWorkspaceContext; len(ctx) > 0 {
 			msg.Metadata["workspace_context"] = ctx
@@ -154,4 +155,27 @@ func (h *Hub) sendPlanningTurnHandoff(c *collaboration.Collaboration, agentID st
 		return false
 	}
 	return true
+}
+
+// dispatchPlanningHandoff sends a planning turn prompt for agentID (live ID remapped).
+// Public entry is Hub.DispatchPlanningHandoff / CollabScheduler.OnPlanningNeedHandoff.
+func (h *Hub) dispatchPlanningHandoff(collabID, agentID string) bool {
+	if h == nil || h.collabManager == nil {
+		return false
+	}
+	collabID = strings.TrimSpace(collabID)
+	agentID = strings.TrimSpace(agentID)
+	if collabID == "" || agentID == "" {
+		return false
+	}
+	for _, c := range h.collabManager.ListActive() {
+		if c == nil || c.ID != collabID {
+			continue
+		}
+		if c.Phase != collaboration.PhasePlanning {
+			return false
+		}
+		return h.sendPlanningTurnHandoff(c, agentID)
+	}
+	return false
 }
