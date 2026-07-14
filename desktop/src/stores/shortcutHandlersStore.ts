@@ -6,7 +6,7 @@ type PartialHandlers = Partial<ShortcutHandlerMap>;
 interface ShortcutHandlersState {
   handlers: PartialHandlers;
   gates: {
-    devPackEnabled: boolean;
+    ideEnabled: boolean;
     ideLayout: boolean;
     codeEditorOpen: boolean;
     showAgentStop: boolean;
@@ -67,7 +67,7 @@ const defaultHandlers: ShortcutHandlerMap = {
 export const useShortcutHandlersStore = create<ShortcutHandlersState>((set) => ({
   handlers: { ...defaultHandlers },
   gates: {
-    devPackEnabled: false,
+    ideEnabled: false,
     ideLayout: false,
     codeEditorOpen: false,
     showAgentStop: false,

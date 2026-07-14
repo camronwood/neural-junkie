@@ -99,11 +99,13 @@ func TestTaskDispatchFileDeliverableNote_researchScopeLimit(t *testing.T) {
 	if !strings.Contains(note, "Scope limit") {
 		t.Fatalf("expected scope limit for 'only' research task, got: %q", note)
 	}
-	if !strings.Contains(note, "App.tsx") {
-		t.Fatalf("expected frontend exclusion in scope limit, got: %q", note)
+	if !strings.Contains(note, "inventory") && !strings.Contains(note, "exclusion/disclaimer") {
+		t.Fatalf("expected positive scope guidance without naming banned paths, got: %q", note)
 	}
-	if !strings.Contains(note, "server/main.go") {
-		t.Fatalf("expected server/main.go exclusion in scope limit, got: %q", note)
+	for _, banned := range []string{"App.tsx", "server/main.go", "React", "src/"} {
+		if strings.Contains(note, banned) {
+			t.Fatalf("scope limit must not plant banned path %q into agent context, got: %q", banned, note)
+		}
 	}
 }
 

@@ -8,7 +8,7 @@
     "SoftwareArchitect"
   ],
   "workspace": {
-    "fixture": "minimal-repo",
+    "fixture": "findings-scope-repo",
     "workspace_flag": true,
     "outline": true,
     "file_tree": "README.md\ncore/sample/main.go\n"
@@ -21,7 +21,7 @@
       "--messages",
       "3"
     ],
-    "goal": "@BackendEngineer @SoftwareArchitect Plan one task using this exact line: - Task 1: @BackendEngineer - Write collabs/<collab-id>/findings.md summarizing README.md and core/sample/main.go only (three substantive bullets; do not mention src/, React, or server/main.go)."
+    "goal": "@BackendEngineer @SoftwareArchitect Plan one task using this exact line: - Task 1: @BackendEngineer - Write collabs/<collab-id>/findings.md summarizing README.md and core/sample/main.go only (three substantive bullets grounded only in those two files)."
   },
   "expect_deliverables": [
     {

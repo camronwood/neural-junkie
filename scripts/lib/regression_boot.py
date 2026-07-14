@@ -131,6 +131,13 @@ def clean_environment(root: Path) -> bool:
         stderr=subprocess.DEVNULL,
         check=False,
     )
+    try:
+        from lib.fixture_baseline import reset_all_fixture_baselines
+
+        reset_all_fixture_baselines(root=root)
+        print(">>> Restored fixture .scenario-baseline seeds")
+    except Exception as exc:  # noqa: BLE001 — boot must continue
+        print(f"WARN: fixture baseline restore failed: {exc}", file=sys.stderr)
     return True
 
 

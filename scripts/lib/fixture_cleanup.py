@@ -15,6 +15,13 @@ SCENARIO_CHANNELS = (
     "implement-scenarios",
 )
 
+# Seeded prior-collab dirs that must survive fixture sweep (see .scenario-baseline).
+PRESERVE_FIXTURE_COLLAB_DIRS = frozenset(
+    {
+        "b222bffe-39e8-4b00-91ca-ee1c555b9592",
+    }
+)
+
 
 def cleanup_fixture_collabs(root: Path, *, dry_run: bool = False) -> list[str]:
     """Remove gitignored runtime dirs under scenarios/fixtures/*/collabs."""
@@ -28,6 +35,8 @@ def cleanup_fixture_collabs(root: Path, *, dry_run: bool = False) -> list[str]:
             continue
         for child in sorted(collabs_dir.iterdir()):
             if not child.is_dir():
+                continue
+            if child.name in PRESERVE_FIXTURE_COLLAB_DIRS:
                 continue
             rel = child.relative_to(root)
             label = str(rel)

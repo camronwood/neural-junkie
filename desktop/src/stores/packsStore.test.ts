@@ -55,26 +55,26 @@ describe('packsStore', () => {
     expect(usePacksStore.getState().hasCapability('model-arena-launcher')).toBe(true);
   });
 
-  it('softwareDevelopmentEnabled falls back to pack row when capability missing', () => {
+  it('ideEnabled falls back to ide pack row when capability missing', () => {
     usePacksStore.setState({
       capabilities: [],
       capabilityRegistry: [],
       shortIdCollisions: [],
       packs: [
         {
-          id: 'software-development',
-          title: 'Software development',
+          id: 'ide',
+          title: 'IDE',
           description: '',
           installed: true,
           enabled: true,
         },
       ],
       catalog: [],
-      layoutOwner: 'software-development',
+      layoutOwner: 'ide',
       layoutProfile: 'ide',
     });
-    expect(usePacksStore.getState().softwareDevelopmentPackActive()).toBe(true);
-    expect(usePacksStore.getState().softwareDevelopmentEnabled()).toBe(true);
+    expect(usePacksStore.getState().idePackActive()).toBe(true);
+    expect(usePacksStore.getState().ideEnabled()).toBe(true);
     expect(usePacksStore.getState().hasCapability('ide-v2')).toBe(false);
   });
 

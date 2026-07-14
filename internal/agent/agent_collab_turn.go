@@ -9,10 +9,12 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-const (
-	collabTurnHandoffRetryDelay = 15 * time.Second
-	collabTurnHandoffMaxRetries = 3
-)
+// PlanningHandoffHub is implemented by the chat hub for planning turn prompts.
+// Optional on HubClient so unit-test stubs need not implement it.
+type PlanningHandoffHub interface {
+	DispatchPlanningHandoff(collabID, agentID string) bool
+	KickPlanningDiscussionWatchdog(collabID string)
+}
 
 func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID string) {
 	if source == nil || a.Collab == nil || !a.Collab.IsActive(collabID) {
@@ -42,95 +44,27 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 		return
 	}
 
-	turnCount := a.Collab.ParticipantTurnCount(collabID, nextAgentID)
-	if a.sendCollaborationTurnHandoff(source, collabID, nextAgentID, collabInfo.Phase) {
-		a.scheduleCollaborationTurnHandoffRetry(source, collabID, nextAgentID, turnCount)
-	}
+	a.requestPlanningTurnHandoff(collabID, nextAgentID)
 }
 
-func (a *Agent) sendCollaborationTurnHandoff(source *protocol.Message, collabID, nextAgentID, phase string) bool {
-	if source == nil || a.Hub == nil || a.Collab == nil {
+func (a *Agent) requestPlanningTurnHandoff(collabID, nextAgentID string) bool {
+	if a.Hub == nil {
 		return false
 	}
-	handoffBody := collaborationTurnHandoffBody(phase)
-	if handoffBody == "" {
-		return false
+	if d, ok := a.Hub.(PlanningHandoffHub); ok {
+		return d.DispatchPlanningHandoff(collabID, nextAgentID)
 	}
-
-	turnMsg := protocol.NewMessage(
-		protocol.MessageTypeCollabDiscussion,
-		source.Channel,
-		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-		handoffBody,
-	)
-	turnMsg.SetCollaborationID(collabID)
-	if phase == "" {
-		phase = source.GetCollaborationPhase()
-	}
-	if phase != "" {
-		turnMsg.SetCollaborationPhase(phase)
-	}
-	turnMsg.Mentions = []string{nextAgentID}
-	if turnMsg.Metadata == nil {
-		turnMsg.Metadata = map[string]interface{}{}
-	}
-	turnMsg.Metadata["collab_internal_event"] = true
-	info := a.Collab.GetCollaboration(collabID, a.Info.ID)
-	if info.AttachWorkspaceContext {
-		if messageHasWorkspaceContext(source) {
-			if raw, ok := source.Metadata["workspace_context"]; ok {
-				if ctx, ok := raw.(map[string]interface{}); ok {
-					inheritWorkspaceContextFromCollaboration(turnMsg, ctx)
-				}
-			}
-		} else {
-			inheritWorkspaceContextFromCollaboration(turnMsg, info.SourceWorkspaceContext)
-		}
-	}
-
-	if err := a.Hub.SendMessage(turnMsg); err != nil {
-		log.Printf("[%s] Warning: failed to send collaboration turn handoff: %v", a.Info.Name, err)
-		return false
-	}
-	return true
+	log.Printf("[%s] Warning: hub missing PlanningHandoffHub; skipping planning handoff", a.Info.Name)
+	return false
 }
 
-func (a *Agent) scheduleCollaborationTurnHandoffRetry(source *protocol.Message, collabID, targetAgentID string, turnCountAtHandoff int) {
-	if source == nil || a.Collab == nil {
+func (a *Agent) kickPlanningTurnWatchdog(collabID string) {
+	if a.Hub == nil || strings.TrimSpace(collabID) == "" {
 		return
 	}
-	channel := source.Channel
-	go func() {
-		for attempt := 1; attempt <= collabTurnHandoffMaxRetries; attempt++ {
-			time.Sleep(collabTurnHandoffRetryDelay)
-			if a.Collab == nil || !a.Collab.IsActive(collabID) {
-				return
-			}
-			if a.Hub != nil && a.Hub.IsChannelHeld(channel) {
-				return
-			}
-			info := a.Collab.GetCollaboration(collabID, a.Info.ID)
-			switch info.Phase {
-			case "reviewing", "approved", "executing", "completed", "cancelled":
-				return
-			}
-			if a.Collab.ParticipantTurnCount(collabID, targetAgentID) > turnCountAtHandoff {
-				return
-			}
-			log.Printf("[%s] Collaboration turn handoff retry %d/%d for agent %s (collab %s)",
-				a.Info.Name, attempt, collabTurnHandoffMaxRetries, targetAgentID, collabID[:8])
-			retrySource := source
-			if retrySource.Channel != channel {
-				if work, err := protocol.CloneMessage(source); err == nil && work != nil {
-					work.Channel = channel
-					retrySource = work
-				}
-			}
-			if !a.sendCollaborationTurnHandoff(retrySource, collabID, targetAgentID, info.Phase) {
-				return
-			}
-		}
-	}()
+	if d, ok := a.Hub.(PlanningHandoffHub); ok {
+		d.KickPlanningDiscussionWatchdog(collabID)
+	}
 }
 
 // SetMessageInterceptor sets an optional message pre-processing hook.
@@ -227,7 +161,7 @@ func recapAssigneeFromMetadata(meta map[string]interface{}) (string, bool) {
 	}
 }
 
-func (a *Agent) collabTaskRateLimitOK(collabID, taskID string) bool {
+func (a *Agent) collabTaskRateLimitOK(collabID, taskID, dispatchToken string) bool {
 	key := collabID
 	if taskID != "" {
 		key = collabID + ":" + taskID
@@ -237,11 +171,19 @@ func (a *Agent) collabTaskRateLimitOK(collabID, taskID string) bool {
 	if a.collabTaskReplyAt == nil {
 		a.collabTaskReplyAt = make(map[string]time.Time)
 	}
+	if a.collabTaskLastDispatchToken == nil {
+		a.collabTaskLastDispatchToken = make(map[string]string)
+	}
+	token := strings.TrimSpace(dispatchToken)
+	if token != "" && a.collabTaskLastDispatchToken[key] != token {
+		// New dispatch token (approve/resume/watchdog redispatch) always wakes the assignee.
+		a.collabTaskLastDispatchToken[key] = token
+		a.collabTaskReplyAt[key] = time.Now()
+		return true
+	}
 	if last, ok := a.collabTaskReplyAt[key]; ok && time.Since(last) < collabTaskMinReplyInterval {
 		return false
 	}
 	a.collabTaskReplyAt[key] = time.Now()
 	return true
 }
-
-// shouldRespond determines if the agent should respond to a message

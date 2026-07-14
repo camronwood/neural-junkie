@@ -21,8 +21,18 @@ func filterCollabCommandSuggestions(msg *protocol.Message, suggestions []protoco
 	}
 
 	taskText := strings.TrimSpace(msg.Content)
-	task := collaboration.CollaborationTask{Title: taskText, Description: taskText}
-	if !collaboration.TaskRequiresFileDeliverable(task) {
+	title, _ := msg.Metadata["task_title"].(string)
+	desc, _ := msg.Metadata["task_description"].(string)
+	if title == "" && desc == "" {
+		title = taskText
+		desc = taskText
+	}
+	policy := collaboration.NewDeliverablePolicy(
+		collaboration.CollaborationTask{Title: title, Description: desc},
+		"",
+		nil,
+	)
+	if !policy.RequiresFile() {
 		return suggestions
 	}
 
@@ -35,7 +45,7 @@ func filterCollabCommandSuggestions(msg *protocol.Message, suggestions []protoco
 		if protocol.LooksLikeStackToolCommand(cmd) {
 			continue
 		}
-		if collaboration.TaskLooksLikeMarkdownDeliverable(task) && !protocol.LooksLikeReadOnlyInspectionCommand(cmd) {
+		if policy.MarkdownOnly() && !protocol.LooksLikeReadOnlyInspectionCommand(cmd) {
 			continue
 		}
 		out = append(out, s)

@@ -109,7 +109,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 60,
     handlerId: 'quickOpen',
-    when: () => getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().ideEnabled,
   },
   {
     id: 'ide.goToSymbol',
@@ -118,7 +118,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 60,
     handlerId: 'goToSymbol',
-    when: () => getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().ideEnabled,
   },
   {
     id: 'ide.fastEdit',
@@ -128,7 +128,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     priority: 55,
     handlerId: 'fastEdit',
     when: () =>
-      getShortcutGates().devPackEnabled &&
+      getShortcutGates().ideEnabled &&
       getShortcutGates().codeEditorOpen &&
       !getShortcutGates().terminalFocused,
   },
@@ -139,7 +139,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 60,
     handlerId: 'focusComposer',
-    when: () => getShortcutGates().devPackEnabled && getShortcutGates().ideLayout,
+    when: () => getShortcutGates().ideEnabled && getShortcutGates().ideLayout,
   },
   {
     id: 'ide.save',
@@ -148,7 +148,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 60,
     handlerId: 'saveActiveTab',
-    when: () => getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().ideEnabled,
   },
   {
     id: 'ide.saveAll',
@@ -157,7 +157,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 60,
     handlerId: 'saveAllTabs',
-    when: () => getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().ideEnabled,
   },
   {
     id: 'ide.closeTab',
@@ -166,7 +166,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 60,
     handlerId: 'closeActiveTab',
-    when: () => getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().ideEnabled,
   },
   {
     id: 'ide.openEditor',
@@ -175,7 +175,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 55,
     handlerId: 'openCodeEditor',
-    when: () => getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().ideEnabled,
   },
   {
     id: 'ide.cycleTabForward',
@@ -184,7 +184,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 58,
     handlerId: 'cycleEditorTabForward',
-    when: () => getShortcutGates().devPackEnabled && getShortcutGates().codeEditorOpen,
+    when: () => getShortcutGates().ideEnabled && getShortcutGates().codeEditorOpen,
   },
   {
     id: 'ide.cycleTabBackward',
@@ -193,7 +193,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 58,
     handlerId: 'cycleEditorTabBackward',
-    when: () => getShortcutGates().devPackEnabled && getShortcutGates().codeEditorOpen,
+    when: () => getShortcutGates().ideEnabled && getShortcutGates().codeEditorOpen,
   },
 
   // Layout / panels
@@ -239,7 +239,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'chat',
     priority: 40,
     handlerId: 'toggleGitPanel',
-    when: () => getShortcutGates().chatConnected && getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().chatConnected && getShortcutGates().ideEnabled,
   },
   {
     id: 'layout.problems',
@@ -248,7 +248,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'chat',
     priority: 40,
     handlerId: 'toggleProblemsPanel',
-    when: () => getShortcutGates().chatConnected && getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().chatConnected && getShortcutGates().ideEnabled,
   },
   {
     id: 'layout.pendingChanges',
@@ -257,7 +257,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'chat',
     priority: 40,
     handlerId: 'togglePendingChanges',
-    when: () => getShortcutGates().chatConnected && getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().chatConnected && getShortcutGates().ideEnabled,
   },
   {
     id: 'layout.myAgents',
@@ -293,7 +293,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'chat',
     priority: 40,
     handlerId: 'toggleIdeLayout',
-    when: () => getShortcutGates().chatConnected && getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().chatConnected && getShortcutGates().ideEnabled,
   },
   {
     id: 'layout.newRunbook',
@@ -358,7 +358,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     scope: 'ide',
     priority: 35,
     handlerId: 'openWorkspaceSwitcher',
-    when: () => getShortcutGates().devPackEnabled,
+    when: () => getShortcutGates().ideEnabled,
   },
 ];
 

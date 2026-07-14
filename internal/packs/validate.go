@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// KnownOverlayKeys are settings_overlay keys applied by the hub for customer packs.
+// KnownOverlayKeys are settings_overlay keys applied by the hub for customer/official packs.
 var KnownOverlayKeys = []string{
 	"secondary_analysis_tools_path",
 	"python_executable",
@@ -28,10 +28,35 @@ var KnownOverlayKeys = []string{
 	"aws_default_region",
 	"aws_profile",
 	"aws_sso_start_url",
+	"aws_allowed_profiles",
+	"aws_allowed_accounts",
+	"aws_read_only",
+	"aws_write_enabled",
+	"aws_write_audit_path",
+	"aws_org_root_id",
+	"aws_dry_run",
+	"aws_venv",
 	"jira_base_url",
 	"jira_email",
 	"jira_api_token",
 	"jira_default_project_key",
+	"biology_artifacts_dir",
+	"biology_fold_backend",
+	"biology_fold_local_url",
+	"biology_blast_db_dir",
+	"biology_rdkit_enabled",
+	"openscad_path",
+	"freecad_path",
+	"cad_artifacts_dir",
+	"cad_sidecar_dry_run",
+	"slicer_profile_dir",
+	"cad_venv",
+	"lora_adapters_dir",
+	"lora_training_workdir",
+	"music_artifacts_dir",
+	"ace_step_url",
+	"room_chat_enabled",
+	"ai_interview_data_dir",
 }
 
 // PackRequirementsContext supplies installed/enabled state for requires_packs checks.

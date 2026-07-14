@@ -6,14 +6,14 @@
   "agents": "@BackendEngineer @SoftwareArchitect",
   "required_agents": ["BackendEngineer", "SoftwareArchitect"],
   "workspace": {
-    "fixture": "minimal-repo",
+    "fixture": "findings-scope-repo",
     "workspace_flag": true,
     "outline": true,
     "file_tree": "README.md\ncore/sample/main.go\n"
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@BackendEngineer @SoftwareArchitect Plan one task using this exact line: - Task 1: @BackendEngineer - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go only (three substantive bullets; do not mention src/, React, or server/main.go)."
+    "goal": "@BackendEngineer @SoftwareArchitect Plan one task using this exact line: - Task 1: @BackendEngineer - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go only (three substantive bullets grounded only in those two files)."
   },
   "expect_deliverables": [
     {
@@ -28,7 +28,11 @@
           "index\\.js",
           "utils\\.js",
           "\\[Insert",
-          "lorem ipsum"
+          "lorem ipsum",
+          "App\\.tsx",
+          "src/",
+          "React",
+          "server/main\\.go"
         ]
       },
       "llm_judge": true

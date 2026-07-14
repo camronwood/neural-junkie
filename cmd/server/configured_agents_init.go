@@ -12,6 +12,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/mcp"
+	"github.com/camronwood/neural-junkie/internal/packs"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -113,6 +114,9 @@ func initializeConfiguredAgents() {
 		}
 
 		agentType := protocol.AgentType(acfg.Type)
+		if builtinType, ok := packs.ParseBuiltinImplementation(acfg.Implementation); ok {
+			agentType = protocol.AgentType(builtinType)
+		}
 		agentObj, err := agent.AgentFactory(agentType, acfg.Name, aiProvider, chatHub)
 		if err != nil {
 			log.Printf("❌ Failed to create agent %s (type=%s): %v", acfg.Name, acfg.Type, err)

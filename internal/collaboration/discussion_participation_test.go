@@ -327,3 +327,27 @@ func TestRecordMessage_generationErrorDoesNotConsumeTurn(t *testing.T) {
 		t.Fatalf("expected both participants still silent for quorum after generation_error, got %v", silent)
 	}
 }
+
+func TestParticipationQuorumMetSolo(t *testing.T) {
+	t.Parallel()
+	solo := "solo-id"
+	d := &DiscussionSession{
+		Participants:      []string{solo},
+		TotalMessageCount: 1,
+		Messages: []*protocol.Message{
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "ch",
+				protocol.AgentInfo{ID: solo, Name: "Gemini"}, "plan ready"),
+		},
+	}
+	if !participationQuorumMet(d) {
+		t.Fatal("expected solo quorum after one real message")
+	}
+}
+
+func TestScaledDiscussionConfigSolo(t *testing.T) {
+	t.Parallel()
+	cfg := ScaledDiscussionConfig(1)
+	if cfg.MaxRounds != 1 || cfg.TurnBudget != 1 || cfg.MaxTotalMessages != 4 {
+		t.Fatalf("unexpected solo caps: %+v", cfg)
+	}
+}

@@ -12,6 +12,9 @@ import (
 type FinalizeOptions struct {
 	// MarkOpenTasksComplete sets pending/in_progress/blocked tasks to completed.
 	MarkOpenTasksComplete bool
+	// SkipSessionRecap finalizes immediately without waiting for a final session recap
+	// (used by /complete-collab --force so close cannot hang on a pending facilitator reply).
+	SkipSessionRecap bool
 }
 
 // HasOpenTasks reports whether any task is not completed.

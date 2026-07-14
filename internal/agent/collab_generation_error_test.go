@@ -10,13 +10,39 @@ import (
 
 type collabErrorCaptureHub struct {
 	shouldRespondTestHub
-	sent []*protocol.Message
+	sent          []*protocol.Message
+	dispatchCalls []string
+	kickCalls     []string
 }
 
 func (h *collabErrorCaptureHub) SendMessage(msg *protocol.Message) error {
 	cp := *msg
 	h.sent = append(h.sent, &cp)
 	return nil
+}
+
+func (h *collabErrorCaptureHub) DispatchPlanningHandoff(collabID, agentID string) bool {
+	h.dispatchCalls = append(h.dispatchCalls, collabID+":"+agentID)
+	body := "Collaboration turn handoff: next participant, please continue the plan discussion and refine task assignments."
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-abc",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		body,
+	)
+	msg.SetCollaborationID(collabID)
+	msg.SetCollaborationPhase("planning")
+	msg.Mentions = []string{agentID}
+	msg.Metadata = map[string]interface{}{
+		"collab_internal_event": true,
+		"collab_turn_handoff":   true,
+	}
+	_ = h.SendMessage(msg)
+	return true
+}
+
+func (h *collabErrorCaptureHub) KickPlanningDiscussionWatchdog(collabID string) {
+	h.kickCalls = append(h.kickCalls, collabID)
 }
 
 func (h *collabErrorCaptureHub) GetChannelType(channel string) protocol.ChannelType {

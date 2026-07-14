@@ -8,6 +8,7 @@ import { useTerminalStore } from '../stores/terminalStore';
 import { useApprovalStore } from '../stores/approvalStore';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useIdeOverlayStore } from '../stores/ideOverlayStore';
 import { adjacentChannel, buildNavigableChannelList } from '../utils/sidebarChannelNav';
 import { panelsForPreset, type LayoutPreset } from '../utils/layoutPresets';
 import type { Settings } from '../stores/settingsStore';
@@ -16,7 +17,7 @@ export interface ChatShortcutHandlerDeps {
   onOpenSettings?: () => void;
   channelSearchRef: RefObject<HTMLInputElement | null>;
   inputRef: RefObject<HTMLTextAreaElement | null>;
-  devPackEnabled: boolean;
+  ideEnabled: boolean;
   ideLayout: boolean;
   codeEditorOpen: boolean;
   showAgentStop: boolean;
@@ -26,13 +27,8 @@ export interface ChatShortcutHandlerDeps {
   setFileExplorerOpen: (fn: (prev: boolean) => boolean) => void;
   setCodeEditorOpen: (fn: (prev: boolean) => boolean) => void;
   setTaskManagementOpen: (fn: (prev: boolean) => boolean) => void;
-  setGitModalOpen: (fn: (prev: boolean) => boolean) => void;
-  setProblemsOpen: (fn: (prev: boolean) => boolean) => void;
   setPendingChangesOpen: (fn: (prev: boolean) => boolean) => void;
   setToolbarSidebarOpen: (fn: (prev: boolean) => boolean) => void;
-  setQuickOpenOpen: (open: boolean) => void;
-  setSymbolModalOpen: (open: boolean) => void;
-  setFastEditOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setModelLibraryOpen: (open: boolean) => void;
   setDomainPacksOpen: (open: boolean) => void;
@@ -83,7 +79,7 @@ export function useChatShortcutHandlers(deps: ChatShortcutHandlerDeps) {
 
   useEffect(() => {
     setGates({
-      devPackEnabled: deps.devPackEnabled,
+      ideEnabled: deps.ideEnabled,
       ideLayout: deps.ideLayout,
       codeEditorOpen: deps.codeEditorOpen,
       showAgentStop: deps.showAgentStop,
@@ -92,7 +88,7 @@ export function useChatShortcutHandlers(deps: ChatShortcutHandlerDeps) {
       chatConnected: true,
     });
   }, [
-    deps.devPackEnabled,
+    deps.ideEnabled,
     deps.ideLayout,
     deps.codeEditorOpen,
     deps.showAgentStop,
@@ -157,8 +153,14 @@ export function useChatShortcutHandlers(deps: ChatShortcutHandlerDeps) {
         });
       },
       toggleTaskManagement: () => d.current.setTaskManagementOpen((o) => !o),
-      toggleGitPanel: () => d.current.setGitModalOpen((o) => !o),
-      toggleProblemsPanel: () => d.current.setProblemsOpen((o) => !o),
+      toggleGitPanel: () => {
+        const s = useIdeOverlayStore.getState();
+        s.setGitModalOpen(!s.gitModalOpen);
+      },
+      toggleProblemsPanel: () => {
+        const s = useIdeOverlayStore.getState();
+        s.setProblemsOpen(!s.problemsOpen);
+      },
       togglePendingChanges: () => d.current.setPendingChangesOpen((o) => !o),
       toggleMyAgents: () => setMyAgentsPanelOpen(!myAgentsPanelOpen),
       toggleChatPanel: () => {
@@ -216,9 +218,9 @@ export function useChatShortcutHandlers(deps: ChatShortcutHandlerDeps) {
         void d.current.updateLayoutSettings({ filesPanelVisible: true });
         requestWorkspaceSwitcher();
       },
-      quickOpen: () => d.current.setQuickOpenOpen(true),
-      goToSymbol: () => d.current.setSymbolModalOpen(true),
-      fastEdit: () => d.current.setFastEditOpen(true),
+      quickOpen: () => useIdeOverlayStore.getState().setQuickOpenOpen(true),
+      goToSymbol: () => useIdeOverlayStore.getState().setSymbolModalOpen(true),
+      fastEdit: () => useIdeOverlayStore.getState().setFastEditOpen(true),
       focusComposer: () => d.current.inputRef.current?.focus(),
       saveActiveTab: async () => {
         const { activeTabId, saveTab } = useEditorStore.getState();

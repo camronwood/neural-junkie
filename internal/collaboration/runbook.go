@@ -108,11 +108,8 @@ func (cm *CollaborationManager) createCollaborationCore(
 			allIDs = append(allIDs, id)
 		}
 	}
-	if len(allIDs) < 1 {
-		return nil, fmt.Errorf("at least 1 agent is required")
-	}
-	if opts.Source != SourceRunbook && len(allIDs) < 2 {
-		return nil, fmt.Errorf("at least 2 agents are required for a collaboration")
+	if len(allIDs) < MinAgentsPerCollaboration {
+		return nil, fmt.Errorf("at least %d agent is required", MinAgentsPerCollaboration)
 	}
 	if len(allIDs) > HardMaxAgentsPerCollaboration {
 		return nil, fmt.Errorf("at most %d agents are allowed per collaboration (got %d)",

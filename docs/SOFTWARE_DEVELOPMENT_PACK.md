@@ -4,16 +4,12 @@ Neural Junkie includes an optional **Software development** domain pack for in-p
 
 ## One pack at a time
 
-Install the pack from **Settings → Domain packs → Pack store**, then enable it. You can run **multiple packs** at once; the **first pack you enable** sets the UI layout (IDE vs team). Enabling another pack adds specialists and tools without changing your layout.
+Install the pack from **Settings → Domain packs → Pack store**, then enable it. You can run **multiple packs** at once. For IDE layout and editor depth, enable the separate **[IDE pack](IDE_PACK.md)**. Enabling another pack adds specialists and tools without changing your layout owner unless you choose one in Settings.
 
 ## What you get
 
 | Piece | Description |
 |-------|-------------|
-| **IDE v1** (dev pack only) | Git modal (status, commit, pull, push), quick open (⌘P), editor selection sent to agents with workspace context |
-| **IDE v2/v2c** (dev pack only) | Git SCM, symbols, Problems, inline hunks, fast edit (⌘K), IDE layout, LSP-lite (Go/Rust/Python), inline completion. See [IDE_V2.md](IDE_V2.md) |
-| **IDE v3** (dev pack only) | Main chat IDE mode (Ask/Agent, @codebase, specialist routing). See [IDE_V3.md](IDE_V3.md) |
-| **IDE v4** (dev pack only) | Full LSP, remote SSH, dev containers. See [IDE_V4.md](IDE_V4.md) |
 | **Qwen 3.5 27B** | `qwen3.5:27b` — shared base for all specialists (pack v2) |
 | **Utility tier** | `qwen3.5:9b` — merged into `models_to_ensure` for background tasks |
 | **BackendEngineer** | APIs, services, integrations, business logic |
@@ -57,7 +53,7 @@ When enabled:
 
 When disabled, pack-owned specialists are stopped; **Moderator**, **Assistant**, and **auto-detected CLI agents** (Cursor, Gemini, Claude, Copilot, Codex) are unchanged.
 
-You can also enable the pack via the **Software development** setup wizard track (`packs.enabled["software-development"]` in `~/.neural-junkie/config.json`).
+You can also enable the pack via the **Developer** setup wizard track (`packs.enabled["software-development"]` in `~/.neural-junkie/config.json`). That track also enables the [IDE pack](IDE_PACK.md).
 
 ## Install models
 
@@ -82,9 +78,11 @@ The **general** wizard track enables Assistant + utility Ollama model with **bot
 
 ## Upgrade from older configs
 
-On first load after upgrading, if any legacy specialist (`backend`, `frontend`, etc.) was enabled in `config.json`, the hub auto-enables the software-development pack so existing dev setups keep working.
+On first load after upgrading, if any legacy specialist (`backend`, `frontend`, etc.) was enabled in `config.json`, the hub auto-enables the software-development pack so existing dev setups keep working. If software-development was enabled, the hub also installs and enables the **IDE** pack (IDE capabilities moved out of this pack).
 
 ## See also
+
+- [IDE_PACK.md](IDE_PACK.md) — IDE layout, Git, LSP, composer (separate pack)
 
 - Pack workspace guide (installed pack): `assets/WORKSPACE.md` in [neural-junkie-pack-software-development](https://github.com/camronwood/neural-junkie-pack-software-development)
 - [BIOLOGY_PACK.md](BIOLOGY_PACK.md) — Life sciences pack

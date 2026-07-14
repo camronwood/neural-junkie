@@ -11,9 +11,11 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib.regression_collab import (  # noqa: E402
     COLLAB_CORE_KEEP_AGENTS,
+    COLLAB_EDGE_KEEP_AGENTS,
     apply_core_scenario_defaults,
     is_collab_core_scenario,
     resolve_preflight_roster,
+    slim_roster_keep_agents,
 )
 
 
@@ -26,7 +28,9 @@ class TestRegressionCollab(unittest.TestCase):
         import os
 
         prev = os.environ.get("NJ_REGRESSION_SLIM_ROSTER")
+        prev_edge = os.environ.get("NJ_REGRESSION_COLLAB_EDGE")
         os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "1"
+        os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
         try:
             roster = resolve_preflight_roster()
             self.assertEqual(roster, list(COLLAB_CORE_KEEP_AGENTS))
@@ -35,6 +39,27 @@ class TestRegressionCollab(unittest.TestCase):
                 os.environ.pop("NJ_REGRESSION_SLIM_ROSTER", None)
             else:
                 os.environ["NJ_REGRESSION_SLIM_ROSTER"] = prev
+            if prev_edge is None:
+                os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
+            else:
+                os.environ["NJ_REGRESSION_COLLAB_EDGE"] = prev_edge
+
+    def test_slim_roster_keep_agents_edge(self) -> None:
+        import os
+
+        prev = os.environ.get("NJ_REGRESSION_COLLAB_EDGE")
+        os.environ["NJ_REGRESSION_COLLAB_EDGE"] = "1"
+        try:
+            roster = slim_roster_keep_agents()
+            self.assertEqual(roster, list(COLLAB_EDGE_KEEP_AGENTS))
+            self.assertIn("PlatformEngineer", roster)
+            self.assertIn("FrontendEngineer", roster)
+            self.assertIn("SecurityReviewer", roster)
+        finally:
+            if prev is None:
+                os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
+            else:
+                os.environ["NJ_REGRESSION_COLLAB_EDGE"] = prev
 
     def test_resolve_preflight_roster_default(self) -> None:
         import os

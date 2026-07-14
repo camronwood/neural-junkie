@@ -10,6 +10,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/delegation"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
@@ -57,10 +58,12 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		// Resolve mentions and check for unresolved ones
 		resolvedMentions := make(map[string]bool) // track which mentions were resolved
 		agentIDs := h.ResolveMentionsWithValidation(mentionStrings, resolvedMentions, msg.Channel)
-		msg.Mentions = agentIDs
-		h.EnsureRoomMentionedAgents(msg.Channel, agentIDs)
+		wakeIDs, consultIDs := h.partitionCollabMentionTargets(msg, agentIDs)
+		msg.Mentions = wakeIDs
+		h.EnsureRoomMentionedAgents(msg.Channel, wakeIDs)
 
 		h.maybeRequestCollaborationParticipants(msg, agentIDs)
+		h.maybeCollabConsult(msg, consultIDs)
 
 		// Send system messages for unresolved mentions (user-authored mentions only).
 		if allowMentionValidationErrors && !isDMInbound {
@@ -316,6 +319,165 @@ func (h *Hub) maybeRequestCollaborationParticipants(msg *protocol.Message, menti
 	}
 }
 
+const maxCollabConsultsPerMessage = 2
+
+// partitionCollabMentionTargets splits mentions into wake (participants / L2 path) vs L1 consult targets.
+// When allow-agent-adds is off, non-participants are consult-only and must not be woken via channel mention.
+func (h *Hub) partitionCollabMentionTargets(msg *protocol.Message, mentionedAgentIDs []string) (wakeIDs, consultIDs []string) {
+	if msg == nil || h.collabManager == nil || len(mentionedAgentIDs) == 0 {
+		return mentionedAgentIDs, nil
+	}
+	collabID := msg.GetCollaborationID()
+	if collabID == "" {
+		return mentionedAgentIDs, nil
+	}
+	snapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || snapshot == nil {
+		return mentionedAgentIDs, nil
+	}
+	switch snapshot.Phase {
+	case collaboration.PhasePlanning, collaboration.PhaseReviewing, collaboration.PhaseExecuting, collaboration.PhaseApproved:
+	default:
+		return mentionedAgentIDs, nil
+	}
+	if !h.collabManager.IsParticipant(collabID, msg.From.ID) {
+		return mentionedAgentIDs, nil
+	}
+	if snapshot.AllowAgentParticipantRequests {
+		// L2: keep mentions for join-request path; participants still wake normally.
+		return mentionedAgentIDs, nil
+	}
+	wakeIDs = make([]string, 0, len(mentionedAgentIDs))
+	consultIDs = make([]string, 0)
+	for _, agentID := range mentionedAgentIDs {
+		if agentID == "" {
+			continue
+		}
+		if h.collabManager.IsParticipant(collabID, agentID) {
+			wakeIDs = append(wakeIDs, agentID)
+			continue
+		}
+		consultIDs = append(consultIDs, agentID)
+	}
+	return wakeIDs, consultIDs
+}
+
+// maybeCollabConsult posts visible L1 consult answers for non-participants when expansion is disabled.
+func (h *Hub) maybeCollabConsult(msg *protocol.Message, consultAgentIDs []string) {
+	if msg == nil || h.collabManager == nil || h.commandHandler == nil || msg.IsFromSystem() {
+		return
+	}
+	if len(consultAgentIDs) == 0 {
+		return
+	}
+	collabID := msg.GetCollaborationID()
+	if collabID == "" {
+		return
+	}
+	snapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || snapshot == nil {
+		return
+	}
+	switch snapshot.Phase {
+	case collaboration.PhasePlanning, collaboration.PhaseReviewing, collaboration.PhaseExecuting, collaboration.PhaseApproved:
+	default:
+		return
+	}
+	if snapshot.AllowAgentParticipantRequests {
+		return
+	}
+	if !h.collabManager.IsParticipant(collabID, msg.From.ID) {
+		return
+	}
+
+	ctx := context.Background()
+	seen := make(map[string]bool)
+	n := 0
+	for _, agentID := range consultAgentIDs {
+		if agentID == "" || seen[agentID] || h.collabManager.IsParticipant(collabID, agentID) {
+			continue
+		}
+		seen[agentID] = true
+		if n >= maxCollabConsultsPerMessage {
+			break
+		}
+		info, err := h.GetAgent(agentID)
+		if err != nil || info == nil {
+			log.Printf("[Collaboration] L1 consult target %s not found: %v", agentID, err)
+			continue
+		}
+		banner := protocol.NewMessage(
+			protocol.MessageTypeCollabStatus,
+			msg.Channel,
+			protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+			fmt.Sprintf("🔎 Consulting @%s (ask only — not joining the collaboration)…", info.Name),
+		)
+		banner.SetCollaborationID(collabID)
+		banner.SetCollaborationPhase(string(snapshot.Phase))
+		if banner.Metadata == nil {
+			banner.Metadata = map[string]interface{}{}
+		}
+		banner.Metadata["collab_internal_event"] = true
+		banner.Metadata["event"] = "collab-consult-start"
+		banner.Metadata["consulted_agent_id"] = info.ID
+		banner.Metadata["consulted_agent_name"] = info.Name
+		banner.Metadata["consulted_by_id"] = msg.From.ID
+		banner.Metadata["consulted_by_name"] = msg.From.Name
+		_ = h.SendMessage(banner)
+
+		res, err := h.commandHandler.CollabVisibleConsult(ctx, delegation.ConsultRequest{
+			FromID:      msg.From.ID,
+			FromName:    msg.From.Name,
+			ToID:        info.ID,
+			SubQuestion: msg.Content,
+			Channel:     msg.Channel,
+			Depth:       0,
+		})
+		answer := strings.TrimSpace(res.Text)
+		if err != nil || answer == "" {
+			fail := protocol.NewMessage(
+				protocol.MessageTypeCollabStatus,
+				msg.Channel,
+				protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+				fmt.Sprintf("⚠️ Consult to @%s failed: %v", info.Name, err),
+			)
+			fail.SetCollaborationID(collabID)
+			fail.SetCollaborationPhase(string(snapshot.Phase))
+			if fail.Metadata == nil {
+				fail.Metadata = map[string]interface{}{}
+			}
+			fail.Metadata["collab_internal_event"] = true
+			fail.Metadata["event"] = "collab-consult-error"
+			_ = h.SendMessage(fail)
+			continue
+		}
+		reply := protocol.NewMessage(
+			protocol.MessageTypeAnswer,
+			msg.Channel,
+			*info,
+			answer,
+		)
+		reply.SetCollaborationID(collabID)
+		reply.SetCollaborationPhase(string(snapshot.Phase))
+		if reply.Metadata == nil {
+			reply.Metadata = map[string]interface{}{}
+		}
+		reply.Metadata["collab_internal_event"] = true
+		reply.Metadata["event"] = "collab-consult"
+		reply.Metadata["collab_consult"] = true
+		reply.Metadata["consulted_by_id"] = msg.From.ID
+		reply.Metadata["consulted_by_name"] = msg.From.Name
+		if res.Intent != "" {
+			reply.Metadata["consult_intent"] = string(res.Intent)
+		}
+		if err := h.SendMessage(reply); err != nil {
+			log.Printf("[Collaboration] Failed to post L1 consult from %s: %v", info.Name, err)
+			continue
+		}
+		n++
+	}
+}
+
 func (h *Hub) sendParticipantAddRequestNotice(channel, collabID, phase string, req collaboration.ParticipantAddRequest) {
 	notice := protocol.NewMessage(
 		protocol.MessageTypeCollabStatus,
@@ -419,6 +581,7 @@ func (h *Hub) processCollaborationLifecycle(msg *protocol.Message) {
 	h.maybeIngestPlanArtifact(msg, collabID)
 	h.maybeSyncTaskStatusFromPlanHandoff(msg, collabID)
 	h.maybeUpdateTaskStatus(msg, collabID)
+	NewCollabScheduler(h).OnGenerationError(collabID, msg)
 }
 
 func (h *Hub) maybeIngestPlanArtifact(msg *protocol.Message, collabID string) {
@@ -509,6 +672,13 @@ func (h *Hub) maybeIngestPlanArtifact(msg *protocol.Message, collabID string) {
 		log.Printf("[Collaboration] Failed to broadcast plan update message: %v", err)
 	}
 	h.persistCollaborationReviewAssets(collabID)
+
+	// Solo collab: short-circuit planning → reviewing after the first valid plan ingest.
+	if updated != nil && updated.IsSolo() {
+		if _, err := h.collabManager.TransitionToReviewing(collabID); err != nil {
+			log.Printf("[Collaboration] Solo short-circuit to reviewing for %s: %v", collabID[:8], err)
+		}
+	}
 }
 
 func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
@@ -517,6 +687,12 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 	// pending and broadcasts duplicate collab_status noise.
 	if msg.Type == protocol.MessageTypeCollabTask {
 		return
+	}
+	if msg.Metadata != nil {
+		if ge, ok := msg.Metadata["generation_error"].(bool); ok && ge {
+			// Failed turns are healed by maybeRedispatchAfterCollabGenerationError.
+			return
+		}
 	}
 
 	taskID := msg.GetTaskID()
@@ -671,6 +847,60 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 		if fresh, err := h.collabManager.GetCollaborationSnapshot(collabID); err == nil && fresh != nil && fresh.Phase == collaboration.PhaseExecuting {
 			h.dispatchReadyCollabTasks(fresh, msg, false)
 		}
+	}
+}
+
+// maybeRedispatchAfterCollabGenerationError returns a failed assignee turn to the
+// ready-pending pool and re-sends the task prompt when the agent is free.
+func (h *Hub) maybeRedispatchAfterCollabGenerationError(msg *protocol.Message, collabID string) {
+	if h == nil || h.collabManager == nil || msg == nil || msg.Metadata == nil {
+		return
+	}
+	ge, _ := msg.Metadata["generation_error"].(bool)
+	if !ge {
+		return
+	}
+	taskID := strings.TrimSpace(msg.GetTaskID())
+	if taskID == "" {
+		return
+	}
+	snap, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || snap == nil || snap.Phase != collaboration.PhaseExecuting {
+		return
+	}
+	var task *collaboration.CollaborationTask
+	for i := range snap.Tasks {
+		if snap.Tasks[i].ID == taskID {
+			task = &snap.Tasks[i]
+			break
+		}
+	}
+	if task == nil {
+		return
+	}
+	switch task.Status {
+	case collaboration.TaskPending, collaboration.TaskInProgress, collaboration.TaskBlocked:
+	default:
+		return
+	}
+	if err := h.collabManager.ClearTaskPromptDispatched(collabID, taskID); err != nil {
+		log.Printf("[Collaboration] ClearTaskPromptDispatched after generation_error: %v", err)
+		return
+	}
+	if h.isAssigneeBusy(task.AssignedTo) {
+		return
+	}
+	fresh, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || fresh == nil || !h.CollaborationCanDispatchTasks(fresh) {
+		return
+	}
+	filter := func(t collaboration.CollaborationTask) bool { return t.ID == taskID }
+	if n := h.dispatchCollabTaskMessagesFilter(fresh, nil, filter, true); n > 0 {
+		short := taskID
+		if len(short) > 8 {
+			short = short[:8]
+		}
+		log.Printf("[Collaboration] Redispatched task %s after generation_error for %s", short, collabID[:8])
 	}
 }
 
@@ -1173,14 +1403,17 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		if taskMsg.Metadata == nil {
 			taskMsg.Metadata = map[string]interface{}{}
 		}
+		policy := collaboration.NewDeliverablePolicy(task, snap.Description, contextPaths)
+		taskMsg.Metadata["task_title"] = strings.TrimSpace(task.Title)
+		taskMsg.Metadata["task_description"] = strings.TrimSpace(task.Description)
+		taskMsg.Metadata["deliverable_kind"] = policy.Kind()
 		if len(contextPaths) > 0 {
 			taskMsg.Metadata["task_context_paths"] = contextPaths
 			taskMsg.Metadata["context_scope"] = "focus"
 		} else if strings.TrimSpace(snap.SourceRepoPath) != "" {
 			taskMsg.Metadata["context_scope"] = "hint"
 		}
-		if len(contextPaths) > 0 && strings.TrimSpace(snap.SourceRepoPath) != "" &&
-			collaboration.TaskRequiresFileDeliverable(task) {
+		if len(contextPaths) > 0 && strings.TrimSpace(snap.SourceRepoPath) != "" && policy.RequiresFile() {
 			mergeTaskContextFilesIntoMessage(taskMsg, snap.SourceRepoPath, contextPaths)
 		}
 		applyCollabTaskRoutingMetadata(task, taskMsg)
@@ -1191,7 +1424,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		taskMsg.Metadata["execution_timeout_seconds"] = timeoutSec
 		dispatchToken := uuid.New().String()
 		taskMsg.Metadata[protocol.MetadataDispatchToken] = dispatchToken
-		if collaboration.TaskRequiresFileDeliverable(task) {
+		if policy.RequiresImplementationSession() {
 			taskMsg.Metadata[protocol.IdeMetaImplementationSession] = true
 		}
 		if rules := h.collabUserRulesMarkdown(snap, inheritFrom); rules != "" {

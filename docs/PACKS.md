@@ -34,6 +34,7 @@ Dev-linked and custom packs are excluded from automatic update prompts.
 
 | Pack ID | Repo |
 |---------|------|
+| `ide` | `camronwood/neural-junkie-pack-ide` |
 | `software-development` | `camronwood/neural-junkie-pack-software-development` |
 | `life-sciences` | `camronwood/neural-junkie-pack-life-sciences` |
 | `cad` | `camronwood/neural-junkie-pack-cad` |

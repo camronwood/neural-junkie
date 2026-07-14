@@ -989,7 +989,7 @@ func isResearchDocumentationDeliverable(content string) bool {
 		return false
 	}
 	task := collaboration.CollaborationTask{Title: content, Description: content}
-	if !collaboration.TaskLooksLikeMarkdownDeliverable(task) {
+	if !collaboration.NewDeliverablePolicy(task, "", nil).MarkdownOnly() {
 		return false
 	}
 	lower := strings.ToLower(content)

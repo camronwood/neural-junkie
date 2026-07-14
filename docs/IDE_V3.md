@@ -2,7 +2,7 @@
 
 **Status:** General availability in v1.1 — Ask/Agent routing, @codebase, and IDE layout are supported for daily use. **IDE v4** (full LSP, remote SSH, dev containers) shipped in v1.2 — see [IDE_V4.md](IDE_V4.md).
 
-IDE v3 routes **software-development** work through the **main channel chat** when using the **IDE layout preset** — no separate editor agent panel. Requires the **Software development** pack (see [IDE_V2.md](IDE_V2.md) for symbols, LSP, inline completion).
+IDE v3 routes coding work through the **main channel chat** when using the **IDE layout preset** — no separate editor agent panel. Requires the **[IDE pack](IDE_PACK.md)** (see [IDE_V2.md](IDE_V2.md) for symbols, LSP, inline completion). Engineering specialists come from the optional [Software development pack](SOFTWARE_DEVELOPMENT_PACK.md).
 
 ## Layout modes
 

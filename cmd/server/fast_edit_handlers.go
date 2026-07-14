@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,7 +18,7 @@ func handleDevFastEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	var req struct {
@@ -49,15 +47,11 @@ func handleDevFastEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "No in-process specialist available; enable Software development pack", http.StatusBadRequest)
 		return
 	}
+	channel := "dev-fast-edit"
 	relPath := strings.TrimSpace(req.Path)
-	content := ""
-	if relPath != "" {
-		full := filepath.Join(ws.Path, filepath.FromSlash(strings.TrimPrefix(relPath, "/")))
-		b, err := os.ReadFile(full)
-		if err == nil {
-			content = string(b)
-		}
-	}
+	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
+	defer cancel()
+	content := readWorkspaceRelFile(ctx, ws.ID, relPath)
 	prompt := req.Instruction
 	if req.Selection != "" {
 		prompt += "\n\nSelected code:\n```\n" + req.Selection + "\n```"
@@ -66,7 +60,7 @@ func handleDevFastEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	prompt += "\n\nUse search_replace or apply_patch for edits (preferred). Use propose_file_edit for new files. Emit [FILE_CHANGE] only if tools fail."
 
-	msg := protocol.NewMessage(protocol.MessageTypeChat, "dev-fast-edit", protocol.AgentInfo{
+	msg := protocol.NewMessage(protocol.MessageTypeChat, channel, protocol.AgentInfo{
 		ID: "human", Name: "Developer", Type: "human",
 	}, prompt)
 	if req.Metadata != nil {
@@ -83,23 +77,20 @@ func handleDevFastEdit(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
-	defer cancel()
-	cleaned, proposed, err := agent.RunFastEdit(ctx, ag, "dev-fast-edit", msg)
+	cleaned, proposed, err := agent.RunFastEdit(ctx, ag, channel, msg)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	out := map[string]interface{}{
-		"response":  cleaned,
-		"proposed":  proposed,
-		"agent":     info.Name,
+		"response":   cleaned,
+		"proposed":   proposed,
+		"agent":      info.Name,
 		"agent_type": info.Type,
 	}
 	if proposed {
-		pending := chatHub.GetFileChangeManager().ListPendingFileChanges("default")
-		if len(pending) > 0 {
-			out["change_id"] = pending[len(pending)-1].ID
+		if cid := latestPendingChangeIDForChannel(channel); cid != "" {
+			out["change_id"] = cid
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")

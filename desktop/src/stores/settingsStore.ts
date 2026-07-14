@@ -4,7 +4,7 @@ import { ChatAPI } from '../api/chatAPI';
 
 export type FontSizeScope = 'messages' | 'input' | 'global';
 
-export type ColorTheme = 'slack' | 'flat' | 'roving' | 'brand';
+export type ColorTheme = 'slack' | 'flat' | 'roving' | 'brand' | 'retro';
 
 export interface Settings {
   fontSize: number;

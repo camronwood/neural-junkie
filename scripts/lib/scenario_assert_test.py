@@ -103,6 +103,74 @@ class DeliverableAssertTest(unittest.TestCase):
         self.assertEqual(merged.get("contains"), "HelloWorld")
         self.assertEqual(merged["for_question"]["contains_all"], ["HelloWorld"])
 
+    def test_check_file_deliverable_judge_fail_is_advisory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "findings.md"
+            path.write_text("# Findings\n- README.md is minimal\n", encoding="utf-8")
+            with mock.patch(
+                "scenario_assert.judge_deliverable",
+                return_value=(False, "ollama/qwen: not substantive"),
+            ):
+                ok, detail = check_file_deliverable(
+                    root=tmp,
+                    rel="findings.md",
+                    spec={"llm_judge": True, "min_bytes": 10},
+                    question="summarize README",
+                )
+            self.assertTrue(ok)
+            self.assertTrue(detail.startswith("judge:warn:"), detail)
+
+    def test_check_file_deliverable_judge_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "findings.md"
+            path.write_text("# Findings\n- README.md is minimal\n", encoding="utf-8")
+            with mock.patch(
+                "scenario_assert.judge_deliverable",
+                return_value=(True, "ollama/qwen: looks good"),
+            ):
+                ok, detail = check_file_deliverable(
+                    root=tmp,
+                    rel="findings.md",
+                    spec={"llm_judge": True, "min_bytes": 10},
+                    question="summarize README",
+                )
+            self.assertTrue(ok)
+            self.assertTrue(detail.startswith("judge:pass:"), detail)
+
+    def test_check_file_deliverable_judge_exception_is_advisory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "findings.md"
+            path.write_text("# Findings\n- README.md is minimal\n", encoding="utf-8")
+            with mock.patch(
+                "scenario_assert.judge_deliverable",
+                side_effect=RuntimeError("ollama down"),
+            ):
+                ok, detail = check_file_deliverable(
+                    root=tmp,
+                    rel="findings.md",
+                    spec={"llm_judge": True, "min_bytes": 10},
+                    question="summarize README",
+                )
+            self.assertTrue(ok)
+            self.assertTrue(detail.startswith("judge:warn:exception:"), detail)
+
+    def test_check_file_deliverable_regex_still_hard_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "findings.md"
+            path.write_text("# Findings\n- wrong stuff only\n", encoding="utf-8")
+            ok, detail = check_file_deliverable(
+                root=tmp,
+                rel="findings.md",
+                spec={
+                    "llm_judge": True,
+                    "min_bytes": 10,
+                    "for_question": {"any_match": ["README\\.md"]},
+                },
+                question="summarize README",
+            )
+            self.assertFalse(ok)
+            self.assertNotIn("judge:", detail)
+
     def test_expand_deliverable_steps_skips_duplicates(self) -> None:
         scenario = {
             "expect_deliverables": [{"path": "a.txt"}, {"path": "b.txt"}],

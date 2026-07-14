@@ -349,7 +349,7 @@ export function ModelsPerformanceSettingsTab({ hubHttp, isActive }: SettingsTabP
     <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
       <div className="flex-1">
         <div className="font-medium text-slack-text">Inline completion (ghost text)</div>
-        <div className="text-sm text-slack-textMuted">Ollama FIM via hub when Software development pack is on</div>
+        <div className="text-sm text-slack-textMuted">Ollama FIM via hub when IDE pack is on</div>
       </div>
       <label className="relative inline-flex items-center cursor-pointer">
         <input

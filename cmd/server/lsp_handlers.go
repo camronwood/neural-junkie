@@ -14,7 +14,7 @@ func handleLSPDiagnostics(w http.ResponseWriter, r *http.Request, lang string) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	wsID := strings.TrimSpace(r.URL.Query().Get("workspace"))

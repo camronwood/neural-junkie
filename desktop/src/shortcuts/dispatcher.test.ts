@@ -6,7 +6,7 @@ describe('dispatchShortcut', () => {
   beforeEach(() => {
     useShortcutHandlersStore.setState({
       gates: {
-        devPackEnabled: true,
+        ideEnabled: true,
         ideLayout: true,
         codeEditorOpen: true,
         showAgentStop: false,
@@ -26,7 +26,7 @@ describe('dispatchShortcut', () => {
     useShortcutHandlersStore.getState().setGates({
       terminalFocused: true,
       codeEditorOpen: true,
-      devPackEnabled: true,
+      ideEnabled: true,
     });
 
     vi.stubGlobal('navigator', { platform: 'MacIntel' });

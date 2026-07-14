@@ -48,8 +48,8 @@ export interface ChatToolbarActionsProps {
   onNewRunbook: () => void;
   onOpenMyAgents: () => void;
   totalAgentsCount: number;
-  devPackEnabled: boolean;
-  /** When false, IDE layout toggle is hidden (Software development pack off). */
+  ideEnabled: boolean;
+  /** When false, IDE layout toggle is hidden (IDE pack off). */
   ideLayoutAvailable: boolean;
   onOpenProblems: () => void;
   gitModalOpen: boolean;
@@ -96,7 +96,7 @@ export function ChatToolbarActions({
   onNewRunbook,
   onOpenMyAgents,
   totalAgentsCount,
-  devPackEnabled,
+  ideEnabled,
   ideLayoutAvailable,
   onOpenProblems,
   gitModalOpen,
@@ -304,7 +304,7 @@ export function ChatToolbarActions({
       <ToolbarDivider layout={layout} />
 
       <div className={groupClass} aria-label="Developer tools">
-        {devPackEnabled && (
+        {ideEnabled && (
           <button
             type="button"
             onClick={onOpenProblems}
@@ -316,7 +316,7 @@ export function ChatToolbarActions({
           </button>
         )}
 
-        {devPackEnabled && (
+        {ideEnabled && (
           <button
             type="button"
             onClick={onToggleGitModal}

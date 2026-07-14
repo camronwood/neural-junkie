@@ -6,12 +6,24 @@ import os
 
 from lib import collab_hub as hub
 from lib.collab_core_scenarios import collab_core_scenarios
+from lib.collab_edge_scenarios import collab_edge_scenarios
 
 # Agents required by collab-core scenarios (keep unpaused during core gates).
 COLLAB_CORE_KEEP_AGENTS: tuple[str, ...] = (
     "SoftwareArchitect",
     "BackendEngineer",
     "Claude",
+)
+
+# Agents required by make collab-scenario-regression / layer-gate LAYER=collab.
+# Slim roster still pauses everyone else to reduce Ollama contention.
+COLLAB_EDGE_KEEP_AGENTS: tuple[str, ...] = (
+    "SoftwareArchitect",
+    "BackendEngineer",
+    "Claude",
+    "PlatformEngineer",
+    "FrontendEngineer",
+    "SecurityReviewer",
 )
 
 CORE_WAIT_DISCUSSION_DEFAULTS: dict[str, object] = {
@@ -140,6 +152,26 @@ def switch_claude_to_ollama(hub_url: str, model: str) -> tuple[bool, str]:
     return True, f"Claude → ollama ({tag})"
 
 
+def slim_roster_keep_agents() -> list[str]:
+    """Agents to leave online when NJ_REGRESSION_SLIM_ROSTER is enabled."""
+    if _env_truthy("NJ_REGRESSION_COLLAB_EDGE"):
+        keep = list(COLLAB_EDGE_KEEP_AGENTS)
+    else:
+        keep = list(COLLAB_CORE_KEEP_AGENTS)
+    extra = os.environ.get("NJ_REGRESSION_KEEP_AGENTS", "").strip()
+    if extra:
+        keep.extend(n.strip() for n in extra.split(",") if n.strip())
+    # Preserve order; drop dupes.
+    seen: set[str] = set()
+    out: list[str] = []
+    for name in keep:
+        if name in seen:
+            continue
+        seen.add(name)
+        out.append(name)
+    return out
+
+
 def apply_collab_regression_tuning(hub_url: str) -> tuple[bool, str]:
     """Apply slim roster + Claude routing when regression collab env flags are set."""
     parts: list[str] = []
@@ -160,10 +192,7 @@ def apply_collab_regression_tuning(hub_url: str) -> tuple[bool, str]:
             return False, detail
         parts.append(detail)
     if _env_truthy("NJ_REGRESSION_SLIM_ROSTER"):
-        keep = list(COLLAB_CORE_KEEP_AGENTS)
-        extra = os.environ.get("NJ_REGRESSION_KEEP_AGENTS", "").strip()
-        if extra:
-            keep.extend(n.strip() for n in extra.split(",") if n.strip())
+        keep = slim_roster_keep_agents()
         ok, detail = unpause_keep_agents(hub_url, keep)
         if not ok:
             return False, detail
@@ -184,11 +213,7 @@ def collab_core_keep_agents() -> list[str]:
 def resolve_preflight_roster() -> list[str]:
     """Agents that must be online before collab sweeps (slim roster when enabled)."""
     if _env_truthy("NJ_REGRESSION_SLIM_ROSTER"):
-        keep = list(COLLAB_CORE_KEEP_AGENTS)
-        extra = os.environ.get("NJ_REGRESSION_KEEP_AGENTS", "").strip()
-        if extra:
-            keep.extend(n.strip() for n in extra.split(",") if n.strip())
-        return keep
+        return slim_roster_keep_agents()
     return [
         "BackendEngineer",
         "SoftwareArchitect",
@@ -200,3 +225,7 @@ def resolve_preflight_roster() -> list[str]:
 
 def is_collab_core_scenario(name: str) -> bool:
     return name in collab_core_scenarios()
+
+
+def is_collab_edge_scenario(name: str) -> bool:
+    return name in collab_edge_scenarios()

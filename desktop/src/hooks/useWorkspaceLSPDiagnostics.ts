@@ -50,10 +50,11 @@ export function useWorkspaceLSPDiagnostics(
   monaco: typeof Monaco | null,
   workspaceId: string | undefined,
   tabPath: string | undefined,
-  language: string | undefined
+  language: string | undefined,
+  enabled = true
 ) {
   useEffect(() => {
-    if (!workspaceId || !tabPath) return;
+    if (!enabled || !workspaceId || !tabPath) return;
     const lang = (language || '').toLowerCase();
     const ext = tabPath.split('.').pop()?.toLowerCase();
     let lspLang: 'go' | 'rust' | 'python' | null = null;
@@ -109,5 +110,5 @@ export function useWorkspaceLSPDiagnostics(
     return () => {
       cancelled = true;
     };
-  }, [editor, monaco, workspaceId, tabPath, language]);
+  }, [editor, monaco, workspaceId, tabPath, language, enabled]);
 }

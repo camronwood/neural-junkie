@@ -1,25 +1,17 @@
+import { shallow } from 'zustand/shallow';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
+import { useIdeOverlayStore } from '../stores/ideOverlayStore';
 
 export interface ChatShortcutOverlayState {
   commandPaletteOpen: boolean;
   onCloseCommandPalette: () => void;
-  quickOpenOpen: boolean;
-  devPackEnabled: boolean;
-  onCloseQuickOpen: () => void;
-  symbolModalOpen: boolean;
-  onCloseSymbol: () => void;
-  fastEditOpen: boolean;
-  onCloseFastEdit: () => void;
+  ideEnabled: boolean;
   createChannelOpen: boolean;
   onCloseCreateChannel: () => void;
   createNewDmOpen: boolean;
   onCloseCreateNewDm: () => void;
   channelInfoModal: unknown;
   onCloseChannelInfo: () => void;
-  gitModalOpen: boolean;
-  onCloseGit: () => void;
-  problemsOpen: boolean;
-  onCloseProblems: () => void;
   phoenixModalOpen: boolean;
   onClosePhoenix: () => void;
   learningProposalOpen: boolean;
@@ -33,34 +25,61 @@ export interface ChatShortcutOverlayState {
 }
 
 export function useChatShortcutOverlays(state: ChatShortcutOverlayState) {
+  const {
+    quickOpenOpen,
+    symbolModalOpen,
+    fastEditOpen,
+    gitModalOpen,
+    problemsOpen,
+    setQuickOpenOpen,
+    setSymbolModalOpen,
+    setFastEditOpen,
+    setGitModalOpen,
+    setProblemsOpen,
+  } = useIdeOverlayStore(
+    (s) => ({
+      quickOpenOpen: s.quickOpenOpen,
+      symbolModalOpen: s.symbolModalOpen,
+      fastEditOpen: s.fastEditOpen,
+      gitModalOpen: s.gitModalOpen,
+      problemsOpen: s.problemsOpen,
+      setQuickOpenOpen: s.setQuickOpenOpen,
+      setSymbolModalOpen: s.setSymbolModalOpen,
+      setFastEditOpen: s.setFastEditOpen,
+      setGitModalOpen: s.setGitModalOpen,
+      setProblemsOpen: s.setProblemsOpen,
+    }),
+    shallow
+  );
+
   useShortcutOverlay('commandPalette', state.commandPaletteOpen, state.onCloseCommandPalette);
   useShortcutOverlay(
     'quickOpen',
-    state.quickOpenOpen && state.devPackEnabled,
-    state.onCloseQuickOpen
+    quickOpenOpen && state.ideEnabled,
+    () => setQuickOpenOpen(false)
   );
   useShortcutOverlay(
     'symbol',
-    state.symbolModalOpen && state.devPackEnabled,
-    state.onCloseSymbol
+    symbolModalOpen && state.ideEnabled,
+    () => setSymbolModalOpen(false)
   );
   useShortcutOverlay(
     'fastEdit',
-    state.fastEditOpen && state.devPackEnabled,
-    state.onCloseFastEdit
+    fastEditOpen && state.ideEnabled,
+    () => setFastEditOpen(false)
   );
   useShortcutOverlay('createChannel', state.createChannelOpen, state.onCloseCreateChannel);
   useShortcutOverlay('createNewDm', state.createNewDmOpen, state.onCloseCreateNewDm);
   useShortcutOverlay('channelInfo', Boolean(state.channelInfoModal), state.onCloseChannelInfo);
   useShortcutOverlay(
     'git',
-    state.gitModalOpen && state.devPackEnabled,
-    state.onCloseGit
+    gitModalOpen && state.ideEnabled,
+    () => setGitModalOpen(false)
   );
   useShortcutOverlay(
     'problems',
-    state.problemsOpen && state.devPackEnabled,
-    state.onCloseProblems
+    problemsOpen && state.ideEnabled,
+    () => setProblemsOpen(false)
   );
   useShortcutOverlay('phoenix', state.phoenixModalOpen, state.onClosePhoenix);
   useShortcutOverlay('learningProposal', state.learningProposalOpen, state.onCloseLearningProposal);

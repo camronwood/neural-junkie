@@ -51,8 +51,8 @@ graph TB
 ## What's In the Box
 
 - **Multi-agent workspace** — Specialist agents, bounded `/collaborate` sessions, threads, file-change approval, and Slack Connect
-- **IDE v4 + implementation sessions** — Full Monaco LSP, remote SSH via `nj-remote`, Ask/Agent composer, and the NJ Fix Loop for boot/build repair ([guide](docs/features/fix-loop.html))
-- **Seven domain packs** — Software development, life sciences, CAD, specialist tuning, AWS, incident management, and web browser — plus Pack Dev Studio for custom packs ([PACKS.md](docs/PACKS.md))
+- **IDE v4 + implementation sessions** — Full Monaco LSP, remote SSH via `nj-remote`, Ask/Agent composer, and the NJ Fix Loop for boot/build repair ([IDE pack](docs/IDE_PACK.md), [guide](docs/features/fix-loop.html))
+- **Domain packs** — IDE, software development, life sciences, CAD, specialist tuning, AWS, incident management, web browser, and more — plus Pack Dev Studio for custom packs ([PACKS.md](docs/PACKS.md))
 - **Local-first AI** — Bundled Ollama, Agent Runtime v2, model library, and optional cloud providers (Claude, OpenAI-compatible APIs, LM Studio)
 - **Repo + Confluence experts** — Index codebases and documentation spaces; MCP export/import for sharing agent knowledge
 - **CLI agents + remote workspaces** — Auto-detected Cursor, Gemini, and other CLI tools; SSH workspaces with remote terminal and file apply
@@ -179,7 +179,7 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 
 ### Specialist Agents (Software development pack)
 
-When the **Software development** domain pack is enabled (Settings → Domain packs, or the developer setup wizard track), the hub starts **six** broad in-process specialists: **BackendEngineer**, **FrontendEngineer**, **PlatformEngineer**, **SecurityReviewer**, **SoftwareArchitect**, and **CodeReviewer**. See [docs/SOFTWARE_DEVELOPMENT_PACK.md](docs/SOFTWARE_DEVELOPMENT_PACK.md).
+When the **Software development** domain pack is enabled (Settings → Domain packs, or the developer setup wizard track), the hub starts engineering specialists with MCP tools. Enable the separate **[IDE pack](docs/IDE_PACK.md)** for editor depth (Git, LSP, composer). See [docs/SOFTWARE_DEVELOPMENT_PACK.md](docs/SOFTWARE_DEVELOPMENT_PACK.md).
 
 Fresh installs default to **pack off** (Assistant and auto-detected CLI agents only). Enable the pack when you want hub-hosted coding specialists.
 

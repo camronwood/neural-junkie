@@ -153,8 +153,7 @@ func synthesizeGoMainEdit(userContent, existing string) (string, bool) {
 
 // synthesizeThemeCSS builds src/theme.css when the user asked for theme variables.
 func synthesizeThemeCSS(userContent string) (string, bool) {
-	lower := strings.ToLower(userContent)
-	if !strings.Contains(lower, "theme.css") && !strings.Contains(lower, "theme variables") {
+	if !userRequestsThemeCSSDeliverable(userContent) {
 		return "", false
 	}
 	return `:root {
@@ -167,6 +166,28 @@ func synthesizeThemeCSS(userContent string) (string, bool) {
   --text: #f8fafc;
 }
 `, true
+}
+
+var (
+	themeCSSAffirmRE = regexp.MustCompile(`(?i)\b(?:write|create|implement|add|make|fix|update|edit|ship)\b[^.\n]{0,100}\btheme\.css\b|\btheme\.css\b[^.\n]{0,60}\b(?:with|using)\s+(?:light|dark|theme)`)
+	themeCSSNegateRE = regexp.MustCompile(`(?i)\b(?:do not|don't|dont|never|ignore|without|not\s+(?:reference|mention|cite|use|touch|edit|change))\b[^.\n]{0,100}\btheme\.css\b`)
+)
+
+// userRequestsThemeCSSDeliverable is true for affirmative theme.css work, not "do not reference theme.css".
+func userRequestsThemeCSSDeliverable(content string) bool {
+	lower := strings.ToLower(content)
+	if !strings.Contains(lower, "theme.css") && !strings.Contains(lower, "theme variables") {
+		return false
+	}
+	if themeCSSNegateRE.MatchString(content) && !themeCSSAffirmRE.MatchString(content) {
+		return false
+	}
+	if strings.Contains(lower, "theme variables") && themeCSSAffirmRE.MatchString(content) {
+		return true
+	}
+	return themeCSSAffirmRE.MatchString(content) ||
+		(strings.Contains(lower, "theme variables") &&
+			(strings.Contains(lower, "create") || strings.Contains(lower, "add") || strings.Contains(lower, "implement")))
 }
 
 // synthesizeTailwindDarkMode patches tailwind.config.js with darkMode when missing.
@@ -370,9 +391,12 @@ func (a *Agent) tryEarlyThemeCSSFix(ctx context.Context, msg *protocol.Message, 
 	if a == nil || msg == nil || wsPath == "" {
 		return false
 	}
+	// Focus-scoped research/markdown collab tasks must not ship theme.css from negated mentions.
+	if collaborationRestrictsDiscoveryTools(msg) || isResearchDocumentationDeliverable(msg.Content) {
+		return false
+	}
 	userContent := implementationUserContent(a, msg)
-	lower := strings.ToLower(userContent)
-	if !strings.Contains(lower, "theme.css") && !strings.Contains(lower, "theme variables") {
+	if !userRequestsThemeCSSDeliverable(userContent) {
 		return false
 	}
 	rel := "src/theme.css"

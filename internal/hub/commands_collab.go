@@ -40,8 +40,8 @@ func (ch *CommandHandler) collaborationCwdForChannel(channel string) string {
 
 // ── Collaboration Command Handlers ──────────────────────────────────
 
-// handleCollaborate starts a multi-agent collaboration.
-// Usage: /collaborate [--rounds N] [--messages M] [--allow-agent-adds] @Agent1 @Agent2 @Agent3 build a CLI tool that encrypts files
+// handleCollaborate starts a multi-agent collaboration (1–3 agents; solo short-circuits planning).
+// Usage: /collaborate [--rounds N] [--messages M] [--allow-agent-adds] @Agent1 [@Agent2 @Agent3] build a CLI tool that encrypts files
 func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	flagParse, tail, flagErr := parseCollaborateLeadFlags(parts)
 	if flagErr != "" {
@@ -49,7 +49,8 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	}
 	discussionCfg := flagParse.Discussion
 	if len(tail) < 2 {
-		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] [--workspace] [--worktree] [--allow-agent-adds] @Agent1 @Agent2 ... description\nAt least 2 agents (max 3) and a description are required."), nil
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Usage: /collaborate [--rounds N] [--messages M] [--workspace] [--worktree] [--allow-agent-adds] @Agent1 [@Agent2 ...] description\nAt least %d agent (max %d) and a description are required.",
+			collaboration.MinAgentsPerCollaboration, collaboration.HardMaxAgentsPerCollaboration)), nil
 	}
 
 	cm := ch.hub.GetCollaborationManager()
@@ -59,21 +60,22 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 
 	// Parse agent mentions and description
 	mentionStrings := protocol.ParseMentions(strings.Join(tail, " "))
-	if len(mentionStrings) < 2 {
+	if len(mentionStrings) < collaboration.MinAgentsPerCollaboration {
 		// Fallback: scan the full command in case flag parsing left @mentions in an unexpected segment.
 		mentionStrings = protocol.ParseMentions(strings.Join(parts[1:], " "))
 	}
-	if len(mentionStrings) < 2 && msg != nil {
+	if len(mentionStrings) < collaboration.MinAgentsPerCollaboration && msg != nil {
 		mentionStrings = protocol.ParseMentions(msg.Content)
 	}
-	if len(mentionStrings) < 2 {
-		return ch.systemResponse(msg.Channel, "❌ At least 2 agents must be @mentioned.\nUsage: /collaborate [--rounds N] [--messages M] [--allow-agent-adds] @Agent1 @Agent2 description"), nil
+	if len(mentionStrings) < collaboration.MinAgentsPerCollaboration {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ At least %d agent must be @mentioned.\nUsage: /collaborate [--rounds N] [--messages M] [--allow-agent-adds] @Agent1 [@Agent2 ...] description",
+			collaboration.MinAgentsPerCollaboration)), nil
 	}
 
 	// Resolve mentions to agent IDs
 	resolved := make(map[string]bool)
 	agentIDs := ch.hub.ResolveMentionsWithValidation(mentionStrings, resolved, msg.Channel)
-	if len(agentIDs) < 2 {
+	if len(agentIDs) < collaboration.MinAgentsPerCollaboration {
 		unresolved := []string{}
 		for _, m := range mentionStrings {
 			if !resolved[m] {
@@ -84,8 +86,9 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 			strings.Join(unresolved, ", "), ch.hub.getAgentListString())), nil
 	}
 	if len(agentIDs) > collaboration.HardMaxAgentsPerCollaboration {
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ At most %d agents can join a collaboration (you mentioned %d).\nPick 2–%d agents for /collaborate.",
-			collaboration.HardMaxAgentsPerCollaboration, len(agentIDs), collaboration.HardMaxAgentsPerCollaboration)), nil
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ At most %d agents can join a collaboration (you mentioned %d).\nPick %d–%d agents for /collaborate.",
+			collaboration.HardMaxAgentsPerCollaboration, len(agentIDs),
+			collaboration.MinAgentsPerCollaboration, collaboration.HardMaxAgentsPerCollaboration)), nil
 	}
 
 	// Extract description (everything after mentions)
@@ -232,12 +235,19 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 
 	// Send the first turn prompt to the first agent
 	firstAgent := collab.Agents[0]
+	var turnPrompt string
+	if len(collab.Agents) == 1 {
+		turnPrompt = fmt.Sprintf("@%s -- Draft the plan for: %s\n\nPropose a **minimal** task list (3–6 lines) with concrete deliverable paths (`- Task N: @%s - Write collabs/<id>/file.md …`). Assign tasks to yourself. After you post a valid plan, the session moves to review for user approval.",
+			firstAgent.AgentName, description, firstAgent.AgentName)
+	} else {
+		turnPrompt = fmt.Sprintf("@%s -- You're up first for: %s\n\nPropose a **minimal** task list (3–6 lines) with concrete deliverable paths (`- Task N: @Agent - Write collabs/<id>/file.md …`). Defer debate until tasks are drafted; use each participant's lane.",
+			firstAgent.AgentName, description)
+	}
 	turnMsg := protocol.NewMessage(
 		protocol.MessageTypeCollabDiscussion,
 		collabChannelName,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-		fmt.Sprintf("@%s -- You're up first for: %s\n\nPropose a **minimal** task list (3–6 lines) with concrete deliverable paths (`- Task N: @Agent - Write collabs/<id>/file.md …`). Defer debate until tasks are drafted; use each participant's lane.",
-			firstAgent.AgentName, description),
+		turnPrompt,
 	)
 	turnMsg.SetCollaborationID(collab.ID)
 	turnMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
@@ -877,7 +887,7 @@ func (ch *CommandHandler) handleCompleteCollab(ctx context.Context, msg *protoco
 		return ch.systemResponse(msg.Channel, sb.String()), nil
 	}
 
-	opts := collaboration.FinalizeOptions{MarkOpenTasksComplete: force}
+	opts := collaboration.FinalizeOptions{MarkOpenTasksComplete: force, SkipSessionRecap: force}
 	reason := "Marked complete by user."
 	if force && collaboration.HasOpenTasks(snap) {
 		reason = "Closed by user (open tasks marked done)."

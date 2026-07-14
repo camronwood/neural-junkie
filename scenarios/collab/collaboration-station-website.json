@@ -24,11 +24,11 @@
     "flags": [
       "--workspace",
       "--rounds",
-      "3",
+      "2",
       "--messages",
-      "18"
+      "12"
     ],
-    "goal": "@FrontendEngineer @SecurityReviewer @Claude Design a website named Collaboration Station. Colors: black, white, gray, blue, red. Three pages: home, about, contact. Review existing work under collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/ (frontend_architecture_plan.md, HTML, CSS) before planning. End with exactly three file tasks under collabs/<id>/: Task 1 @FrontendEngineer Write architecture-review.md comparing b222bffe frontend_architecture_plan.md to the new color spec; Task 2 @SecurityReviewer Write security-audit.md reviewing b222bffe HTML/CSS for XSS and contact-form handling; Task 3 @Claude Write homepage.html, aboutpage.html, contactpage.html using reviews from Tasks 1-2 (Task 3 depends on Tasks 1-2)."
+    "goal": "@FrontendEngineer @SecurityReviewer @Claude Design Collaboration Station (colors: black, white, gray, blue, red; pages: home, about, contact). Review collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/ first. Produce EXACTLY three tasks and no others, using these exact lines:\n- Task 1: @FrontendEngineer - Write collabs/<id>/architecture-review.md comparing b222bffe frontend_architecture_plan.md to the color spec\n- Task 2: @SecurityReviewer - Write collabs/<id>/security-audit.md reviewing b222bffe HTML/CSS for XSS and contact-form handling\n- Task 3: @Claude - Write collabs/<id>/homepage.html, aboutpage.html, contactpage.html using Tasks 1-2 (depends on Tasks 1-2)"
   },
   "expect_deliverables": [
     {
@@ -37,7 +37,7 @@
       "deny_task_status": true,
       "for_question": {
         "any_match": [
-          "architecture|color|b222bffe|frontend_architecture|Collaboration Station"
+          "architecture|color|b222bffe|frontend_architecture|Collaboration Station|palette|review|plan"
         ],
         "none_match": [
           "_Initial stub created"
@@ -75,12 +75,14 @@
       "required_agents": [
         "FrontendEngineer",
         "SecurityReviewer",
-        "SoftwareArchitect"
+        "Claude"
       ],
       "timeout": "300s",
       "retries": 1,
       "nudge_agents": [
-        "SecurityReviewer"
+        "FrontendEngineer",
+        "SecurityReviewer",
+        "Claude"
       ]
     },
     {
@@ -95,7 +97,7 @@
     {
       "action": "assert_plan",
       "min_tasks": 3,
-      "max_tasks": 5,
+      "max_tasks": 4,
       "tasks_have_assignee": true,
       "tasks_have_file_deliverable": true,
       "assignee_min_tasks": {
@@ -141,9 +143,19 @@
     },
     {
       "action": "wait_tasks",
+      "min_completed": 1,
+      "all_match": false,
+      "timeout": "360s"
+    },
+    {
+      "action": "send",
+      "content": "/resume-plan <collab-id>"
+    },
+    {
+      "action": "wait_tasks",
       "min_completed": 2,
       "all_match": false,
-      "timeout": "420s"
+      "timeout": "600s"
     },
     {
       "action": "approve_file_changes",

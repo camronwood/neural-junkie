@@ -2,54 +2,64 @@
   "version": 1,
   "packs": [
     {
-      "id": "software-development",
-      "version": "2.0.0",
-      "title": "Software development",
-      "description": "Engineering specialists with pack-owned MCP sidecar, IDE capabilities, and Qwen 3.5 models.",
+      "id": "ide",
+      "version": "1.0.0",
+      "title": "IDE",
+      "description": "IDE layout, Git SCM, LSP, inline completion, and Ask/Agent composer on top of core workspace editing.",
       "icon_key": "code",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-software-development/releases/download/v2.0.0/software-development-2.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-ide/releases/download/v1.0.0/ide-1.0.0.zip"
+    },
+    {
+      "id": "software-development",
+      "version": "2.1.0",
+      "title": "Software development",
+      "description": "Engineering specialists with pack-owned MCP sidecar and Qwen 3.5 models.",
+      "icon_key": "code",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-software-development/releases/download/v2.1.0/software-development-2.1.0.zip"
     },
     {
       "id": "life-sciences",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "title": "Life sciences",
-      "description": "OpenBioLLM chat, BiologyExpert, sequence analysis, and ESMFold (research use only).",
+      "description": "OpenBioLLM chat, GenomicsExpert, StructuralBiologyExpert, structure viewer workbench, biology sidecar, and official runbooks. Research use only.",
       "icon_key": "biology",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-life-sciences/releases/download/v1.0.0/life-sciences-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-life-sciences/releases/download/v2.0.0/life-sciences-2.0.0.zip"
     },
     {
       "id": "cad",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "title": "CAD",
-      "description": "CADExpert, OpenSCAD parametric modeling, 3D preview workbench, and export.",
+      "description": "CADExpert and ManufacturingExpert — parametric OpenSCAD design through print-ready export, local-first.",
       "icon_key": "cad",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-cad/releases/download/v1.0.0/cad-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-cad/releases/download/v2.0.0/cad-2.0.0.zip"
     },
     {
       "id": "specialist-tuning",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "title": "Specialist tuning",
       "description": "Train LoRA adapters from chat, collabs, and repo experts; compose Hugging Face adapters in Ollama.",
       "icon_key": "lora",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-specialist-tuning/releases/download/v1.0.0/specialist-tuning-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-specialist-tuning/releases/download/v2.0.0/specialist-tuning-2.0.0.zip"
     },
     {
       "id": "aws",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "title": "AWS",
-      "description": "AWSExpert with read-only AWS CLI MCP tools, SSO profile support, and account-scoped infra queries.",
+      "description": "AWSExpert — account-aware SRE copilot with typed boto3 tools, IaC drift, cost/security lenses, and gated writes.",
       "icon_key": "cloud",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-aws/releases/download/v1.0.0/aws-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-aws/releases/download/v2.0.0/aws-2.0.0.zip"
     },
     {
       "id": "incident-management",
@@ -92,6 +102,16 @@
       "publisher": "Neural Junkie",
       "builtin": true,
       "download_url": "https://github.com/camronwood/neural-junkie-pack-model-arena/releases/download/v1.0.0/model-arena-1.0.0.zip"
+    },
+    {
+      "id": "room-chat",
+      "version": "1.0.0",
+      "title": "Room chat",
+      "description": "Same-room LAN chat with ephemeral rooms and full access to the host's agents (no cloud hub).",
+      "icon_key": "users",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-room-chat/releases/download/v1.0.0/room-chat-1.0.0.zip"
     }
   ]
 }

@@ -86,7 +86,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	isCollab := collabInfo.ID != ""
 
 	if a.MCPServer != nil && includeTooling && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
-		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer), a.Info.Type, a.MCPToolAllowlist)
+		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer), a.Info.Type, effectiveMCPToolAllowlist(a, msg))
 	}
 	// Hub media generation is a core capability — always document it when enabled,
 	// even in casual chat turns where MCP/implementation tooling stays compact.
@@ -103,24 +103,39 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 
 	if isCollab {
 		// Collaboration-specific behavioral rules
+		solo := len(collabInfo.Agents) <= 1
 		system.WriteString("=== COLLABORATION MODE ===\n")
-		system.WriteString(fmt.Sprintf("You are participating in a multi-agent collaboration: %s\n", collabInfo.Description))
+		if solo {
+			system.WriteString(fmt.Sprintf("You are running a solo collaboration (you own planning and execution): %s\n", collabInfo.Description))
+		} else {
+			system.WriteString(fmt.Sprintf("You are participating in a multi-agent collaboration: %s\n", collabInfo.Description))
+		}
 		system.WriteString(fmt.Sprintf("Current phase: %s\n", collabInfo.Phase))
 		system.WriteString(fmt.Sprintf("Your role: %s\n\n", collabInfo.AgentRole))
 
 		system.WriteString("=== COLLABORATION RULES ===\n")
 		system.WriteString("1. Provide expert advice grounded in your domain expertise and assigned role.\n")
-		system.WriteString("2. You MAY @mention other agents in this collaboration to:\n")
-		system.WriteString("   - Ask for their expert opinion on a specific aspect\n")
-		system.WriteString("   - Request they review a section of the plan\n")
-		system.WriteString("   - Delegate a sub-problem to the agent best suited for it\n")
-		system.WriteString("3. Build on other agents' ideas constructively. Acknowledge good points.\n")
-		system.WriteString("4. When you agree with the current plan, explicitly say 'I agree' or 'looks good'.\n")
-		system.WriteString("5. When you have concerns, state them clearly with alternatives.\n")
-		system.WriteString("6. Keep responses focused and concise -- this is a bounded discussion.\n")
-		system.WriteString("7. Reference specific file paths when they support your point; avoid re-scanning or re-summarizing the whole repo each turn.\n")
-		system.WriteString("8. Answer the collaboration goal and your task first — workspace files are reference material, not the deliverable.\n")
-		system.WriteString("9. Stay in **your lane** (below). Do not assign duplicate tasks across agents or absorb peers' responsibilities.\n")
+		if solo {
+			system.WriteString("2. You MAY @mention specialists outside this collaboration to ask a question (Level 1 consult). They answer in-channel but do not join unless expansion is enabled.\n")
+			system.WriteString("3. Build a clear task list you can execute yourself.\n")
+			system.WriteString("4. When the plan is ready, say so explicitly (for example 'plan ready' or 'I agree').\n")
+			system.WriteString("5. Keep responses focused — solo planning is a short draft, not a debate.\n")
+			system.WriteString("6. Reference specific file paths when they support your point; avoid re-scanning the whole repo each turn.\n")
+			system.WriteString("7. Answer the collaboration goal and your task first — workspace files are reference material, not the deliverable.\n")
+			system.WriteString("8. Stay in **your lane** (below). Assign every task to yourself.\n")
+		} else {
+			system.WriteString("2. You MAY @mention other agents in this collaboration to:\n")
+			system.WriteString("   - Ask for their expert opinion on a specific aspect\n")
+			system.WriteString("   - Request they review a section of the plan\n")
+			system.WriteString("   - Delegate a sub-problem to the agent best suited for it\n")
+			system.WriteString("3. Build on other agents' ideas constructively. Acknowledge good points.\n")
+			system.WriteString("4. When you agree with the current plan, explicitly say 'I agree' or 'looks good'.\n")
+			system.WriteString("5. When you have concerns, state them clearly with alternatives.\n")
+			system.WriteString("6. Keep responses focused and concise -- this is a bounded discussion.\n")
+			system.WriteString("7. Reference specific file paths when they support your point; avoid re-scanning or re-summarizing the whole repo each turn.\n")
+			system.WriteString("8. Answer the collaboration goal and your task first — workspace files are reference material, not the deliverable.\n")
+			system.WriteString("9. Stay in **your lane** (below). Do not assign duplicate tasks across agents or absorb peers' responsibilities.\n")
+		}
 
 		appendCollaborationLaneInstructions(&system, collabInfo, a.Info)
 
@@ -131,12 +146,20 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 			system.WriteString("Do NOT emit TASK_STATUS lines, new plan blocks, or @mention other agents unless quoting them.\n")
 		} else if collabInfo.Phase == "planning" {
 			system.WriteString("\n=== PLANNING PHASE INSTRUCTIONS ===\n")
-			system.WriteString("Propose a **minimal** structured plan: **3–6 tasks total**, each with one primary @assignee in that agent's lane (see YOUR LANE / PEER LANES).\n")
+			if solo {
+				system.WriteString("Propose a **minimal** structured plan: **3–6 tasks total**, each assigned to yourself (see YOUR LANE).\n")
+			} else {
+				system.WriteString("Propose a **minimal** structured plan: **3–6 tasks total**, each with one primary @assignee in that agent's lane (see YOUR LANE / PEER LANES).\n")
+			}
 			system.WriteString("Each task must name a **concrete deliverable** (verb + path), not meta-work like \"document findings\" or \"specific actions\".\n")
 			system.WriteString("Use this format for tasks:\n")
 			system.WriteString("- Task N: @AgentName - Write collabs/<collab-id>/findings.md summarizing …\n")
 			system.WriteString("  - depends: 1, 2   (optional; 1-based task numbers this task waits on)\n")
-			system.WriteString("Assign file deliverables to the best domain owner (@SoftwareArchitect for schema docs, @Assistant for summaries, @BackendEngineer for code, etc.) — any assignee ships via [FILE_CHANGE].\n")
+			if solo {
+				system.WriteString("Assign every task to yourself — you execute via [FILE_CHANGE].\n")
+			} else {
+				system.WriteString("Assign file deliverables to the best domain owner (@SoftwareArchitect for schema docs, @Assistant for summaries, @BackendEngineer for code, etc.) — any assignee ships via [FILE_CHANGE].\n")
+			}
 			if strings.TrimSpace(collabInfo.SourceRepoPath) != "" {
 				if rel := collaboration.ProjectCollabRelPath(collabInfo.ID); rel != "" {
 					system.WriteString(fmt.Sprintf("File deliverables belong under `%s/` (paths relative to the project root).\n", rel))

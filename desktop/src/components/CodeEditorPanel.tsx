@@ -124,7 +124,9 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   );
   const colorTheme = useSettingsStore((s) => s.settings.colorTheme ?? 'slack');
   const monacoThemeId = getMonacoThemeId(colorTheme);
-  const devPack = usePacksStore((s) => s.softwareDevelopmentEnabled());
+  const ideEnabled = usePacksStore((s) => s.ideEnabled());
+  const hasInlineCompletion = usePacksStore((s) => s.hasCapability('inline-completion'));
+  const hasIdeV4 = usePacksStore((s) => s.hasCapability('ide-v4'));
   const workspaceRoot = useFileExplorerStore((s) => {
     const tab = activeTab;
     if (!tab) return undefined;
@@ -137,11 +139,12 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     monacoRef.current,
     activeTab?.workspaceId,
     activeTab?.path,
-    activeTab?.language
+    activeTab?.language,
+    !hasIdeV4
   );
   useMonacoLSP(
-    editor,
-    monacoRef.current,
+    hasIdeV4 ? editor : null,
+    hasIdeV4 ? monacoRef.current : null,
     activeTab?.workspaceId,
     workspaceRoot,
     activeTab?.path,
@@ -152,7 +155,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   useInlineCompletion(
     editor,
     monacoRef.current,
-    devPack && inlineCompletionOn,
+    ideEnabled && hasInlineCompletion && inlineCompletionOn,
     activeTab?.language,
     activeTab?.path
   );

@@ -23,14 +23,25 @@ Related docs: [PACKS.md](./PACKS.md), [PACKS_CUSTOM.md](./PACKS_CUSTOM.md), [PAC
 
 ---
 
+## IDE (`ide`)
+
+| Token | What it enables |
+|-------|-----------------|
+| `ide-v2` | IDE layout features: Git SCM, symbols, Problems, pending hunks, LSP-lite, IDE shortcuts. See [IDE_V2.md](./IDE_V2.md). |
+| `ide-v3-composer` | IDE v3 composer routing in main chat (Ask/Agent). See [IDE_V3.md](./IDE_V3.md). |
+| `ide-v4` | Full Monaco LSP + remote LSP relay. See [IDE_V4.md](./IDE_V4.md). |
+| `git-rest` | Hub REST git, LSP, dev complete, fast-edit, file/symbol search |
+| `inline-completion` | Monaco ghost-text completion + Settings toggle. See [IDE_V2.md](./IDE_V2.md). |
+
+Pack doc: [IDE_PACK.md](./IDE_PACK.md). Core NJ always includes file explorer and Monaco editor; IDE pack unlocks depth on top.
+
+---
+
 ## Software development (`software-development`)
 
 | Token | Official pack | What it enables |
 |-------|---------------|-----------------|
-| `ide-v2` | software-development | IDE layout features: file explorer integration, symbols, Problems, pending hunks, LSP-lite, git SCM panel. Gated in `ChatWindow` and layout profile (`layout_profile: ide`). See [IDE_V2.md](./IDE_V2.md). |
-| `ide-v3-composer` | software-development | IDE v3 composer mode in main chat (Ask/Agent/Export chips). See [IDE_V3.md](./IDE_V3.md). |
-| `git-rest` | software-development | Hub REST git endpoints (`cmd/server/git_handlers.go`). Required for programmatic git operations from the IDE. |
-| `inline-completion` | software-development | Declared by the pack; Monaco ghost-text completion is tied to **software-development pack enabled** + Settings toggle (not a separate `hasCapability` check today). See [IDE_V2.md](./IDE_V2.md). |
+| `sd-mcp-sidecar` | software-development | Pack-owned MCP tool server for engineering specialists |
 
 ---
 
@@ -130,6 +141,8 @@ Requires **software-development** pack.
 | `music-generation` | **MusicExpert** agent, `generate_music` tool, `/generate-music`. See [MUSIC_CREATION_PACK.md](./MUSIC_CREATION_PACK.md). |
 | `music-workbench` | File explorer: open `.wav`, `.mp3`, or `project.nj-music.json` in the **music workbench** (waveform, loop regions, A/B compare, stems). |
 | `music-sidecar` | Pack-local hub sidecar; ACE-Step inference at `/api/music/*`. |
+
+**Agent `implementation` (pilot):** pack `agents[].implementation: builtin/<slug>` is parsed by `packs.ParseBuiltinImplementation`. For music, `builtin/music` selects `NewMusicAgent` and **wins** over an empty or mismatched `type`.
 
 ---
 

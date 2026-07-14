@@ -177,7 +177,7 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 		)
 	}
 	if a.MCPServer != nil {
-		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), a.MCPToolAllowlist)...)
+		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), effectiveMCPToolAllowlist(a, msg))...)
 	}
 	if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
 		tools = append(tools, fileEditToolDefinitions()...)
@@ -258,10 +258,18 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	if mcpServer == nil {
 		return "", fmt.Errorf("tool %q not found", name)
 	}
+	if collaborationDiscoveryToolBlocked(msg, name) {
+		return "", fmt.Errorf("%s is unavailable for this focus-scoped collaboration task — read the provided source paths and ship the deliverable", name)
+	}
 	input = rewriteScanSummaryToolInput(msg, name, input)
 	input = rewriteScanAnalysisToolInput(msg, name, input)
 	input = a.rewriteCADToolInput(msg, name, input)
 	wsRoot := a.resolveWorkspacePath(msg)
+	if name == "read_file" || name == "get_file_content" {
+		if path := parseReadFileToolInput(input); path != "" && !collaborationFocusReadPathAllowed(msg, wsRoot, path) {
+			return collaborationFocusReadPathBlockMessage(msg, wsRoot, path), nil
+		}
+	}
 	writtenPath := ""
 	if name == "write_openscad" {
 		writtenPath = cadWrittenPathFromToolInput(wsRoot, input)

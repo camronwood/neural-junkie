@@ -33,7 +33,7 @@ function normalizeGitStatus(raw: unknown): GitStatusResponse | null {
   };
 }
 
-/** Git SCM modal (Software development pack). */
+/** Git SCM modal (IDE pack). */
 export function GitModal({ isOpen, onClose }: GitModalProps) {
   const { activeWorkspaceId, workspaces } = useFileExplorerStore(
     (s) => ({

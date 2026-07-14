@@ -1,13 +1,8 @@
 id: software-development
-version: "2.0.0"
+version: "2.1.0"
 title: Software development
-description: Engineering specialists with pack-owned MCP sidecar, IDE capabilities, and Qwen 3.5 models.
-layout_profile: ide
+description: Engineering specialists with pack-owned MCP sidecar and Qwen 3.5 models.
 capabilities:
-  - ide-v2
-  - ide-v3-composer
-  - git-rest
-  - inline-completion
   - sd-mcp-sidecar
 capability_defs:
   sd-mcp-sidecar:

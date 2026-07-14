@@ -306,7 +306,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			if collabPhase == "executing" {
 				if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
 					if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {
-						if !a.collabTaskRateLimitOK(collabID, msg.GetTaskID()) {
+						token, _ := msg.Metadata[protocol.MetadataDispatchToken].(string)
+						if !a.collabTaskRateLimitOK(collabID, msg.GetTaskID(), token) {
 							log.Printf("[%s] ⏳ COLLABORATION TASK rate-limited (collab %s)", a.Info.Name, collabID[:8])
 							return false
 						}
@@ -329,7 +330,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			}
 			if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
 				if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {
-					if !a.collabTaskRateLimitOK(collabID, msg.GetTaskID()) {
+					token, _ := msg.Metadata[protocol.MetadataDispatchToken].(string)
+					if !a.collabTaskRateLimitOK(collabID, msg.GetTaskID(), token) {
 						log.Printf("[%s] ⏳ COLLABORATION TASK rate-limited (collab %s)", a.Info.Name, collabID[:8])
 						return false
 					}

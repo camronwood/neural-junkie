@@ -166,9 +166,17 @@ def main() -> int:
         os.environ["NJ_REQUIRE_FULL_BOOT"] = "1"
         os.environ.pop("SKIP_BOOT", None)
         os.environ.pop("NJ_BOOT_DONE", None)
-    if spec.name in ("collab", "collab-core"):
+    if spec.name == "collab-core":
         os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "1"
+        # Core scenarios are mostly 2-agent planning; keep generation serial for VRAM.
         os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "1"
+        os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
+    elif spec.name == "collab":
+        os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "1"
+        # Edge suite runs website/FE+Security(+Claude) in parallel; concurrency 1
+        # caused cascading generation timeouts and pending-task stalls.
+        os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "2"
+        os.environ["NJ_REGRESSION_COLLAB_EDGE"] = "1"
     testing_dir = Path(args.log_dir)
     testing_dir.mkdir(parents=True, exist_ok=True)
     stamp = args.stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")

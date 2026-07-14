@@ -100,7 +100,7 @@ func (h *Hub) maybeCompleteCollabTasksAfterDeliverable(collabID, channel string)
 			!(task.Status == collaboration.TaskPending && task.PromptDispatched) {
 			continue
 		}
-		if !collaboration.TaskRequiresFileDeliverable(task) {
+		if !collaboration.NewDeliverablePolicy(task, snap.Description, nil).RequiresFile() {
 			continue
 		}
 		if !h.collabTaskDeliverableSatisfied(snap, &task, nil) {

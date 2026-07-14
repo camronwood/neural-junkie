@@ -17,8 +17,8 @@ export function useInlineCompletion(
 
   useEffect(() => {
     if (!editor || !monaco || !enabled) return;
-    const devPack = usePacksStore.getState().softwareDevelopmentEnabled();
-    if (!devPack) return;
+    const ideOn = usePacksStore.getState().ideEnabled() && usePacksStore.getState().hasCapability('inline-completion');
+    if (!ideOn) return;
 
     const provider = monaco.languages.registerInlineCompletionsProvider(
       { pattern: '**/*' },

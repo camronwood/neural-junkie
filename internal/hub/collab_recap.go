@@ -266,6 +266,11 @@ func (h *Hub) maybeProcessRecapReply(msg *protocol.Message) bool {
 	if msg == nil || h.collabManager == nil || msg.IsFromSystem() {
 		return false
 	}
+	if msg.Metadata != nil {
+		if ge, ok := msg.Metadata["generation_error"].(bool); ok && ge {
+			return false
+		}
+	}
 	collabID := msg.GetCollaborationID()
 	if collabID == "" {
 		return false
@@ -372,6 +377,14 @@ func (h *Hub) requestFinalRecapAndFinalize(collabID, channel, reason string, opt
 	if err != nil || snap == nil {
 		return
 	}
+	if opts.SkipSessionRecap {
+		// Force-close: do not wait on facilitator session recap (pending or not).
+		h.clearRecapTimeout(collabID, collaboration.RecapKindFinal)
+		h.collabManager.ClearAwaitingFinalize(collabID)
+		h.collabManager.SkipSessionRecap(collabID)
+		h.finalizeAndBroadcastCollaboration(collabID, channel, reason, opts)
+		return
+	}
 	if snap.Phase != collaboration.PhaseExecuting {
 		h.finalizeAndBroadcastCollaboration(collabID, channel, reason, opts)
 		return
@@ -381,6 +394,12 @@ func (h *Hub) requestFinalRecapAndFinalize(collabID, channel, reason string, opt
 		return
 	}
 	if snap.SessionRecapStatus == collaboration.RecapStatusPending {
+		// Recap already in flight — ensure finalize still runs when it finishes.
+		if !snap.AwaitingFinalize {
+			if err := h.collabManager.SetAwaitingFinalize(collabID, channel, reason, opts); err != nil {
+				log.Printf("[CollaborationRecap] SetAwaitingFinalize (pending): %v", err)
+			}
+		}
 		return
 	}
 	if err := h.collabManager.SetAwaitingFinalize(collabID, channel, reason, opts); err != nil {

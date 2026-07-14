@@ -359,10 +359,9 @@ func TestSlashCompleteCollabRequiresForceWhenOpenTasks(t *testing.T) {
 	if err := h.SendMessage(force); err != nil {
 		t.Fatalf("complete-collab --force: %v", err)
 	}
-	finishExecutingCollabViaRecap(t, h, id)
 	got, _ = cm.GetCollaboration(id)
 	if got.Phase != collaboration.PhaseCompleted {
-		t.Fatalf("expected completed, got %s", got.Phase)
+		t.Fatalf("expected completed immediately with --force, got %s", got.Phase)
 	}
 }
 

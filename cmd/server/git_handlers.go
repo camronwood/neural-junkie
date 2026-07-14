@@ -14,9 +14,9 @@ import (
 	"github.com/camronwood/neural-junkie/internal/workspacesymbols"
 )
 
-func requireSoftwareDevPack(w http.ResponseWriter) bool {
+func requireIDEPack(w http.ResponseWriter) bool {
 	if appConfig == nil || !appConfig.AnyPackCapability("git-rest") {
-		http.Error(w, "Software development pack required for git operations", http.StatusForbidden)
+		http.Error(w, "IDE pack required for this operation", http.StatusForbidden)
 		return false
 	}
 	return true
@@ -50,7 +50,7 @@ func handleGitStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	ws, ok := resolveWorkspaceForGit(w, r)
@@ -78,7 +78,7 @@ func handleGitDiff(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	ws, ok := resolveWorkspaceForGit(w, r)
@@ -113,7 +113,7 @@ func handleGitCommit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	var req struct {
@@ -150,7 +150,7 @@ func handleGitPush(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	var req struct {
@@ -185,7 +185,7 @@ func handleGitPull(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	var req struct {
@@ -220,7 +220,7 @@ func handleGitFileSides(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	ws, ok := resolveWorkspaceForGit(w, r)
@@ -249,7 +249,7 @@ func handleGitAdd(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	var req struct {
@@ -285,7 +285,7 @@ func handleGitReset(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	var req struct {
@@ -321,7 +321,7 @@ func handleWorkspaceFileSearch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	workspaceID := strings.TrimSpace(r.URL.Query().Get("workspace"))
@@ -361,7 +361,7 @@ func handleWorkspaceSymbolSearch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	workspaceID := strings.TrimSpace(r.URL.Query().Get("workspace"))

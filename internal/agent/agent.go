@@ -67,8 +67,11 @@ type Agent struct {
 	workspaceBackendLookup func(workspaceID string) workspacebackend.Backend
 
 	// collabTaskReplyAt rate-limits responses to collaboration_task prompts.
-	collabTaskReplyMu sync.Mutex
-	collabTaskReplyAt map[string]time.Time
+	// collabTaskLastDispatchToken allows a fresh /resume-plan (new dispatch_token)
+	// to bypass the interval so redispatches are not silently dropped.
+	collabTaskReplyMu           sync.Mutex
+	collabTaskReplyAt           map[string]time.Time
+	collabTaskLastDispatchToken map[string]string
 
 	// activeGens tracks in-flight generation cancel funcs per channel (interject/stop).
 	activeGenMu sync.Mutex

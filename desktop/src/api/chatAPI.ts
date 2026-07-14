@@ -166,6 +166,43 @@ export interface InstallArenaSidecarResponse {
   sidecar: ArenaSidecarStatus;
 }
 
+export interface AIInterviewDayStatus {
+  status?: string;
+  concept?: boolean;
+  drill?: boolean;
+  completed_at?: string;
+}
+
+export interface AIInterviewProgressResponse {
+  progress: {
+    version?: number;
+    started_at?: string;
+    current_day: number;
+    phase: number;
+    days?: Record<string, AIInterviewDayStatus>;
+    gates?: Record<string, { status?: string; passed_at?: string | null }>;
+    certification?: { status?: string; badge_path?: string | null; issued_at?: string | null };
+    streak_days?: number;
+    last_active_at?: string | null;
+  };
+  today: {
+    day: number;
+    phase?: number;
+    title?: string;
+    kind?: string;
+    summary?: string;
+    has_drill?: boolean;
+    day_status?: AIInterviewDayStatus;
+    complete?: boolean;
+  };
+  stats?: {
+    completed_days?: number;
+    total_days?: number;
+    phase?: number;
+    streak_days?: number;
+  };
+}
+
 export interface ImageGenStatus {
   ready: boolean;
   provider: string;
@@ -3316,6 +3353,71 @@ export class ChatAPI {
       `/api/packs/${encodeURIComponent(packId)}/arena-restart-sidecar`,
       { method: 'POST' },
     );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async fetchAIInterviewProgress(): Promise<AIInterviewProgressResponse> {
+    const response = await this.hubFetch('/api/ai-interview/progress');
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async startAIInterviewDay(): Promise<AIInterviewProgressResponse> {
+    const response = await this.hubFetch('/api/ai-interview/start', { method: 'POST' });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async completeAIInterviewDay(
+    day: number,
+    body: { concept?: boolean; drill?: boolean; complete?: boolean; advance?: boolean },
+  ): Promise<AIInterviewProgressResponse> {
+    const response = await this.hubFetch(`/api/ai-interview/days/${day}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async submitAIInterviewGate(
+    gateId: string,
+    body: { eval_notes?: string; mock_notes?: string; score?: number },
+  ): Promise<AIInterviewProgressResponse> {
+    const response = await this.hubFetch(
+      `/api/ai-interview/gates/${encodeURIComponent(gateId)}/submit`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async unlockAIInterviewCert(): Promise<{
+    certification: Record<string, unknown>;
+    credential: Record<string, unknown>;
+  }> {
+    const response = await this.hubFetch('/api/ai-interview/cert/unlock', { method: 'POST' });
     if (!response.ok) {
       const t = await response.text();
       throw new Error(t.trim() || response.statusText);

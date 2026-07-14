@@ -2,7 +2,7 @@
 
 **Status:** Shipped in v1.2 — full Monaco LSP client, remote SSH via `nj-remote` sidecar, dev container attach plan, tree-sitter symbols.
 
-IDE v4 completes the software development pack editor story started in [IDE_V2.md](IDE_V2.md) and [IDE_V3.md](IDE_V3.md).
+IDE v4 completes the [IDE pack](IDE_PACK.md) editor story started in [IDE_V2.md](IDE_V2.md) and [IDE_V3.md](IDE_V3.md). Remote SSH attach UI is core; full LSP on remote hosts requires the IDE pack.
 
 ## What's new in v4
 

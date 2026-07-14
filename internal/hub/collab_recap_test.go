@@ -323,6 +323,95 @@ func TestRequestFinalRecap_DefersFinalizeUntilReply(t *testing.T) {
 	}
 }
 
+func TestRequestFinalRecap_ForceSkipsPendingSessionRecap(t *testing.T) {
+	h := NewHub()
+	chName := "recap-force-skip"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("force skip recap", []string{"a1", "a2"}, chName, "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	approveAndExecuteCollabForTest(t, cm, collab.ID)
+	_ = cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{ID: "t1", Title: "Only task", AssignedTo: "a1", AssignedName: "AgentA", Status: collaboration.TaskCompleted},
+	})
+
+	// Start a normal finalize (recap pending).
+	h.requestFinalRecapAndFinalize(collab.ID, chName, "All tasks are done.", collaboration.FinalizeOptions{})
+	before, _ := cm.GetCollaborationSnapshot(collab.ID)
+	if before.SessionRecapStatus != collaboration.RecapStatusPending {
+		t.Fatalf("session_recap_status=%s want pending", before.SessionRecapStatus)
+	}
+	if before.Phase != collaboration.PhaseExecuting {
+		t.Fatalf("phase=%s want executing", before.Phase)
+	}
+
+	// Force close must not wait for the facilitator reply.
+	h.requestFinalRecapAndFinalize(collab.ID, chName, "Closed by user.", collaboration.FinalizeOptions{
+		SkipSessionRecap: true,
+	})
+
+	after, _ := cm.GetCollaborationSnapshot(collab.ID)
+	if after.Phase != collaboration.PhaseCompleted {
+		t.Fatalf("expected completed after force skip, got %s", after.Phase)
+	}
+	if after.AwaitingFinalize {
+		t.Fatal("expected awaiting_finalize cleared")
+	}
+	if after.SessionRecapStatus != collaboration.RecapStatusSkipped {
+		t.Fatalf("session_recap_status=%s want skipped", after.SessionRecapStatus)
+	}
+}
+
+func TestRequestFinalRecap_PendingEnsuresAwaitingFinalize(t *testing.T) {
+	h := NewHub()
+	chName := "recap-pending-await"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("pending await", []string{"a1", "a2"}, chName, "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	approveAndExecuteCollabForTest(t, cm, collab.ID)
+	_ = cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{ID: "t1", Title: "Only task", AssignedTo: "a1", AssignedName: "AgentA", Status: collaboration.TaskCompleted},
+	})
+
+	h.requestFinalRecapAndFinalize(collab.ID, chName, "All tasks are done.", collaboration.FinalizeOptions{})
+	cm.ClearAwaitingFinalize(collab.ID)
+
+	mid, _ := cm.GetCollaborationSnapshot(collab.ID)
+	if mid.SessionRecapStatus != collaboration.RecapStatusPending {
+		t.Fatalf("session_recap_status=%s want pending", mid.SessionRecapStatus)
+	}
+	if mid.AwaitingFinalize {
+		t.Fatal("expected awaiting cleared for setup")
+	}
+
+	// Second non-force close must re-arm awaiting so the pending recap still finalizes.
+	h.requestFinalRecapAndFinalize(collab.ID, chName, "Marked complete by user.", collaboration.FinalizeOptions{})
+	armed, _ := cm.GetCollaborationSnapshot(collab.ID)
+	if !armed.AwaitingFinalize {
+		t.Fatal("expected awaiting_finalize re-armed while session recap pending")
+	}
+	if armed.Phase != collaboration.PhaseExecuting {
+		t.Fatalf("phase=%s want executing", armed.Phase)
+	}
+}
+
 func TestCancelCollaboration_ClearsFinalizeAndSessionRecap(t *testing.T) {
 	h := NewHub()
 	chName := "recap-cancel-cleanup"

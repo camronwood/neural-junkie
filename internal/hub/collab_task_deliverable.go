@@ -63,7 +63,7 @@ func (h *Hub) maybeWarnPrematureTaskCompletion(msg *protocol.Message, collabID s
 	if msg == nil || task == nil || snap == nil || h.collabManager == nil {
 		return false
 	}
-	if !collaboration.TaskRequiresFileDeliverable(*task) {
+	if !collaboration.NewDeliverablePolicy(*task, snap.Description, nil).RequiresFile() {
 		return false
 	}
 	if h.collabTaskDeliverableSatisfied(snap, task, msg) {

@@ -103,6 +103,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/music", corsMiddleware(localOnly(handleMusicRoute)))
 	http.HandleFunc("/api/arena/", corsMiddleware(localOnly(handleArenaRoute)))
 	http.HandleFunc("/api/arena", corsMiddleware(localOnly(handleArenaRoute)))
+	http.HandleFunc("/api/ai-interview/", corsMiddleware(localOnly(handleAIInterviewRoute)))
+	http.HandleFunc("/api/ai-interview", corsMiddleware(localOnly(handleAIInterviewRoute)))
 	http.HandleFunc("/api/browser/accept-baseline", corsMiddleware(localOnly(handleBrowserAcceptBaseline)))
 	http.HandleFunc("/api/browser/visual-diff", corsMiddleware(localOnly(handleBrowserVisualDiff)))
 	http.HandleFunc("/api/browser/", corsMiddleware(localOnly(handleBrowserRoute)))

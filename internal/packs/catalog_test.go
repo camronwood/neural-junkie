@@ -1,8 +1,11 @@
 package packs
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -64,5 +67,59 @@ func TestOrderCatalogPacks(t *testing.T) {
 	}
 	if cat.Packs[0].ID != "software-development" || cat.Packs[2].ID != "custom-pack" {
 		t.Fatalf("unexpected order: %+v", cat.Packs)
+	}
+}
+
+func TestCatalogEmbedMatchesRepoCatalog(t *testing.T) {
+	repoPath := filepath.Join("..", "..", "packs", "catalog.json")
+	repoBytes, err := os.ReadFile(repoPath)
+	if err != nil {
+		t.Fatalf("read packs/catalog.json: %v", err)
+	}
+	var repo Catalog
+	if err := json.Unmarshal(repoBytes, &repo); err != nil {
+		t.Fatalf("parse packs/catalog.json: %v", err)
+	}
+	embed, err := builtinOfficialCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	repoByID := map[string]CatalogEntry{}
+	for _, e := range repo.Packs {
+		repoByID[e.ID] = e
+	}
+	embedByID := map[string]CatalogEntry{}
+	for _, e := range embed.Packs {
+		embedByID[e.ID] = e
+	}
+	if len(repoByID) != len(embedByID) {
+		t.Fatalf("catalog pack count drift: repo=%d embed=%d", len(repoByID), len(embedByID))
+	}
+	for id, re := range repoByID {
+		ee, ok := embedByID[id]
+		if !ok {
+			t.Errorf("pack %q in packs/catalog.json missing from official_catalog.json", id)
+			continue
+		}
+		if re.Version != ee.Version {
+			t.Errorf("pack %q version drift: repo=%s embed=%s", id, re.Version, ee.Version)
+		}
+		if re.DownloadURL != ee.DownloadURL {
+			t.Errorf("pack %q download_url drift", id)
+		}
+	}
+	officialSet := map[string]struct{}{}
+	for _, id := range OfficialPackIDs {
+		officialSet[id] = struct{}{}
+	}
+	for id := range repoByID {
+		if _, ok := officialSet[id]; !ok {
+			t.Errorf("pack %q in catalog but missing from OfficialPackIDs", id)
+		}
+	}
+	for id := range officialSet {
+		if _, ok := repoByID[id]; !ok {
+			t.Errorf("OfficialPackIDs has %q missing from packs/catalog.json", id)
+		}
 	}
 }

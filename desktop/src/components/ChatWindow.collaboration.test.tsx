@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatWindow } from './ChatWindow';
 import { useChatStore } from '../stores/chatStore';
+import { useCollaborationsStore } from '../stores/collaborationsStore';
+import { useIdeOverlayStore } from '../stores/ideOverlayStore';
 import type { AgentInfo, Collaboration, Message } from '../types/protocol';
 
 const { apiHarness, wsHarness, confirmStartMock, confirmReplaceMock, addToastMock } = vi.hoisted(() => {
@@ -137,6 +139,8 @@ vi.mock('../stores/packsStore', () => {
     fetchPacks: vi.fn().mockResolvedValue(undefined),
     softwareDevelopmentEnabled: () => false,
     softwareDevelopmentPackActive: () => false,
+    ideEnabled: () => false,
+    idePackActive: () => false,
     lifeSciencesEnabled: () => false,
     hasCapability: () => false,
     layoutProfile: 'team' as const,
@@ -316,6 +320,8 @@ beforeEach(() => {
   localStorage.setItem('channel-sidebar-open', 'true');
   localStorage.setItem('last-channel', 'general');
   useChatStore.getState().reset();
+  useCollaborationsStore.getState().clear();
+  useIdeOverlayStore.getState().closeAll();
   useChatStore.setState({
     channel: 'general',
     username: 'Tester',

@@ -88,7 +88,12 @@ func (h *Hub) tickCollaborationIdleWatchdogOne(c *collaboration.Collaboration, n
 	}
 
 	for _, task := range snap.Tasks {
-		if task.Status != collaboration.TaskInProgress || !task.PromptDispatched {
+		// Heal the pending+PromptDispatched dead zone (prompt was sent but assignee
+		// never flipped the task to in_progress) as well as idle in_progress work.
+		idlePendingDispatched := task.Status == collaboration.TaskPending && task.PromptDispatched &&
+			collaboration.IsTaskReadyForCollab(task, snap)
+		idleInProgress := task.Status == collaboration.TaskInProgress && task.PromptDispatched
+		if !idlePendingDispatched && !idleInProgress {
 			continue
 		}
 		if now.Sub(task.UpdatedAt) < collabIdleRedispatchAfter {
@@ -130,7 +135,15 @@ func (h *Hub) tickCollaborationIdleWatchdogOne(c *collaboration.Collaboration, n
 		filter := func(t collaboration.CollaborationTask) bool { return t.ID == taskID }
 		if n := h.dispatchCollabTaskMessagesFilter(snap, nil, filter, true); n > 0 {
 			h.collabWatchdogBumpRedispatch(key)
-			log.Printf("[Collaboration] Watchdog redispatched idle task %s for %s (attempt %d)", taskID[:8], snap.ID[:8], count+1)
+			shortTask := taskID
+			if len(shortTask) > 8 {
+				shortTask = shortTask[:8]
+			}
+			shortCollab := snap.ID
+			if len(shortCollab) > 8 {
+				shortCollab = shortCollab[:8]
+			}
+			log.Printf("[Collaboration] Watchdog redispatched idle task %s for %s (attempt %d)", shortTask, shortCollab, count+1)
 		}
 	}
 }

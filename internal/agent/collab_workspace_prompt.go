@@ -73,7 +73,7 @@ func collaborationWorkspaceFocusHint(goal string) string {
 	if strings.Contains(lower, "core/sample/main.go") &&
 		(strings.Contains(lower, "readme.md") || strings.Contains(lower, "readme")) &&
 		(strings.Contains(lower, " only") || strings.Contains(lower, "only.")) {
-		return "- **Focus paths:** `README.md` and `core/sample/main.go` only — do not cite or discuss `src/`, React, `server/main.go`, or other paths outside scope (no disclaimers about excluded files).\n"
+		return "- **Focus paths:** `README.md` and `core/sample/main.go` only — ground every claim in those two files; do not inventory other directories or add exclusion/disclaimer bullets.\n"
 	}
 	return ""
 }
@@ -108,6 +108,24 @@ func isCollabTurnHandoffContent(content string) bool {
 		strings.Contains(content, "You're up first")
 }
 
+func messageHasCollabTurnHandoffFlag(msg *protocol.Message) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	v, ok := msg.Metadata["collab_turn_handoff"]
+	if !ok || v == nil {
+		return false
+	}
+	switch x := v.(type) {
+	case bool:
+		return x
+	case string:
+		return strings.EqualFold(strings.TrimSpace(x), "true") || strings.TrimSpace(x) == "1"
+	default:
+		return false
+	}
+}
+
 // isCollabTurnPromptForAgent returns true for System turn prompts that should wake
 // the next collaboration participant (not seed banners marked collab_internal_event).
 // Handoffs always carry an explicit Mentions entry for the next speaker — do not
@@ -119,7 +137,7 @@ func isCollabTurnPromptForAgent(msg *protocol.Message, collabID, agentID string,
 	if msg.Type != protocol.MessageTypeCollabDiscussion || !msg.IsFromSystem() {
 		return false
 	}
-	if !isCollabTurnHandoffContent(msg.Content) {
+	if !messageHasCollabTurnHandoffFlag(msg) && !isCollabTurnHandoffContent(msg.Content) {
 		return false
 	}
 	return msg.IsMentioned(agentID)
@@ -184,7 +202,7 @@ func collaborationTurnHandoffBody(phase string) string {
 	case "executing":
 		return "Collaboration turn handoff: next participant, please continue your assigned task or answer execution Q&A. Do not reopen plan negotiation unless the user requested a revision."
 	case "planning":
-		return "Collaboration turn handoff: next participant, please continue the plan discussion and refine task assignments."
+		return collaboration.PlanningTurnHandoffBody
 	default:
 		return ""
 	}

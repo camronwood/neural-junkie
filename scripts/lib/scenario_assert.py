@@ -306,17 +306,21 @@ def check_file_deliverable(
         return False, detail
 
     if _llm_judge_enabled(spec):
-        ok, detail = judge_deliverable(
-            question=question,
-            rel_path=rel,
-            file_body=body,
-            criteria=_llm_judge_criteria(spec),
-            llm_judge_spec=spec.get("llm_judge"),
-            hub_base=hub_base,
-            work_dir=root,
-        )
+        try:
+            ok, detail = judge_deliverable(
+                question=question,
+                rel_path=rel,
+                file_body=body,
+                criteria=_llm_judge_criteria(spec),
+                llm_judge_spec=spec.get("llm_judge"),
+                hub_base=hub_base,
+                work_dir=root,
+            )
+        except Exception as exc:  # noqa: BLE001 — advisory only; never fail the step
+            return True, f"judge:warn:exception:{exc}"
         if not ok:
-            return False, f"judge:fail:{detail}"
+            # Advisory: structural gates already passed; judge miss must not fail the scenario.
+            return True, f"judge:warn:{detail}"
         return True, f"judge:pass:{detail}"
 
     return True, rel

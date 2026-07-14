@@ -17,7 +17,7 @@ func handleDevComplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !requireSoftwareDevPack(w) {
+	if !requireIDEPack(w) {
 		return
 	}
 	var req struct {

@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib.release_prep_failures import (  # noqa: E402
     FailureKind,
+    _classify,
     _extract_scenarios_from_text,
     build_agent_prompt,
     parse_release_prep_report,
@@ -76,7 +77,31 @@ class ReleasePrepFailuresTest(unittest.TestCase):
         self.assertIn("collab:execution-no-stack-commands", names)
         collab = next(f for f in found if f.name == "collab:execution-no-stack-commands")
         self.assertEqual(collab.rerun_cmd[:3], ["python3", "scripts/collab-scenarios.py", "--scenario"])
-        self.assertEqual(collab.kind, FailureKind.CODE)
+        self.assertEqual(collab.kind, FailureKind.FLAKE)
+
+    def test_collab_timeout_classified_as_flake(self) -> None:
+        self.assertEqual(
+            _classify(
+                "collab:execution-no-stack-commands",
+                "timeout waiting for phase 'reviewing' (last='planning')",
+            ),
+            FailureKind.FLAKE,
+        )
+
+    def test_collab_hub_unhealthy_classified_as_infra(self) -> None:
+        self.assertEqual(
+            _classify("collab:planning-two-agent", "hub not healthy (recovery exhausted)"),
+            FailureKind.INFRA,
+        )
+
+    def test_collab_assertion_mismatch_still_code(self) -> None:
+        self.assertEqual(
+            _classify(
+                "collab:plan-dependency-prose-regression",
+                "FAIL: @SoftwareArchitect — no collaboration_discussion (silent or shouldRespond blocked)",
+            ),
+            FailureKind.CODE,
+        )
 
     def test_collab_participation_failures_are_code_not_flake(self) -> None:
         found = _extract_scenarios_from_text(

@@ -52,6 +52,9 @@ func (a *Agent) sendCollabVisibleGenerationError(msg *protocol.Message, userMsg,
 		collabMsg.Metadata = make(map[string]interface{})
 	}
 	collabMsg.Metadata["generation_error"] = true
+	if taskID := strings.TrimSpace(msg.GetTaskID()); taskID != "" {
+		collabMsg.SetTaskID(taskID)
+	}
 	if errCode != "" {
 		collabMsg.SetErrorMetadata(errCode, retryable)
 	}

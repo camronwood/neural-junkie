@@ -327,7 +327,7 @@ func main() {
 			case <-sessionSaverCtx.Done():
 				return
 			case <-ticker.C:
-				chatHub.TickCollaborationIdleWatchdog(time.Now())
+				chatHub.TickCollabScheduler(time.Now())
 			}
 		}
 	}()

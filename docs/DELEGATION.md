@@ -63,7 +63,7 @@ See [BIOLOGY_PACK.md](BIOLOGY_PACK.md) for model pulls and disclaimers.
 ## Limits
 
 - **In-process hub agents only** (not standalone `cmd/agent` subprocesses).
-- **No delegation** during collaboration task/recap messages (collab orchestration owns multi-agent flow).
+- **Silent delegation is skipped** during collaboration (`collaboration_id` set, or collab task/recap messages). Mid-collab specialist access uses **visible L1 consult** instead — see [COLLABORATION.md](COLLABORATION.md) (L1 consult vs L2 join).
 - **Max depth** 1 — no consult chains (A→B→C).
 
 ## Debug
@@ -78,4 +78,4 @@ curl 'http://localhost:18765/api/debug/delegation-resolve?from=BackendEngineer&q
 
 - [CONTEXT_MODEL.md](CONTEXT_MODEL.md) — Conversation Context Stack v2; turn intent runs before delegation augments the prompt.
 - [AGENT_REVIEW.md](AGENT_REVIEW.md) — user-driven second opinion (@mention), not automatic consult.
-- [COLLABORATION.md](COLLABORATION.md) — structured multi-agent projects.
+- [COLLABORATION.md](COLLABORATION.md) — structured projects (solo or multi-agent); L1 visible consult vs L2 join.

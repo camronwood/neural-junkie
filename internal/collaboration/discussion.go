@@ -105,6 +105,12 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 		return fmt.Errorf("discussion is %s, not accepting messages", d.Status)
 	}
 
+	// Hub-mediated L1 consults must not consume discussion turn budget or advance rounds.
+	if isCollabConsultMessage(msg) {
+		cm.mu.Unlock()
+		return nil
+	}
+
 	if planningDiscussionTimeoutElapsed(c, d) {
 		d.Status = DiscussionTimedOut
 		if c.Phase == PhasePlanning {
@@ -549,12 +555,12 @@ func planningSpeakerCooldownBlockedLocked(c *Collaboration, d *DiscussionSession
 
 // participationQuorumMet is true when every discussion participant has spoken at least once.
 func participationQuorumMet(d *DiscussionSession) bool {
-	if d == nil || len(d.Participants) < 2 {
+	if d == nil || len(d.Participants) < 1 {
 		return false
 	}
 	spoken := make(map[string]bool, len(d.Participants))
 	for _, m := range d.Messages {
-		if m == nil || m.From.ID == "" || isDiscussionGenerationError(m) {
+		if m == nil || m.From.ID == "" || isDiscussionGenerationError(m) || isCollabConsultMessage(m) {
 			continue
 		}
 		spoken[m.From.ID] = true
@@ -565,6 +571,19 @@ func participationQuorumMet(d *DiscussionSession) bool {
 		}
 	}
 	return d.TotalMessageCount >= len(d.Participants)
+}
+
+func isCollabConsultMessage(msg *protocol.Message) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	if event, ok := msg.Metadata["event"].(string); ok && event == "collab-consult" {
+		return true
+	}
+	if v, ok := msg.Metadata["collab_consult"].(bool); ok && v {
+		return true
+	}
+	return false
 }
 
 // advanceTurnAfterGenerationErrors moves to the next participant after repeated

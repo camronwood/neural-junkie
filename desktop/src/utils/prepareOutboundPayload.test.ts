@@ -9,7 +9,7 @@ describe('prepareOutboundPayload', () => {
       agents: [],
       activeTab: null,
       editorAgentTrust: 'interactive',
-      devPackEnabled: true,
+      ideEnabled: true,
     });
     expect(content).toBe('save it to docs/test.md');
     expect(metadata.editor_mode).toBe('export');
@@ -24,7 +24,7 @@ describe('prepareOutboundPayload', () => {
       agents: [],
       activeTab: null,
       editorAgentTrust: 'interactive',
-      devPackEnabled: true,
+      ideEnabled: true,
     });
     expect(metadata.editor_mode).toBe('export');
     expect(metadata.implementation_session).toBe(true);
@@ -38,7 +38,7 @@ describe('prepareOutboundPayload', () => {
       agents: [],
       activeTab: null,
       editorAgentTrust: 'interactive',
-      devPackEnabled: true,
+      ideEnabled: true,
     });
     expect(metadata.editor_mode).toBe('agent');
     expect(metadata.implementation_session).toBeUndefined();
@@ -64,7 +64,7 @@ describe('prepareOutboundPayload', () => {
       agents: [],
       activeTab: null,
       editorAgentTrust: 'interactive',
-      devPackEnabled: true,
+      ideEnabled: true,
     });
     expect(content).toBe('/create-expert ios MyExpert ollama gemma3:12b');
     expect(metadata.editor_mode).toBeUndefined();

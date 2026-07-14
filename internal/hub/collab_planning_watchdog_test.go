@@ -55,6 +55,9 @@ func TestTickPlanningDiscussionWatchdog_HandoffForSilentParticipant(t *testing.T
 		}
 		if body := m.Content; body != "" && (strings.Contains(body, "Collaboration turn handoff") || strings.Contains(body, "You're up first")) {
 			handoffs++
+			if m.Metadata == nil || m.Metadata["collab_turn_handoff"] != true {
+				t.Fatal("expected collab_turn_handoff metadata on planning handoff")
+			}
 		}
 	}
 	if handoffs == 0 {
