@@ -394,6 +394,18 @@
       "filename": "neural-junkie-nondev-experts-ad-1080.png"
     },
     {
+      "id": "neural-junkie-all-your-ai-chats-1080",
+      "src": "../media/gallery/ads/neural-junkie-all-your-ai-chats-1080.png",
+      "title": "All Your AI Chats",
+      "caption": "Claude · GPT · Gemini · Ollama · HF · Cursor · LM Studio — one Neural Junkie command center.",
+      "category": "ads",
+      "tags": [
+        "providers",
+        "models"
+      ],
+      "filename": "neural-junkie-all-your-ai-chats-1080.png"
+    },
+    {
       "id": "neural-junkie-nondev-providers-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-nondev-providers-ad-1080.png",
       "title": "Nondev Providers",
