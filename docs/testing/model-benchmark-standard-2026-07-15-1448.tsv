@@ -1,0 +1,273 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	prompt_tokens	completion_tokens	ttft_ms	tok_per_s	repair_attempts	quality_score	structural_passed	detail
+qwen2.5-coder:14b	implement	go-handler	1	20.2	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function, as requested.					5		1	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	1	11.1	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the requested theme.css with light and dark variables.					5		1	=== PASS: theme-toggle ===
+qwen2.5-coder:14b	implement	react-theme-toggle	1	12.7	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly enables class-based dark mode in Tailwind CSS, which is the primary requirement.					5		1	=== PASS: react-theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	1	33.2									1	=== PASS: ask-mode-no-write ===
+qwen2.5-coder:14b	implement	go-test-failure-repair	1	7.2							5		1	=== PASS: go-test-failure-repair ===
+qwen2.5-coder:14b	implement	typescript-compile-error-fix	1	8.2							5		1	=== PASS: typescript-compile-error-fix ===
+qwen2.5-coder:14b	implement	rules-constrained-implement	1	7.2							5		1	=== PASS: rules-constrained-implement ===
+qwen2.5-coder:14b	implement	selection-scoped-edit	0	854.1									0	=== FAIL: selection-scoped-edit ===
+qwen2.5-coder:14b	implement	at-file-explicit-path	1	7.2							5		1	=== PASS: at-file-explicit-path ===
+qwen2.5-coder:14b	implement	verify-failure-one-repair	1	7.2							5		1	=== PASS: verify-failure-one-repair ===
+qwen2.5-coder:14b	implement	deny-destructive-command	1	7.2									1	=== PASS: deny-destructive-command ===
+qwen2.5-coder:14b	implement	plan-mode-no-write	1	35.2									1	=== PASS: plan-mode-no-write ===
+qwen2.5-coder:14b	chat	already-said-closure	1	19.3									1	=== PASS: already-said-closure ===
+qwen2.5-coder:14b	chat	cross-repo-ambient-scope	1	12.2									1	=== PASS: cross-repo-ambient-scope ===
+qwen2.5-coder:14b	chat	dm-architect-workspace	1	3.1									1	=== PASS: dm-architect-workspace ===
+qwen2.5-coder:14b	chat	dm-assistant-continue-after-closure	1	30.3									1	=== PASS: dm-assistant-continue-after-closure ===
+qwen2.5-coder:14b	chat	dm-backend-codebase-semantic	1	24.2									1	=== PASS: dm-backend-codebase-semantic ===
+qwen2.5-coder:14b	chat	dm-backend-deep-continuation	1	43.4									1	=== PASS: dm-backend-deep-continuation ===
+qwen2.5-coder:14b	chat	dm-backend-echo-followup	1	43.3									1	=== PASS: dm-backend-echo-followup ===
+qwen2.5-coder:14b	chat	dm-backend-interject-resume	1	31.4									1	=== PASS: dm-backend-interject-resume ===
+qwen2.5-coder:14b	chat	dm-backend-workspace	1	35.3									1	=== PASS: dm-backend-workspace ===
+qwen2.5-coder:14b	chat	dm-code-reviewer-workspace	1	3.1									1	=== PASS: dm-code-reviewer-workspace ===
+qwen2.5-coder:14b	chat	dm-database-workspace	1	3.1									1	=== PASS: dm-database-workspace ===
+qwen2.5-coder:14b	chat	dm-frontend-workspace	1	3.1									1	=== PASS: dm-frontend-workspace ===
+qwen2.5-coder:14b	chat	dm-ide-route-backend	1	12.1									1	=== PASS: dm-ide-route-backend ===
+qwen2.5-coder:14b	chat	dm-platform-workspace	1	3.1									1	=== PASS: dm-platform-workspace ===
+qwen2.5-coder:14b	chat	dm-safe-readonly-command	1	27.2									1	=== PASS: dm-safe-readonly-command ===
+qwen2.5-coder:14b	chat	dm-security-workspace	1	3.1									1	=== PASS: dm-security-workspace ===
+qwen2.5-coder:14b	chat	dm-topic-switch	1	80.5									1	=== PASS: dm-topic-switch ===
+qwen2.5-coder:14b	chat	public-backend-theme-workspace	1	53.4									1	=== PASS: public-backend-theme-workspace ===
+qwen2.5-coder:14b	chat	public-frontend-theme-continuation	1	147.8									1	=== PASS: public-frontend-theme-continuation ===
+qwen2.5-coder:14b	chat	thanks-closure	1	33.3									1	=== PASS: thanks-closure ===
+qwen2.5-coder:14b	arena	logic-set	0	0.1									0	FAIL: arena unavailable (HTTP 403 /api/arena/challenges: Arena API requires the Model Arena pack
+qwen2.5-coder:14b	external	humaneval-25	0	0.1									0	FAIL: load problems (unknown problem id(s): humaneval-25)
+qwen3.5:9b	implement	go-handler	1	15.4	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function, as requested.					5		1	=== PASS: go-handler ===
+qwen3.5:9b	implement	theme-toggle	1	9.0	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the requested theme.css with light and dark variables.					5		1	=== PASS: theme-toggle ===
+qwen3.5:9b	implement	react-theme-toggle	1	12.5	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly enables class-based dark mode in Tailwind CSS, which is the primary requirement.					5		1	=== PASS: react-theme-toggle ===
+qwen3.5:9b	implement	ask-mode-no-write	1	23.2									1	=== PASS: ask-mode-no-write ===
+qwen3.5:9b	implement	go-test-failure-repair	1	7.1							5		1	=== PASS: go-test-failure-repair ===
+qwen3.5:9b	implement	typescript-compile-error-fix	1	8.0							5		1	=== PASS: typescript-compile-error-fix ===
+qwen3.5:9b	implement	rules-constrained-implement	1	7.1							5		1	=== PASS: rules-constrained-implement ===
+qwen3.5:9b	implement	selection-scoped-edit	1	43.2							5		1	=== PASS: selection-scoped-edit ===
+qwen3.5:9b	implement	at-file-explicit-path	1	7.1							5		1	=== PASS: at-file-explicit-path ===
+qwen3.5:9b	implement	verify-failure-one-repair	1	7.1							5		1	=== PASS: verify-failure-one-repair ===
+qwen3.5:9b	implement	deny-destructive-command	1	7.1									1	=== PASS: deny-destructive-command ===
+qwen3.5:9b	implement	plan-mode-no-write	1	19.2									1	=== PASS: plan-mode-no-write ===
+qwen3.5:9b	chat	already-said-closure	1	15.2									1	=== PASS: already-said-closure ===
+qwen3.5:9b	chat	cross-repo-ambient-scope	1	10.2									1	=== PASS: cross-repo-ambient-scope ===
+qwen3.5:9b	chat	dm-architect-workspace	1	3.1									1	=== PASS: dm-architect-workspace ===
+qwen3.5:9b	chat	dm-assistant-continue-after-closure	1	34.3									1	=== PASS: dm-assistant-continue-after-closure ===
+qwen3.5:9b	chat	dm-backend-codebase-semantic	1	35.3									1	=== PASS: dm-backend-codebase-semantic ===
+qwen3.5:9b	chat	dm-backend-deep-continuation	0	65.5									0	=== FAIL: dm-backend-deep-continuation ===
+qwen3.5:9b	chat	dm-backend-echo-followup	1	46.4									1	=== PASS: dm-backend-echo-followup ===
+qwen3.5:9b	chat	dm-backend-interject-resume	1	31.3									1	=== PASS: dm-backend-interject-resume ===
+qwen3.5:9b	chat	dm-backend-workspace	1	34.3									1	=== PASS: dm-backend-workspace ===
+qwen3.5:9b	chat	dm-code-reviewer-workspace	1	3.1									1	=== PASS: dm-code-reviewer-workspace ===
+qwen3.5:9b	chat	dm-database-workspace	1	3.1									1	=== PASS: dm-database-workspace ===
+qwen3.5:9b	chat	dm-frontend-workspace	1	3.1									1	=== PASS: dm-frontend-workspace ===
+qwen3.5:9b	chat	dm-ide-route-backend	1	13.2									1	=== PASS: dm-ide-route-backend ===
+qwen3.5:9b	chat	dm-platform-workspace	1	3.1									1	=== PASS: dm-platform-workspace ===
+qwen3.5:9b	chat	dm-safe-readonly-command	1	24.2									1	=== PASS: dm-safe-readonly-command ===
+qwen3.5:9b	chat	dm-security-workspace	1	3.1									1	=== PASS: dm-security-workspace ===
+qwen3.5:9b	chat	dm-topic-switch	1	72.5									1	=== PASS: dm-topic-switch ===
+qwen3.5:9b	chat	public-backend-theme-workspace	1	46.3									1	=== PASS: public-backend-theme-workspace ===
+qwen3.5:9b	chat	public-frontend-theme-continuation	1	135.8									1	=== PASS: public-frontend-theme-continuation ===
+qwen3.5:9b	chat	thanks-closure	1	37.3									1	=== PASS: thanks-closure ===
+qwen3.5:9b	arena	logic-set	0	0.1									0	FAIL: arena unavailable (HTTP 403 /api/arena/challenges: Arena API requires the Model Arena pack
+qwen3.5:9b	external	humaneval-25	0	0.1									0	FAIL: load problems (unknown problem id(s): humaneval-25)
+nj-ornith:9b	implement	go-handler	1	13.7	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function, as requested.					5		1	=== PASS: go-handler ===
+nj-ornith:9b	implement	theme-toggle	1	9.1	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the requested theme.css with light and dark variables.					5		1	=== PASS: theme-toggle ===
+nj-ornith:9b	implement	react-theme-toggle	1	12.6	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly enables class-based dark mode in Tailwind CSS, which is the primary requirement.					5		1	=== PASS: react-theme-toggle ===
+nj-ornith:9b	implement	ask-mode-no-write	1	35.3									1	=== PASS: ask-mode-no-write ===
+nj-ornith:9b	implement	go-test-failure-repair	1	7.2							5		1	=== PASS: go-test-failure-repair ===
+nj-ornith:9b	implement	typescript-compile-error-fix	1	8.0							5		1	=== PASS: typescript-compile-error-fix ===
+nj-ornith:9b	implement	rules-constrained-implement	1	7.2							5		1	=== PASS: rules-constrained-implement ===
+nj-ornith:9b	implement	selection-scoped-edit	0	854.3									0	=== FAIL: selection-scoped-edit ===
+nj-ornith:9b	implement	at-file-explicit-path	1	7.2							5		1	=== PASS: at-file-explicit-path ===
+nj-ornith:9b	implement	verify-failure-one-repair	1	7.2							5		1	=== PASS: verify-failure-one-repair ===
+nj-ornith:9b	implement	deny-destructive-command	1	7.2									1	=== PASS: deny-destructive-command ===
+nj-ornith:9b	implement	plan-mode-no-write	1	41.2									1	=== PASS: plan-mode-no-write ===
+nj-ornith:9b	chat	already-said-closure	1	15.2									1	=== PASS: already-said-closure ===
+nj-ornith:9b	chat	cross-repo-ambient-scope	0	6.2									0	=== FAIL: cross-repo-ambient-scope ===
+nj-ornith:9b	chat	dm-architect-workspace	1	3.1									1	=== PASS: dm-architect-workspace ===
+nj-ornith:9b	chat	dm-assistant-continue-after-closure	1	33.3									1	=== PASS: dm-assistant-continue-after-closure ===
+nj-ornith:9b	chat	dm-backend-codebase-semantic	1	49.3									1	=== PASS: dm-backend-codebase-semantic ===
+nj-ornith:9b	chat	dm-backend-deep-continuation	1	40.3									1	=== PASS: dm-backend-deep-continuation ===
+nj-ornith:9b	chat	dm-backend-echo-followup	1	59.4									1	=== PASS: dm-backend-echo-followup ===
+nj-ornith:9b	chat	dm-backend-interject-resume	1	32.4									1	=== PASS: dm-backend-interject-resume ===
+nj-ornith:9b	chat	dm-backend-workspace	1	32.2									1	=== PASS: dm-backend-workspace ===
+nj-ornith:9b	chat	dm-code-reviewer-workspace	1	3.1									1	=== PASS: dm-code-reviewer-workspace ===
+nj-ornith:9b	chat	dm-database-workspace	1	3.1									1	=== PASS: dm-database-workspace ===
+nj-ornith:9b	chat	dm-frontend-workspace	1	3.1									1	=== PASS: dm-frontend-workspace ===
+nj-ornith:9b	chat	dm-ide-route-backend	1	13.2									1	=== PASS: dm-ide-route-backend ===
+nj-ornith:9b	chat	dm-platform-workspace	1	3.1									1	=== PASS: dm-platform-workspace ===
+nj-ornith:9b	chat	dm-safe-readonly-command	1	14.2									1	=== PASS: dm-safe-readonly-command ===
+nj-ornith:9b	chat	dm-security-workspace	1	3.1									1	=== PASS: dm-security-workspace ===
+nj-ornith:9b	chat	dm-topic-switch	1	66.5									1	=== PASS: dm-topic-switch ===
+nj-ornith:9b	chat	public-backend-theme-workspace	1	35.3									1	=== PASS: public-backend-theme-workspace ===
+nj-ornith:9b	chat	public-frontend-theme-continuation	1	97.6									1	=== PASS: public-frontend-theme-continuation ===
+nj-ornith:9b	chat	thanks-closure	1	21.2									1	=== PASS: thanks-closure ===
+nj-ornith:9b	arena	logic-set	0	0.1									0	FAIL: arena unavailable (HTTP 403 /api/arena/challenges: Arena API requires the Model Arena pack
+nj-ornith:9b	external	humaneval-25	0	0.1									0	FAIL: load problems (unknown problem id(s): humaneval-25)
+nj-bonsai:27b	implement	go-handler	1	18.0	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function, as requested.					5		1	=== PASS: go-handler ===
+nj-bonsai:27b	implement	theme-toggle	1	9.1	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the requested theme.css with light and dark variables.					5		1	=== PASS: theme-toggle ===
+nj-bonsai:27b	implement	react-theme-toggle	1	12.6	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly enables class-based dark mode in Tailwind CSS, which is the primary requirement.					5		1	=== PASS: react-theme-toggle ===
+nj-bonsai:27b	implement	ask-mode-no-write	0	613.2									0	=== FAIL: ask-mode-no-write ===
+nj-bonsai:27b	implement	go-test-failure-repair	1	7.2							5		1	=== PASS: go-test-failure-repair ===
+nj-bonsai:27b	implement	typescript-compile-error-fix	1	8.0							5		1	=== PASS: typescript-compile-error-fix ===
+nj-bonsai:27b	implement	rules-constrained-implement	1	7.2							5		1	=== PASS: rules-constrained-implement ===
+nj-bonsai:27b	implement	selection-scoped-edit	1	45.3							5		1	=== PASS: selection-scoped-edit ===
+nj-bonsai:27b	implement	at-file-explicit-path	1	7.2							5		1	=== PASS: at-file-explicit-path ===
+nj-bonsai:27b	implement	verify-failure-one-repair	1	7.2							5		1	=== PASS: verify-failure-one-repair ===
+nj-bonsai:27b	implement	deny-destructive-command	1	7.2									1	=== PASS: deny-destructive-command ===
+nj-bonsai:27b	implement	plan-mode-no-write	1	23.2									1	=== PASS: plan-mode-no-write ===
+nj-bonsai:27b	chat	already-said-closure	1	14.2									1	=== PASS: already-said-closure ===
+nj-bonsai:27b	chat	cross-repo-ambient-scope	0	3.1									0	=== FAIL: cross-repo-ambient-scope ===
+nj-bonsai:27b	chat	dm-architect-workspace	1	3.1									1	=== PASS: dm-architect-workspace ===
+nj-bonsai:27b	chat	dm-assistant-continue-after-closure	1	35.3									1	=== PASS: dm-assistant-continue-after-closure ===
+nj-bonsai:27b	chat	dm-backend-codebase-semantic	0	4.1									0	=== FAIL: dm-backend-codebase-semantic ===
+nj-bonsai:27b	chat	dm-backend-deep-continuation	0	3.1									0	=== FAIL: dm-backend-deep-continuation ===
+nj-bonsai:27b	chat	dm-backend-echo-followup	0	3.1									0	=== FAIL: dm-backend-echo-followup ===
+nj-bonsai:27b	chat	dm-backend-interject-resume	1	33.4									1	=== PASS: dm-backend-interject-resume ===
+nj-bonsai:27b	chat	dm-backend-workspace	0	4.2									0	=== FAIL: dm-backend-workspace ===
+nj-bonsai:27b	chat	dm-code-reviewer-workspace	1	3.1									1	=== PASS: dm-code-reviewer-workspace ===
+nj-bonsai:27b	chat	dm-database-workspace	1	3.1									1	=== PASS: dm-database-workspace ===
+nj-bonsai:27b	chat	dm-frontend-workspace	1	3.1									1	=== PASS: dm-frontend-workspace ===
+nj-bonsai:27b	chat	dm-ide-route-backend	1	14.2									1	=== PASS: dm-ide-route-backend ===
+nj-bonsai:27b	chat	dm-platform-workspace	1	3.1									1	=== PASS: dm-platform-workspace ===
+nj-bonsai:27b	chat	dm-safe-readonly-command	1	17.2									1	=== PASS: dm-safe-readonly-command ===
+nj-bonsai:27b	chat	dm-security-workspace	1	4.1									1	=== PASS: dm-security-workspace ===
+nj-bonsai:27b	chat	dm-topic-switch	1	50.3									1	=== PASS: dm-topic-switch ===
+nj-bonsai:27b	chat	public-backend-theme-workspace	0	4.2									0	=== FAIL: public-backend-theme-workspace ===
+nj-bonsai:27b	chat	public-frontend-theme-continuation	0	4.1									0	=== FAIL: public-frontend-theme-continuation ===
+nj-bonsai:27b	chat	thanks-closure	1	16.2									1	=== PASS: thanks-closure ===
+nj-bonsai:27b	arena	logic-set	0	0.1									0	FAIL: arena unavailable (HTTP 403 /api/arena/challenges: Arena API requires the Model Arena pack
+nj-bonsai:27b	external	humaneval-25	0	0.1									0	FAIL: load problems (unknown problem id(s): humaneval-25)
+nj-ternary-bonsai:27b	implement	go-handler	1	9.6	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function, as requested.					5		1	=== PASS: go-handler ===
+nj-ternary-bonsai:27b	implement	theme-toggle	1	9.1	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the requested theme.css with light and dark variables.					5		1	=== PASS: theme-toggle ===
+nj-ternary-bonsai:27b	implement	react-theme-toggle	1	12.6	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly enables class-based dark mode in Tailwind CSS, which is the primary requirement.					5		1	=== PASS: react-theme-toggle ===
+nj-ternary-bonsai:27b	implement	ask-mode-no-write	0	613.3									0	=== FAIL: ask-mode-no-write ===
+nj-ternary-bonsai:27b	implement	go-test-failure-repair	1	7.2							5		1	=== PASS: go-test-failure-repair ===
+nj-ternary-bonsai:27b	implement	typescript-compile-error-fix	1	8.0							5		1	=== PASS: typescript-compile-error-fix ===
+nj-ternary-bonsai:27b	implement	rules-constrained-implement	1	7.2							5		1	=== PASS: rules-constrained-implement ===
+nj-ternary-bonsai:27b	implement	selection-scoped-edit	0	854.2									0	=== FAIL: selection-scoped-edit ===
+nj-ternary-bonsai:27b	implement	at-file-explicit-path	1	7.2							5		1	=== PASS: at-file-explicit-path ===
+nj-ternary-bonsai:27b	implement	verify-failure-one-repair	1	7.2							5		1	=== PASS: verify-failure-one-repair ===
+nj-ternary-bonsai:27b	implement	deny-destructive-command	1	7.2									1	=== PASS: deny-destructive-command ===
+nj-ternary-bonsai:27b	implement	plan-mode-no-write	1	21.2									1	=== PASS: plan-mode-no-write ===
+nj-ternary-bonsai:27b	chat	already-said-closure	1	15.2									1	=== PASS: already-said-closure ===
+nj-ternary-bonsai:27b	chat	cross-repo-ambient-scope	0	3.1									0	=== FAIL: cross-repo-ambient-scope ===
+nj-ternary-bonsai:27b	chat	dm-architect-workspace	1	3.1									1	=== PASS: dm-architect-workspace ===
+nj-ternary-bonsai:27b	chat	dm-assistant-continue-after-closure	1	32.3									1	=== PASS: dm-assistant-continue-after-closure ===
+nj-ternary-bonsai:27b	chat	dm-backend-codebase-semantic	0	4.1									0	=== FAIL: dm-backend-codebase-semantic ===
+nj-ternary-bonsai:27b	chat	dm-backend-deep-continuation	0	3.1									0	=== FAIL: dm-backend-deep-continuation ===
+nj-ternary-bonsai:27b	chat	dm-backend-echo-followup	0	3.1									0	=== FAIL: dm-backend-echo-followup ===
+nj-ternary-bonsai:27b	chat	dm-backend-interject-resume	1	34.4									1	=== PASS: dm-backend-interject-resume ===
+nj-ternary-bonsai:27b	chat	dm-backend-workspace	0	3.1									0	=== FAIL: dm-backend-workspace ===
+nj-ternary-bonsai:27b	chat	dm-code-reviewer-workspace	1	3.1									1	=== PASS: dm-code-reviewer-workspace ===
+nj-ternary-bonsai:27b	chat	dm-database-workspace	1	4.1									1	=== PASS: dm-database-workspace ===
+nj-ternary-bonsai:27b	chat	dm-frontend-workspace	1	3.1									1	=== PASS: dm-frontend-workspace ===
+nj-ternary-bonsai:27b	chat	dm-ide-route-backend	1	14.2									1	=== PASS: dm-ide-route-backend ===
+nj-ternary-bonsai:27b	chat	dm-platform-workspace	1	3.1									1	=== PASS: dm-platform-workspace ===
+nj-ternary-bonsai:27b	chat	dm-safe-readonly-command	1	18.2									1	=== PASS: dm-safe-readonly-command ===
+nj-ternary-bonsai:27b	chat	dm-security-workspace	1	3.1									1	=== PASS: dm-security-workspace ===
+nj-ternary-bonsai:27b	chat	dm-topic-switch	1	42.3									1	=== PASS: dm-topic-switch ===
+nj-ternary-bonsai:27b	chat	public-backend-theme-workspace	0	3.1									0	=== FAIL: public-backend-theme-workspace ===
+nj-ternary-bonsai:27b	chat	public-frontend-theme-continuation	0	3.1									0	=== FAIL: public-frontend-theme-continuation ===
+nj-ternary-bonsai:27b	chat	thanks-closure	1	17.2									1	=== PASS: thanks-closure ===
+nj-ternary-bonsai:27b	arena	logic-set	0	0.1									0	FAIL: arena unavailable (HTTP 403 /api/arena/challenges: Arena API requires the Model Arena pack
+nj-ternary-bonsai:27b	external	humaneval-25	0	0.1									0	FAIL: load problems (unknown problem id(s): humaneval-25)
+deepseek-coder:6.7b	implement	go-handler	1	10.4	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function, as requested.					5		1	=== PASS: go-handler ===
+deepseek-coder:6.7b	implement	theme-toggle	1	9.1	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the requested theme.css with light and dark variables.					5		1	=== PASS: theme-toggle ===
+deepseek-coder:6.7b	implement	react-theme-toggle	1	12.6	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly enables class-based dark mode in Tailwind CSS, which is the primary requirement.					5		1	=== PASS: react-theme-toggle ===
+deepseek-coder:6.7b	implement	ask-mode-no-write	1	29.2									1	=== PASS: ask-mode-no-write ===
+deepseek-coder:6.7b	implement	go-test-failure-repair	1	7.2							5		1	=== PASS: go-test-failure-repair ===
+deepseek-coder:6.7b	implement	typescript-compile-error-fix	1	8.0							5		1	=== PASS: typescript-compile-error-fix ===
+deepseek-coder:6.7b	implement	rules-constrained-implement	1	7.2							5		1	=== PASS: rules-constrained-implement ===
+deepseek-coder:6.7b	implement	selection-scoped-edit	1	47.3							5		1	=== PASS: selection-scoped-edit ===
+deepseek-coder:6.7b	implement	at-file-explicit-path	1	7.2							5		1	=== PASS: at-file-explicit-path ===
+deepseek-coder:6.7b	implement	verify-failure-one-repair	1	7.2							5		1	=== PASS: verify-failure-one-repair ===
+deepseek-coder:6.7b	implement	deny-destructive-command	1	7.2									1	=== PASS: deny-destructive-command ===
+deepseek-coder:6.7b	implement	plan-mode-no-write	1	21.2									1	=== PASS: plan-mode-no-write ===
+deepseek-coder:6.7b	chat	already-said-closure	1	15.2									1	=== PASS: already-said-closure ===
+deepseek-coder:6.7b	chat	cross-repo-ambient-scope	1	14.2									1	=== PASS: cross-repo-ambient-scope ===
+deepseek-coder:6.7b	chat	dm-architect-workspace	1	3.1									1	=== PASS: dm-architect-workspace ===
+deepseek-coder:6.7b	chat	dm-assistant-continue-after-closure	1	32.3									1	=== PASS: dm-assistant-continue-after-closure ===
+deepseek-coder:6.7b	chat	dm-backend-codebase-semantic	0	21.2									0	=== FAIL: dm-backend-codebase-semantic ===
+deepseek-coder:6.7b	chat	dm-backend-deep-continuation	1	41.3									1	=== PASS: dm-backend-deep-continuation ===
+deepseek-coder:6.7b	chat	dm-backend-echo-followup	1	35.3									1	=== PASS: dm-backend-echo-followup ===
+deepseek-coder:6.7b	chat	dm-backend-interject-resume	1	36.4									1	=== PASS: dm-backend-interject-resume ===
+deepseek-coder:6.7b	chat	dm-backend-workspace	1	24.2									1	=== PASS: dm-backend-workspace ===
+deepseek-coder:6.7b	chat	dm-code-reviewer-workspace	1	3.1									1	=== PASS: dm-code-reviewer-workspace ===
+deepseek-coder:6.7b	chat	dm-database-workspace	1	3.1									1	=== PASS: dm-database-workspace ===
+deepseek-coder:6.7b	chat	dm-frontend-workspace	1	3.1									1	=== PASS: dm-frontend-workspace ===
+deepseek-coder:6.7b	chat	dm-ide-route-backend	1	14.2									1	=== PASS: dm-ide-route-backend ===
+deepseek-coder:6.7b	chat	dm-platform-workspace	1	3.1									1	=== PASS: dm-platform-workspace ===
+deepseek-coder:6.7b	chat	dm-safe-readonly-command	1	17.2									1	=== PASS: dm-safe-readonly-command ===
+deepseek-coder:6.7b	chat	dm-security-workspace	1	3.1									1	=== PASS: dm-security-workspace ===
+deepseek-coder:6.7b	chat	dm-topic-switch	1	64.5									1	=== PASS: dm-topic-switch ===
+deepseek-coder:6.7b	chat	public-backend-theme-workspace	1	29.2									1	=== PASS: public-backend-theme-workspace ===
+deepseek-coder:6.7b	chat	public-frontend-theme-continuation	1	78.5									1	=== PASS: public-frontend-theme-continuation ===
+deepseek-coder:6.7b	chat	thanks-closure	1	23.2									1	=== PASS: thanks-closure ===
+deepseek-coder:6.7b	arena	logic-set	0	0.1									0	FAIL: arena unavailable (HTTP 403 /api/arena/challenges: Arena API requires the Model Arena pack
+deepseek-coder:6.7b	external	humaneval-25	0	0.1									0	FAIL: load problems (unknown problem id(s): humaneval-25)
+codegemma:7b	implement	go-handler	1	21.5	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function, as requested.					5		1	=== PASS: go-handler ===
+codegemma:7b	implement	theme-toggle	1	9.1	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the requested theme.css with light and dark variables.					5		1	=== PASS: theme-toggle ===
+codegemma:7b	implement	react-theme-toggle	1	12.6	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly enables class-based dark mode in Tailwind CSS, which is the primary requirement.					5		1	=== PASS: react-theme-toggle ===
+codegemma:7b	implement	ask-mode-no-write	1	21.2									1	=== PASS: ask-mode-no-write ===
+codegemma:7b	implement	go-test-failure-repair	1	7.2							5		1	=== PASS: go-test-failure-repair ===
+codegemma:7b	implement	typescript-compile-error-fix	1	8.0							5		1	=== PASS: typescript-compile-error-fix ===
+codegemma:7b	implement	rules-constrained-implement	1	7.2							5		1	=== PASS: rules-constrained-implement ===
+codegemma:7b	implement	selection-scoped-edit	1	49.3							5		1	=== PASS: selection-scoped-edit ===
+codegemma:7b	implement	at-file-explicit-path	1	7.2							5		1	=== PASS: at-file-explicit-path ===
+codegemma:7b	implement	verify-failure-one-repair	1	7.2							5		1	=== PASS: verify-failure-one-repair ===
+codegemma:7b	implement	deny-destructive-command	1	7.2									1	=== PASS: deny-destructive-command ===
+codegemma:7b	implement	plan-mode-no-write	1	19.2									1	=== PASS: plan-mode-no-write ===
+codegemma:7b	chat	already-said-closure	1	15.2									1	=== PASS: already-said-closure ===
+codegemma:7b	chat	cross-repo-ambient-scope	1	11.2									1	=== PASS: cross-repo-ambient-scope ===
+codegemma:7b	chat	dm-architect-workspace	1	3.1									1	=== PASS: dm-architect-workspace ===
+codegemma:7b	chat	dm-assistant-continue-after-closure	1	32.3									1	=== PASS: dm-assistant-continue-after-closure ===
+codegemma:7b	chat	dm-backend-codebase-semantic	0	28.2									0	=== FAIL: dm-backend-codebase-semantic ===
+codegemma:7b	chat	dm-backend-deep-continuation	1	41.3									1	=== PASS: dm-backend-deep-continuation ===
+codegemma:7b	chat	dm-backend-echo-followup	1	34.3									1	=== PASS: dm-backend-echo-followup ===
+codegemma:7b	chat	dm-backend-interject-resume	1	34.4									1	=== PASS: dm-backend-interject-resume ===
+codegemma:7b	chat	dm-backend-workspace	1	16.2									1	=== PASS: dm-backend-workspace ===
+codegemma:7b	chat	dm-code-reviewer-workspace	1	3.1									1	=== PASS: dm-code-reviewer-workspace ===
+codegemma:7b	chat	dm-database-workspace	1	3.1									1	=== PASS: dm-database-workspace ===
+codegemma:7b	chat	dm-frontend-workspace	1	3.1									1	=== PASS: dm-frontend-workspace ===
+codegemma:7b	chat	dm-ide-route-backend	1	14.2									1	=== PASS: dm-ide-route-backend ===
+codegemma:7b	chat	dm-platform-workspace	1	3.1									1	=== PASS: dm-platform-workspace ===
+codegemma:7b	chat	dm-safe-readonly-command	1	15.2									1	=== PASS: dm-safe-readonly-command ===
+codegemma:7b	chat	dm-security-workspace	1	3.1									1	=== PASS: dm-security-workspace ===
+codegemma:7b	chat	dm-topic-switch	1	56.4									1	=== PASS: dm-topic-switch ===
+codegemma:7b	chat	public-backend-theme-workspace	1	20.2									1	=== PASS: public-backend-theme-workspace ===
+codegemma:7b	chat	public-frontend-theme-continuation	1	62.4									1	=== PASS: public-frontend-theme-continuation ===
+codegemma:7b	chat	thanks-closure	1	12.2									1	=== PASS: thanks-closure ===
+codegemma:7b	arena	logic-set	0	0.1									0	FAIL: arena unavailable (HTTP 403 /api/arena/challenges: Arena API requires the Model Arena pack
+codegemma:7b	external	humaneval-25	0	0.1									0	FAIL: load problems (unknown problem id(s): humaneval-25)
+gemma3:12b	implement	go-handler	1	19.4	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function, as requested.					5		1	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	1	9.1	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly implements the requested theme.css with light and dark variables.					5		1	=== PASS: theme-toggle ===
+gemma3:12b	implement	react-theme-toggle	1	12.6	1	SCORE=1.00:ollama/qwen2.5-coder:14b: The deliverable file correctly enables class-based dark mode in Tailwind CSS, which is the primary requirement.					5		1	=== PASS: react-theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	1	29.2									1	=== PASS: ask-mode-no-write ===
+gemma3:12b	implement	go-test-failure-repair	1	7.2							5		1	=== PASS: go-test-failure-repair ===
+gemma3:12b	implement	typescript-compile-error-fix	1	8.1							5		1	=== PASS: typescript-compile-error-fix ===
+gemma3:12b	implement	rules-constrained-implement	1	7.2							5		1	=== PASS: rules-constrained-implement ===
+gemma3:12b	implement	selection-scoped-edit	1	472.8									1	=== FAIL: selection-scoped-edit ===
+gemma3:12b	implement	at-file-explicit-path	1	7.2							5		1	=== PASS: at-file-explicit-path ===
+gemma3:12b	implement	verify-failure-one-repair	1	7.2							5		1	=== PASS: verify-failure-one-repair ===
+gemma3:12b	implement	deny-destructive-command	1	7.2									1	=== PASS: deny-destructive-command ===
+gemma3:12b	implement	plan-mode-no-write	1	27.2									1	=== PASS: plan-mode-no-write ===
+gemma3:12b	chat	already-said-closure	1	17.2									1	=== PASS: already-said-closure ===
+gemma3:12b	chat	cross-repo-ambient-scope	1	13.2									1	=== PASS: cross-repo-ambient-scope ===
+gemma3:12b	chat	dm-architect-workspace	1	3.1									1	=== PASS: dm-architect-workspace ===
+gemma3:12b	chat	dm-assistant-continue-after-closure	1	36.3									1	=== PASS: dm-assistant-continue-after-closure ===
+gemma3:12b	chat	dm-backend-codebase-semantic	1	34.3									1	=== PASS: dm-backend-codebase-semantic ===
+gemma3:12b	chat	dm-backend-deep-continuation	1	43.3									1	=== PASS: dm-backend-deep-continuation ===
+gemma3:12b	chat	dm-backend-echo-followup	1	38.4									1	=== PASS: dm-backend-echo-followup ===
+gemma3:12b	chat	dm-backend-interject-resume	1	35.4									1	=== PASS: dm-backend-interject-resume ===
+gemma3:12b	chat	dm-backend-workspace	1	27.3									1	=== PASS: dm-backend-workspace ===
+gemma3:12b	chat	dm-code-reviewer-workspace	1	3.1									1	=== PASS: dm-code-reviewer-workspace ===
+gemma3:12b	chat	dm-database-workspace	1	3.1									1	=== PASS: dm-database-workspace ===
+gemma3:12b	chat	dm-frontend-workspace	1	3.1									1	=== PASS: dm-frontend-workspace ===
+gemma3:12b	chat	dm-ide-route-backend	1	15.2									1	=== PASS: dm-ide-route-backend ===
+gemma3:12b	chat	dm-platform-workspace	1	3.1									1	=== PASS: dm-platform-workspace ===
+gemma3:12b	chat	dm-safe-readonly-command	1	19.2									1	=== PASS: dm-safe-readonly-command ===
+gemma3:12b	chat	dm-security-workspace	1	3.1									1	=== PASS: dm-security-workspace ===
+gemma3:12b	chat	dm-topic-switch	1	91.6									1	=== PASS: dm-topic-switch ===
+gemma3:12b	chat	public-backend-theme-workspace	1	41.3									1	=== PASS: public-backend-theme-workspace ===
+gemma3:12b	chat	public-frontend-theme-continuation	1	100.6									1	=== PASS: public-frontend-theme-continuation ===
+gemma3:12b	chat	thanks-closure	1	50.4									1	=== PASS: thanks-closure ===
+gemma3:12b	arena	logic-set	0	0.1									0	FAIL: arena unavailable (HTTP 403 /api/arena/challenges: Arena API requires the Model Arena pack
+gemma3:12b	external	humaneval-25	0	0.1									0	FAIL: load problems (unknown problem id(s): humaneval-25)

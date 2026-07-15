@@ -4,17 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Model benchmarks — Neural Junkie</title>
-  <meta name="description" content="Live Ollama model benchmarks against Neural Junkie implement and chat scenarios — pass rates, timings, and historical runs." />
+  <meta name="description" content="Live Ollama model benchmarks against Neural Junkie implement, chat, collab, Arena, CAD, and HumanEval calibration tracks — pass rates, tokens, TTFT, and historical runs." />
 <!-- NJ-SITE-SEO:START -->
   <link rel="canonical" href="https://camronwood.github.io/neural-junkie/benchmarks/index.html" />
   <meta property="og:title" content="Model benchmarks — Neural Junkie" />
-  <meta property="og:description" content="Live Ollama model benchmarks against Neural Junkie implement and chat scenarios — pass rates, timings, and historical runs." />
+  <meta property="og:description" content="Live Ollama model benchmarks against Neural Junkie implement, chat, collab, Arena, CAD, and HumanEval calibration tracks — pass rates, tokens, TTFT, and historical runs." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://camronwood.github.io/neural-junkie/benchmarks/index.html" />
   <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Model benchmarks — Neural Junkie" />
-  <meta name="twitter:description" content="Live Ollama model benchmarks against Neural Junkie implement and chat scenarios — pass rates, timings, and historical runs." />
+  <meta name="twitter:description" content="Live Ollama model benchmarks against Neural Junkie implement, chat, collab, Arena, CAD, and HumanEval calibration tracks — pass rates, tokens, TTFT, and historical runs." />
   <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
 <!-- NJ-SITE-SEO:END -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -175,6 +175,12 @@
               <th>Rate</th>
               <th>Implement</th>
               <th>Chat</th>
+              <th>Collab</th>
+              <th>Arena</th>
+              <th>CAD</th>
+              <th title="Sum of prompt/completion tokens when reported">Tokens</th>
+              <th title="Average TTFT when reported">TTFT</th>
+              <th title="Average tok/s when reported">tok/s</th>
               <th title="Independent LLM review of implement deliverables (separate from structural Pass)">LLM judge</th>
               <th>Total time</th>
             </tr>
@@ -238,8 +244,11 @@
       <strong>How we benchmark</strong>
       <p style="margin: 0.5rem 0 0;">
         Each run uses <code>make model-benchmark</code> against a live hub: switch all agents to one Ollama tag,
-        then execute the same implement + chat scenarios. Some implement scenarios also get an independent
-        LLM deliverable judge (Pass/Fail on quality, not just whether files changed). Results are published with
+        then execute the same tracks (implement, chat, optional collab / Arena / CAD). Some implement scenarios
+        also get an independent LLM deliverable judge with a numeric quality score. Reports include tokens, TTFT,
+        and tok/s when the hub records inference usage. HumanEval-25 is an external calibration track only — it
+        does not drive capability routing.
+        Results are published with
         <code>make publish-model-benchmarks</code>.
         <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/MODEL_BENCHMARK.md">Full methodology</a>
         · <a href="https://github.com/camronwood/neural-junkie/tree/main/docs/testing">Raw logs</a>
@@ -323,12 +332,42 @@
     }
 
     function scenarioRows(run) {
-      const impl = run.implement_scenarios || [];
-      const chat = run.chat_scenarios || [];
-      return [
-        ...impl.map((n) => ({ kind: 'implement', name: n })),
-        ...chat.map((n) => ({ kind: 'chat', name: n })),
+      const tracks = [
+        ['implement', run.implement_scenarios || []],
+        ['chat', run.chat_scenarios || []],
+        ['collab', run.collab_scenarios || []],
+        ['arena', run.arena_scenarios || []],
+        ['cad', run.cad_scenarios || []],
+        ['external', run.external_scenarios || []],
       ];
+      const rows = [];
+      for (const [kind, names] of tracks) {
+        for (const n of names) rows.push({ kind, name: n });
+      }
+      return rows;
+    }
+
+    function trackPass(result, kind) {
+      const rows = (result.scenarios || []).filter((s) => s.kind === kind);
+      if (!rows.length) return '—';
+      return `${rows.filter((s) => s.passed).length}/${rows.length}`;
+    }
+
+    function aggregateMetrics(result) {
+      let prompt = 0, completion = 0, ttft = 0, tps = 0, nTok = 0, nTtft = 0, nTps = 0;
+      for (const s of result.scenarios || []) {
+        const m = s.metrics || {};
+        if (m.prompt_tokens != null) { prompt += m.prompt_tokens; nTok += 1; }
+        if (m.completion_tokens != null) { completion += m.completion_tokens; }
+        if (m.ttft_ms != null) { ttft += m.ttft_ms; nTtft += 1; }
+        if (m.tok_per_s != null) { tps += m.tok_per_s; nTps += 1; }
+      }
+      return {
+        tokens: nTok ? `${prompt}/${completion}` : '—',
+        ttft: nTtft ? Math.round(ttft / nTtft) + 'ms' : '—',
+        tps: nTps ? (tps / nTps).toFixed(1) : '—',
+        quality: result.quality_pass_rate != null ? Math.round(result.quality_pass_rate * 100) + '%' : '—',
+      };
     }
 
     function catalogMap(run) {
@@ -512,11 +551,8 @@
       const active = [...activeResults(run)].sort(compareResults);
       const win = winnerForRun(run);
       active.forEach((r, i) => {
-        const impl = (r.scenarios || []).filter((s) => s.kind === 'implement');
-        const chat = (r.scenarios || []).filter((s) => s.kind === 'chat');
-        const implPass = impl.filter((s) => s.passed).length;
-        const chatPass = chat.filter((s) => s.passed).length;
         const rate = Math.round((r.pass_rate ?? 0) * 100);
+        const mets = aggregateMetrics(r);
         const judge = judgeStats(r, run);
         let judgeCell = "—";
         if (judge.total) {
@@ -537,8 +573,14 @@
           <td class="mono">${escapeHtml(r.model_tag)}</td>
           <td>${r.passed_count}/${r.total_count}</td>
           <td><span class="rate-bar" aria-hidden="true"><span style="width:${rate}%"></span></span>${rate}%</td>
-          <td>${impl.length ? implPass + '/' + impl.length : '—'}</td>
-          <td>${chat.length ? chatPass + '/' + chat.length : '—'}</td>
+          <td>${trackPass(r, 'implement')}</td>
+          <td>${trackPass(r, 'chat')}</td>
+          <td>${trackPass(r, 'collab')}</td>
+          <td>${trackPass(r, 'arena')}</td>
+          <td>${trackPass(r, 'cad')}</td>
+          <td>${escapeHtml(mets.tokens)}</td>
+          <td class="mono">${escapeHtml(mets.ttft)}</td>
+          <td class="mono">${escapeHtml(mets.tps)}</td>
           <td>${judgeCell}</td>
           <td class="mono">${fmtDuration(r.total_duration_s)}</td>
         `;
