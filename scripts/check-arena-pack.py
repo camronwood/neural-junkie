@@ -8,7 +8,7 @@ import sys
 import urllib.error
 import urllib.request
 
-HUB = "http://127.0.0.1:8080"
+HUB = os.environ.get("HUB", "http://127.0.0.1:18765")
 
 
 def main() -> int:

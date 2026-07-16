@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"math"
 	"strings"
 	"time"
 
@@ -27,6 +28,34 @@ func ollamaTagRequiresCompose(tag string) bool {
 	return false
 }
 
+func listInstalledOllamaModels(ctx context.Context, mgr *ollamaManager.Manager) ([]string, error) {
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			time.Sleep(2 * time.Second)
+		}
+		installed, err := mgr.ListModels(ctx)
+		if err == nil {
+			return installed, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
+}
+
+func logPullProgress(tag string, lastMilestone *float64) func(ollamaManager.PullProgress) {
+	return func(p ollamaManager.PullProgress) {
+		if p.Percent <= 0 {
+			return
+		}
+		milestone := math.Floor(p.Percent/10.0) * 10
+		if milestone > *lastMilestone || p.Percent >= 99 {
+			log.Printf("   %s: %.0f%%", tag, p.Percent)
+			*lastMilestone = milestone
+		}
+	}
+}
+
 // ensureOllamaModels pulls configured tags when Ollama is running (background).
 func ensureOllamaModels(ctx context.Context) {
 	if appConfig == nil || ollamaMgr == nil {
@@ -47,21 +76,19 @@ func ensureOllamaModels(ctx context.Context) {
 		log.Printf("ℹ️  Ollama not running; skipping models_to_ensure (%d tags)", len(tags))
 		return
 	}
-	installed, err := ollamaMgr.ListModels(ctx)
+	installed, err := listInstalledOllamaModels(ctx, ollamaMgr)
 	if err != nil {
-		log.Printf("⚠️  Could not list Ollama models for models_to_ensure: %v", err)
-		installed = nil
+		log.Printf("⚠️  Could not list Ollama models for models_to_ensure; skipping pulls: %v", err)
+		return
 	}
-	have := make(map[string]struct{}, len(installed))
-	for _, name := range installed {
-		have[name] = struct{}{}
-	}
+	skipped := 0
 	for _, tag := range tags {
 		tag = strings.TrimSpace(tag)
 		if tag == "" {
 			continue
 		}
-		if _, ok := have[tag]; ok {
+		if ollamaManager.TagInstalled(installed, tag) {
+			skipped++
 			continue
 		}
 		if hint, skipPull := ollamaTagsRequireHFImport[tag]; skipPull {
@@ -73,15 +100,17 @@ func ensureOllamaModels(ctx context.Context) {
 			continue
 		}
 		log.Printf("📥 models_to_ensure: pulling %s", tag)
+		var lastMilestone float64 = -1
 		pullCtx, cancel := context.WithTimeout(ctx, 2*time.Hour)
-		err := ollamaMgr.PullModel(pullCtx, tag, func(p ollamaManager.PullProgress) {
-			if p.Percent > 0 {
-				log.Printf("   %s: %.1f%%", tag, p.Percent)
-			}
-		})
+		err := ollamaMgr.PullModel(pullCtx, tag, logPullProgress(tag, &lastMilestone))
 		cancel()
 		if err != nil {
 			log.Printf("⚠️  models_to_ensure pull %s failed: %v", tag, err)
+			continue
 		}
+		installed = append(installed, tag)
+	}
+	if skipped > 0 {
+		log.Printf("ℹ️  models_to_ensure: %d tag(s) already installed", skipped)
 	}
 }

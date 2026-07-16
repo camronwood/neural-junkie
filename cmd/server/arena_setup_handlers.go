@@ -65,7 +65,10 @@ func handleArenaSidecarInstall(w http.ResponseWriter, r *http.Request, packID st
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	syncPackSidecars()
+	if err := restartPackSidecar(packID); err != nil {
+		http.Error(w, "installed deps but sidecar restart failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"status":  "ok",
@@ -90,7 +93,10 @@ func handleArenaSidecarRestart(w http.ResponseWriter, r *http.Request, packID st
 		http.Error(w, "enable the Model Arena pack first", http.StatusBadRequest)
 		return
 	}
-	syncPackSidecars()
+	if err := restartPackSidecar(packID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"status":  "ok",

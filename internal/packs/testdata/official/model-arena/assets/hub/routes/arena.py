@@ -42,9 +42,27 @@ DEFAULT_PUZZLES: list[dict[str, Any]] = [
         "difficulty": "medium",
         "title": "Three islanders",
         "prompt": "Ada says: 'Babbage is a knave.' Babbage says: 'Curie is a knight.' Curie says: 'Ada and I are different types.' What is Curie?",
-        "answer": "knave",
-        "accepted": ["curie is a knave", "knave"],
-        "explanation": "The only consistent assignment is Ada knight, Babbage knave, Curie knave.",
+        "answer": "knight",
+        "accepted": ["curie is a knight", "knight"],
+        "explanation": "Curie and Babbage are knights and Ada is a knave. Ada's claim that Babbage is a knave is false, Babbage truthfully identifies Curie, and Curie truthfully says she differs from Ada.",
+    },
+    {
+        "id": "kk-004",
+        "difficulty": "medium",
+        "title": "The matching claim",
+        "prompt": "Ada says: 'Babbage is a knave.' Babbage says: 'Ada and I are the same type.' What is Ada?",
+        "answer": "knight",
+        "accepted": ["ada is a knight", "knight"],
+        "explanation": "Ada is a knight and Babbage is a knave. Ada truthfully identifies Babbage, while Babbage falsely claims they are the same type.",
+    },
+    {
+        "id": "kk-005",
+        "difficulty": "hard",
+        "title": "Exactly one knight",
+        "prompt": "Ada says: 'Babbage is a knave.' Babbage says: 'Exactly one of us is a knight.' What is Babbage?",
+        "answer": "knight",
+        "accepted": ["babbage is a knight", "knight"],
+        "explanation": "If Ada were a knight, Babbage would be a knave whose statement was true, which is impossible. Therefore Ada is a knave and Babbage is a knight; exactly one is a knight.",
     },
 ]
 
@@ -126,8 +144,8 @@ def _challenges() -> list[dict[str, Any]]:
         {
             "id": "logic",
             "title": "Logic puzzles",
-            "description": "Knights-and-knaves deduction with exact answer checking.",
-            "players": 1,
+            "description": "Knights-and-knaves deduction with exact answer checking. Two models can duel on the same puzzle.",
+            "players": 2,
             "move_format": "answer",
             "available": True,
         },
@@ -304,7 +322,28 @@ def _create_session(body: dict[str, Any], settings: dict[str, str]) -> dict[str,
             "result": result,
         }
     else:
-        puzzle = _find_puzzle(str(body.get("puzzle_id") or ""))
+        custom_prompt = str(body.get("custom_prompt") or "").strip()
+        custom_answer = str(body.get("custom_answer") or "").strip()
+        if custom_prompt or custom_answer:
+            if not custom_prompt:
+                raise ValueError("custom_prompt is required for a custom logic puzzle")
+            if not custom_answer:
+                raise ValueError("custom_answer is required to score a custom logic puzzle")
+            if len(custom_prompt) > 10_000:
+                raise ValueError("custom_prompt must be 10,000 characters or fewer")
+            if len(custom_answer) > 500:
+                raise ValueError("custom_answer must be 500 characters or fewer")
+            puzzle = {
+                "id": f"custom-{uuid.uuid4().hex[:12]}",
+                "difficulty": "custom",
+                "title": "Custom puzzle",
+                "prompt": custom_prompt,
+                "answer": custom_answer,
+                "accepted": [custom_answer],
+                "explanation": "Scored against the expected answer supplied by the user.",
+            }
+        else:
+            puzzle = _find_puzzle(str(body.get("puzzle_id") or ""))
         session["puzzle"] = puzzle
         session["state"] = {
             "puzzle_id": puzzle["id"],
@@ -316,6 +355,44 @@ def _create_session(body: dict[str, Any], settings: dict[str, str]) -> dict[str,
     return _save_session(settings, session)
 
 
+def _record_logic_result(
+    leaderboard: dict[str, Any],
+    session: dict[str, Any],
+    players: dict[str, Any],
+    status: str,
+) -> None:
+    answers = session.get("answers") or {}
+    if session.get("answer", {}).get("duel"):
+        for seat, entry in answers.items():
+            model = str(players.get(seat) or "").strip()
+            if not model or model == "human":
+                continue
+            row = leaderboard["models"].setdefault(
+                model,
+                {"wins": 0, "losses": 0, "draws": 0, "logic_correct": 0, "logic_total": 0, "illegal_moves": 0},
+            )
+            row["logic_total"] += 1
+            if entry.get("correct"):
+                row["logic_correct"] += 1
+            duel_result = session.get("result")
+            if duel_result == seat:
+                row["wins"] += 1
+            elif duel_result == "draw":
+                row["draws"] += 1
+            elif duel_result not in {"", seat}:
+                row["losses"] += 1
+        return
+    model_ids = [str(v) for v in players.values() if str(v).strip() and str(v) != "human"]
+    for model in model_ids:
+        row = leaderboard["models"].setdefault(
+            model,
+            {"wins": 0, "losses": 0, "draws": 0, "logic_correct": 0, "logic_total": 0, "illegal_moves": 0},
+        )
+        row["logic_total"] += 1
+        if status == "correct":
+            row["logic_correct"] += 1
+
+
 def _record_result(settings: dict[str, str], session: dict[str, Any]) -> None:
     result = session.get("result") or session.get("state", {}).get("result")
     status = session.get("status") or session.get("state", {}).get("status")
@@ -325,17 +402,17 @@ def _record_result(settings: dict[str, str], session: dict[str, Any]) -> None:
     if session["id"] in leaderboard.get("sessions", []):
         return
     players = session.get("players", {})
+    if session["challenge"] == "logic":
+        _record_logic_result(leaderboard, session, players, status)
+        leaderboard.setdefault("sessions", []).append(session["id"])
+        _save_json(_leaderboard_path(settings), leaderboard)
+        return
     model_ids = [str(v) for v in players.values() if str(v).strip() and str(v) != "human"]
     for model in model_ids:
         row = leaderboard["models"].setdefault(
             model,
             {"wins": 0, "losses": 0, "draws": 0, "logic_correct": 0, "logic_total": 0, "illegal_moves": 0},
         )
-        if session["challenge"] == "logic":
-            row["logic_total"] += 1
-            if status == "correct":
-                row["logic_correct"] += 1
-            continue
         if result == "draw":
             row["draws"] += 1
         elif result in {"white", "red"} and players.get("white") == model:
@@ -389,24 +466,104 @@ def _make_move(session: dict[str, Any], body: dict[str, Any], settings: dict[str
     return _save_session(settings, session)
 
 
+def _logic_model_seats(players: dict[str, Any]) -> list[str]:
+    seats: list[str] = []
+    for seat in ("white", "black"):
+        tag = str(players.get(seat) or "").strip()
+        if tag and tag != "human":
+            seats.append(seat)
+    return seats
+
+
+def _answer_is_correct(puzzle: dict[str, Any], answer: str) -> bool:
+    answer = str(answer or "").strip().lower()
+    accepted = [str(a).strip().lower() for a in puzzle.get("accepted", [])]
+    return answer == str(puzzle.get("answer", "")).lower() or answer in accepted
+
+
+def _finalize_logic_session(session: dict[str, Any]) -> None:
+    puzzle = session["puzzle"]
+    players = session.get("players", {})
+    answers = session.get("answers", {})
+    seats = _logic_model_seats(players)
+    if not seats:
+        seats = ["white"]
+
+    scored: dict[str, bool] = {}
+    for seat in seats:
+        entry = answers.get(seat) or {}
+        scored[seat] = bool(entry.get("correct"))
+
+    if len(seats) == 1:
+        seat = seats[0]
+        correct = scored.get(seat, False)
+        session["status"] = "correct" if correct else "incorrect"
+        session["result"] = session["status"]
+        session["answer"] = answers.get(seat, {})
+        return
+
+    correct_seats = [seat for seat in seats if scored.get(seat)]
+    if len(correct_seats) == 1:
+        session["status"] = "finished"
+        session["result"] = correct_seats[0]
+    elif len(correct_seats) >= 2:
+        session["status"] = "draw"
+        session["result"] = "draw"
+    else:
+        session["status"] = "finished"
+        session["result"] = "draw"
+
+    session["answer"] = {
+        "duel": True,
+        "answers": answers,
+        "winner": session["result"],
+        "explanation": puzzle.get("explanation", ""),
+    }
+
+
 def _submit_answer(session: dict[str, Any], body: dict[str, Any], settings: dict[str, str]) -> dict[str, Any]:
     if session["challenge"] != "logic":
         raise ValueError("answer endpoint is only for logic sessions")
-    answer = str(body.get("answer") or "").strip().lower()
     puzzle = session["puzzle"]
-    accepted = [str(a).strip().lower() for a in puzzle.get("accepted", [])]
-    correct = answer == str(puzzle.get("answer", "")).lower() or answer in accepted
-    session["status"] = "correct" if correct else "incorrect"
-    session["result"] = session["status"]
-    session["answer"] = {
+    players = session.get("players", {})
+    seat = str(body.get("seat") or "").strip().lower()
+    if not seat:
+        by = str(body.get("by") or "").strip()
+        for candidate in ("white", "black"):
+            if str(players.get(candidate) or "").strip() == by:
+                seat = candidate
+                break
+    if not seat:
+        seat = "white"
+
+    answer_text = str(body.get("answer") or "").strip()
+    correct = _answer_is_correct(puzzle, answer_text)
+    answers = dict(session.get("answers") or {})
+    answers[seat] = {
         "model": body.get("by", ""),
+        "seat": seat,
         "answer": body.get("answer", ""),
         "correct": correct,
-        "explanation": puzzle.get("explanation", ""),
         "at": _now(),
     }
+    session["answers"] = answers
+
+    pending = [s for s in _logic_model_seats(players) if s not in answers]
+    if not pending and not _logic_model_seats(players):
+        pending = [] if seat in answers else ["white"]
+
+    if pending:
+        session["status"] = "active"
+        session["result"] = ""
+        session["state"]["status"] = "active"
+        session["state"]["result"] = ""
+        session["state"]["pending_seats"] = pending
+        return _save_session(settings, session)
+
+    _finalize_logic_session(session)
     session["state"]["status"] = session["status"]
     session["state"]["result"] = session["result"]
+    session["state"].pop("pending_seats", None)
     _record_result(settings, session)
     return _save_session(settings, session)
 

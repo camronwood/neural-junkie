@@ -8,6 +8,7 @@ type Props = {
   onAskModel: () => void;
   result?: string;
   explanation?: string;
+  duelAnswers?: Record<string, { answer?: string; correct?: boolean; model?: string }>;
   busy?: boolean;
 };
 
@@ -21,6 +22,7 @@ export function LogicPuzzlePanel({
   onAskModel,
   result,
   explanation,
+  duelAnswers,
   busy,
 }: Props) {
   return (
@@ -46,6 +48,16 @@ export function LogicPuzzlePanel({
         </button>
       </div>
       {result && <div className="arena-logic-result">RESULT · {result.toUpperCase()}</div>}
+      {duelAnswers && Object.keys(duelAnswers).length > 0 && (
+        <ul className="arena-logic-duel mt-2 space-y-1 text-sm text-slate-300">
+          {Object.entries(duelAnswers).map(([seat, row]) => (
+            <li key={seat}>
+              <strong>{seat.toUpperCase()}</strong> · {row.model || 'model'} → {row.answer || '—'}{' '}
+              {row.correct ? '✓' : '✗'}
+            </li>
+          ))}
+        </ul>
+      )}
       {explanation && (
         <div className="text-[0.8125rem] text-slate-300 whitespace-pre-wrap mt-2 opacity-90">{explanation}</div>
       )}

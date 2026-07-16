@@ -4,7 +4,23 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HEALTH_URL="${OLLAMA_HEALTH_URL:-http://127.0.0.1:11434/api/tags}"
-MODELS_DIR="${OLLAMA_MODELS:-${HOME}/.neural-junkie/ollama-models}"
+resolve_models_dir() {
+  if [[ -n "${NJ_OLLAMA_MODELS:-}" ]]; then
+    echo "${NJ_OLLAMA_MODELS}"
+    return
+  fi
+  if [[ -n "${OLLAMA_MODELS:-}" ]]; then
+    echo "${OLLAMA_MODELS}"
+    return
+  fi
+  if command -v ollama >/dev/null 2>&1; then
+    echo "${HOME}/.ollama/models"
+    return
+  fi
+  echo "${HOME}/.neural-junkie/ollama-models"
+}
+
+MODELS_DIR="$(resolve_models_dir)"
 LOG_FILE="${OLLAMA_LOG:-/tmp/neural-junkie-ollama.log}"
 
 if curl -sf "${HEALTH_URL}" >/dev/null 2>&1; then

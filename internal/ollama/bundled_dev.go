@@ -2,8 +2,10 @@ package ollama
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // HostTriple matches Rust target_triple() / scripts/fetch-ollama.sh layout.
@@ -69,12 +71,42 @@ func DevBundledBinaryPath() string {
 	return ""
 }
 
-// NeuralJunkieModelsDir is the shared models path for bundled/dev Ollama (matches Tauri app data fallback).
+// NeuralJunkieModelsDir is the isolated models path for bundled Ollama when no system install exists.
 func NeuralJunkieModelsDir() string {
 	if home, err := os.UserHomeDir(); err == nil {
 		return filepath.Join(home, ".neural-junkie", "ollama-models")
 	}
 	return filepath.Join(os.TempDir(), "neural-junkie-ollama-models")
+}
+
+// SystemOllamaModelsDir is the default store used by a system `ollama` install (~/.ollama/models).
+func SystemOllamaModelsDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".ollama", "models")
+}
+
+// SystemOllamaOnPath reports whether the `ollama` CLI is available (dev machines with a real install).
+func SystemOllamaOnPath() bool {
+	_, err := exec.LookPath("ollama")
+	return err == nil
+}
+
+// ResolveOllamaModelsDir picks where bundled `ollama serve` should store models.
+// Prefer the system store when `ollama` is on PATH so dev/benchmarks and the desktop app share pulls.
+// NJ_OLLAMA_MODELS overrides everything (also honored by Tauri and ensure-ollama.sh).
+func ResolveOllamaModelsDir() string {
+	if p := strings.TrimSpace(os.Getenv("NJ_OLLAMA_MODELS")); p != "" {
+		return p
+	}
+	if SystemOllamaOnPath() {
+		if dir := SystemOllamaModelsDir(); dir != "" {
+			return dir
+		}
+	}
+	return NeuralJunkieModelsDir()
 }
 
 func resolveBundledBinary() (path string, bundled bool) {

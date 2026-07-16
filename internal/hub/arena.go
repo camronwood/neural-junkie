@@ -64,6 +64,7 @@ type ArenaMatchRunRequest struct {
 	SessionID  string `json:"session_id"`
 	ProviderID string `json:"provider_id"`
 	Model      string `json:"model"`
+	Seat       string `json:"seat,omitempty"`
 	MaxSteps   int    `json:"max_steps"`
 }
 
@@ -78,15 +79,9 @@ func (h *Hub) ArenaRunMatchStep(ctx context.Context, req ArenaMatchStepRequest) 
 		return nil, err
 	}
 	challenge, _ := session["challenge"].(string)
-	status, _ := session["state"].(map[string]any)
-	if status == nil {
-		status, _ = session["state"].(map[string]interface{})
-	}
-	st := mapStringAny(status)
-	if st != nil {
-		if s, _ := st["status"].(string); s != "" && s != "active" {
-			return session, nil
-		}
+	st := mapStringAny(session["state"])
+	if arenaSessionTerminal(st) {
+		return session, nil
 	}
 	if challenge == "logic" {
 		return h.arenaLogicStep(ctx, sessionID, req, session)
@@ -94,7 +89,7 @@ func (h *Hub) ArenaRunMatchStep(ctx context.Context, req ArenaMatchStepRequest) 
 	return h.arenaBoardStep(ctx, sessionID, req, session)
 }
 
-// ArenaRunMatchAuto runs multiple model moves until terminal or max_steps.
+// ArenaRunMatchAuto runs model moves until terminal, a human turn, or max_steps.
 func (h *Hub) ArenaRunMatchAuto(ctx context.Context, req ArenaMatchRunRequest) (map[string]any, error) {
 	max := req.MaxSteps
 	if max <= 0 {
@@ -103,25 +98,67 @@ func (h *Hub) ArenaRunMatchAuto(ctx context.Context, req ArenaMatchRunRequest) (
 	if max > 200 {
 		max = 200
 	}
+	sessionID := strings.TrimSpace(req.SessionID)
+	if sessionID == "" {
+		return nil, fmt.Errorf("session_id required")
+	}
+
 	var last map[string]any
-	for i := 0; i < max; i++ {
-		out, err := h.ArenaRunMatchStep(ctx, ArenaMatchStepRequest{
-			SessionID:  req.SessionID,
+	applied := 0
+	for applied < max {
+		session, err := h.ArenaSidecarGet(ctx, "/api/arena/sessions/"+sessionID)
+		if err != nil {
+			return last, err
+		}
+		last = session
+		challenge, _ := session["challenge"].(string)
+		st := mapStringAny(session["state"])
+		if arenaSessionTerminal(st) {
+			break
+		}
+		if challenge == "logic" {
+			seat := arenaLogicNextSeat(session)
+			if seat == "" {
+				break
+			}
+			out, err := h.arenaLogicStep(ctx, sessionID, ArenaMatchStepRequest{
+				SessionID:  sessionID,
+				ProviderID: req.ProviderID,
+				Model:      req.Model,
+			}, session)
+			if err != nil {
+				return last, err
+			}
+			last = out
+			applied++
+			st = mapStringAny(out["state"])
+			if arenaSessionTerminal(st) || arenaSessionTerminal(mapStringAny(out)) {
+				break
+			}
+			continue
+		}
+		seat := strings.TrimSpace(req.Seat)
+		if seat == "" {
+			seat = arenaActiveSeat(challenge, st)
+		}
+		model, humanTurn := arenaModelForSeat(session, seat, req.Model)
+		if humanTurn {
+			break
+		}
+		if model == "" {
+			return last, fmt.Errorf("no model assigned for %s to move", seat)
+		}
+		out, err := h.arenaBoardStep(ctx, sessionID, ArenaMatchStepRequest{
+			SessionID:  sessionID,
 			ProviderID: req.ProviderID,
-			Model:      req.Model,
-		})
+			Model:      model,
+			Seat:       seat,
+		}, session)
 		if err != nil {
 			return last, err
 		}
 		last = out
-		st := mapStringAny(out["state"])
-		if st == nil {
-			break
-		}
-		s, _ := st["status"].(string)
-		if s != "" && s != "active" {
-			break
-		}
+		applied++
 	}
 	if last == nil {
 		return nil, fmt.Errorf("no moves applied")
@@ -139,54 +176,92 @@ func (h *Hub) arenaBoardStep(ctx context.Context, sessionID string, req ArenaMat
 	if len(legal) == 0 {
 		return session, nil
 	}
+	seat := strings.TrimSpace(req.Seat)
+	if seat == "" {
+		seat = arenaActiveSeat(challenge, state)
+	}
+	model, humanTurn := arenaModelForSeat(session, seat, req.Model)
+	if humanTurn {
+		return arenaSkippedStep(session, seat, "human_turn"), nil
+	}
+	if model == "" {
+		return nil, fmt.Errorf("no model assigned for %s to move", seat)
+	}
 	prompt := arenaMovePrompt(challenge, state, legal)
-	reply, err := h.arenaGenerate(ctx, req.ProviderID, req.Model, prompt)
+	reply, err := h.arenaGenerate(ctx, req.ProviderID, model, prompt)
 	if err != nil {
 		return nil, err
 	}
 	moveBody, parseErr := parseArenaMove(challenge, reply, legal)
 	if parseErr != nil {
-		reply2, err2 := h.arenaGenerate(ctx, req.ProviderID, req.Model, prompt+"\n\nYour previous reply was invalid. Reply with ONLY one legal move from the list.")
+		retryPrompt := prompt + "\n\nYour previous reply was invalid. Briefly explain, then put one legal move alone on the final line."
+		reply2, err2 := h.arenaGenerate(ctx, req.ProviderID, model, retryPrompt)
 		if err2 == nil {
 			if mb2, pe2 := parseArenaMove(challenge, reply2, legal); pe2 == nil {
 				moveBody = mb2
 				parseErr = nil
+				reply = reply2
 			}
 		}
 	}
 	if parseErr != nil {
 		return nil, fmt.Errorf("could not parse model move: %w", parseErr)
 	}
-	moveBody["by"] = req.Model
+	moveBody["by"] = model
 	out, err := h.ArenaSidecarPost(ctx, "/api/arena/sessions/"+sessionID+"/move", moveBody)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	return arenaWithStep(out, map[string]any{
+		"model":       model,
+		"seat":        seat,
+		"reply":       reply,
+		"parsed_move": moveBody,
+	}), nil
 }
 
 func (h *Hub) arenaLogicStep(ctx context.Context, sessionID string, req ArenaMatchStepRequest, session map[string]any) (map[string]any, error) {
 	state := mapStringAny(session["state"])
+	if arenaSessionTerminal(state) || arenaSessionTerminal(mapStringAny(session)) {
+		return session, nil
+	}
+	seat := arenaLogicNextSeat(session)
+	if seat == "" {
+		return session, nil
+	}
 	promptText, _ := state["prompt"].(string)
 	if promptText == "" {
 		if puzzle, ok := session["puzzle"].(map[string]any); ok {
 			promptText, _ = puzzle["prompt"].(string)
 		}
 	}
-	prompt := "Solve this logic puzzle. Reply with ONLY the final answer (e.g. knight, knave, or a name).\n\n" + promptText
-	reply, err := h.arenaGenerate(ctx, req.ProviderID, req.Model, prompt)
+	model := arenaLogicModelForSeat(session, seat)
+	if model == "" || strings.EqualFold(model, arenaHumanPlayer) {
+		model = strings.TrimSpace(req.Model)
+	}
+	if model == "" {
+		return nil, fmt.Errorf("no model assigned for logic seat %s", seat)
+	}
+	prompt := "Solve this logic puzzle. Explain your reasoning briefly, then put the final answer alone on the last line (e.g. knight, knave, or a name).\n\n" + promptText
+	reply, err := h.arenaGenerate(ctx, req.ProviderID, model, prompt)
 	if err != nil {
 		return nil, err
 	}
-	answer := strings.TrimSpace(strings.Split(reply, "\n")[0])
+	answer := strings.TrimSpace(lastNonEmptyLine(reply))
 	out, err := h.ArenaSidecarPost(ctx, "/api/arena/sessions/"+sessionID+"/answer", map[string]any{
 		"answer": answer,
-		"by":     req.Model,
+		"by":     model,
+		"seat":   seat,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	return arenaWithStep(out, map[string]any{
+		"model":         model,
+		"seat":          seat,
+		"reply":         reply,
+		"parsed_answer": answer,
+	}), nil
 }
 
 func (h *Hub) arenaGenerate(ctx context.Context, providerID, model, prompt string) (string, error) {
@@ -225,7 +300,7 @@ func arenaMovePrompt(challenge string, state map[string]any, legal []string) str
 	var b strings.Builder
 	b.WriteString("You are playing ")
 	b.WriteString(challenge)
-	b.WriteString(". Choose exactly ONE legal move from the list. Reply with ONLY the move, no explanation.\n\n")
+	b.WriteString(". Briefly explain your strategy in 1-3 sentences, then put your chosen legal move alone on the final line.\n\n")
 	if fen, ok := state["fen"].(string); ok && fen != "" {
 		b.WriteString("FEN: ")
 		b.WriteString(fen)
@@ -265,7 +340,32 @@ func arenaMovePrompt(challenge string, state map[string]any, legal []string) str
 var uciMoveRe = regexp.MustCompile(`\b([a-h][1-8][a-h][1-8][qrbn]?)\b`)
 var colMoveRe = regexp.MustCompile(`\b([0-6])\b`)
 
+func lastNonEmptyLine(text string) string {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" {
+			return line
+		}
+	}
+	return strings.TrimSpace(text)
+}
+
 func parseArenaMove(challenge, reply string, legal []string) (map[string]any, error) {
+	lines := strings.Split(strings.TrimSpace(reply), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		if move, err := parseArenaMoveLine(challenge, line, legal); err == nil {
+			return move, nil
+		}
+	}
+	return parseArenaMoveLine(challenge, reply, legal)
+}
+
+func parseArenaMoveLine(challenge, reply string, legal []string) (map[string]any, error) {
 	reply = strings.TrimSpace(strings.ToLower(reply))
 	legalSet := make(map[string]struct{}, len(legal))
 	for _, m := range legal {

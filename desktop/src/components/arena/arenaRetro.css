@@ -118,6 +118,8 @@
 
 .arena-retro-body {
   padding: 1rem;
+  /* Prefer body as the single scroll surface so roster + kickoff stay reachable */
+  -webkit-overflow-scrolling: touch;
 }
 
 .arena-retro-mode-tabs {
@@ -159,6 +161,57 @@
   gap: 0.5rem;
   align-items: stretch;
   margin-bottom: 0.85rem;
+}
+
+.arena-retro-puzzle-picker {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: end;
+  margin-bottom: 0.85rem;
+  padding: 0.7rem;
+  background: rgba(20, 40, 71, 0.72);
+  border: 2px solid var(--arena-border);
+}
+
+.arena-retro-puzzle-picker label {
+  min-width: 0;
+}
+
+.arena-retro-puzzle-picker .arena-retro-select {
+  width: 100%;
+}
+
+.arena-retro-custom-puzzle {
+  display: grid;
+  gap: 0.65rem;
+  margin: -0.2rem 0 0.85rem;
+  padding: 0.8rem;
+  background: rgba(10, 18, 32, 0.78);
+  border: 2px solid var(--arena-gold-dim);
+}
+
+.arena-retro-custom-puzzle label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.arena-retro-custom-puzzle-text {
+  width: 100%;
+  resize: vertical;
+  min-height: 6rem;
+  padding: 0.65rem;
+  color: var(--arena-text);
+  background: #0a1220;
+  border: 3px solid var(--arena-border);
+  font-family: var(--arena-font-body);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.arena-retro-custom-puzzle-text:focus {
+  outline: none;
+  border-color: var(--arena-gold);
 }
 
 @media (max-width: 640px) {
@@ -395,6 +448,104 @@
   text-overflow: ellipsis;
 }
 
+.arena-retro-ticker.over {
+  animation: arena-blink 1.2s step-end infinite;
+}
+
+.arena-retro-ticker.over.tone-win {
+  color: #0c1a2e;
+  background: var(--arena-green);
+  border-color: #048a66;
+}
+
+.arena-retro-ticker.over.tone-draw {
+  color: #0c1a2e;
+  background: var(--arena-gold);
+  border-color: var(--arena-gold-dim);
+}
+
+.arena-retro-ticker.over.tone-loss {
+  color: var(--arena-text);
+  background: var(--arena-red-dark);
+  border-color: var(--arena-red);
+}
+
+/* Prominent game-over banner above the board */
+.arena-retro-gameover {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 1rem;
+  text-align: center;
+  border: 3px solid var(--arena-gold);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(255, 212, 71, 0.16), rgba(12, 26, 46, 0.6));
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 6px 0 rgba(0, 0, 0, 0.4);
+  animation: arena-gameover-pop 0.35s ease-out both;
+}
+
+.arena-retro-gameover.tone-win {
+  border-color: var(--arena-green);
+  background: linear-gradient(180deg, rgba(6, 214, 160, 0.22), rgba(12, 26, 46, 0.6));
+}
+
+.arena-retro-gameover.tone-draw {
+  border-color: var(--arena-gold);
+  background: linear-gradient(180deg, rgba(255, 212, 71, 0.2), rgba(12, 26, 46, 0.6));
+}
+
+.arena-retro-gameover.tone-loss {
+  border-color: var(--arena-red);
+  background: linear-gradient(180deg, rgba(230, 57, 70, 0.24), rgba(12, 26, 46, 0.6));
+}
+
+.arena-retro-gameover-tag {
+  font-family: var(--arena-font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--arena-muted);
+}
+
+.arena-retro-gameover-headline {
+  font-family: var(--arena-font-display);
+  font-size: 1.5rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: var(--arena-gold);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.arena-retro-gameover.tone-win .arena-retro-gameover-headline {
+  color: var(--arena-green);
+}
+
+.arena-retro-gameover.tone-loss .arena-retro-gameover-headline {
+  color: var(--arena-red);
+}
+
+.arena-retro-gameover-detail {
+  font-size: 0.85rem;
+  color: var(--arena-text);
+  opacity: 0.9;
+}
+
+@keyframes arena-gameover-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .arena-retro-hint {
   width: 100%;
   font-size: 0.8125rem;
@@ -590,4 +741,84 @@
 
 .arena-modal-shell .arena-retro-marquee {
   border-radius: 0;
+}
+
+.arena-retro-playlog {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--arena-border);
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.arena-retro-playlog h3 {
+  font-family: var(--arena-font-display);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--arena-gold);
+  margin: 0 0 0.5rem;
+}
+
+.arena-retro-playlog-live {
+  font-size: 0.75rem;
+  color: var(--arena-green);
+  margin: 0 0 0.5rem;
+  animation: arena-blink 1.2s step-end infinite;
+}
+
+.arena-retro-playlog-empty {
+  font-size: 0.8125rem;
+  color: var(--arena-muted);
+  margin: 0;
+}
+
+.arena-retro-playlog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.arena-retro-playlog-item {
+  padding: 0.5rem 0.55rem;
+  background: rgba(10, 18, 32, 0.65);
+  border: 1px solid var(--arena-border);
+  border-radius: 4px;
+}
+
+.arena-retro-playlog-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin-bottom: 0.25rem;
+}
+
+.arena-retro-playlog-num {
+  font-family: var(--arena-font-display);
+  font-size: 0.75rem;
+  color: var(--arena-gold-dim);
+  min-width: 1.25rem;
+}
+
+.arena-retro-playlog-model {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--arena-text);
+  word-break: break-word;
+}
+
+.arena-retro-playlog-model.muted {
+  color: var(--arena-muted);
+  font-weight: 500;
+}
+
+.arena-retro-playlog-reply {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--arena-muted);
+  margin: 0;
+  white-space: pre-wrap;
 }

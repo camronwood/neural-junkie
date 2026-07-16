@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -100,6 +101,19 @@ func syncPackSidecars() {
 	}
 	envs := appConfig.CollectPackSidecarEnvs()
 	_ = packSidecarMgr.Sync(appConfig.ContextOrBackground(), envs)
+}
+
+func restartPackSidecar(packID string) error {
+	if appConfig == nil || packSidecarMgr == nil {
+		return fmt.Errorf("pack sidecar manager unavailable")
+	}
+	packID = strings.TrimSpace(packID)
+	for _, env := range appConfig.CollectPackSidecarEnvs() {
+		if env.PackID == packID {
+			return packSidecarMgr.RestartPack(appConfig.ContextOrBackground(), env)
+		}
+	}
+	return fmt.Errorf("no sidecar configured for pack %q (install and enable the pack first)", packID)
 }
 
 func handlePackExtensionRoute(w http.ResponseWriter, r *http.Request) {

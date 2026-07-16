@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChessBoard } from './arena/ChessBoard';
 import { ConnectFourBoard } from './arena/ConnectFourBoard';
 import { LogicPuzzlePanel } from './arena/LogicPuzzlePanel';
+import { ArenaPlayLog, stepMetaToLogEntry, type ArenaPlayLogEntry } from './arena/ArenaPlayLog';
 import {
   arenaCreateSession,
   arenaGetSession,
   arenaLeaderboard,
   arenaListChallenges,
   arenaMakeMove,
-  arenaMatchRun,
   arenaMatchStep,
   arenaSubmitAnswer,
   fetchInstalledOllamaModels,
@@ -19,6 +19,11 @@ import { useToastStore } from '../stores/toastStore';
 import './arena/arenaRetro.css';
 
 type ChallengeId = 'chess' | 'connect4' | 'logic';
+type LogicPuzzleOption = {
+  id: string;
+  title?: string;
+  difficulty?: string;
+};
 
 const CHALLENGE_MODES: Array<{ id: ChallengeId; label: string }> = [
   { id: 'connect4', label: 'Connect 4' },
@@ -30,10 +35,26 @@ const CHALLENGE_MODES: Array<{ id: ChallengeId; label: string }> = [
 const ARENA_SUGGESTED_MODELS = ['qwen2.5-coder:14b', 'qwen3.5:9b'] as const;
 const ARENA_DEFAULT_MODEL = ARENA_SUGGESTED_MODELS[0];
 const HUMAN_PLAYER = 'human';
+const CUSTOM_LOGIC_PUZZLE = '__custom__';
+const AUTO_RUN_DELAY_MS = 700;
+const AUTO_RUN_MAX_STEPS = 42;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function isSessionTerminal(state: Record<string, unknown>): boolean {
+  const s = String(state.status ?? '').toLowerCase();
+  return s !== '' && s !== 'active';
+}
+
+function sessionMoveCount(session: ArenaSession | null): number {
+  return Array.isArray(session?.moves) ? session.moves.length : 0;
+}
 
 function playerRoleHint(challenge: ChallengeId, slot: 1 | 2): string {
   if (challenge === 'logic') {
-    return slot === 1 ? 'Solver' : 'Optional model';
+    return slot === 1 ? 'Solver (home)' : 'Solver (away)';
   }
   if (challenge === 'connect4') {
     return slot === 1 ? 'Red' : 'Yellow';
@@ -42,27 +63,17 @@ function playerRoleHint(challenge: ChallengeId, slot: 1 | 2): string {
 }
 
 function buildPlayerOptions(
-  providers: Array<{ model?: string }>,
   ollamaModels: string[],
-  leaderboardModels: string[] = [],
   selected: string[] = [],
 ): Array<{ value: string; label: string }> {
-  const models = new Set<string>(ARENA_SUGGESTED_MODELS);
+  const models = new Set<string>();
   for (const m of ollamaModels) {
     const tag = m.trim();
     if (tag && tag !== HUMAN_PLAYER) models.add(tag);
   }
-  for (const m of leaderboardModels) {
-    const tag = m.trim();
-    if (tag && tag !== HUMAN_PLAYER) models.add(tag);
-  }
-  for (const p of providers) {
-    const m = p.model?.trim();
-    if (m && m !== HUMAN_PLAYER) models.add(m);
-  }
   for (const s of selected) {
     const tag = s.trim();
-    if (tag && tag !== HUMAN_PLAYER) models.add(tag);
+    if (tag && tag !== HUMAN_PLAYER && models.has(tag)) models.add(tag);
   }
   return [
     { value: HUMAN_PLAYER, label: 'Human (you)' },
@@ -72,15 +83,112 @@ function buildPlayerOptions(
   ];
 }
 
-function resolveAiModelTag(white: string, black: string): string {
+function pickDefaultArenaModel(installed: string[], avoid?: string): string {
+  const pick = installed.find((m) => m.trim() && m !== HUMAN_PLAYER && m !== avoid);
+  return pick ?? ARENA_DEFAULT_MODEL;
+}
+
+function isInstalledModel(tag: string, installed: string[]): boolean {
+  return tag === HUMAN_PLAYER || installed.includes(tag);
+}
+
+function resolveLogicModelTag(white: string, black: string): string {
   if (white !== HUMAN_PLAYER) return white;
   if (black !== HUMAN_PLAYER) return black;
   return ARENA_DEFAULT_MODEL;
 }
 
+function isHumanTurn(
+  challenge: ChallengeId,
+  state: Record<string, unknown>,
+  white: string,
+  black: string,
+): boolean {
+  const turn = String(state.turn ?? '').toLowerCase();
+  if (challenge === 'connect4') {
+    if (turn === 'red') return white === HUMAN_PLAYER;
+    if (turn === 'yellow') return black === HUMAN_PLAYER;
+  }
+  if (challenge === 'chess') {
+    if (turn === 'white') return white === HUMAN_PLAYER;
+    if (turn === 'black') return black === HUMAN_PLAYER;
+  }
+  return false;
+}
+
+function activeChallengeId(session: ArenaSession | null, fallback: ChallengeId): ChallengeId {
+  const raw = String(session?.challenge ?? fallback);
+  if (raw === 'chess' || raw === 'connect4' || raw === 'logic') return raw;
+  return fallback;
+}
+
 function rosterLabel(value: string): string {
   if (value === HUMAN_PLAYER) return 'HUMAN (YOU)';
   return value;
+}
+
+type ArenaOutcomeTone = 'win' | 'draw' | 'loss';
+
+interface ArenaOutcome {
+  over: boolean;
+  tone: ArenaOutcomeTone;
+  headline: string;
+  detail?: string;
+}
+
+function seatModelLabel(seat: 'white' | 'black', white: string, black: string): string {
+  return rosterLabel(seat === 'white' ? white : black);
+}
+
+/** Resolve a human-readable game-over result (winner, draw, or logic correctness). */
+function resolveArenaOutcome(
+  challenge: ChallengeId,
+  state: Record<string, unknown>,
+  session: ArenaSession | null,
+  white: string,
+  black: string,
+): ArenaOutcome {
+  const status = String(state.status ?? session?.status ?? '').toLowerCase();
+  const result = String(state.result ?? session?.result ?? '').toLowerCase();
+  if (!session || status === '' || status === 'active') {
+    return { over: false, tone: 'draw', headline: '' };
+  }
+  if (status === 'draw' || result === 'draw') {
+    return { over: true, tone: 'draw', headline: 'Draw', detail: 'No winner this round.' };
+  }
+  if (status === 'correct' || status === 'incorrect') {
+    const solver = white !== HUMAN_PLAYER ? white : black;
+    const correct = status === 'correct';
+    return {
+      over: true,
+      tone: correct ? 'win' : 'loss',
+      headline: correct ? 'Correct' : 'Incorrect',
+      detail: `${rosterLabel(solver)} ${correct ? 'solved the puzzle' : 'got it wrong'}.`,
+    };
+  }
+  let winnerSeat: 'white' | 'black' | '' = '';
+  if (result === 'white' || result === 'red') winnerSeat = 'white';
+  else if (result === 'black' || result === 'yellow') winnerSeat = 'black';
+  if (winnerSeat) {
+    const seatColor =
+      challenge === 'connect4'
+        ? winnerSeat === 'white'
+          ? 'Red'
+          : 'Yellow'
+        : winnerSeat === 'white'
+          ? 'White'
+          : 'Black';
+    let detail = `Playing ${seatColor}.`;
+    if (challenge === 'chess') detail = `Checkmate — ${seatColor}.`;
+    if (challenge === 'logic') detail = 'Only correct answer in the duel.';
+    return {
+      over: true,
+      tone: 'win',
+      headline: `${seatModelLabel(winnerSeat, white, black)} wins`,
+      detail,
+    };
+  }
+  return { over: true, tone: 'draw', headline: (status || 'final').toUpperCase() };
 }
 
 interface ArenaWorkbenchProps {
@@ -108,6 +216,13 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
   const [providers, setProviders] = useState<Array<{ id: string; name: string; model?: string }>>([]);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [chessAvailable, setChessAvailable] = useState(true);
+  const [logicPuzzles, setLogicPuzzles] = useState<LogicPuzzleOption[]>([]);
+  const [logicPuzzleId, setLogicPuzzleId] = useState('');
+  const [customLogicPrompt, setCustomLogicPrompt] = useState('');
+  const [customLogicAnswer, setCustomLogicAnswer] = useState('');
+  const [playLog, setPlayLog] = useState<ArenaPlayLogEntry[]>([]);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const autoRunAbort = useRef(false);
 
   const refreshLeaderboard = useCallback(async () => {
     try {
@@ -118,25 +233,87 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
     }
   }, []);
 
+  const refreshOllamaModels = useCallback(async () => {
+    try {
+      const tags = await fetchInstalledOllamaModels();
+      setOllamaModels(tags);
+      return tags;
+    } catch {
+      return [];
+    }
+  }, []);
+
   useEffect(() => {
-    void Promise.all([fetchProviders(), fetchInstalledOllamaModels(), arenaListChallenges()])
+    void Promise.all([fetchProviders(), refreshOllamaModels(), arenaListChallenges()])
       .then(([rows, tags, challenges]) => {
         setProviders(rows);
-        setOllamaModels(tags);
+        if (tags.length > 0) {
+          setBlackModel((prev) => {
+            if (prev !== HUMAN_PLAYER && tags.includes(prev)) return prev;
+            return pickDefaultArenaModel(tags);
+          });
+        }
         if (rows[0]?.id) setProviderId(rows[0].id);
         const chess = challenges.challenges?.find((c) => String(c.id) === 'chess');
         setChessAvailable(chess?.available !== false);
+        const puzzles = (challenges.puzzles ?? [])
+          .map((p) => ({
+            id: String(p.id ?? ''),
+            title: typeof p.title === 'string' ? p.title : undefined,
+            difficulty: typeof p.difficulty === 'string' ? p.difficulty : undefined,
+          }))
+          .filter((p) => p.id);
+        setLogicPuzzles(puzzles);
+        setLogicPuzzleId((prev) =>
+          prev === CUSTOM_LOGIC_PUZZLE || (prev && puzzles.some((p) => p.id === prev))
+            ? prev
+            : puzzles[0]?.id ?? '',
+        );
       })
       .catch(() => undefined);
     void refreshLeaderboard();
-  }, [refreshLeaderboard]);
+  }, [refreshLeaderboard, refreshOllamaModels]);
 
-  const leaderboardModelIds = useMemo(() => Object.keys(leaderboard), [leaderboard]);
   const playerOptions = useMemo(
-    () => buildPlayerOptions(providers, ollamaModels, leaderboardModelIds, [whiteModel, blackModel]),
-    [providers, ollamaModels, leaderboardModelIds, whiteModel, blackModel],
+    () => buildPlayerOptions(ollamaModels, [whiteModel, blackModel]),
+    [ollamaModels, whiteModel, blackModel],
   );
-  const modelTag = useMemo(() => resolveAiModelTag(whiteModel, blackModel), [whiteModel, blackModel]);
+  const logicPuzzleIds = useMemo(
+    () => [...logicPuzzles.map((p) => p.id), CUSTOM_LOGIC_PUZZLE],
+    [logicPuzzles],
+  );
+  const logicPuzzleIndex = Math.max(0, logicPuzzleIds.indexOf(logicPuzzleId));
+  const cycleLogicPuzzle = useCallback(
+    (direction: -1 | 1) => {
+      if (logicPuzzleIds.length === 0) return;
+      const next = (logicPuzzleIndex + direction + logicPuzzleIds.length) % logicPuzzleIds.length;
+      setLogicPuzzleId(logicPuzzleIds[next]);
+    },
+    [logicPuzzleIds, logicPuzzleIndex],
+  );
+
+  useEffect(() => {
+    if (ollamaModels.length === 0) return;
+    setWhiteModel((prev) => {
+      if (prev === HUMAN_PLAYER || isInstalledModel(prev, ollamaModels)) return prev;
+      return HUMAN_PLAYER;
+    });
+    setBlackModel((prev) => {
+      if (prev === HUMAN_PLAYER) return prev;
+      if (isInstalledModel(prev, ollamaModels)) return prev;
+      return pickDefaultArenaModel(ollamaModels);
+    });
+  }, [ollamaModels]);
+  const logicModelTag = useMemo(
+    () => resolveLogicModelTag(whiteModel, blackModel),
+    [whiteModel, blackModel],
+  );
+  const activeChallenge = useMemo(
+    () => activeChallengeId(session, challenge),
+    [session, challenge],
+  );
+  const rosterWhite = session?.players?.white ?? whiteModel;
+  const rosterBlack = session?.players?.black ?? blackModel;
 
   const st = useMemo(() => stateRecord(session), [session]);
   const legalMoves = useMemo(() => {
@@ -144,14 +321,70 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
     if (!Array.isArray(raw)) return [] as string[];
     return raw.map(String);
   }, [st.legal_moves]);
+  const status = String(st.status ?? session?.status ?? '');
+  const isActive = status === 'active' || status === '';
+
+  useEffect(() => {
+    return () => {
+      autoRunAbort.current = true;
+    };
+  }, []);
+
+  const appendStepFromResult = useCallback((result: ArenaSession) => {
+    const entry = stepMetaToLogEntry(result._arena_step, activeChallengeId(result, challenge));
+    if (entry) {
+      setPlayLog((prev) => [...prev, entry]);
+    }
+    return entry;
+  }, [challenge]);
 
   const startSession = useCallback(async () => {
+    autoRunAbort.current = true;
+    setAutoRunning(false);
+    setPlayLog([]);
+    if (whiteModel !== HUMAN_PLAYER && !isInstalledModel(whiteModel, ollamaModels)) {
+      addToast({
+        type: 'error',
+        title: 'Arena',
+        message: `${whiteModel} is not installed in Ollama. Pick an installed tag or pull it in the model library.`,
+      });
+      return;
+    }
+    if (blackModel !== HUMAN_PLAYER && !isInstalledModel(blackModel, ollamaModels)) {
+      addToast({
+        type: 'error',
+        title: 'Arena',
+        message: `${blackModel} is not installed in Ollama. Pick an installed tag or pull it in the model library.`,
+      });
+      return;
+    }
+    if (
+      challenge === 'logic' &&
+      logicPuzzleId === CUSTOM_LOGIC_PUZZLE &&
+      (!customLogicPrompt.trim() || !customLogicAnswer.trim())
+    ) {
+      addToast({
+        type: 'error',
+        title: 'Arena',
+        message: 'Custom logic puzzles require both the puzzle text and expected answer.',
+      });
+      return;
+    }
     setBusy(true);
     try {
       const created = await arenaCreateSession({
         challenge,
         white: whiteModel,
         black: blackModel,
+        ...(challenge === 'logic' && logicPuzzleId !== CUSTOM_LOGIC_PUZZLE
+          ? { puzzle_id: logicPuzzleId }
+          : {}),
+        ...(challenge === 'logic' && logicPuzzleId === CUSTOM_LOGIC_PUZZLE
+          ? {
+              custom_prompt: customLogicPrompt.trim(),
+              custom_answer: customLogicAnswer.trim(),
+            }
+          : {}),
       });
       setSession(created);
       setLogicAnswer('');
@@ -161,7 +394,16 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
     } finally {
       setBusy(false);
     }
-  }, [addToast, blackModel, challenge, whiteModel]);
+  }, [
+    addToast,
+    blackModel,
+    challenge,
+    customLogicAnswer,
+    customLogicPrompt,
+    logicPuzzleId,
+    ollamaModels,
+    whiteModel,
+  ]);
 
   const refreshSession = useCallback(async () => {
     if (!session?.id) return;
@@ -189,6 +431,16 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
     [addToast, refreshLeaderboard, session?.id],
   );
 
+  const humanTurn = useMemo(
+    () => isHumanTurn(activeChallenge, st, rosterWhite, rosterBlack),
+    [activeChallenge, st, rosterWhite, rosterBlack],
+  );
+  const canModelStep = useMemo(() => {
+    if (!session || !isActive) return false;
+    if (activeChallenge === 'logic') return true;
+    return !humanTurn;
+  }, [activeChallenge, humanTurn, isActive, session]);
+
   const aiStep = useCallback(async () => {
     if (!session?.id) return;
     setBusy(true);
@@ -196,8 +448,8 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
       const next = await arenaMatchStep({
         session_id: session.id,
         provider_id: providerId,
-        model: modelTag,
       });
+      appendStepFromResult(next);
       setSession(next);
       void refreshLeaderboard();
     } catch (err) {
@@ -205,32 +457,53 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
     } finally {
       setBusy(false);
     }
-  }, [addToast, modelTag, providerId, refreshLeaderboard, session?.id]);
+  }, [addToast, appendStepFromResult, providerId, refreshLeaderboard, session?.id]);
 
   const autoRun = useCallback(async () => {
     if (!session?.id) return;
+    autoRunAbort.current = false;
+    setAutoRunning(true);
     setBusy(true);
+    setPlayLog([]);
     try {
-      const next = await arenaMatchRun({
-        session_id: session.id,
-        provider_id: providerId,
-        model: modelTag,
-        max_steps: 30,
-      });
-      setSession(next);
+      let current: ArenaSession = session;
+      for (let step = 0; step < AUTO_RUN_MAX_STEPS; step++) {
+        if (autoRunAbort.current) break;
+
+        const challengeId = activeChallengeId(current, challenge);
+        const movesBefore = sessionMoveCount(current);
+        const next = await arenaMatchStep({
+          session_id: current.id,
+          provider_id: providerId,
+        });
+        appendStepFromResult(next);
+        setSession(next);
+        current = next;
+
+        const st = stateRecord(next);
+        if (isSessionTerminal(st)) break;
+
+        const meta = next._arena_step;
+        if (meta?.skipped) break;
+
+        if (challengeId !== 'logic' && sessionMoveCount(next) === movesBefore) break;
+
+        await sleep(AUTO_RUN_DELAY_MS);
+      }
       void refreshLeaderboard();
     } catch (err) {
       addToast({ type: 'error', title: 'Arena', message: err instanceof Error ? err.message : String(err) });
     } finally {
+      setAutoRunning(false);
       setBusy(false);
     }
-  }, [addToast, modelTag, providerId, refreshLeaderboard, session?.id]);
+  }, [addToast, appendStepFromResult, challenge, providerId, refreshLeaderboard, session]);
 
   const submitLogic = useCallback(async () => {
     if (!session?.id) return;
     setBusy(true);
     try {
-      const next = await arenaSubmitAnswer(session.id, logicAnswer, modelTag);
+      const next = await arenaSubmitAnswer(session.id, logicAnswer, logicModelTag);
       setSession(next);
       void refreshLeaderboard();
     } catch (err) {
@@ -238,15 +511,36 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
     } finally {
       setBusy(false);
     }
-  }, [addToast, logicAnswer, modelTag, refreshLeaderboard, session?.id]);
+  }, [addToast, logicAnswer, logicModelTag, refreshLeaderboard, session?.id]);
 
   const board = (st.board as string[][] | undefined) ?? [];
-  const status = String(st.status ?? session?.status ?? '');
-  const isActive = status === 'active' || status === '';
-  const liveLabel = session ? (isActive ? 'LIVE' : status.toUpperCase() || 'FINAL') : 'PRE-GAME';
+  const outcome = useMemo(
+    () => resolveArenaOutcome(activeChallenge, st, session, rosterWhite, rosterBlack),
+    [activeChallenge, st, session, rosterWhite, rosterBlack],
+  );
+  const liveLabel = session
+    ? isActive
+      ? 'LIVE'
+      : outcome.over
+        ? 'GAME OVER'
+        : status.toUpperCase() || 'FINAL'
+    : 'PRE-GAME';
+  const canHumanMove = isActive && (activeChallenge === 'logic' || humanTurn);
+
+  const announcedEndRef = useRef<string>('');
+  useEffect(() => {
+    if (!session?.id || !outcome.over) return;
+    if (announcedEndRef.current === session.id) return;
+    announcedEndRef.current = session.id;
+    addToast({
+      type: outcome.tone === 'loss' ? 'error' : outcome.tone === 'draw' ? 'info' : 'success',
+      title: 'Game over',
+      message: outcome.detail ? `${outcome.headline} — ${outcome.detail}` : outcome.headline,
+    });
+  }, [session?.id, outcome.over, outcome.tone, outcome.headline, outcome.detail, addToast]);
 
   return (
-    <div className="arena-retro flex h-full min-h-0 flex-col overflow-auto">
+    <div className="arena-retro flex h-full min-h-0 flex-col overflow-hidden">
       {showHeader && (
         <header className="arena-retro-marquee shrink-0">
           <div>
@@ -263,7 +557,7 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
         </div>
       )}
 
-      <div className="arena-retro-body flex min-h-0 flex-1 flex-col">
+      <div className="arena-retro-body flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
         <div className="arena-retro-mode-tabs" role="tablist" aria-label="Challenge mode">
           {CHALLENGE_MODES.map((mode) => (
             <button
@@ -287,10 +581,84 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
           </div>
         )}
 
+        {challenge === 'logic' && logicPuzzles.length > 0 && (
+          <div className="arena-retro-puzzle-picker">
+            <button
+              type="button"
+              className="arena-retro-btn secondary"
+              onClick={() => cycleLogicPuzzle(-1)}
+              disabled={busy}
+              aria-label="Previous logic puzzle"
+            >
+              ←
+            </button>
+            <label>
+              <span className="arena-retro-label">
+                {logicPuzzleId === CUSTOM_LOGIC_PUZZLE
+                  ? 'Custom puzzle'
+                  : `Puzzle ${logicPuzzleIndex + 1} of ${logicPuzzles.length}`}
+              </span>
+              <select
+                value={logicPuzzleId}
+                onChange={(e) => setLogicPuzzleId(e.target.value)}
+                className="arena-retro-select"
+                disabled={busy}
+              >
+                {logicPuzzles.map((p, index) => (
+                  <option key={p.id} value={p.id}>
+                    {index + 1}. {p.title || p.id}
+                    {p.difficulty ? ` · ${p.difficulty}` : ''}
+                  </option>
+                ))}
+                <option value={CUSTOM_LOGIC_PUZZLE}>Custom puzzle…</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              className="arena-retro-btn secondary"
+              onClick={() => cycleLogicPuzzle(1)}
+              disabled={busy}
+              aria-label="Next logic puzzle"
+            >
+              →
+            </button>
+          </div>
+        )}
+
+        {challenge === 'logic' && logicPuzzleId === CUSTOM_LOGIC_PUZZLE && (
+          <div className="arena-retro-custom-puzzle">
+            <label>
+              <span className="arena-retro-label">Your logic puzzle</span>
+              <textarea
+                value={customLogicPrompt}
+                onChange={(e) => setCustomLogicPrompt(e.target.value)}
+                placeholder="Describe the puzzle and ask one clear question…"
+                className="arena-retro-custom-puzzle-text"
+                rows={4}
+                disabled={busy}
+              />
+            </label>
+            <label>
+              <span className="arena-retro-label">Expected answer</span>
+              <input
+                type="text"
+                value={customLogicAnswer}
+                onChange={(e) => setCustomLogicAnswer(e.target.value)}
+                placeholder="Answer used to score both models"
+                className="arena-retro-select"
+                disabled={busy}
+              />
+            </label>
+            <p className="arena-retro-hint">
+              Answers are compared case-insensitively after trimming whitespace.
+            </p>
+          </div>
+        )}
+
         <div className="arena-retro-matchup">
           <div className="arena-retro-team home">
             <div className="arena-retro-team-label">HOME</div>
-            <div className="arena-retro-team-role">{playerRoleHint(challenge, 1)}</div>
+            <div className="arena-retro-team-role">{playerRoleHint(activeChallenge, 1)}</div>
             <label className="sr-only" htmlFor="arena-player-1">
               Player 1
             </label>
@@ -312,7 +680,7 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
           </div>
           <div className="arena-retro-team away">
             <div className="arena-retro-team-label">AWAY</div>
-            <div className="arena-retro-team-role">{playerRoleHint(challenge, 2)}</div>
+            <div className="arena-retro-team-role">{playerRoleHint(activeChallenge, 2)}</div>
             <label className="sr-only" htmlFor="arena-player-2">
               Player 2
             </label>
@@ -333,7 +701,7 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
 
         {ollamaModels.length === 0 && (
           <p className="arena-retro-hint">
-            Pull models in the model library — roster fills from installed Ollama tags.
+            Pull models in the model library (⇧⌘M) — the roster lists only installed Ollama tags.
           </p>
         )}
 
@@ -353,6 +721,15 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
               ))}
             </select>
           </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void refreshOllamaModels()}
+            className="arena-retro-btn secondary"
+            title="Refresh installed Ollama model tags"
+          >
+            Refresh models
+          </button>
           <button type="button" disabled={busy} onClick={() => void startSession()} className="arena-retro-btn">
             Kick off
           </button>
@@ -360,19 +737,21 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
             <>
               <button
                 type="button"
-                disabled={busy || !isActive}
+                disabled={busy || !canModelStep}
                 onClick={() => void aiStep()}
                 className="arena-retro-btn action"
+                title={humanTurn ? 'Waiting for your move' : 'Prompt the active model seat'}
               >
                 AI play
               </button>
               <button
                 type="button"
-                disabled={busy || !isActive}
+                disabled={busy || !canModelStep || autoRunning}
                 onClick={() => void autoRun()}
                 className="arena-retro-btn action"
+                title={humanTurn ? 'Waiting for your move' : 'Run model moves step-by-step until a human turn or game end'}
               >
-                Auto-run
+                {autoRunning ? 'Running…' : 'Auto-run'}
               </button>
               <button
                 type="button"
@@ -391,32 +770,39 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
         )}
 
         <div className="arena-retro-grid flex-1 min-h-0">
-          <div className="arena-retro-field min-h-0 overflow-auto">
+          <div className="arena-retro-field min-h-0">
             <div className="arena-retro-field-inner">
+              {session && outcome.over && (
+                <div className={`arena-retro-gameover tone-${outcome.tone}`} role="status" aria-live="assertive">
+                  <span className="arena-retro-gameover-tag">Game Over</span>
+                  <span className="arena-retro-gameover-headline">{outcome.headline}</span>
+                  {outcome.detail && <span className="arena-retro-gameover-detail">{outcome.detail}</span>}
+                </div>
+              )}
               {!session && (
                 <div className="arena-retro-empty">
                   <strong>INSERT COIN</strong>
                   Pick your roster, hit <em>Kick off</em>, and play Connect Four, chess, or logic puzzles head-to-head.
                 </div>
               )}
-              {session && challenge === 'connect4' && (
+              {session && activeChallenge === 'connect4' && (
                 <ConnectFourBoard
                   board={board.length ? board : Array.from({ length: 6 }, () => Array(7).fill(''))}
                   legalMoves={legalMoves}
-                  disabled={busy || !isActive}
+                  disabled={busy || !canHumanMove}
                   onColumn={(col) => void applyMove({ column: col })}
                 />
               )}
-              {session && challenge === 'chess' && (
+              {session && activeChallenge === 'chess' && (
                 <ChessBoard
                   ascii={String(st.ascii ?? '')}
                   fen={String(st.fen ?? '')}
                   legalMoves={legalMoves}
-                  disabled={busy || !isActive}
+                  disabled={busy || !canHumanMove}
                   onMove={(move) => void applyMove({ move })}
                 />
               )}
-              {session && challenge === 'logic' && (
+              {session && activeChallenge === 'logic' && (
                 <LogicPuzzlePanel
                   prompt={String(st.prompt ?? session.puzzle?.prompt ?? '')}
                   title={session.puzzle?.title}
@@ -426,20 +812,28 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
                   onSubmit={() => void submitLogic()}
                   onAskModel={() => void aiStep()}
                   result={String(st.result ?? session.result ?? '')}
-                  explanation={String((session as { answer?: { explanation?: string } }).answer?.explanation ?? '')}
+                  explanation={String(
+                    (session as { answer?: { explanation?: string; duel?: boolean } }).answer?.explanation ??
+                      '',
+                  )}
+                  duelAnswers={
+                    (session as { answers?: Record<string, { answer?: string; correct?: boolean; model?: string }> })
+                      .answers
+                  }
                   busy={busy}
                 />
               )}
             </div>
             {session && (
-              <div className="arena-retro-ticker">
-                {rosterLabel(whiteModel)} vs {rosterLabel(blackModel)} ·{' '}
-                {status || 'active'} · {String(st.result ?? session.result ?? 'in progress')}
+              <div className={`arena-retro-ticker ${outcome.over ? `over tone-${outcome.tone}` : ''}`}>
+                {rosterLabel(rosterWhite)} vs {rosterLabel(rosterBlack)} ·{' '}
+                {outcome.over ? `RESULT · ${outcome.headline}` : status ? status.toUpperCase() : 'IN PROGRESS'}
               </div>
             )}
           </div>
 
           <aside className="arena-retro-standings">
+            <ArenaPlayLog entries={playLog} autoRunning={autoRunning} />
             <h3>Standings</h3>
             {Object.keys(leaderboard).length === 0 && (
               <p className="text-sm text-slate-500 text-center">No scores yet</p>

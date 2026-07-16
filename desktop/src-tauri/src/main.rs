@@ -1127,11 +1127,35 @@ fn bundled_ollama_binary(runtime_dir: &std::path::Path) -> PathBuf {
     }
 }
 
-fn ollama_models_dir(app: &tauri::AppHandle) -> PathBuf {
+fn system_ollama_on_path() -> bool {
+    std::process::Command::new("ollama")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn isolated_ollama_models_dir(app: &tauri::AppHandle) -> PathBuf {
     app.path_resolver()
         .app_data_dir()
         .map(|p| p.join("ollama-models"))
         .unwrap_or_else(|| default_home().join(".neural-junkie").join("ollama-models"))
+}
+
+/// Where bundled `ollama serve` stores models. Dev machines with a system Ollama install share ~/.ollama/models.
+fn ollama_models_dir(app: &tauri::AppHandle) -> PathBuf {
+    if let Ok(raw) = std::env::var("NJ_OLLAMA_MODELS") {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
+    if system_ollama_on_path() {
+        return default_home().join(".ollama").join("models");
+    }
+    isolated_ollama_models_dir(app)
 }
 
 fn ollama_health_client() -> reqwest::blocking::Client {

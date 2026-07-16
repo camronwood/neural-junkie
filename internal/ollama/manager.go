@@ -230,7 +230,7 @@ func (m *Manager) StartServer(ctx context.Context) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if status.Bundled {
-		modelsDir := NeuralJunkieModelsDir()
+		modelsDir := ResolveOllamaModelsDir()
 		_ = os.MkdirAll(modelsDir, 0o755)
 		cmd.Env = append(os.Environ(),
 			"OLLAMA_HOST=127.0.0.1:11434",
@@ -421,6 +421,35 @@ func (m *Manager) HasModel(ctx context.Context, tag string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// TagInstalled reports whether tag is satisfied by any name returned from ListModels.
+func TagInstalled(installed []string, tag string) bool {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return false
+	}
+	want := tag
+	wantWithLatest := tag
+	if !strings.Contains(tag, ":") {
+		wantWithLatest = tag + ":latest"
+	}
+	for _, name := range installed {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if name == want || name == wantWithLatest {
+			return true
+		}
+		if strings.HasPrefix(name, want+":") {
+			return true
+		}
+		if strings.HasSuffix(want, ":latest") && name == strings.TrimSuffix(want, ":latest") {
+			return true
+		}
+	}
+	return false
 }
 
 // PullModel pulls a model and streams progress to the provided callback.

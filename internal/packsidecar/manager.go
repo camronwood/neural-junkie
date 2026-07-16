@@ -84,6 +84,31 @@ func (m *Manager) Sync(ctx context.Context, enabled []packs.SidecarEnv) error {
 	return firstErr
 }
 
+// RestartPack stops a running sidecar for packID (if any) and starts it again with env.
+func (m *Manager) RestartPack(ctx context.Context, env packs.SidecarEnv) error {
+	if m == nil {
+		return nil
+	}
+	packID := strings.TrimSpace(env.PackID)
+	if packID == "" {
+		return fmt.Errorf("pack id required")
+	}
+	m.mu.Lock()
+	if inst, ok := m.instances[packID]; ok {
+		m.stopLocked(inst)
+		delete(m.instances, packID)
+	}
+	m.mu.Unlock()
+	inst, err := m.startLocked(ctx, env)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.instances[packID] = inst
+	m.mu.Unlock()
+	return nil
+}
+
 // StopAll stops every running sidecar.
 func (m *Manager) StopAll() {
 	if m == nil {

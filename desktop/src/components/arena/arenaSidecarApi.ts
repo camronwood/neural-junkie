@@ -1,5 +1,15 @@
 import { getHubBaseURL, hubAuthHeaders, hubSessionHeaders } from '../../config/hubUrl';
 
+export type ArenaStepMeta = {
+  model?: string;
+  seat?: string;
+  reply?: string;
+  parsed_move?: Record<string, unknown>;
+  parsed_answer?: string;
+  skipped?: boolean;
+  reason?: string;
+};
+
 export type ArenaSession = {
   id: string;
   challenge: string;
@@ -8,6 +18,8 @@ export type ArenaSession = {
   state?: Record<string, unknown>;
   puzzle?: { id?: string; prompt?: string; title?: string; difficulty?: string };
   players?: { white?: string; black?: string };
+  moves?: Array<Record<string, unknown>>;
+  _arena_step?: ArenaStepMeta;
 };
 
 async function arenaFetch<T>(path: string, init?: RequestInit): Promise<T> {

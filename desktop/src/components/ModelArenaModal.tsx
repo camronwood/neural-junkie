@@ -65,7 +65,8 @@ export function ModelArenaModal({ isOpen, onClose, onOpenInEditor }: ModelArenaM
             </button>
           </div>
         </div>
-        <div className="min-h-[480px] flex-1 overflow-hidden">
+        {/* min-h-0 + overflow-y-auto: keep roster/toolbar reachable after long games */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {!hasArena && (
             <div className="arena-retro-body p-6 text-sm text-slate-300">
               Enable the <strong className="text-amber-300">Model Arena</strong> pack in Settings → Domain packs.
