@@ -475,10 +475,53 @@ def _logic_model_seats(players: dict[str, Any]) -> list[str]:
     return seats
 
 
+def _normalize_logic_answer(text: str) -> str:
+    """Strip markdown / 'Answer:' prefixes so model formatting does not fail scoring."""
+    raw = str(text or "").strip().lower()
+    if not raw:
+        return ""
+    # Drop markdown emphasis and wrapping quotes.
+    cleaned = re.sub(r"[*_`]+", "", raw)
+    cleaned = cleaned.strip().strip("\"'`")
+    # Prefer the last non-empty line (models often put reasoning above the answer).
+    lines = [ln.strip() for ln in cleaned.splitlines() if ln.strip()]
+    candidate = lines[-1] if lines else cleaned
+    candidate = re.sub(
+        r"^(?:final\s+answer|answer|thus|therefore|so|conclusion)\s*[:\-–—]?\s*",
+        "",
+        candidate,
+        flags=re.IGNORECASE,
+    )
+    candidate = candidate.strip(" .;:!-")
+    return candidate
+
+
+def _logic_targets(puzzle: dict[str, Any]) -> list[str]:
+    targets: list[str] = []
+    for raw in [puzzle.get("answer"), *(puzzle.get("accepted") or [])]:
+        t = _normalize_logic_answer(str(raw or ""))
+        if t and t not in targets:
+            targets.append(t)
+    return targets
+
+
 def _answer_is_correct(puzzle: dict[str, Any], answer: str) -> bool:
-    answer = str(answer or "").strip().lower()
-    accepted = [str(a).strip().lower() for a in puzzle.get("accepted", [])]
-    return answer == str(puzzle.get("answer", "")).lower() or answer in accepted
+    normalized = _normalize_logic_answer(answer)
+    if not normalized:
+        return False
+    targets = _logic_targets(puzzle)
+    if not targets:
+        return False
+    if normalized in targets:
+        return True
+    # Allow "Ada is a knave" / "**Final Answer: knave**" style replies.
+    for target in targets:
+        if re.search(rf"\b{re.escape(target)}\b", normalized):
+            return True
+        # Whole free-form reply may still include the accepted phrase.
+        if target in normalized and len(target) >= 4:
+            return True
+    return False
 
 
 def _finalize_logic_session(session: dict[str, Any]) -> None:
@@ -506,15 +549,19 @@ def _finalize_logic_session(session: dict[str, Any]) -> None:
     if len(correct_seats) == 1:
         session["status"] = "finished"
         session["result"] = correct_seats[0]
+        duel_kind = "split"
     elif len(correct_seats) >= 2:
         session["status"] = "draw"
         session["result"] = "draw"
+        duel_kind = "both_correct"
     else:
-        session["status"] = "finished"
+        session["status"] = "draw"
         session["result"] = "draw"
+        duel_kind = "both_incorrect"
 
     session["answer"] = {
         "duel": True,
+        "duel_kind": duel_kind,
         "answers": answers,
         "winner": session["result"],
         "explanation": puzzle.get("explanation", ""),
@@ -543,6 +590,7 @@ def _submit_answer(session: dict[str, Any], body: dict[str, Any], settings: dict
         "model": body.get("by", ""),
         "seat": seat,
         "answer": body.get("answer", ""),
+        "normalized": _normalize_logic_answer(answer_text),
         "correct": correct,
         "at": _now(),
     }

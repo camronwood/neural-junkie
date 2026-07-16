@@ -9,6 +9,7 @@ export type ArenaPlayLogEntry = {
   moveLabel?: string;
   skipped?: boolean;
   thinking?: boolean;
+  attempts?: number;
 };
 
 export function formatArenaMoveLabel(
@@ -27,21 +28,34 @@ export function formatArenaMoveLabel(
 export function stepMetaToLogEntry(step: ArenaStepMeta | undefined, challenge: string): ArenaPlayLogEntry | null {
   if (!step) return null;
   if (step.skipped) {
+    const attempts =
+      typeof step.attempts === 'number' && step.attempts > 1 ? ` after ${step.attempts} tries` : '';
     return {
       id: crypto.randomUUID(),
+      model: step.model,
       seat: step.seat,
+      reply: step.reply,
       skipped: true,
-      moveLabel: step.reason === 'human_turn' ? 'Waiting for human' : step.reason,
+      attempts: typeof step.attempts === 'number' ? step.attempts : undefined,
+      moveLabel:
+        step.reason === 'human_turn'
+          ? 'Waiting for human'
+          : step.reason === 'invalid_model_move'
+            ? `Invalid move (re-prompted${attempts})`
+            : step.reason,
     };
   }
   const parsed = step.parsed_move as Record<string, unknown> | undefined;
   const moveLabel = formatArenaMoveLabel(challenge, parsed, step.parsed_answer);
+  const retryNote =
+    typeof step.attempts === 'number' && step.attempts > 1 ? ` (retry ${step.attempts})` : '';
   return {
     id: crypto.randomUUID(),
     model: step.model,
     seat: step.seat,
     reply: step.reply,
-    moveLabel,
+    moveLabel: moveLabel ? `${moveLabel}${retryNote}` : retryNote || undefined,
+    attempts: typeof step.attempts === 'number' ? step.attempts : undefined,
   };
 }
 
@@ -85,7 +99,7 @@ export function ArenaPlayLog({ entries, autoRunning }: ArenaPlayLogProps) {
                 </span>
               )}
             </div>
-            {entry.reply && !entry.skipped && (
+            {entry.reply && (
               <p className="arena-retro-playlog-reply">{entry.reply}</p>
             )}
           </li>

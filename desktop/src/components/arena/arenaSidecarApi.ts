@@ -8,6 +8,8 @@ export type ArenaStepMeta = {
   parsed_answer?: string;
   skipped?: boolean;
   reason?: string;
+  attempts?: number;
+  error?: string;
 };
 
 export type ArenaSession = {

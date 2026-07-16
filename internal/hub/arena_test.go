@@ -91,6 +91,23 @@ func TestArenaLogicNextSeat(t *testing.T) {
 	}
 }
 
+func TestParseLogicAnswer(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"knave", "knave"},
+		{"**Knave**", "Knave"},
+		{"Final Answer: knave", "knave"},
+		{"Reasoning...\n\n**Answer:** Knave", "Knave"},
+		{"Therefore Ada is a knave.\nknave", "knave"},
+	}
+	for _, tc := range cases {
+		if got := parseLogicAnswer(tc.in); got != tc.want {
+			t.Fatalf("parseLogicAnswer(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestParseArenaMove(t *testing.T) {
 	move, err := parseArenaMove("connect4", "I choose column 3", []string{"0", "1", "2", "3"})
 	if err != nil || move["column"] != 3 {
@@ -103,5 +120,17 @@ func TestParseArenaMove(t *testing.T) {
 	move, err = parseArenaMove("chess", "e2e4", []string{"e2e4", "d2d4"})
 	if err != nil || move["move"] != "e2e4" {
 		t.Fatalf("chess parse: %#v err=%v", move, err)
+	}
+	move, err = parseArenaMove("chess", "I like the center.\n**e2e4**", []string{"e2e4", "d2d4"})
+	if err != nil || move["move"] != "e2e4" {
+		t.Fatalf("chess markdown parse: %#v err=%v", move, err)
+	}
+	move, err = parseArenaMove("chess", "Playing e2-e4 now.", []string{"e2e4", "d2d4"})
+	if err != nil || move["move"] != "e2e4" {
+		t.Fatalf("chess dashed parse: %#v err=%v", move, err)
+	}
+	move, err = parseArenaMove("chess", "Go with e2 e4", []string{"e2e4", "d2d4"})
+	if err != nil || move["move"] != "e2e4" {
+		t.Fatalf("chess spaced parse: %#v err=%v", move, err)
 	}
 }

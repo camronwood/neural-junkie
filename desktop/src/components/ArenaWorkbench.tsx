@@ -37,10 +37,21 @@ const ARENA_DEFAULT_MODEL = ARENA_SUGGESTED_MODELS[0];
 const HUMAN_PLAYER = 'human';
 const CUSTOM_LOGIC_PUZZLE = '__custom__';
 const AUTO_RUN_DELAY_MS = 700;
-const AUTO_RUN_MAX_STEPS = 42;
+/** Connect Four fills in ≤42 plies; chess often needs far more. */
+const AUTO_RUN_MAX_STEPS: Record<ChallengeId, number> = {
+  connect4: 42,
+  chess: 160,
+  logic: 4,
+};
+
+type MatchPauseReason = 'max_steps' | 'human_turn' | 'no_progress' | 'invalid_model_move' | null;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function autoRunMaxSteps(challenge: ChallengeId): number {
+  return AUTO_RUN_MAX_STEPS[challenge] ?? 42;
 }
 
 function isSessionTerminal(state: Record<string, unknown>): boolean {
@@ -154,6 +165,15 @@ function resolveArenaOutcome(
     return { over: false, tone: 'draw', headline: '' };
   }
   if (status === 'draw' || result === 'draw') {
+    const duelKind = String(
+      (session as { answer?: { duel_kind?: string } } | null)?.answer?.duel_kind ?? '',
+    );
+    if (duelKind === 'both_correct') {
+      return { over: true, tone: 'draw', headline: 'Draw', detail: 'Both models answered correctly.' };
+    }
+    if (duelKind === 'both_incorrect') {
+      return { over: true, tone: 'draw', headline: 'Draw', detail: 'Both models missed the answer.' };
+    }
     return { over: true, tone: 'draw', headline: 'Draw', detail: 'No winner this round.' };
   }
   if (status === 'correct' || status === 'incorrect') {
@@ -186,6 +206,15 @@ function resolveArenaOutcome(
       tone: 'win',
       headline: `${seatModelLabel(winnerSeat, white, black)} wins`,
       detail,
+    };
+  }
+  // finished/incorrect-style status without a mapped seat — still show something useful
+  if (status === 'finished') {
+    return {
+      over: true,
+      tone: 'draw',
+      headline: 'Match finished',
+      detail: result ? `Result · ${result}` : 'No winner recorded.',
     };
   }
   return { over: true, tone: 'draw', headline: (status || 'final').toUpperCase() };
@@ -222,6 +251,7 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
   const [customLogicAnswer, setCustomLogicAnswer] = useState('');
   const [playLog, setPlayLog] = useState<ArenaPlayLogEntry[]>([]);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [matchPause, setMatchPause] = useState<MatchPauseReason>(null);
   const autoRunAbort = useRef(false);
 
   const refreshLeaderboard = useCallback(async () => {
@@ -341,6 +371,7 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
   const startSession = useCallback(async () => {
     autoRunAbort.current = true;
     setAutoRunning(false);
+    setMatchPause(null);
     setPlayLog([]);
     if (whiteModel !== HUMAN_PLAYER && !isInstalledModel(whiteModel, ollamaModels)) {
       addToast({
@@ -444,6 +475,7 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
   const aiStep = useCallback(async () => {
     if (!session?.id) return;
     setBusy(true);
+    setMatchPause(null);
     try {
       const next = await arenaMatchStep({
         session_id: session.id,
@@ -451,6 +483,12 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
       });
       appendStepFromResult(next);
       setSession(next);
+      const meta = next._arena_step;
+      if (meta?.skipped) {
+        if (meta.reason === 'human_turn') setMatchPause('human_turn');
+        else if (meta.reason === 'invalid_model_move') setMatchPause('invalid_model_move');
+        else setMatchPause('no_progress');
+      }
       void refreshLeaderboard();
     } catch (err) {
       addToast({ type: 'error', title: 'Arena', message: err instanceof Error ? err.message : String(err) });
@@ -462,12 +500,16 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
   const autoRun = useCallback(async () => {
     if (!session?.id) return;
     autoRunAbort.current = false;
+    setMatchPause(null);
     setAutoRunning(true);
     setBusy(true);
     setPlayLog([]);
+    const maxSteps = autoRunMaxSteps(challenge);
+    let pause: MatchPauseReason = null;
+    let stepsTaken = 0;
     try {
       let current: ArenaSession = session;
-      for (let step = 0; step < AUTO_RUN_MAX_STEPS; step++) {
+      for (let step = 0; step < maxSteps; step++) {
         if (autoRunAbort.current) break;
 
         const challengeId = activeChallengeId(current, challenge);
@@ -479,16 +521,43 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
         appendStepFromResult(next);
         setSession(next);
         current = next;
+        stepsTaken = step + 1;
 
         const st = stateRecord(next);
-        if (isSessionTerminal(st)) break;
+        if (isSessionTerminal(st)) {
+          pause = null;
+          break;
+        }
 
         const meta = next._arena_step;
-        if (meta?.skipped) break;
+        if (meta?.skipped) {
+          if (meta.reason === 'human_turn') pause = 'human_turn';
+          else if (meta.reason === 'invalid_model_move') pause = 'invalid_model_move';
+          else pause = 'no_progress';
+          break;
+        }
 
-        if (challengeId !== 'logic' && sessionMoveCount(next) === movesBefore) break;
+        if (challengeId !== 'logic' && sessionMoveCount(next) === movesBefore) {
+          pause = 'no_progress';
+          break;
+        }
+
+        if (step === maxSteps - 1 && !isSessionTerminal(stateRecord(next))) {
+          pause = 'max_steps';
+        }
 
         await sleep(AUTO_RUN_DELAY_MS);
+      }
+      if (pause === null && stepsTaken >= maxSteps && !isSessionTerminal(stateRecord(current))) {
+        pause = 'max_steps';
+      }
+      setMatchPause(pause);
+      if (pause === 'max_steps') {
+        addToast({
+          type: 'info',
+          title: 'Match paused',
+          message: `Auto-run stopped after ${stepsTaken} moves — game still in progress. Hit Auto-run again to continue.`,
+        });
       }
       void refreshLeaderboard();
     } catch (err) {
@@ -520,7 +589,9 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
   );
   const liveLabel = session
     ? isActive
-      ? 'LIVE'
+      ? matchPause === 'max_steps'
+        ? 'PAUSED'
+        : 'LIVE'
       : outcome.over
         ? 'GAME OVER'
         : status.toUpperCase() || 'FINAL'
@@ -532,6 +603,7 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
     if (!session?.id || !outcome.over) return;
     if (announcedEndRef.current === session.id) return;
     announcedEndRef.current = session.id;
+    setMatchPause(null);
     addToast({
       type: outcome.tone === 'loss' ? 'error' : outcome.tone === 'draw' ? 'info' : 'success',
       title: 'Game over',
@@ -749,7 +821,11 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
                 disabled={busy || !canModelStep || autoRunning}
                 onClick={() => void autoRun()}
                 className="arena-retro-btn action"
-                title={humanTurn ? 'Waiting for your move' : 'Run model moves step-by-step until a human turn or game end'}
+                title={
+                  humanTurn
+                    ? 'Waiting for your move'
+                    : `Run model moves until a human turn, game end, or ${autoRunMaxSteps(challenge)} plies`
+                }
               >
                 {autoRunning ? 'Running…' : 'Auto-run'}
               </button>
@@ -777,6 +853,34 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
                   <span className="arena-retro-gameover-tag">Game Over</span>
                   <span className="arena-retro-gameover-headline">{outcome.headline}</span>
                   {outcome.detail && <span className="arena-retro-gameover-detail">{outcome.detail}</span>}
+                </div>
+              )}
+              {session && !outcome.over && matchPause === 'max_steps' && (
+                <div className="arena-retro-gameover tone-draw" role="status" aria-live="polite">
+                  <span className="arena-retro-gameover-tag">Match paused</span>
+                  <span className="arena-retro-gameover-headline">No winner yet</span>
+                  <span className="arena-retro-gameover-detail">
+                    Auto-run hit the move limit while the game was still active. Hit Auto-run again to continue.
+                  </span>
+                </div>
+              )}
+              {session && !outcome.over && matchPause === 'no_progress' && (
+                <div className="arena-retro-gameover tone-draw" role="status" aria-live="polite">
+                  <span className="arena-retro-gameover-tag">Match paused</span>
+                  <span className="arena-retro-gameover-headline">Could not continue</span>
+                  <span className="arena-retro-gameover-detail">
+                    The last model reply did not produce a legal move. Try AI play or Auto-run again.
+                  </span>
+                </div>
+              )}
+              {session && !outcome.over && matchPause === 'invalid_model_move' && (
+                <div className="arena-retro-gameover tone-draw" role="status" aria-live="polite">
+                  <span className="arena-retro-gameover-tag">Match paused</span>
+                  <span className="arena-retro-gameover-headline">Invalid model move</span>
+                  <span className="arena-retro-gameover-detail">
+                    Re-prompted the model for a legal UCI move (e2e4-style, not Nf3), but it still failed. Hit AI
+                    play or Auto-run to try again.
+                  </span>
                 </div>
               )}
               {!session && (

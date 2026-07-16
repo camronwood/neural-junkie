@@ -187,37 +187,61 @@ func (h *Hub) arenaBoardStep(ctx context.Context, sessionID string, req ArenaMat
 	if model == "" {
 		return nil, fmt.Errorf("no model assigned for %s to move", seat)
 	}
-	prompt := arenaMovePrompt(challenge, state, legal)
-	reply, err := h.arenaGenerate(ctx, req.ProviderID, model, prompt)
-	if err != nil {
-		return nil, err
-	}
-	moveBody, parseErr := parseArenaMove(challenge, reply, legal)
-	if parseErr != nil {
-		retryPrompt := prompt + "\n\nYour previous reply was invalid. Briefly explain, then put one legal move alone on the final line."
-		reply2, err2 := h.arenaGenerate(ctx, req.ProviderID, model, retryPrompt)
-		if err2 == nil {
-			if mb2, pe2 := parseArenaMove(challenge, reply2, legal); pe2 == nil {
-				moveBody = mb2
-				parseErr = nil
-				reply = reply2
+
+	const maxAttempts = 3
+	var (
+		moveBody map[string]any
+		reply    string
+		parseErr error
+		attempts int
+	)
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		attempts = attempt
+		prompt := arenaMovePrompt(challenge, state, legal)
+		if attempt > 1 {
+			prompt = arenaMoveRepairPrompt(challenge, legal, reply, attempt)
+		}
+		nextReply, err := h.arenaGenerate(ctx, req.ProviderID, model, prompt)
+		if err != nil {
+			if attempt == 1 {
+				return nil, err
 			}
+			// Keep trying with the last bad reply context when later attempts fail to generate.
+			continue
+		}
+		reply = nextReply
+		moveBody, parseErr = parseArenaMove(challenge, reply, legal)
+		if parseErr == nil {
+			break
 		}
 	}
 	if parseErr != nil {
-		return nil, fmt.Errorf("could not parse model move: %w", parseErr)
+		// Soft-fail after re-prompts: keep the match alive so the user can retry.
+		return arenaWithStep(session, map[string]any{
+			"skipped":  true,
+			"reason":   "invalid_model_move",
+			"model":    model,
+			"seat":     seat,
+			"reply":    reply,
+			"error":    parseErr.Error(),
+			"attempts": attempts,
+		}), nil
 	}
 	moveBody["by"] = model
 	out, err := h.ArenaSidecarPost(ctx, "/api/arena/sessions/"+sessionID+"/move", moveBody)
 	if err != nil {
 		return nil, err
 	}
-	return arenaWithStep(out, map[string]any{
+	step := map[string]any{
 		"model":       model,
 		"seat":        seat,
 		"reply":       reply,
 		"parsed_move": moveBody,
-	}), nil
+	}
+	if attempts > 1 {
+		step["attempts"] = attempts
+	}
+	return arenaWithStep(out, step), nil
 }
 
 func (h *Hub) arenaLogicStep(ctx context.Context, sessionID string, req ArenaMatchStepRequest, session map[string]any) (map[string]any, error) {
@@ -247,7 +271,7 @@ func (h *Hub) arenaLogicStep(ctx context.Context, sessionID string, req ArenaMat
 	if err != nil {
 		return nil, err
 	}
-	answer := strings.TrimSpace(lastNonEmptyLine(reply))
+	answer := parseLogicAnswer(reply)
 	out, err := h.ArenaSidecarPost(ctx, "/api/arena/sessions/"+sessionID+"/answer", map[string]any{
 		"answer": answer,
 		"by":     model,
@@ -300,7 +324,11 @@ func arenaMovePrompt(challenge string, state map[string]any, legal []string) str
 	var b strings.Builder
 	b.WriteString("You are playing ")
 	b.WriteString(challenge)
-	b.WriteString(". Briefly explain your strategy in 1-3 sentences, then put your chosen legal move alone on the final line.\n\n")
+	if challenge == "chess" {
+		b.WriteString(". Briefly explain in 1-2 sentences, then put ONE legal UCI move alone on the final line (format e2e4 / g1f3 / e7e8q). Never use SAN like Nf3 or O-O.\n\n")
+	} else {
+		b.WriteString(". Briefly explain your strategy in 1-3 sentences, then put your chosen legal move alone on the final line.\n\n")
+	}
 	if fen, ok := state["fen"].(string); ok && fen != "" {
 		b.WriteString("FEN: ")
 		b.WriteString(fen)
@@ -337,8 +365,73 @@ func arenaMovePrompt(challenge string, state map[string]any, legal []string) str
 	return b.String()
 }
 
-var uciMoveRe = regexp.MustCompile(`\b([a-h][1-8][a-h][1-8][qrbn]?)\b`)
+// arenaMoveRepairPrompt asks again after an invalid model reply, getting stricter each attempt.
+func arenaMoveRepairPrompt(challenge string, legal []string, previousReply string, attempt int) string {
+	var b strings.Builder
+	prev := strings.TrimSpace(previousReply)
+	if len(prev) > 400 {
+		prev = prev[:400] + "…"
+	}
+	if challenge == "chess" {
+		if attempt >= 3 {
+			b.WriteString("Your last chess reply had no legal UCI move. Reply with ONLY one move token and nothing else.\n")
+			b.WriteString("Valid examples look like: e2e4, g1f3, e7e8q. Never write Nf3, O-O, or sentences.\n\n")
+			b.WriteString("Pick exactly one of these legal moves:\n")
+			limit := 16
+			if len(legal) < limit {
+				limit = len(legal)
+			}
+			for _, m := range legal[:limit] {
+				b.WriteString(m)
+				b.WriteString("\n")
+			}
+			if len(legal) > limit {
+				b.WriteString("…\n")
+			}
+		} else {
+			b.WriteString("Your previous chess reply was invalid (no legal UCI move).\n")
+			if prev != "" {
+				b.WriteString("Previous reply:\n")
+				b.WriteString(prev)
+				b.WriteString("\n\n")
+			}
+			b.WriteString("Try again. Put EXACTLY one legal UCI move alone on the final line (e2e4 / g1f3 / e7e8q). No SAN (Nf3), no castling notation (O-O), no commentary on that last line.\n\n")
+			b.WriteString("Legal moves:\n")
+			for _, m := range legal {
+				b.WriteString("- ")
+				b.WriteString(m)
+				b.WriteString("\n")
+			}
+		}
+		return b.String()
+	}
+
+	b.WriteString("Your previous reply was invalid. Choose one legal move from the list and put it alone on the final line.\n")
+	if prev != "" {
+		b.WriteString("Previous reply:\n")
+		b.WriteString(prev)
+		b.WriteString("\n\n")
+	}
+	b.WriteString("Legal moves:\n")
+	for _, m := range legal {
+		b.WriteString("- ")
+		b.WriteString(m)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+var uciMoveRe = regexp.MustCompile(`(?i)\b([a-h][1-8][a-h][1-8][qrbn]?)\b`)
+var uciLooseRe = regexp.MustCompile(`(?i)([a-h][1-8])\s*[-–—]?\s*([a-h][1-8])([qrbn])?`)
 var colMoveRe = regexp.MustCompile(`\b([0-6])\b`)
+
+func normalizeArenaReply(reply string) string {
+	s := strings.TrimSpace(reply)
+	s = strings.ReplaceAll(s, "*", "")
+	s = strings.ReplaceAll(s, "`", "")
+	s = strings.ReplaceAll(s, "_", " ")
+	return s
+}
 
 func lastNonEmptyLine(text string) string {
 	lines := strings.Split(strings.TrimSpace(text), "\n")
@@ -351,8 +444,36 @@ func lastNonEmptyLine(text string) string {
 	return strings.TrimSpace(text)
 }
 
+// parseLogicAnswer pulls a compact final answer from a model reply (last line, strip markdown / Answer:).
+func parseLogicAnswer(reply string) string {
+	line := lastNonEmptyLine(reply)
+	line = strings.TrimSpace(line)
+	line = strings.ReplaceAll(line, "*", "")
+	line = strings.ReplaceAll(line, "`", "")
+	line = strings.Trim(line, " \"'")
+	lower := strings.ToLower(line)
+	for _, prefix := range []string{
+		"final answer:",
+		"final answer",
+		"answer:",
+		"answer",
+		"thus:",
+		"therefore:",
+		"conclusion:",
+	} {
+		if strings.HasPrefix(lower, prefix) {
+			line = strings.TrimSpace(line[len(prefix):])
+			line = strings.TrimLeft(line, ":-–— ")
+			lower = strings.ToLower(line)
+			break
+		}
+	}
+	return strings.TrimSpace(strings.Trim(line, " .;:!"))
+}
+
 func parseArenaMove(challenge, reply string, legal []string) (map[string]any, error) {
-	lines := strings.Split(strings.TrimSpace(reply), "\n")
+	normalized := normalizeArenaReply(reply)
+	lines := strings.Split(strings.TrimSpace(normalized), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
 		line := strings.TrimSpace(lines[i])
 		if line == "" {
@@ -362,7 +483,37 @@ func parseArenaMove(challenge, reply string, legal []string) (map[string]any, er
 			return move, nil
 		}
 	}
-	return parseArenaMoveLine(challenge, reply, legal)
+	// Whole reply: pick the last legal UCI token anywhere in the text.
+	if challenge != "connect4" {
+		if move, err := parseChessUCIFromText(normalized, legal); err == nil {
+			return move, nil
+		}
+	}
+	return parseArenaMoveLine(challenge, normalized, legal)
+}
+
+func parseChessUCIFromText(reply string, legal []string) (map[string]any, error) {
+	legalSet := make(map[string]struct{}, len(legal))
+	for _, m := range legal {
+		legalSet[strings.ToLower(m)] = struct{}{}
+	}
+	candidates := uciMoveRe.FindAllString(strings.ToLower(reply), -1)
+	for _, m := range uciLooseRe.FindAllStringSubmatch(strings.ToLower(reply), -1) {
+		if len(m) >= 3 {
+			cand := m[1] + m[2]
+			if len(m) > 3 {
+				cand += m[3]
+			}
+			candidates = append(candidates, cand)
+		}
+	}
+	for i := len(candidates) - 1; i >= 0; i-- {
+		m := candidates[i]
+		if _, ok := legalSet[m]; ok {
+			return map[string]any{"move": m, "uci": m}, nil
+		}
+	}
+	return nil, fmt.Errorf("no legal move in reply")
 }
 
 func parseArenaMoveLine(challenge, reply string, legal []string) (map[string]any, error) {
@@ -388,10 +539,8 @@ func parseArenaMoveLine(challenge, reply string, legal []string) (map[string]any
 		}
 		return nil, fmt.Errorf("no legal column in reply")
 	}
-	if m := uciMoveRe.FindString(reply); m != "" {
-		if _, ok := legalSet[m]; ok {
-			return map[string]any{"move": m, "uci": m}, nil
-		}
+	if move, err := parseChessUCIFromText(reply, legal); err == nil {
+		return move, nil
 	}
 	for _, lm := range legal {
 		if strings.Contains(reply, strings.ToLower(lm)) {
