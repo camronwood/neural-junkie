@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Development timeline — Neural Junkie</title>
+  <meta name="description" content="The living development story of Neural Junkie, from an AI chat-room prototype to a local-first platform for governed agents, domain packs, and repeatable workflows." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/timeline.html" />
+  <meta property="og:title" content="Development timeline — Neural Junkie" />
+  <meta property="og:description" content="The living development story of Neural Junkie, from an AI chat-room prototype to a local-first platform for governed agents, domain packs, and repeatable workflows." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/timeline.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Development timeline — Neural Junkie" />
+  <meta name="twitter:description" content="The living development story of Neural Junkie, from an AI chat-room prototype to a local-first platform for governed agents, domain packs, and repeatable workflows." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
+<!-- NJ-SITE-SEO:END -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap site-header-bar">
+      <a class="logo" href="index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="packs.html">Packs</a>
+        <a class="btn btn-ghost" href="features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="security.html">Security</a>
+        <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+          <a class="btn btn-ghost" href="start-here.html">Start here</a>
+          <a class="btn btn-ghost" href="index.html#pillars">Product</a>
+          <a class="btn btn-ghost" href="packs.html">Packs</a>
+          <a class="btn btn-ghost" href="features/index.html">Guides</a>
+          <a class="btn btn-ghost" href="articles/index.html">Articles</a>
+          <a class="btn btn-ghost" href="benchmarks/index.html">Benchmarks</a>
+          <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
+          <a class="btn btn-ghost" href="security.html">Security</a>
+          <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
+          <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
+          <a class="btn btn-ghost" href="download.html">Download</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap feature-deep timeline-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Home</a> · Development timeline
+    </nav>
+
+    <header class="feature-deep-hero timeline-hero">
+      <p class="timeline-eyebrow">A living development story</p>
+      <h1>Building Neural Junkie</h1>
+      <p class="feature-deep-lead">
+        Neural Junkie began as a room where specialized AI agents could talk. It grew into a local-first
+        desktop platform where people can coordinate agents, inspect their work, approve changes, and extend
+        the system with domain packs. This is the story of that climb—and the engineering it took to make
+        nondeterministic agents behave like dependable software.
+      </p>
+      <div class="timeline-snapshot" aria-label="Development snapshot as of July 16, 2026">
+        <div>
+          <strong>Oct 2025</strong>
+          <span>first prototype</span>
+        </div>
+        <div>
+          <strong>348</strong>
+          <span>reachable core commits</span>
+        </div>
+        <div>
+          <strong>13</strong>
+          <span>pack projects</span>
+        </div>
+        <div>
+          <strong>3 platforms</strong>
+          <span>macOS, Windows, Linux</span>
+        </div>
+      </div>
+      <p class="timeline-updated">Snapshot: July 16, 2026 · This page will grow with the project.</p>
+    </header>
+
+    <article class="feature-prose timeline-prose">
+      <section class="timeline-intro" aria-labelledby="timeline-intro-title">
+        <h2 id="timeline-intro-title">The arc so far</h2>
+        <p>
+          The visible feature list only tells part of the story. Each expansion—collaboration, installers,
+          local models, an IDE, packs—created a new reliability problem underneath it. Neural Junkie advanced
+          by repeatedly widening what the product could do, then building the tests, boundaries, and
+          observability needed to trust it.
+        </p>
+      </section>
+
+      <!-- Append future milestones to the end of this chronological list. -->
+      <ol class="development-timeline" aria-label="Neural Junkie development milestones">
+        <li class="timeline-entry">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2025-10">October 2025</time>
+            <p class="timeline-phase">The origin</p>
+            <h2>An AI chat room becomes an experiment</h2>
+            <p>
+              The project started as <strong>AI Chat Room</strong>: a Go WebSocket hub connecting channels,
+              specialized agents, repository context, and several client experiments. The first desktop UI
+              used Fyne, but GUI threading constraints quickly forced an architectural reset.
+            </p>
+            <p>
+              Tauri, React, TypeScript, and Rust replaced the first shell. That decision established the
+              shape that remains today: a native desktop application around a Go orchestration hub.
+            </p>
+            <p class="timeline-note">
+              This period is preserved in project documentation; reachable Git history begins in February 2026.
+            </p>
+          </article>
+        </li>
+
+        <li class="timeline-entry">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2026-02-19">February 19–20, 2026</time>
+            <p class="timeline-phase">Neural Junkie takes shape</p>
+            <h2>From prototype to multi-agent workspace</h2>
+            <p>
+              The imported project was renamed Neural Junkie and deliberately separated from its
+              company-specific roots. In two days it gained Slack-like channels and direct messages,
+              multi-channel agents, token streaming, interactive tool approval, persistent agent storage,
+              Ollama and OpenAI-compatible providers, and formal CLI-agent integration.
+            </p>
+            <p>
+              Desktop packaging arrived almost immediately: the Go hub became a managed Tauri sidecar with
+              first-run setup, provider configuration, auto-update plumbing, and cross-platform CI.
+            </p>
+            <ul class="timeline-tags" aria-label="Foundation themes">
+              <li>Go hub</li>
+              <li>Tauri desktop</li>
+              <li>Local models</li>
+              <li>Agent channels</li>
+            </ul>
+          </article>
+        </li>
+
+        <li class="timeline-entry">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2026-02-23">February 23–March 3, 2026</time>
+            <p class="timeline-phase">The defining problem</p>
+            <h2>Collaboration becomes governed work</h2>
+            <p>
+              Agents sharing a channel was interesting; agents completing work together was much harder.
+              Collaboration gained explicit planning, review, consensus, task assignment, execution limits,
+              versioned plans, and Assistant-led coordination.
+            </p>
+            <p>
+              The product chose bounded collaboration over open-ended agent loops. Human approval and finite
+              stages became core design principles—not safety features added later.
+            </p>
+          </article>
+        </li>
+
+        <li class="timeline-entry timeline-entry-major">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2026-05-16">May 11–16, 2026</time>
+            <p class="timeline-phase">A public product</p>
+            <h2>From source checkout to downloadable beta</h2>
+            <p>
+              After a security and UX hardening pass, Neural Junkie launched its public site and shipped
+              downloadable installers for macOS, Windows, and Linux. Collaboration execution gained sandboxed
+              workspaces, explicit target-directory acknowledgement, correct command working directories,
+              smarter model routing, and full-stack test coverage.
+            </p>
+            <p>
+              Shipping desktop software exposed a second product hiding underneath the app: release
+              engineering. Signing, updater channels, MSI and WiX versioning, Linux bundle size, artifact
+              naming, and platform-specific behavior would drive dozens of follow-up iterations.
+            </p>
+            <a class="timeline-link" href="release-notes.html">Explore the release notes</a>
+          </article>
+        </li>
+
+        <li class="timeline-entry">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2026-05-19">May 17–22, 2026</time>
+            <p class="timeline-phase">The application becomes a platform</p>
+            <h2>Models, runbooks, packs, Slack, and the first IDE</h2>
+            <p>
+              A dense beta sequence expanded Neural Junkie beyond developer-agent chat. The product added a
+              model library, Hugging Face imports, MCP tools and resources, real Git worktrees, a graphical
+              runbook builder, domain packs, durable context memory, Slack connectivity, and pack-owned
+              workspace layouts.
+            </p>
+            <p>
+              Runbooks made useful agent work repeatable. Packs made the application extensible. Worktrees
+              made agent execution isolatable. Together they changed the architectural question from
+              “what features belong in the app?” to “what primitives belong in core?”
+            </p>
+            <ul class="timeline-tags" aria-label="Platform themes">
+              <li>Runbook DAGs</li>
+              <li>Domain packs</li>
+              <li>MCP</li>
+              <li>Git worktrees</li>
+              <li>Slack</li>
+            </ul>
+          </article>
+        </li>
+
+        <li class="timeline-entry">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2026-05-26">May 26–June 5, 2026</time>
+            <p class="timeline-phase">An AI-native workspace</p>
+            <h2>Context, learning, tuning, and implementation sessions</h2>
+            <p>
+              Assistant became grounded in the active workspace. Context Model v2 made each turn an explicit
+              pipeline for mode, intent, memory, grounding, persona, and budget. Personal learning added
+              embedding retrieval across agent, global, and collaboration scopes.
+            </p>
+            <p>
+              LoRA evolved into a managed lifecycle with training, evaluation, routing, versioning, and
+              rollback. Implementation sessions added workspace tools and verification, while Pack Dev Studio
+              made custom extension development part of the product itself.
+            </p>
+            <div class="timeline-callout">
+              <strong>The recurring pattern</strong>
+              <span>Every new capability had to become inspectable, governable, and testable before it could become dependable.</span>
+            </div>
+          </article>
+        </li>
+
+        <li class="timeline-entry">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2026-06-06">June 6–24, 2026</time>
+            <p class="timeline-phase">Local implementation parity</p>
+            <h2>The workspace grows into an IDE and agent runtime</h2>
+            <p>
+              Neural Junkie reached repeatable multi-file implementation with codebase grounding,
+              auto-apply, verification, and stable scenario sweeps. IDE v4 added Monaco LSP, persistent
+              language servers, local and remote workspace backends, SSH files and terminals, dev-container
+              attachment, and symbol indexing.
+            </p>
+            <p>
+              The goal was no longer chat parity. It was a native local agent runtime that could discover a
+              workspace, edit safely, build, test, repair failures, compress context, and operate under clear
+              governance modes.
+            </p>
+            <a class="timeline-link" href="features/ide-v4.html">See IDE v4</a>
+          </article>
+        </li>
+
+        <li class="timeline-entry timeline-entry-major">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2026-06-04">June 4–July 16, 2026</time>
+            <p class="timeline-phase">The pack ecosystem</p>
+            <h2>From one private extension to domain applications</h2>
+            <p>
+              A private laboratory workflow proved that organization-specific integrations could live
+              outside the official product while depending on reusable domain capabilities. Official packs
+              followed for software development, life sciences, AWS, incident management, web browsing, CAD,
+              specialist tuning, and music creation.
+            </p>
+            <p>
+              The coordinated July pack-v2 wave turned compact manifests into executable domain systems:
+              sidecars, typed tools, workbenches, runbooks, scenarios, evals, dependencies, approval gates,
+              and audit controls. Later packs added LAN rooms, model competition, an independent IDE surface,
+              and structured interview preparation.
+            </p>
+            <p>
+              This established the long-term direction: <strong>thin core, fat packs</strong>. Core owns the
+              platform primitives; packs own domain behavior.
+            </p>
+            <a class="timeline-link" href="packs.html">Explore domain packs</a>
+          </article>
+        </li>
+
+        <li class="timeline-entry">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2026-06-25">June 25–July 5, 2026</time>
+            <p class="timeline-phase">Reliability becomes a system</p>
+            <h2>Fix loops, layered gates, and observable turns</h2>
+            <p>
+              Feature breadth gave way to runtime discipline. Neural Junkie added turn telemetry, routing
+              traces, cancellation hardening, ReAct tool wrappers, restart stability tests, independent
+              deliverable judges, model benchmarks, layered release gates, and automated fix loops.
+            </p>
+            <p>
+              Testing became an operational feedback system. A failed scenario could be classified, handed
+              to an implementation agent in an isolated worktree, fixed, and rerun. New tests could be grown
+              from observed failures. Overnight gates made long reliability climbs repeatable.
+            </p>
+            <a class="timeline-link" href="articles/fix-loop.html">Read about the Fix Loop</a>
+          </article>
+        </li>
+
+        <li class="timeline-entry timeline-entry-now">
+          <div class="timeline-marker" aria-hidden="true"></div>
+          <article>
+            <time datetime="2026-07-16">July 6–16, 2026</time>
+            <p class="timeline-phase">The platform today</p>
+            <h2>New surfaces, durable foundations</h2>
+            <p>
+              Pack-v2 plumbing moved more domain behavior out of core. Room Chat added ephemeral LAN
+              collaboration. Model Arena made model comparison verifiable. Homebrew improved distribution.
+              MQTT and Kafka subscriptions connected external events to channels, runbooks, and webhooks.
+            </p>
+            <p>
+              Underneath those features, a durable turn pipeline, span tracing, persistent collaboration
+              state, inference telemetry, model-version management, and increasingly strict release gates
+              are preparing the next beta.
+            </p>
+            <p class="timeline-note">
+              Current focus: finish the thin-core transition and make collaboration reliability match the
+              breadth of the platform.
+            </p>
+          </article>
+        </li>
+      </ol>
+
+      <section class="timeline-effort" aria-labelledby="timeline-effort-title">
+        <p class="timeline-phase">What it took</p>
+        <h2 id="timeline-effort-title">The work behind the feature list</h2>
+        <div class="timeline-effort-grid">
+          <article>
+            <h3>Architecture</h3>
+            <p>Go orchestration, Tauri sidecars, collaboration state machines, context pipelines, pack contracts, and remote workspace backends.</p>
+          </article>
+          <article>
+            <h3>Runtime reliability</h3>
+            <p>Subscriptions, deduplication, cancellation, worktree isolation, model concurrency, restart stability, routing, and failure repair.</p>
+          </article>
+          <article>
+            <h3>Product and UX</h3>
+            <p>Chat, editor, terminal, collaboration controls, model library, runbook graph, telemetry, workbenches, onboarding, and accessibility.</p>
+          </article>
+          <article>
+            <h3>Distribution</h3>
+            <p>Cross-platform installers, bundled local inference, updater manifests, signing paths, Homebrew, GitHub Pages, and public releases.</p>
+          </article>
+          <article>
+            <h3>Domain depth</h3>
+            <p>Software, cloud, incidents, biology, CAD, browser QA, music, model evaluation, tuning, and structured learning workflows.</p>
+          </article>
+          <article>
+            <h3>Evidence</h3>
+            <p>Unit and race tests, live-model scenarios, parity suites, layered release gates, benchmarks, deliverable judges, and fix loops.</p>
+          </article>
+        </div>
+      </section>
+
+      <aside class="repo-links">
+        <h2>Keep exploring</h2>
+        <ul>
+          <li><a href="release-notes.html">Release notes</a> — version-by-version product changes</li>
+          <li><a href="articles/index.html">Engineering articles</a> — deeper stories behind the architecture</li>
+          <li><a href="built-for-zero.html">Built for $0</a> — the open-source product and distribution thesis</li>
+          <li><a href="benchmarks/index.html">Model benchmarks</a> — public evidence from the local runtime</li>
+          <li><a href="https://github.com/camronwood/neural-junkie">GitHub repository</a> — source, history, and current development</li>
+        </ul>
+      </aside>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="timeline.html" aria-current="page">Timeline</a>
+        <a class="btn btn-ghost btn-sm" href="thanks.html">Thank you</a>
+        <a class="btn btn-ghost btn-sm" href="install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="articles/index.html">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p>
+        <a href="https://github.com/camronwood/neural-junkie">Neural Junkie</a>
+        — open source · MIT
+      </p>
+    </div>
+  </footer>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

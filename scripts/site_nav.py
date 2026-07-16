@@ -49,6 +49,7 @@ NAV_ITEMS: tuple[dict, ...] = (
 FOOTER_EXPLORE_ITEMS: tuple[dict, ...] = (
     {"id": "start-here", "label": "Start here", "path": "start-here.html"},
     {"id": "built-for-zero", "label": "Built for $0", "path": "built-for-zero.html"},
+    {"id": "timeline", "label": "Timeline", "path": "timeline.html"},
     {"id": "thanks", "label": "Thank you", "path": "thanks.html"},
     {"id": "install-trust", "label": "Install trust", "path": "install-trust.html"},
     {"id": "packs", "label": "Packs", "path": "packs.html"},
@@ -279,6 +280,8 @@ def detect_active_footer(html_path: Path) -> str | None:
     rel = html_path.relative_to(DOCS).as_posix()
     if rel == "start-here.html":
         return "start-here"
+    if rel == "timeline.html":
+        return "timeline"
     if rel == "packs.html":
         return "packs"
     if rel == "security.html":
