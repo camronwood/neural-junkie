@@ -117,25 +117,23 @@ func runLoRAEval(ctx context.Context, job *train.Job) eval.Result {
 		}
 	}
 	if len(questions) == 0 {
+		// No probes configured: treat as pass (same as eval.Run with empty questions).
 		return eval.Result{Score: 1, Passed: true, MinScore: min}
 	}
 	if appConfig == nil {
-		return eval.Result{Score: 1, Passed: true, MinScore: min}
+		return eval.Result{Score: 0, Passed: false, MinScore: min, Details: []string{"no app config"}}
 	}
 	pcfg := appConfig.GetProvider("ollama-local")
 	if pcfg == nil {
-		return eval.Result{Score: 0.5, Passed: true}
+		return eval.Result{Score: 0, Passed: false, MinScore: min, Details: []string{"no ollama-local provider"}}
 	}
 	util := *pcfg
 	util.Model = job.OllamaTag
 	prov, err := ai.ProviderFromConfig(&util)
 	if err != nil {
-		return eval.Result{Score: 0.5, Passed: true}
+		return eval.Result{Score: 0, Passed: false, MinScore: min, Details: []string{"provider: " + err.Error()}}
 	}
-	res := eval.Run(ctx, prov, job.OllamaTag, questions)
-	res.MinScore = min
-	res.Passed = res.Score >= min
-	return res
+	return eval.Run(ctx, prov, job.OllamaTag, questions, min)
 }
 
 func handleLoraAdaptersRoute(w http.ResponseWriter, r *http.Request) {

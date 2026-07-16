@@ -29,19 +29,33 @@ from lib.release_prep_layers import (  # noqa: E402
 
 
 def run_cmd(cmd: list[str], *, env: dict | None = None, cwd: Path = ROOT) -> tuple[int, str]:
+    """Run a stage command, streaming stdout/stderr live and collecting a log buffer."""
     merged = release_prep_env(ROOT)
     if env:
         merged.update(env)
     merged["PYTHONUNBUFFERED"] = "1"
     print(f"\n>>> {' '.join(cmd)}", flush=True)
-    proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=merged)
-    out = (proc.stdout or "") + (proc.stderr or "")
-    if out:
-        sys.stdout.write(out)
-        if not out.endswith("\n"):
-            sys.stdout.write("\n")
+    proc = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=merged,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    chunks: list[str] = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        chunks.append(line)
+        sys.stdout.write(line)
         sys.stdout.flush()
-    return proc.returncode, out
+    rc = proc.wait()
+    out = "".join(chunks)
+    if out and not out.endswith("\n"):
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+    return rc, out
 
 
 def apply_verbose_to_stage_cmd(cmd: list[str], *, verbose: bool) -> tuple[list[str], dict[str, str]]:
@@ -194,11 +208,16 @@ def main() -> int:
     ]
     stage_rows: list[tuple[str, str, float, int]] = []
     overall_rc = 0
+    total_stages = len(spec.stages)
 
-    for stage in spec.stages:
+    for idx, stage in enumerate(spec.stages, 1):
         cmd = resolve_stage_cmd(stage.cmd, hub_url=hub_url)
         cmd, verbose_env = apply_verbose_to_stage_cmd(cmd, verbose=args.verbose)
         stage_env = {"NEURAL_JUNKIE_HUB_URL": hub_url, **verbose_env}
+        print(
+            f"\n=== layer-gate [{spec.name}] stage {idx}/{total_stages}: {stage.name} ===",
+            flush=True,
+        )
         log_lines.append(f"## {stage.name}")
         log_lines.append(f">>> {' '.join(cmd)}")
         log_lines.append("")
@@ -211,6 +230,11 @@ def main() -> int:
         stage_rows.append((stage.name, status, duration, rc))
         log_lines.append(f"RESULT {stage.name}: {status} (exit {rc}, {duration:.0f}s)")
         log_lines.append("")
+        print(
+            f"=== layer-gate [{spec.name}] stage {idx}/{total_stages} {status}: "
+            f"{stage.name} ({duration:.0f}s, exit {rc}) ===",
+            flush=True,
+        )
         if rc != 0:
             overall_rc = rc
 

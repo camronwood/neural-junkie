@@ -48,6 +48,7 @@ type OllamaProvider struct {
 	Endpoint   string
 	Model      string
 	httpClient *http.Client
+	usage      UsageAccumulator
 
 	toolsProbeOnce       sync.Once
 	nativeToolsSupported bool
@@ -99,10 +100,45 @@ type OllamaMessage struct {
 
 // OllamaResponse represents a response from Ollama API
 type OllamaResponse struct {
-	Model   string        `json:"model"`
-	Message OllamaMessage `json:"message"`
-	Done    bool          `json:"done"`
-	Error   string        `json:"error,omitempty"`
+	Model              string        `json:"model"`
+	Message            OllamaMessage `json:"message"`
+	Done               bool          `json:"done"`
+	Error              string        `json:"error,omitempty"`
+	TotalDuration      int64         `json:"total_duration,omitempty"`
+	LoadDuration       int64         `json:"load_duration,omitempty"`
+	PromptEvalCount    int           `json:"prompt_eval_count,omitempty"`
+	PromptEvalDuration int64         `json:"prompt_eval_duration,omitempty"`
+	EvalCount          int           `json:"eval_count,omitempty"`
+	EvalDuration       int64         `json:"eval_duration,omitempty"`
+}
+
+func (o *OllamaProvider) recordUsage(resp OllamaResponse) {
+	if o == nil {
+		return
+	}
+	o.usage.Record(InferenceUsage{
+		PromptTokens:     resp.PromptEvalCount,
+		CompletionTokens: resp.EvalCount,
+		TotalDurationNS:  resp.TotalDuration,
+		PromptEvalNS:     resp.PromptEvalDuration,
+		EvalDurationNS:   resp.EvalDuration,
+		Calls:            1,
+	})
+}
+
+// ResetSessionUsage implements UsageAware.
+func (o *OllamaProvider) ResetSessionUsage() {
+	if o != nil {
+		o.usage.ResetSession()
+	}
+}
+
+// TakeSessionUsage implements UsageAware.
+func (o *OllamaProvider) TakeSessionUsage() InferenceUsage {
+	if o == nil {
+		return InferenceUsage{}
+	}
+	return o.usage.TakeSession()
 }
 
 // NewOllamaProvider creates a new Ollama AI provider
@@ -276,6 +312,7 @@ func (o *OllamaProvider) GenerateResponse(ctx context.Context, prompt string, co
 	if response.Error != "" {
 		return "", fmt.Errorf("Ollama API error: %s", response.Error)
 	}
+	o.recordUsage(response)
 
 	return ollamaFinalizeContent(response.Message.Content, response.Message.Thinking)
 }
@@ -341,6 +378,7 @@ func (o *OllamaProvider) GenerateMultimodal(ctx context.Context, prompt string, 
 	if response.Error != "" {
 		return "", fmt.Errorf("Ollama API error: %s", response.Error)
 	}
+	o.recordUsage(response)
 	return ollamaFinalizeContent(response.Message.Content, response.Message.Thinking)
 }
 

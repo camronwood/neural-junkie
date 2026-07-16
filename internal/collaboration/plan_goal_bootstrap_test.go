@@ -83,3 +83,56 @@ func TestExtractTasksFromCollaborationGoal_documentFindingsExecutionGoal(t *test
 		t.Fatalf("expected <=2 tasks from goal, got %d: %#v", len(tasks), tasks)
 	}
 }
+
+func TestGoalPinsExactTaskList(t *testing.T) {
+	if !goalPinsExactTaskList("Produce EXACTLY three tasks and no others, using these exact lines:\n- Task 1...", 3) {
+		t.Fatal("expected EXACTLY three + exact lines to pin")
+	}
+	if !goalPinsExactTaskList("Plan one task using this exact line: - Task 1: @BE - Write findings.md", 1) {
+		t.Fatal("expected single exact-line pin")
+	}
+	if !goalPinsExactTaskList("Investigate schema. Plan exactly: Task 1 @BE Write a.md; Task 2 @SA Write b.md", 2) {
+		t.Fatal("expected Plan exactly: to pin")
+	}
+	if goalPinsExactTaskList("Write a flexible plan with a few tasks", 3) {
+		t.Fatal("freestyle goal should not pin")
+	}
+}
+
+func TestEnsurePlanTasksFromGoal_replacesFreestyleWhenPinned(t *testing.T) {
+	cm := NewCollaborationManager(nil)
+	agents := []CollaborationAgent{
+		{AgentID: "fe-1", AgentName: "FrontendEngineer", AgentType: protocol.AgentTypeFrontend},
+		{AgentID: "sa-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "cl-1", AgentName: "Claude", AgentType: protocol.AgentTypeAssistant},
+	}
+	c := &Collaboration{
+		ID: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+		Description: "@FrontendEngineer @SoftwareArchitect @Claude Produce EXACTLY three tasks and no others, using these exact lines:\n" +
+			"- Task 1: @SoftwareArchitect - Write collabs/<id>/site-structure.md (navigation)\n" +
+			"- Task 2: @FrontendEngineer - Write collabs/<id>/design-system.md (palette)\n" +
+			"- Task 3: @FrontendEngineer - Write collabs/<id>/layout-specs.md (templates)",
+		Agents: agents,
+		Plan: &SharedArtifact{Content: `## Plan
+
+Task 1: @SoftwareArchitect - Review existing HTML structure for Collaboration Station
+Task 2: @FrontendEngineer - Sketch color tokens for black/white/gray/blue/red
+Task 3: @Claude - Propose page inventory for home/about/contact
+`},
+	}
+	cm.mu.Lock()
+	cm.ensurePlanTasksFromGoalLocked(c)
+	cm.mu.Unlock()
+	if len(c.Tasks) != 3 {
+		t.Fatalf("expected pinned goal list of 3, got %d: %#v", len(c.Tasks), taskTitles(c.Tasks))
+	}
+	joined := strings.ToLower(c.Plan.Content)
+	for _, needle := range []string{"site-structure.md", "design-system.md", "layout-specs.md"} {
+		if !strings.Contains(joined, needle) {
+			t.Fatalf("plan missing %s: %s", needle, c.Plan.Content)
+		}
+	}
+	if strings.Contains(joined, "page inventory") || strings.Contains(joined, "color tokens") {
+		t.Fatalf("freestyle discussion tasks should not remain after pin: %s", c.Plan.Content)
+	}
+}

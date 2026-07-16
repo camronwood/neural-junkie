@@ -55,7 +55,7 @@
   },
   {
     "name": "codebase_where_is",
-    "input": "where is ComputePhoenixWidget in the repo?",
+    "input": "where is ComputeObscureWidget in the repo?",
     "expect": "codebase",
     "expect_targets": ["codebase"]
   }

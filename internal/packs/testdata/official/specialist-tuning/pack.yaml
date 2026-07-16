@@ -24,7 +24,7 @@ capability_defs:
 lora_policy:
   suggest_after_turns: 10
   refresh_after_delta: 20
-  eval_min_score: 0.35
+  eval_min_score: 0.70
   require_eval_to_assign: true
   include_learnings_default: true
   default_base: llama3.1:8b

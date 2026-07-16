@@ -386,17 +386,22 @@ def _discussion_requirements_met(
 
 
 def _nudge_discussion_agents(ctx: ScenarioContext, names: list) -> None:
-    meta: dict[str, str] | None = None
+    meta: dict[str, object] | None = None
     if ctx.collab_id:
         meta = {
             "collaboration_id": ctx.collab_id,
             "collaboration_phase": "planning",
+            # Keep nudges as collaboration_discussion so image tools stay suppressed.
+            "type": "collaboration_discussion",
         }
     for raw in names:
         name = str(raw).strip().lstrip("@")
         if not name:
             continue
-        msg = f"@{name} — please add your planning perspective for this collab."
+        msg = (
+            f"@{name} — please add your planning perspective with concrete "
+            f"`- Task N: @Agent - Write collabs/<id>/file.ext …` lines."
+        )
         nudge_meta = dict(meta) if meta else {}
         nudge_meta["mentions"] = [name]
         hub.send_message(ctx.base, ctx.collab_channel, msg, metadata=nudge_meta)
@@ -860,9 +865,11 @@ def _deliverable_file_ready(
     min_bytes: int,
     allow_fallback: bool,
 ) -> bool:
+    _ = allow_fallback  # call-site compat; stubs never count as ready
     if not full.is_file() or full.stat().st_size < min_bytes:
         return False
-    return not (allow_fallback and _is_deliverable_stub(full))
+    # Plan-approval placeholders must not satisfy approve_file_changes / on-disk checks.
+    return not _is_deliverable_stub(full)
 
 
 _HOME_HTML_NAMES = ("index.html", "homepage.html", "home.html")
@@ -923,6 +930,63 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
     if env_or_automation_bool("NJ_SCENARIO_ALLOW_FILE_FALLBACK", "scenario_allow_file_fallback", False):
         allow_fallback = True
 
+    # Auto-approve empties the pending queue quickly. When min_approved=0, poll for a
+    # non-stub on-disk deliverable across the full timeout instead of exiting immediately.
+    if min_approved == 0 and ctx.workspace_root and (path_match or expect_rel):
+        deadline = time.time() + timeout
+        last_ids: list[str] = []
+        while time.time() < deadline:
+            n, last_ids = hub.wait_and_approve_file_changes(
+                ctx.base,
+                ctx.collab_channel,
+                path_contains=path_match,
+                min_approved=0,
+                timeout=min(2.0, max(0.5, deadline - time.time())),
+            )
+            if path_match and ctx.collab_id:
+                on_disk = _find_collab_deliverable_on_disk(
+                    ctx.workspace_root,
+                    ctx.collab_id,
+                    path_match,
+                    min_bytes=min_bytes,
+                    allow_fallback=allow_fallback,
+                    prefer_home_html=path_match.strip().lower() in (".html", "html"),
+                )
+                if on_disk:
+                    return True, f"deliverable on disk ({on_disk.name})"
+            if expect_rel:
+                full = Path(ctx.workspace_root) / expect_rel
+                if _deliverable_file_ready(full, min_bytes=min_bytes, allow_fallback=allow_fallback):
+                    return True, f"file exists ({full})"
+            time.sleep(hub.POLL_INTERVAL)
+
+        if allow_fallback:
+            msgs = hub.list_messages(ctx.base, ctx.collab_channel, 200)
+            written = hub.write_loose_file_change_from_messages(
+                msgs,
+                ctx.workspace_root,
+                path_contains=path_match,
+                target_rel=target_rel,
+                min_bytes=min_bytes,
+            )
+            if written:
+                return True, f"discussion fallback wrote {written}"
+            if target_rel:
+                written = _materialize_solo_findings(
+                    msgs,
+                    ctx.workspace_root,
+                    target_rel,
+                    min_bytes,
+                )
+                if written:
+                    return True, f"discussion fallback materialized {written}"
+
+        label = expect_rel or path_match or "deliverable"
+        return False, (
+            f"deliverable not on disk after auto-approve wait "
+            f"(path={label}, pending_approved={len(last_ids)}, ids={last_ids})"
+        )
+
     n, ids = hub.wait_and_approve_file_changes(
         ctx.base,
         ctx.collab_channel,
@@ -951,11 +1015,6 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
     if n >= min_approved and min_approved > 0:
         return True, f"hub approved {n}: {ids}"
 
-    if min_approved == 0 and expect_rel and ctx.workspace_root:
-        full = Path(ctx.workspace_root) / expect_rel
-        if _deliverable_file_ready(full, min_bytes=min_bytes, allow_fallback=allow_fallback):
-            return True, f"file exists ({full})"
-
     if require_hub and not allow_fallback:
         return False, f"require_hub_approval: approved={n} (need >={min_approved})"
 
@@ -963,7 +1022,7 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
 
     if expect_rel and ctx.workspace_root:
         full = Path(ctx.workspace_root) / expect_rel
-        if full.is_file() and not require_hub and not (allow_fallback and _is_deliverable_stub(full)):
+        if full.is_file() and not require_hub and not _is_deliverable_stub(full):
             return True, f"file already exists ({full})"
 
     if allow_fallback and ctx.workspace_root:

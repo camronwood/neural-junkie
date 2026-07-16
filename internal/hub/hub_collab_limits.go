@@ -104,7 +104,9 @@ func (h *Hub) rejectClosedCollaborationChannel(msg *protocol.Message) error {
 	}
 	switch msg.Type {
 	case protocol.MessageTypeSystemInfo, protocol.MessageTypeCollabStatus, protocol.MessageTypeCollabPlan,
-		protocol.MessageTypeCollabTask, protocol.MessageTypeCollabRecap, protocol.MessageTypeFileChange:
+		protocol.MessageTypeCollabTask, protocol.MessageTypeCollabRecap:
+		// FileChange is intentionally excluded: cancelled/completed collabs must not
+		// accept (or transcript-persist) late agent proposals after /cancel-plan.
 		return nil
 	}
 	phase := string(snap.Phase)

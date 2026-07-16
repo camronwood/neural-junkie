@@ -9,10 +9,31 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 var fenceBlockRE = regexp.MustCompile("(?s)```([a-zA-Z0-9_-]*)\\s*\\n(.*?)```")
+
+// skipCollabCodingFixtureSynths is true for hub-dispatched coding collab tasks
+// (deliverable_kind=file or implementation_session on CollabTask). Fixture tryEarly*
+// synthesizers must not mask real model/tool failures on those turns.
+func skipCollabCodingFixtureSynths(msg *protocol.Message) bool {
+	if msg == nil || msg.Type != protocol.MessageTypeCollabTask {
+		return false
+	}
+	if kind, _ := msg.Metadata["deliverable_kind"].(string); kind == collaboration.DeliverableKindFile {
+		return true
+	}
+	// Coding file deliverables also stamp implementation_session=true at dispatch.
+	if msg.ImplementationSession() {
+		if kind, _ := msg.Metadata["deliverable_kind"].(string); kind == collaboration.DeliverableKindMarkdown {
+			return false
+		}
+		return true
+	}
+	return false
+}
 
 // extractCodeFenceForPath picks fenced code that plausibly belongs to targetPath.
 func extractCodeFenceForPath(response, targetPath string) string {
@@ -347,6 +368,9 @@ func (a *Agent) tryEarlyGoMainFixtureFix(ctx context.Context, msg *protocol.Mess
 	if a == nil || msg == nil || wsPath == "" {
 		return false
 	}
+	if skipCollabCodingFixtureSynths(msg) {
+		return false
+	}
 	userContent := implementationUserContent(a, msg)
 	lower := strings.ToLower(userContent)
 	wantHello := strings.Contains(lower, "helloworld")
@@ -389,6 +413,9 @@ func (a *Agent) tryEarlyGoMainFixtureFix(ctx context.Context, msg *protocol.Mess
 // tryEarlyThemeCSSFix creates src/theme.css before LLM rounds for theme.css scenarios.
 func (a *Agent) tryEarlyThemeCSSFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
 	if a == nil || msg == nil || wsPath == "" {
+		return false
+	}
+	if skipCollabCodingFixtureSynths(msg) {
 		return false
 	}
 	// Focus-scoped research/markdown collab tasks must not ship theme.css from negated mentions.
@@ -483,6 +510,9 @@ func (a *Agent) proposeScopedFileEdit(ctx context.Context, msg *protocol.Message
 // tryEarlyScopedFileEdit applies deterministic single-file edits for @file:path ONLY requests.
 func (a *Agent) tryEarlyScopedFileEdit(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
 	if a == nil || msg == nil || wsPath == "" {
+		return false
+	}
+	if skipCollabCodingFixtureSynths(msg) {
 		return false
 	}
 	userContent := implementationUserContent(a, msg)
@@ -589,6 +619,9 @@ func (a *Agent) proposeTailwindDarkModeEdit(ctx context.Context, msg *protocol.M
 // tryEarlyThemeToggleFix patches tailwind.config.js and the React entry for sidebar theme toggles.
 func (a *Agent) tryEarlyThemeToggleFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
 	if a == nil || msg == nil || wsPath == "" {
+		return false
+	}
+	if skipCollabCodingFixtureSynths(msg) {
 		return false
 	}
 	userContent := implementationUserContent(a, msg)
@@ -962,6 +995,9 @@ func (a *Agent) tryEarlyCorruptAppJSBootFix(ctx context.Context, msg *protocol.M
 	if a == nil || msg == nil || state == nil || !state.BootFixIntent || wsPath == "" || state.StackManifest == nil {
 		return false
 	}
+	if skipCollabCodingFixtureSynths(msg) {
+		return false
+	}
 	channel := msg.Channel
 	if channel == "" {
 		channel = "general"
@@ -973,6 +1009,9 @@ func (a *Agent) tryEarlyCorruptAppJSBootFix(ctx context.Context, msg *protocol.M
 // verify scenarios finish within scenario wait_reply timeouts.
 func (a *Agent) tryEarlyGoMathFixtureFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
 	if a == nil || msg == nil || wsPath == "" {
+		return false
+	}
+	if skipCollabCodingFixtureSynths(msg) {
 		return false
 	}
 	lower := strings.ToLower(msg.Content)
@@ -1012,6 +1051,9 @@ func (a *Agent) tryEarlyGoMathFixtureFix(ctx context.Context, msg *protocol.Mess
 // tryEarlyTypeScriptCompileFix applies known App.tsx type repairs before LLM rounds.
 func (a *Agent) tryEarlyTypeScriptCompileFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
 	if a == nil || msg == nil || wsPath == "" {
+		return false
+	}
+	if skipCollabCodingFixtureSynths(msg) {
 		return false
 	}
 	lower := strings.ToLower(msg.Content)

@@ -161,7 +161,7 @@
       "action": "approve_file_changes",
       "path_match": "architecture-review.md",
       "target_rel": "collabs/<collab-id>/architecture-review.md",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": "120s"
     },
@@ -169,7 +169,7 @@
       "action": "approve_file_changes",
       "path_match": "security-audit.md",
       "target_rel": "collabs/<collab-id>/security-audit.md",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": "120s"
     },

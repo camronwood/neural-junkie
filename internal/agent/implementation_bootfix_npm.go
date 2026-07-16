@@ -101,6 +101,9 @@ func (a *Agent) tryEarlyMissingNpmModuleFix(ctx context.Context, msg *protocol.M
 	if a == nil || msg == nil || state == nil || wsPath == "" {
 		return false
 	}
+	if skipCollabCodingFixtureSynths(msg) {
+		return false
+	}
 	evidence := strings.TrimSpace(state.LastCommandOutput())
 	if evidence == "" {
 		evidence = msg.Content

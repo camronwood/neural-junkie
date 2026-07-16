@@ -1,6 +1,6 @@
 {
-  "name": "plan-phoenix-combined-regression",
-  "description": "Combined Phoenix-style regression: dependency prose bullets, findings task, three agents, no weak/spurious tasks (4ea36409 + f7518f88).",
+  "name": "plan-combined-resource-api-regression",
+  "description": "Combined resource-api plan regression: dependency prose bullets, findings task, three agents, no weak/spurious tasks (4ea36409 + f7518f88).",
   "channel": "collab-scenarios",
   "agents": "@BackendEngineer @SoftwareArchitect @Claude",
   "required_agents": [

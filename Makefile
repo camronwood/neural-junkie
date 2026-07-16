@@ -38,6 +38,9 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  make layer-fix-loop LAYER=chat          # layer test → Cursor fix → verify"
 	@echo "  make test-growth-loop                   # discover gaps → add/strengthen tests"
 	@echo "  make layer-climb                        # run layers until first failure"
+	@echo "  make layer-climb CONTINUE=1             # run all layers; rollup + live status file"
+	@echo "  #   progress: docs/testing/layer-climb-status.txt  (tail -f)"
+	@echo "  make model-benchmark SUITE=standard     # multi-model live benchmark (boots stack)"
 	@echo "  make overnight                          # walk-away full release-prep (tmux)"
 	@echo "  make layer-overnight LAYER=implement    # walk-away layer fix loop"
 	@echo ""
@@ -389,12 +392,14 @@ layer-list: ## List release-prep layers in recommended order (ci → implement �
 	@chmod +x scripts/layer-gate.py
 	@python3 scripts/layer-gate.py --layer ci --list
 
-layer-climb: ## Run layers in order until one fails (ci → implement → chat → collab → collab-core → collab-full → bundle → parity)
-	@set -e; for layer in ci implement chat collab collab-core collab-full bundle parity; do \
-	  echo "=== layer-climb: $$layer ==="; \
-	  $(MAKE) layer-gate LAYER=$$layer VERBOSE=$(VERBOSE) NO_RESTART_HUB=$(NO_RESTART_HUB) || exit $$?; \
-	done; \
-	echo "=== layer-climb: all layers PASS ==="
+layer-climb: ## Run layers in order (default stop on fail; CONTINUE=1 runs all + writes docs/testing/layer-climb-*.md)
+	@chmod +x scripts/layer-climb.py scripts/layer-gate.py
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 \
+		python3 scripts/layer-climb.py \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
+		$(if $(CONTINUE),--continue-on-fail,) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(NO_RESTART_HUB),--no-restart-hub,)'
 
 layer-gate: ## Run one layer gate (LAYER=ci|implement|chat|collab|collab-core|collab-full|bundle|parity)
 	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-gate LAYER=implement [VERBOSE=1] [NO_RESTART_HUB=1]"; $(MAKE) layer-list; exit 1; fi
@@ -533,9 +538,13 @@ ensure-ollama-models-ready: ## Pull/warm/smoke Ollama models before release prep
 		$(if $(BENCHMARK_ALLOW_LARGE),--allow-large-models,) \
 		$(if $(MODELS),--models "$(MODELS)",)
 
-model-benchmark: ## Benchmark ≤24B coder models (SUITE=quick; pulls by default; NO_PULL=1 to skip; BENCHMARK_ALLOW_LARGE=1 to bypass cap)
+model-benchmark: ## Auto-boots Ollama+hub; benchmark coder models ≤~9 GB (SUITE=quick; SKIP_BOOT=1 to reuse; NO_PULL=1; BENCHMARK_ALLOW_LARGE=1)
 	@chmod +x scripts/model-benchmark-suite.py
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/model-benchmark-suite.py \
+	@BENCHMARK_SUITE=$(or $(SUITE),quick) \
+		$(if $(NO_PULL),NO_PULL=1,) \
+		$(if $(MODELS),BENCHMARK_MODELS="$(MODELS)",) \
+		$(if $(BENCHMARK_ALLOW_LARGE),BENCHMARK_ALLOW_LARGE=1,) \
+		NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/model-benchmark-suite.py \
 		--suite $(or $(SUITE),quick) \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
 		$(if $(NO_PULL),,--pull) \

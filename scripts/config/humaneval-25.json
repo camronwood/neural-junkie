@@ -1,0 +1,155 @@
+{
+  "license_note": "Inspired by OpenAI HumanEval; rewritten for NJ calibration; not the full dataset",
+  "problems": [
+    {
+      "id": "has_close_elements",
+      "entry_point": "has_close_elements",
+      "prompt": "from typing import List\n\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    \"\"\"Check if any two numbers in the list are closer than threshold.\n\n    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)\n    False\n    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)\n    True\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([1.0, 2.0, 3.9, 4.0, 5.0, 2.2], 0.3) is True\n    assert candidate([1.0, 2.0, 3.9, 4.0, 5.0, 2.2], 0.05) is False\n    assert candidate([1.0, 2.0, 5.9, 4.0, 5.0], 0.95) is True\n    assert candidate([1.0, 2.0, 5.9, 4.0, 5.0], 0.8) is False\n    assert candidate([1.0, 2.0, 3.0], 0.5) is False\n"
+    },
+    {
+      "id": "separate_paren_groups",
+      "entry_point": "separate_paren_groups",
+      "prompt": "from typing import List\n\ndef separate_paren_groups(paren_string: str) -> List[str]:\n    \"\"\"Separate groups of nested parentheses into a list of strings.\n    Input may contain spaces which should be ignored.\n\n    >>> separate_paren_groups('( ) (( )) (( )( ))')\n    ['()', '(())', '(()())']\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate('(()()) ((())) () ((())()())') == [\n        '(()())', '((()))', '()', '((())()())'\n    ]\n    assert candidate('() (()) ((())) (((())))') == [\n        '()', '(())', '((()))', '(((())))'\n    ]\n    assert candidate('(()(())((())))') == ['(()(())((())))']\n"
+    },
+    {
+      "id": "truncate_number",
+      "entry_point": "truncate_number",
+      "prompt": "def truncate_number(number: float) -> float:\n    \"\"\"Return the decimal part of a positive floating-point number.\n\n    >>> truncate_number(3.5)\n    0.5\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert abs(candidate(3.5) - 0.5) < 1e-9\n    assert abs(candidate(1.33) - 0.33) < 1e-9\n    assert abs(candidate(123.456) - 0.456) < 1e-9\n"
+    },
+    {
+      "id": "below_zero",
+      "entry_point": "below_zero",
+      "prompt": "from typing import List\n\ndef below_zero(operations: List[int]) -> bool:\n    \"\"\"You're given a list of deposit and withdrawal operations on a bank account\n    that starts with zero balance. Return True if at any point the balance falls\n    strictly below zero, otherwise False.\n\n    >>> below_zero([1, 2, -3, 1, 2, -3])\n    False\n    >>> below_zero([1, 2, -4, 5, 6])\n    True\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([1, 2, -3, 1, 2, -3]) is False\n    assert candidate([1, 2, -4, 5, 6]) is True\n    assert candidate([1, -1, 2, -2, 5, -5, 4, -4]) is False\n    assert candidate([1, -2, 3]) is True\n"
+    },
+    {
+      "id": "mean_absolute_deviation",
+      "entry_point": "mean_absolute_deviation",
+      "prompt": "from typing import List\n\ndef mean_absolute_deviation(numbers: List[float]) -> float:\n    \"\"\"Return Mean Absolute Deviation around the mean of numbers.\n    MAD = average |x_i - mean(x)|.\n\n    >>> mean_absolute_deviation([1.0, 2.0, 3.0, 4.0])\n    1.0\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert abs(candidate([1.0, 2.0, 3.0]) - (2.0 / 3.0)) < 1e-9\n    assert abs(candidate([1.0, 2.0, 3.0, 4.0]) - 1.0) < 1e-9\n    assert abs(candidate([1.0, 2.0, 3.0, 4.0, 5.0]) - 1.2) < 1e-9\n"
+    },
+    {
+      "id": "intersperse",
+      "entry_point": "intersperse",
+      "prompt": "from typing import List\n\ndef intersperse(numbers: List[int], delimiter: int) -> List[int]:\n    \"\"\"Insert delimiter between every two consecutive elements of numbers.\n\n    >>> intersperse([], 4)\n    []\n    >>> intersperse([1, 2, 3], 4)\n    [1, 4, 2, 4, 3]\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([], 7) == []\n    assert candidate([5, 6, 3, 2], 8) == [5, 8, 6, 8, 3, 8, 2]\n    assert candidate([2, 2, 2], 2) == [2, 2, 2, 2, 2]\n"
+    },
+    {
+      "id": "parse_nested_parens",
+      "entry_point": "parse_nested_parens",
+      "prompt": "from typing import List\n\ndef parse_nested_parens(paren_string: str) -> List[int]:\n    \"\"\"Input is multiple groups for nested parentheses separated by spaces.\n    For each group, return the deepest nesting level.\n\n    >>> parse_nested_parens('(()()) ((())) () ((())()())')\n    [2, 3, 1, 3]\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate('(()()) ((())) () ((())()())') == [2, 3, 1, 3]\n    assert candidate('() (()) ((())) (((())))') == [1, 2, 3, 4]\n    assert candidate('(()(())((())))') == [4]\n"
+    },
+    {
+      "id": "filter_by_substring",
+      "entry_point": "filter_by_substring",
+      "prompt": "from typing import List\n\ndef filter_by_substring(strings: List[str], substring: str) -> List[str]:\n    \"\"\"Filter an input list of strings only for ones that contain substring.\n\n    >>> filter_by_substring(['abc', 'bacd', 'cde', 'array'], 'a')\n    ['abc', 'bacd', 'array']\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([], 'john') == []\n    assert candidate(['xxx', 'asd', 'xxy', 'john doe', 'xxxXXX'], 'xxx') == [\n        'xxx', 'xxxXXX'\n    ]\n    assert candidate(['xxx', 'asd', 'aaaxxy', 'john doe', 'xxxAAA'], 'xx') == [\n        'xxx', 'aaaxxy', 'xxxAAA'\n    ]\n    assert candidate(['grunt', 'trumpet', 'prune', 'gruff'], 'run') == [\n        'grunt', 'prune'\n    ]\n"
+    },
+    {
+      "id": "sum_product",
+      "entry_point": "sum_product",
+      "prompt": "from typing import List, Tuple\n\ndef sum_product(numbers: List[int]) -> Tuple[int, int]:\n    \"\"\"Return a tuple (sum, product) for the integers in numbers.\n    Empty list -> (0, 1).\n\n    >>> sum_product([])\n    (0, 1)\n    >>> sum_product([1, 2, 3, 4])\n    (10, 24)\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([]) == (0, 1)\n    assert candidate([1, 1, 1]) == (3, 1)\n    assert candidate([100, 0]) == (100, 0)\n    assert candidate([1, 2, 3, 4]) == (10, 24)\n"
+    },
+    {
+      "id": "rolling_max",
+      "entry_point": "rolling_max",
+      "prompt": "from typing import List\n\ndef rolling_max(numbers: List[int]) -> List[int]:\n    \"\"\"From a list of integers, generate a list of rolling maximums.\n    rolling_max([1, 2, 3, 2, 3, 4, 2]) -> [1, 2, 3, 3, 3, 4, 4]\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([]) == []\n    assert candidate([1, 2, 3, 4]) == [1, 2, 3, 4]\n    assert candidate([4, 3, 2, 1]) == [4, 4, 4, 4]\n    assert candidate([3, 2, 3, 100, 3]) == [3, 3, 3, 100, 100]\n"
+    },
+    {
+      "id": "make_palindrome",
+      "entry_point": "make_palindrome",
+      "prompt": "def make_palindrome(string: str) -> str:\n    \"\"\"Find the shortest palindrome that begins with the supplied string.\n    Algorithm idea: find the longest postfix of the string that is a palindrome\n    and append the reverse of the remaining prefix.\n\n    >>> make_palindrome('')\n    ''\n    >>> make_palindrome('cat')\n    'catac'\n    >>> make_palindrome('cata')\n    'catac'\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate('') == ''\n    assert candidate('x') == 'x'\n    assert candidate('xyz') == 'xyzyx'\n    assert candidate('xyx') == 'xyx'\n    assert candidate('jerry') == 'jerryrrej'\n"
+    },
+    {
+      "id": "string_xor",
+      "entry_point": "string_xor",
+      "prompt": "def string_xor(a: str, b: str) -> str:\n    \"\"\"Input are two strings consisting of digits 0 and 1 only of equal length.\n    Perform binary XOR and return the result as a string.\n\n    >>> string_xor('010', '110')\n    '100'\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate('111000', '101010') == '010010'\n    assert candidate('1', '1') == '0'\n    assert candidate('0101', '0000') == '0101'\n"
+    },
+    {
+      "id": "longest",
+      "entry_point": "longest",
+      "prompt": "from typing import List, Optional\n\ndef longest(strings: List[str]) -> Optional[str]:\n    \"\"\"Return the longest string from the list. Return the first one in case of\n    multiple strings of the same length. Return None for an empty list.\n\n    >>> longest([])\n\n    >>> longest(['a', 'b', 'c'])\n    'a'\n    >>> longest(['a', 'bb', 'ccc'])\n    'ccc'\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([]) is None\n    assert candidate(['x', 'y', 'z']) == 'x'\n    assert candidate(['x', 'yyy', 'zzzz', 'www', 'kkkk', 'abc']) == 'zzzz'\n"
+    },
+    {
+      "id": "greatest_common_divisor",
+      "entry_point": "greatest_common_divisor",
+      "prompt": "def greatest_common_divisor(a: int, b: int) -> int:\n    \"\"\"Return the greatest common divisor of two integers a and b.\n\n    >>> greatest_common_divisor(3, 5)\n    1\n    >>> greatest_common_divisor(25, 15)\n    5\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate(3, 5) == 1\n    assert candidate(25, 15) == 5\n    assert candidate(0, 3) == 3\n    assert candidate(144, 60) == 12\n"
+    },
+    {
+      "id": "all_prefixes",
+      "entry_point": "all_prefixes",
+      "prompt": "from typing import List\n\ndef all_prefixes(string: str) -> List[str]:\n    \"\"\"Return a list of all prefixes from shortest to longest of the input string.\n\n    >>> all_prefixes('abc')\n    ['a', 'ab', 'abc']\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate('') == []\n    assert candidate('asdfgh') == ['a', 'as', 'asd', 'asdf', 'asdfg', 'asdfgh']\n    assert candidate('WWW') == ['W', 'WW', 'WWW']\n"
+    },
+    {
+      "id": "string_sequence",
+      "entry_point": "string_sequence",
+      "prompt": "def string_sequence(n: int) -> str:\n    \"\"\"Return a string containing space-delimited numbers starting from 0 up to n inclusive.\n\n    >>> string_sequence(0)\n    '0'\n    >>> string_sequence(5)\n    '0 1 2 3 4 5'\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate(0) == '0'\n    assert candidate(3) == '0 1 2 3'\n    assert candidate(10) == '0 1 2 3 4 5 6 7 8 9 10'\n"
+    },
+    {
+      "id": "count_distinct_characters",
+      "entry_point": "count_distinct_characters",
+      "prompt": "def count_distinct_characters(string: str) -> int:\n    \"\"\"Count distinct characters in string, case-insensitive.\n\n    >>> count_distinct_characters('xyzXYZ')\n    3\n    >>> count_distinct_characters('Jerry')\n    4\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate('') == 0\n    assert candidate('abcde') == 5\n    assert candidate('abcde' + 'cade' + 'CADE') == 5\n    assert candidate('aaaaAAAAaaaa') == 1\n    assert candidate('JerryjERRY') == 4\n"
+    },
+    {
+      "id": "sort_numbers",
+      "entry_point": "sort_numbers",
+      "prompt": "def sort_numbers(numbers: str) -> str:\n    \"\"\"Input is a space-delimited string of number words from zero to nine.\n    Return the string with those numerals sorted from smallest to largest.\n\n    >>> sort_numbers('three one five')\n    'one three five'\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate('') == ''\n    assert candidate('three') == 'three'\n    assert candidate('three five nine') == 'three five nine'\n    assert candidate('five zero four seven nine five') == 'zero four five five seven nine'\n"
+    },
+    {
+      "id": "largest_divisor",
+      "entry_point": "largest_divisor",
+      "prompt": "def largest_divisor(n: int) -> int:\n    \"\"\"Return the largest divisor of n smaller than n.\n\n    >>> largest_divisor(15)\n    5\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate(3) == 1\n    assert candidate(7) == 1\n    assert candidate(10) == 5\n    assert candidate(100) == 50\n    assert candidate(49) == 7\n"
+    },
+    {
+      "id": "rescale_to_unit",
+      "entry_point": "rescale_to_unit",
+      "prompt": "from typing import List\n\ndef rescale_to_unit(numbers: List[float]) -> List[float]:\n    \"\"\"Apply linear transform so the smallest number becomes 0 and the largest becomes 1.\n\n    >>> rescale_to_unit([1.0, 2.0, 3.0, 4.0, 5.0])\n    [0.0, 0.25, 0.5, 0.75, 1.0]\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([2.0, 49.9]) == [0.0, 1.0]\n    out = candidate([1.0, 2.0, 3.0, 4.0, 5.0])\n    assert len(out) == 5\n    assert abs(out[0] - 0.0) < 1e-9 and abs(out[-1] - 1.0) < 1e-9\n    assert abs(out[1] - 0.25) < 1e-9\n"
+    },
+    {
+      "id": "filter_integers",
+      "entry_point": "filter_integers",
+      "prompt": "from typing import List, Any\n\ndef filter_integers(values: List[Any]) -> List[int]:\n    \"\"\"Filter given list of any python values only for integers.\n\n    >>> filter_integers(['a', 3.14, 5])\n    [5]\n    >>> filter_integers([1, 2, 3, 'abc', {}, []])\n    [1, 2, 3]\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([]) == []\n    assert candidate([4, {}, [], 23.2, 9, 'adasd']) == [4, 9]\n    assert candidate([3, 'c', 3, 3, 'a', 'b']) == [3, 3, 3]\n"
+    },
+    {
+      "id": "strlen",
+      "entry_point": "strlen",
+      "prompt": "def strlen(string: str) -> int:\n    \"\"\"Return length of a given string.\n\n    >>> strlen('')\n    0\n    >>> strlen('abc')\n    3\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate('') == 0\n    assert candidate('x') == 1\n    assert candidate('asdasnakj') == 9\n"
+    },
+    {
+      "id": "fib",
+      "entry_point": "fib",
+      "prompt": "def fib(n: int) -> int:\n    \"\"\"Return n-th Fibonacci number (0-indexed: fib(0)=0, fib(1)=1).\n\n    >>> fib(10)\n    55\n    >>> fib(1)\n    1\n    >>> fib(8)\n    21\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate(0) == 0\n    assert candidate(1) == 1\n    assert candidate(2) == 1\n    assert candidate(3) == 2\n    assert candidate(10) == 55\n    assert candidate(11) == 89\n"
+    },
+    {
+      "id": "flip_case",
+      "entry_point": "flip_case",
+      "prompt": "def flip_case(string: str) -> str:\n    \"\"\"Flip lowercase characters to uppercase and vice versa.\n\n    >>> flip_case('Hello')\n    'hELLO'\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate('') == ''\n    assert candidate('Hello!') == 'hELLO!'\n    assert candidate('These violent delights have violent ends') == (\n        'tHESE VIOLENT DELIGHTS HAVE VIOLENT ENDS'\n    )\n"
+    },
+    {
+      "id": "concatenate",
+      "entry_point": "concatenate",
+      "prompt": "from typing import List\n\ndef concatenate(strings: List[str]) -> str:\n    \"\"\"Concatenate list of strings into a single string.\n\n    >>> concatenate([])\n    ''\n    >>> concatenate(['a', 'b', 'c'])\n    'abc'\n    \"\"\"\n",
+      "test": "def check(candidate):\n    assert candidate([]) == ''\n    assert candidate(['x', 'y', 'z']) == 'xyz'\n    assert candidate(['x', 'y', 'z', 'w', 'k']) == 'xyzwk'\n"
+    }
+  ]
+}

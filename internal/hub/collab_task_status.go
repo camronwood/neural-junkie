@@ -32,14 +32,48 @@ func (h *Hub) maybeSyncTaskStatusFromPlanHandoff(msg *protocol.Message, collabID
 		channel = snap.Channel
 	}
 
+	completedAny := false
 	for _, taskID := range taskIDs {
-		if err := h.collabManager.UpdateTaskStatus(collabID, taskID, collaboration.TaskCompleted, "Marked complete from plan handoff"); err != nil {
-			log.Printf("[Collaboration] plan handoff task update %s: %v", taskID[:8], err)
+		var task *collaboration.CollaborationTask
+		for i := range snap.Tasks {
+			if snap.Tasks[i].ID == taskID {
+				task = &snap.Tasks[i]
+				break
+			}
+		}
+		if task == nil {
 			continue
 		}
+		var optionPaths []string
+		if task.Options != nil {
+			optionPaths = task.Options.ContextPaths
+		}
+		contextPaths := collaboration.MergeContextPaths(
+			collaboration.InferTaskContextPaths(*task, snap.SourceRepoPath),
+			optionPaths,
+		)
+		policy := collaboration.NewDeliverablePolicy(*task, snap.Description, contextPaths)
+		if policy.RequiresFile() && !h.collabTaskDeliverableSatisfied(snap, task, msg) {
+			_ = h.maybeWarnPrematureTaskCompletion(msg, collabID, task, snap)
+			short := taskID
+			if len(short) > 8 {
+				short = short[:8]
+			}
+			log.Printf("[Collaboration] plan handoff skipped complete for %s: file deliverable not satisfied", short)
+			continue
+		}
+		if err := h.collabManager.UpdateTaskStatus(collabID, taskID, collaboration.TaskCompleted, "Marked complete from plan handoff"); err != nil {
+			short := taskID
+			if len(short) > 8 {
+				short = short[:8]
+			}
+			log.Printf("[Collaboration] plan handoff task update %s: %v", short, err)
+			continue
+		}
+		completedAny = true
 	}
 
-	if h.collabManager.AllTasksComplete(collabID) {
+	if completedAny && h.collabManager.AllTasksComplete(collabID) {
 		h.requestFinalRecapAndFinalize(collabID, channel, "All tasks are done.", collaboration.FinalizeOptions{})
 	}
 }

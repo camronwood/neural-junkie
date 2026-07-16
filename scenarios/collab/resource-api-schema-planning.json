@@ -1,6 +1,6 @@
 {
   "name": "resource-api-schema-planning",
-  "description": "Phoenix-style prompt with SoftwareArchitect and PlatformEngineer plus @Claude for planning synthesis.",
+  "description": "SoftwareArchitect and PlatformEngineer plus @Claude for resource-api schema planning synthesis.",
   "channel": "collab-scenarios",
   "agents": "@SoftwareArchitect @PlatformEngineer @Claude",
   "required_agents": [
@@ -11,7 +11,8 @@
   "workspace": {
     "path_env": "NEURAL_JUNKIE_SCENARIO_REPO",
     "workspace_flag": true,
-    "outline": true
+    "outline": true,
+    "file_tree": "resource-api/json_endpoints/\ndocs/tim/\nREADME.md\n"
   },
   "collaborate": {
     "flags": [
@@ -20,7 +21,7 @@
       "--messages",
       "5"
     ],
-    "goal": "@SoftwareArchitect @PlatformEngineer @Claude Investigate resource api document schema standardization/registration, and produce a markdown document. Lanes: @Claude synthesizes plan; @SoftwareArchitect drafts schema/doc standards and markdown from the approved outline; @PlatformEngineer covers CI/release of docs, not schema design."
+    "goal": "@SoftwareArchitect @PlatformEngineer @Claude Investigate resource api document schema standardization/registration. Produce EXACTLY two tasks and no others, using these exact lines:\n- Task 1: @SoftwareArchitect - Write collabs/<id>/schema-standards.md covering schema/doc standards from resource-api/json_endpoints and docs/tim\n- Task 2: @PlatformEngineer - Write collabs/<id>/ci-release-docs.md covering CI/release of docs (not schema design). @Claude synthesizes the plan only."
   },
   "steps": [
     {
@@ -37,7 +38,13 @@
         "PlatformEngineer",
         "Claude"
       ],
-      "timeout": "240s"
+      "timeout": "240s",
+      "retries": 1,
+      "nudge_agents": [
+        "Claude",
+        "SoftwareArchitect"
+      ],
+      "nudge_silent_agents": true
     },
     {
       "action": "wait_phase",

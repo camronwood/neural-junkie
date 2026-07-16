@@ -21,7 +21,7 @@ import (
 //	executing + generation_error on assignee reply
 //	  -> OnGenerationError -> ClearTaskPromptDispatched + redispatch
 //	planning cancel / RecordMessage failure
-//	  -> KickPlanningDiscussionWatchdog (clears throttle then tick)
+//	  -> OnPlanningKick (clears throttle then tick)
 //
 // Agent-side 15s handoff retries were removed so this scheduler is the sole timer owner.
 type CollabScheduler struct {
@@ -68,6 +68,14 @@ func (s *CollabScheduler) OnPlanningNeedHandoff(collabID, agentID string) bool {
 	return s.hub.dispatchPlanningHandoff(collabID, agentID)
 }
 
+// OnPlanningKick clears handoff throttle and re-prompts silent planning participants.
+func (s *CollabScheduler) OnPlanningKick(collabID string) {
+	if s == nil || s.hub == nil {
+		return
+	}
+	s.hub.kickPlanningDiscussionWatchdog(collabID)
+}
+
 // TickCollabScheduler is the preferred entry point from the server ticker.
 func (h *Hub) TickCollabScheduler(now time.Time) {
 	NewCollabScheduler(h).Tick(now)
@@ -76,4 +84,9 @@ func (h *Hub) TickCollabScheduler(now time.Time) {
 // DispatchPlanningHandoff is the public hub API; heals go through CollabScheduler.
 func (h *Hub) DispatchPlanningHandoff(collabID, agentID string) bool {
 	return NewCollabScheduler(h).OnPlanningNeedHandoff(collabID, agentID)
+}
+
+// KickPlanningDiscussionWatchdog is the public hub API for planning silence heals.
+func (h *Hub) KickPlanningDiscussionWatchdog(collabID string) {
+	NewCollabScheduler(h).OnPlanningKick(collabID)
 }

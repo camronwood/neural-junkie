@@ -521,15 +521,14 @@ Execution scenarios use **`approve_file_changes`** with **`require_hub_approval`
 | `collab-minimal-completion-regression` | Fast happy path: plan → execute → `/complete-collab` → `completed` | **Full completion** |
 | `execute-deliverable` | Fixture repo execution + grounded `findings.md` + completion | **Full completion** |
 | `resource-api-schema-planning` | Resource API schema prompt with explicit lanes | Planning only |
-| `resource-api-schema-regression` | Phoenix-style bound workspace + deliverable stubs | Partial execute |
+| `resource-api-schema-regression` | Bound workspace + deliverable stubs for resource-api schema work | Partial execute |
 | `delivery-sandbox-auto-ack` | Approve on `--workspace` sandbox auto-acks and dispatches tasks | Partial execute |
 | `plan-dependency-prose-regression` | Dependency bullets must not become tasks (f7518f88) | Partial execute |
 | `plan-findings-task-regression` | "Document findings in …/findings.md" kept as task (4ea36409) | Partial execute |
 | `plan-distinct-deliverables-same-agent` | Same assignee + different paths must not merge | Partial execute |
 | `document-findings-execution` | "Document findings" phrasing dispatches file deliverable + completion | **Full completion** |
 | `execution-no-stack-commands` | No docker/npm/kubectl Run suggestions on markdown tasks | Partial execute |
-| `plan-phoenix-combined-regression` | Full Phoenix-style combined regression (needs `NEURAL_JUNKIE_SCENARIO_REPO`) | Partial execute |
-| `phoenix-resource-api-e2e` | End-to-end Phoenix resource API collab + completion | **Full completion** |
+| `plan-combined-resource-api-regression` | Combined resource-api plan regression (dependency prose + findings) | Partial execute |
 
 **Environment**
 

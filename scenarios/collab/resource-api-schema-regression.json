@@ -1,6 +1,6 @@
 {
   "name": "resource-api-schema-regression",
-  "description": "Regression for stuck Phoenix-style collab: bound workspace, enriched task deliverables, plan stubs after approve, no sandbox-only drift.",
+  "description": "Regression for stuck resource-api collab: bound workspace, enriched task deliverables, plan stubs after approve, no sandbox-only drift.",
   "channel": "collab-scenarios",
   "agents": "@BackendEngineer @FrontendEngineer @Claude",
   "required_agents": [
@@ -21,7 +21,7 @@
       "10",
       "--workspace"
     ],
-    "goal": "@BackendEngineer @FrontendEngineer @Claude Investigate resource api document schema standardization/registration. Use plan tasks like: ### Task 1: Define Scope (@BackendEngineer) with Deliverable collabs/<id>/scope.md; ### Task 2: Review API docs (@BackendEngineer) with Deliverable collabs/<id>/existing-schema.md. Produce real markdown deliverables, not chat-only summaries."
+    "goal": "@BackendEngineer @FrontendEngineer @Claude Investigate resource api document schema standardization/registration. Produce EXACTLY two tasks and no others, using these exact lines:\n- Task 1: @BackendEngineer - Define Scope with Deliverable collabs/<id>/scope.md\n- Task 2: @BackendEngineer - Review API docs with Deliverable collabs/<id>/existing-schema.md\nProduce real markdown deliverables, not chat-only summaries. @FrontendEngineer and @Claude discuss only."
   },
   "expect_deliverables": [
     {

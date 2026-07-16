@@ -17,6 +17,8 @@ const (
 	TaskUtility        TaskClass = "utility"
 	TaskAskMode        TaskClass = "ask_mode"
 	TaskImplementHeavy TaskClass = "implement_heavy"
+	TaskArenaLogic     TaskClass = "arena_logic"
+	TaskCADCompile     TaskClass = "cad_compile"
 )
 
 // ModelScore holds per-model benchmark metrics.

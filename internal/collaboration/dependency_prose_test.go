@@ -52,7 +52,7 @@ Task 3: @PlatformEngineer - Write collabs/f7518f88/ci_cd_pipeline.md
 - Task 1 depends on Task 2 for the markdown structure and style guide.
 - Task 3 can be started independently but should reference the schema.
 `
-	tasks := ExtractTasksFromPlan(plan, phoenixAgents())
+	tasks := ExtractTasksFromPlan(plan, regressionAgents())
 	tasks = mergeNearDuplicateTasks(tasks)
 	for i := range tasks {
 		if tasks[i].ID == "" {
@@ -106,7 +106,7 @@ Task 3: @PlatformEngineer - Write collabs/f7518f88-50a4-4561-9e88-174381f3090d/c
 	c := &Collaboration{
 		ID:             "f7518f88-50a4-4561-9e88-174381f3090d",
 		Description:    "Investigate resource api document schema standardization/registration",
-		Agents:         phoenixAgents(),
+		Agents:         regressionAgents(),
 		SourceRepoPath: "/Users/test/Phoenix",
 		Plan:           &SharedArtifact{Content: plan},
 	}

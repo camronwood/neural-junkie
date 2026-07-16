@@ -19,7 +19,7 @@ type CollaborationsState = {
   clear: () => void;
 };
 
-export const useCollaborationsStore = create<CollaborationsState>((set, get) => ({
+export const useCollaborationsStore = create<CollaborationsState>((set) => ({
   byID: {},
   setByID: (updater) => {
     set((state) => ({

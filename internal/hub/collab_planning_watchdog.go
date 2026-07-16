@@ -12,8 +12,9 @@ import (
 
 const collabPlanningHandoffRedispatchAfter = 15 * time.Second
 
-// KickPlanningDiscussionWatchdog clears handoff throttle and re-sends turn prompts for silent participants.
-func (h *Hub) KickPlanningDiscussionWatchdog(collabID string) {
+// kickPlanningDiscussionWatchdog clears handoff throttle and re-sends turn prompts for silent participants.
+// Public entry is Hub.KickPlanningDiscussionWatchdog / CollabScheduler.OnPlanningKick.
+func (h *Hub) kickPlanningDiscussionWatchdog(collabID string) {
 	if h == nil || h.collabManager == nil || strings.TrimSpace(collabID) == "" {
 		return
 	}
@@ -107,13 +108,7 @@ func (h *Hub) maybeKickPlanningDiscussionOnHumanMessage(collabID string) {
 		if len(h.collabManager.SilentPlanningParticipantIDs(c.ID)) == 0 {
 			return
 		}
-		h.collabWatchdogMu.Lock()
-		if h.collabWatchdogPlanningHandoff == nil {
-			h.collabWatchdogPlanningHandoff = make(map[string]time.Time)
-		}
-		delete(h.collabWatchdogPlanningHandoff, c.ID)
-		h.collabWatchdogMu.Unlock()
-		h.tickPlanningDiscussionWatchdog(c, time.Now())
+		NewCollabScheduler(h).OnPlanningKick(c.ID)
 		return
 	}
 }

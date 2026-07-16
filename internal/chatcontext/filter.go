@@ -1,6 +1,7 @@
 package chatcontext
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -15,9 +16,18 @@ var promptLeakSubstrings = []string{
 	"be mindful of the user's background",
 	"for complex questions, use",
 	"offer specific details when",
-	"grounding: i loaded",
+	// Note: do NOT include "grounding: i loaded" — required openers must stay in
+	// history for multi-turn continuation (strip via SanitizeForLLMHistory instead).
 	"the model returned an empty reply",
 	"open model library",
+}
+
+var groundingLoadedLineRE = regexp.MustCompile(`(?im)^\s*Grounding:\s*I loaded \d+ file\(s\) from the workspace context for this answer\.\s*\n?`)
+
+// SanitizeForLLMHistory strips instruction-echo prefixes while keeping substantive reply body.
+func SanitizeForLLMHistory(content string) string {
+	content = groundingLoadedLineRE.ReplaceAllString(content, "")
+	return strings.TrimSpace(content)
 }
 
 // OmitFromLLMHistory reports whether a message should be excluded from LLM chat history.
@@ -67,7 +77,7 @@ func OmitFromLLMHistory(m *protocol.Message) bool {
 		}
 	}
 
-	c := strings.TrimSpace(m.Content)
+	c := SanitizeForLLMHistory(m.Content)
 	if c == "" {
 		return true
 	}

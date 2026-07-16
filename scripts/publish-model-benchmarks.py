@@ -15,15 +15,19 @@ DATA_PATH = ROOT / "docs" / "data" / "model-benchmarks.json"
 PROFILES_PATH = ROOT / "docs" / "data" / "model-capability-profiles.json"
 EMBED_PROFILES_PATH = ROOT / "internal" / "routing" / "capabilities" / "data" / "capability_profiles.json"
 RUN_RE = re.compile(r"^model-benchmark-(.+)-(\d{4}-\d{2}-\d{2}-\d{4})\.json$")
+SUITES_PATH = ROOT / "scripts" / "config" / "model-benchmark-suites.json"
 
 import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from lib.model_benchmark import (  # noqa: E402
+    SuiteTracks,
     build_scenario_catalog,
     derive_capability_profiles,
+    load_json_config,
     load_models,
     load_scenario_meta,
+    resolve_suite_scenarios,
     write_capability_profiles,
 )
 
@@ -31,16 +35,19 @@ DEFAULT_CATALOG: dict = {
     "about": (
         "Live Neural Junkie scenario benchmarks on local Ollama models. "
         "Each run switches all in-process agents to one model tag, then executes "
-        "the same implement + chat scenarios from scenarios/implement/ and scenarios/chat/."
+        "the same implement + chat scenarios from scenarios/implement/ and scenarios/chat/, "
+        "plus optional collab / arena / cad / external tracks."
     ),
     "methodology_url": "https://github.com/camronwood/neural-junkie/blob/main/docs/testing/MODEL_BENCHMARK.md",
     "suites": {
         "quick": {
-            "description": "Smoke benchmark — 3 implement + 2 chat scenarios (~15–45 min per model on ≤24B class).",
+            "description": "Smoke benchmark — 5 implement + 2 chat scenarios (~15–45 min per model on ≤9 GB class).",
             "implement_scenarios": [
                 "go-handler",
                 "theme-toggle",
                 "ask-mode-no-write",
+                "go-test-failure-repair",
+                "typescript-compile-error-fix",
             ],
             "chat_scenarios": [
                 "dm-backend-workspace",
@@ -50,6 +57,33 @@ DEFAULT_CATALOG: dict = {
     },
     "runs": [],
 }
+
+
+def suites_from_config(config_path: Path = SUITES_PATH) -> dict:
+    """Refresh publish catalog suites from scripts/config/model-benchmark-suites.json."""
+    if not config_path.is_file():
+        return dict(DEFAULT_CATALOG["suites"])
+    data = load_json_config(config_path)
+    out: dict = {}
+    for name, suite in data.items():
+        if name == "description" or not isinstance(suite, dict):
+            continue
+        tracks = resolve_suite_scenarios(suite)
+        entry = {
+            "description": str(suite.get("description") or ""),
+            "implement_scenarios": list(tracks.implement),
+            "chat_scenarios": list(tracks.chat),
+        }
+        if tracks.collab:
+            entry["collab_scenarios"] = list(tracks.collab)
+        if tracks.arena:
+            entry["arena_scenarios"] = list(tracks.arena)
+        if tracks.cad:
+            entry["cad_scenarios"] = list(tracks.cad)
+        if tracks.external:
+            entry["external_scenarios"] = list(tracks.external)
+        out[name] = entry
+    return out or dict(DEFAULT_CATALOG["suites"])
 
 
 def load_catalog() -> dict:
@@ -69,6 +103,10 @@ def run_id_from_path(path: Path) -> str | None:
 def normalize_run(raw: dict, *, run_id: str, source_file: str) -> dict:
     implement = raw.get("implement_scenarios") or []
     chat = raw.get("chat_scenarios") or []
+    collab = raw.get("collab_scenarios") or []
+    arena = raw.get("arena_scenarios") or []
+    cad = raw.get("cad_scenarios") or []
+    external = raw.get("external_scenarios") or []
     hardware = raw.get("hardware") if isinstance(raw.get("hardware"), dict) else {}
     hw_note = str(raw.get("hardware_note") or "").strip()
     if not hw_note and hardware.get("total_memory_gb"):
@@ -76,8 +114,14 @@ def normalize_run(raw: dict, *, run_id: str, source_file: str) -> dict:
     catalog = raw.get("scenario_catalog")
     if not isinstance(catalog, list) or not catalog:
         catalog = build_scenario_catalog(
-            [str(x) for x in implement if str(x).strip()],
-            [str(x) for x in chat if str(x).strip()],
+            SuiteTracks(
+                implement=[str(x) for x in implement if str(x).strip()],
+                chat=[str(x) for x in chat if str(x).strip()],
+                collab=[str(x) for x in collab if str(x).strip()],
+                arena=[str(x) for x in arena if str(x).strip()],
+                cad=[str(x) for x in cad if str(x).strip()],
+                external=[str(x) for x in external if str(x).strip()],
+            )
         )
     return {
         "id": run_id,
@@ -91,6 +135,10 @@ def normalize_run(raw: dict, *, run_id: str, source_file: str) -> dict:
         "scenario_catalog": catalog,
         "implement_scenarios": implement,
         "chat_scenarios": chat,
+        "collab_scenarios": collab,
+        "arena_scenarios": arena,
+        "cad_scenarios": cad,
+        "external_scenarios": external,
         "results": raw.get("results") or [],
         "source_file": source_file,
     }
@@ -99,7 +147,7 @@ def normalize_run(raw: dict, *, run_id: str, source_file: str) -> dict:
 def build_scenario_index() -> dict[str, dict]:
     """All scenario metadata keyed by kind/name for website client-side enrichment."""
     index: dict[str, dict] = {}
-    for kind, subdir in (("implement", "implement"), ("chat", "chat")):
+    for kind, subdir in (("implement", "implement"), ("chat", "chat"), ("collab", "collab")):
         scenario_dir = ROOT / "scenarios" / subdir
         if not scenario_dir.is_dir():
             continue
@@ -112,10 +160,16 @@ def build_scenario_index() -> dict[str, dict]:
 def refresh_run_metadata(run: dict) -> dict:
     """Fill scenario catalog and hardware note for runs imported before enrichment existed."""
     out = dict(run)
-    implement = [str(x) for x in (out.get("implement_scenarios") or []) if str(x).strip()]
-    chat = [str(x) for x in (out.get("chat_scenarios") or []) if str(x).strip()]
+    tracks = SuiteTracks(
+        implement=[str(x) for x in (out.get("implement_scenarios") or []) if str(x).strip()],
+        chat=[str(x) for x in (out.get("chat_scenarios") or []) if str(x).strip()],
+        collab=[str(x) for x in (out.get("collab_scenarios") or []) if str(x).strip()],
+        arena=[str(x) for x in (out.get("arena_scenarios") or []) if str(x).strip()],
+        cad=[str(x) for x in (out.get("cad_scenarios") or []) if str(x).strip()],
+        external=[str(x) for x in (out.get("external_scenarios") or []) if str(x).strip()],
+    )
     if not out.get("scenario_catalog"):
-        out["scenario_catalog"] = build_scenario_catalog(implement, chat)
+        out["scenario_catalog"] = build_scenario_catalog(tracks)
     hardware = out.get("hardware") if isinstance(out.get("hardware"), dict) else {}
     if not out.get("hardware_note") and hardware.get("total_memory_gb"):
         out["hardware_note"] = f"{hardware['total_memory_gb']} GB RAM ({hardware.get('tier', '?')} tier)"
@@ -136,8 +190,7 @@ def discover_runs(testing_dir: Path) -> list[tuple[str, Path]]:
 
 def publish(*, testing_dir: Path, data_path: Path, only: str | None = None) -> int:
     catalog = load_catalog()
-    if "suites" not in catalog:
-        catalog["suites"] = DEFAULT_CATALOG["suites"]
+    catalog["suites"] = suites_from_config()
     if "about" not in catalog:
         catalog["about"] = DEFAULT_CATALOG["about"]
 

@@ -13,7 +13,7 @@
   "steps": [
     {
       "action": "send",
-      "content": "@codebase What does ComputePhoenixWidget return?",
+      "content": "@codebase What does ComputeObscureWidget return?",
       "metadata": { "conversation_mode": "code", "context_scope": "focus" }
     },
     { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
@@ -21,7 +21,7 @@
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "BackendEngineer",
-      "any_match": ["42", "PhoenixWidget", "phoenix"],
+      "any_match": ["42", "ObscureWidget", "obscure"],
       "none_match": ["golang.org/x/", "I cannot see", "no workspace"]
     }
   ],

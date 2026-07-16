@@ -290,6 +290,9 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	if eff == nil {
 		eff = a.EffectiveImplementationProvider(sessionCtx, msg)
 	}
+	if ua, ok := eff.(ai.UsageAware); ok {
+		ua.ResetSessionUsage()
+	}
 
 	history := a.channelHistory(msg.Channel)
 	state := &ImplementationSessionState{
@@ -344,36 +347,41 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		return summary, streamMsgID, false, nil, outcome, nil
 	}
 
-	if a.tryEarlyCorruptAppJSBootFix(sessionCtx, msg, wsPath, state) {
-		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-		summary := a.formatImplementationSessionSummary("", state, true, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, true)
-		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
-	}
-
-	if a.tryEarlyCommandEvidencePlaybook(sessionCtx, msg, wsPath, state) {
-		state.Phase = "verify"
-		var verifyOut string
-		var verifyFailed, verifySkipped bool
-		// Re-running make start-all after adding the target launches dev servers and can
-		// block until session timeout; the playbook already matched pasted failure evidence.
-		if state.PlaybookUsedName == "missing_start_all_target" {
-			verifySkipped = true
-			state.VerifySkipped = true
-		} else {
-			verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+	// Hub-dispatched coding collab tasks must not use scenario fixture synthesizers.
+	if !skipCollabCodingFixtureSynths(msg) {
+		if a.tryEarlyCorruptAppJSBootFix(sessionCtx, msg, wsPath, state) {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
 			state.VerifyOutput = verifyOut
 			state.VerifyFailed = verifyFailed
 			state.VerifySkipped = verifySkipped
+			summary := a.formatImplementationSessionSummary("", state, true, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, true)
+			return summary, streamMsgID, true, state.FilesChanged, outcome, nil
 		}
-		proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
-		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+
+		if a.tryEarlyCommandEvidencePlaybook(sessionCtx, msg, wsPath, state) {
+			state.Phase = "verify"
+			var verifyOut string
+			var verifyFailed, verifySkipped bool
+			// Re-running make start-all after adding the target launches dev servers and can
+			// block until session timeout; the playbook already matched pasted failure evidence.
+			if state.PlaybookUsedName == "missing_start_all_target" {
+				verifySkipped = true
+				state.VerifySkipped = true
+			} else {
+				verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+				state.VerifyOutput = verifyOut
+				state.VerifyFailed = verifyFailed
+				state.VerifySkipped = verifySkipped
+			}
+			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+		}
+	} else {
+		log.Printf("[%s] skipping fixture synths for collab coding deliverable", a.Info.Name)
 	}
 
 	var repairNote string
@@ -399,91 +407,93 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		a.broadcastImplementationProgress(msg, streamMsgID, formatFixInterimProgress(state))
 	}
 
-	if a.tryEarlyMissingNpmModuleFix(sessionCtx, msg, wsPath, state) {
-		a.runBootFixNpmInstallAfterDepProposal(sessionCtx, msg, state, wsPath)
-		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runReproVerify(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-		proposed := state.hasRegisteredProposals()
-		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-		return summary, streamMsgID, proposed, state.RegisteredFiles, outcome, nil
+	if !skipCollabCodingFixtureSynths(msg) {
+		if a.tryEarlyMissingNpmModuleFix(sessionCtx, msg, wsPath, state) {
+			a.runBootFixNpmInstallAfterDepProposal(sessionCtx, msg, state, wsPath)
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runReproVerify(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposed := state.hasRegisteredProposals()
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.RegisteredFiles, outcome, nil
+		}
+
+		if a.tryEarlyGoMathFixtureFix(sessionCtx, msg, wsPath, state) {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			summary := a.formatImplementationSessionSummary("", state, true, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, true)
+			return summary, streamMsgID, true, state.FilesChanged, outcome, nil
+		}
+
+		if a.tryEarlyTypeScriptCompileFix(sessionCtx, msg, wsPath, state) {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			summary := a.formatImplementationSessionSummary("", state, true, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, true)
+			return summary, streamMsgID, true, state.FilesChanged, outcome, nil
+		}
+
+		if a.tryEarlyGoMainFixtureFix(sessionCtx, msg, wsPath, state) {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+		}
+
+		if a.tryEarlyScopedFileEdit(sessionCtx, msg, wsPath, state) {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+		}
+
+		if a.tryEarlyThemeCSSFix(sessionCtx, msg, wsPath, state) {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+		}
+
+		if a.tryEarlyThemeToggleFix(sessionCtx, msg, wsPath, state) {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+		}
 	}
 
 	var lastResponse string
 	proposedAny := false
-
-	if a.tryEarlyGoMathFixtureFix(sessionCtx, msg, wsPath, state) {
-		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-		summary := a.formatImplementationSessionSummary("", state, true, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, true)
-		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
-	}
-
-	if a.tryEarlyTypeScriptCompileFix(sessionCtx, msg, wsPath, state) {
-		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-		summary := a.formatImplementationSessionSummary("", state, true, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, true)
-		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
-	}
-
-	if a.tryEarlyGoMainFixtureFix(sessionCtx, msg, wsPath, state) {
-		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-		proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
-		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-	}
-
-	if a.tryEarlyScopedFileEdit(sessionCtx, msg, wsPath, state) {
-		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-		proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
-		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-	}
-
-	if a.tryEarlyThemeCSSFix(sessionCtx, msg, wsPath, state) {
-		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-		proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
-		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-	}
-
-	if a.tryEarlyThemeToggleFix(sessionCtx, msg, wsPath, state) {
-		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-		proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
-		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-	}
 
 	toolModel := a.resolveImplementationToolModel("")
 	if globalImplementationRouting != nil {
@@ -767,6 +777,23 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	proposedAny = state.hasRegisteredProposals()
 	summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
 	outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
+	if ua, ok := eff.(ai.UsageAware); ok {
+		if usageMap := ai.MapUsage(ua.TakeSessionUsage()); usageMap != nil {
+			outcome["inference_usage"] = usageMap
+			if v, ok := usageMap["prompt_tokens"]; ok {
+				outcome["prompt_tokens"] = v
+			}
+			if v, ok := usageMap["completion_tokens"]; ok {
+				outcome["completion_tokens"] = v
+			}
+			if v, ok := usageMap["ttft_ms"]; ok {
+				outcome["ttft_ms"] = v
+			}
+			if v, ok := usageMap["tok_per_s"]; ok {
+				outcome["tok_per_s"] = v
+			}
+		}
+	}
 	return summary, streamMsgID, proposedAny, state.RegisteredFiles, outcome, nil
 }
 

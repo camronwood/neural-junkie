@@ -75,11 +75,44 @@ func sanitizeInternalToolNames(response string) string {
 	return replacer.Replace(response)
 }
 
+func (a *Agent) refuseInactiveCollabProposal(sourceMsg *protocol.Message) error {
+	if a == nil || sourceMsg == nil {
+		return nil
+	}
+	collabID := strings.TrimSpace(sourceMsg.GetCollaborationID())
+	if collabID == "" {
+		return nil
+	}
+	phase := strings.ToLower(strings.TrimSpace(sourceMsg.GetCollaborationPhase()))
+	if phase == string(collaboration.PhaseCancelled) || phase == string(collaboration.PhaseCompleted) {
+		short := collabID
+		if len(short) > 8 {
+			short = short[:8]
+		}
+		return fmt.Errorf("collaboration %s is %s", short, phase)
+	}
+	if a.Collab != nil && !a.Collab.IsActive(collabID) {
+		short := collabID
+		if len(short) > 8 {
+			short = short[:8]
+		}
+		return fmt.Errorf("collaboration %s is inactive", short)
+	}
+	return nil
+}
+
 func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response, channel string, sourceMsg *protocol.Message) (string, bool, error) {
 	if isAskModeReadOnly(sourceMsg) {
 		if fileChangeBlockRegex.MatchString(response) {
 			log.Printf("[%s] ask_mode_file_change_stripped", a.Info.Name)
 		}
+		return stripFileChangeBlocksFromResponse(response), false, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return response, false, err
+	}
+	if err := a.refuseInactiveCollabProposal(sourceMsg); err != nil {
+		log.Printf("[%s] file_change_skipped(%v)", a.Info.Name, err)
 		return stripFileChangeBlocksFromResponse(response), false, nil
 	}
 
@@ -656,6 +689,12 @@ func (a *Agent) proposeFileEditInChannel(ctx context.Context, channel, path, old
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := a.refuseInactiveCollabProposal(sourceMsg); err != nil {
+		return err
+	}
 	path = normalizeFileChangeRelPath(path)
 	if !isValidFileChangeRelPath(path) {
 		return fmt.Errorf("invalid file change path: %q", path)
@@ -783,6 +822,12 @@ func rejectFocusScopedInventoryDeliverable(msg *protocol.Message, path, content 
 func (a *Agent) proposeFileCreateInChannel(ctx context.Context, channel, path, content string, sourceMsg *protocol.Message) error {
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := a.refuseInactiveCollabProposal(sourceMsg); err != nil {
+		return err
 	}
 	path = normalizeFileChangeRelPath(path)
 	if !isValidFileChangeRelPath(path) {

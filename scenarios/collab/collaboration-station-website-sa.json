@@ -28,7 +28,7 @@
       "--messages",
       "12"
     ],
-    "goal": "@FrontendEngineer @SoftwareArchitect @Claude Design Collaboration Station (colors: black, white, gray, blue, red; pages: home, about, contact). Review collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/ first. Produce EXACTLY three tasks and no others:\n- Task 1: @SoftwareArchitect - Write collabs/<id>/site-structure.md (navigation and page hierarchy)\n- Task 2: @FrontendEngineer - Write collabs/<id>/design-system.md (color palette, typography, spacing)\n- Task 3: @FrontendEngineer - Write collabs/<id>/layout-specs.md (responsive templates for home, about, contact)"
+    "goal": "@FrontendEngineer @SoftwareArchitect @Claude Design Collaboration Station (colors: black, white, gray, blue, red; pages: home, about, contact). Review collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/ first. Produce EXACTLY three tasks and no others, using these exact lines:\n- Task 1: @SoftwareArchitect - Write collabs/<id>/site-structure.md (navigation and page hierarchy)\n- Task 2: @FrontendEngineer - Write collabs/<id>/design-system.md (color palette, typography, spacing)\n- Task 3: @FrontendEngineer - Write collabs/<id>/layout-specs.md (responsive templates for home, about, contact)"
   },
   "expect_deliverables": [
     {
@@ -159,7 +159,7 @@
       "action": "approve_file_changes",
       "path_match": "site-structure.md",
       "target_rel": "collabs/<collab-id>/site-structure.md",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": "120s"
     },
@@ -167,7 +167,7 @@
       "action": "approve_file_changes",
       "path_match": "design-system.md",
       "target_rel": "collabs/<collab-id>/design-system.md",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": "120s"
     },

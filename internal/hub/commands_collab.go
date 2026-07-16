@@ -269,7 +269,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	// Re-dispatch if the first participant stays silent (15s throttle; no immediate kick — avoids duplicate first-turn prompts).
 	go func(collabID string) {
 		time.Sleep(collabPlanningHandoffRedispatchAfter)
-		ch.hub.KickPlanningDiscussionWatchdog(collabID)
+		NewCollabScheduler(ch.hub).OnPlanningKick(collabID)
 	}(collab.ID)
 
 	ch.setCollaborateRedirect(collabChannelName, collab.ID)

@@ -50,6 +50,10 @@ func (h *Hub) collabTaskDeliverableSatisfied(snap *collaboration.Collaboration, 
 				if ch.Status != filechange.FileChangeStatusPending && ch.Status != filechange.FileChangeStatusApproved {
 					continue
 				}
+				if collaboration.IsDeliverableStubContent([]byte(ch.NewContent)) ||
+					collaboration.LooksLikePlaceholderContent(ch.NewContent) {
+					continue
+				}
 				if strings.HasSuffix(filepath.ToSlash(ch.FilePath), base) || strings.Contains(filepath.ToSlash(ch.FilePath), rel) {
 					return true
 				}

@@ -38,6 +38,44 @@ func TestDetectInstallation_usesBundledBinary(t *testing.T) {
 	if status.Path != bin {
 		t.Fatalf("path = %q, want %q", status.Path, bin)
 	}
+	if status.RecommendedVersion != RecommendedOllamaVersion {
+		t.Fatalf("recommended_version = %q", status.RecommendedVersion)
+	}
+	if status.MinVersion != MinOllamaVersion {
+		t.Fatalf("min_version = %q", status.MinVersion)
+	}
+	if HostTriple() != "" && !status.UpdateSupported {
+		t.Fatal("expected update_supported for bundled host triple")
+	}
+}
+
+func TestInstallStatusVersionFields(t *testing.T) {
+	cases := []struct {
+		name            string
+		version         string
+		wantUpdate      bool
+		wantMeetsMin    bool
+	}{
+		{"old", "0.17.6", true, false},
+		{"min", "0.30.0", true, true},
+		{"recommended", RecommendedOllamaVersion, false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := InstallStatus{Installed: true, Version: tc.version, Bundled: true}
+			st.RecommendedVersion = RecommendedOllamaVersion
+			st.MinVersion = MinOllamaVersion
+			st.UpdateAvailable = st.Installed && NeedsUpdate(st.Version)
+			st.MeetsMinimum = MeetsMinimum(st.Version)
+			st.UpdateSupported = UpdateSupported(st)
+			if st.UpdateAvailable != tc.wantUpdate {
+				t.Fatalf("update_available = %v, want %v", st.UpdateAvailable, tc.wantUpdate)
+			}
+			if st.MeetsMinimum != tc.wantMeetsMin {
+				t.Fatalf("meets_minimum = %v, want %v", st.MeetsMinimum, tc.wantMeetsMin)
+			}
+		})
+	}
 }
 
 func TestInstallOllama_noOpWhenBundled(t *testing.T) {

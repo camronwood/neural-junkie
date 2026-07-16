@@ -50,6 +50,12 @@ func MaterializePlanDeliverableStubs(c *Collaboration) ([]string, error) {
 		if rel == "" {
 			continue
 		}
+		// Only markdown stubs: HTML/code stubs were mistaken for shipped deliverables
+		// (approve_file_changes / min_approved=0) while remaining placeholder content.
+		ext := strings.ToLower(filepath.Ext(rel))
+		if ext != ".md" && ext != ".markdown" {
+			continue
+		}
 		if _, ok := seen[rel]; ok {
 			continue
 		}

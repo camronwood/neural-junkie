@@ -1,148 +1,41 @@
 {
-  "updated_at": "2026-06-29T16:44:13.605501+00:00",
-  "source_run_id": "quick-2026-06-29-1644",
+  "updated_at": "2026-07-15T17:14:17.627347+00:00",
+  "source_run_id": "quick-2026-06-29-1755",
   "source_suite": "quick",
   "task_classes": {
     "implement": [
-      "codegemma:7b",
-      "qwen2.5-coder:14b",
-      "devstral:24b",
-      "codestral:22b",
-      "deepseek-coder:6.7b",
-      "qwen3.5:9b",
-      "gemma3:12b"
+      "nj-ornith:9b"
     ],
     "chat": [
-      "qwen2.5-coder:14b",
-      "devstral:24b",
-      "codestral:22b",
-      "codegemma:7b",
-      "qwen3.5:9b",
-      "gemma3:12b",
-      "deepseek-coder:6.7b"
+      "nj-ornith:9b"
     ],
     "collab_light": [
-      "codegemma:7b",
-      "deepseek-coder:6.7b",
-      "qwen3.5:9b"
+      "nj-ornith:9b"
     ],
     "utility": [
-      "codegemma:7b",
-      "deepseek-coder:6.7b",
-      "qwen3.5:9b"
+      "nj-ornith:9b"
     ],
     "ask_mode": [
-      "codegemma:7b",
-      "devstral:24b",
-      "codestral:22b",
-      "deepseek-coder:6.7b",
-      "qwen2.5-coder:14b",
-      "qwen3.5:9b",
-      "gemma3:12b"
+      "nj-ornith:9b"
     ],
-    "implement_heavy": [
-      "qwen2.5-coder:14b",
+    "implement_heavy": [],
+    "arena_logic": [
+      "codegemma:7b",
+      "deepseek-coder:6.7b",
       "qwen3.5:9b",
-      "devstral:24b",
-      "codestral:22b"
+      "nj-bonsai:27b",
+      "gemma3:12b",
+      "nj-ornith:9b",
+      "qwen2.5-coder:14b",
+      "nj-ternary-bonsai:27b"
     ]
   },
   "model_scores": {
-    "deepseek-coder:6.7b": {
+    "nj-ornith:9b": {
       "implement_pass_rate": 0.4,
-      "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.2857,
-      "params_b": 6.7,
-      "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false,
-        "implement/ask-mode-no-write": true,
-        "implement/go-test-failure-repair": false,
-        "implement/typescript-compile-error-fix": false,
-        "chat/dm-backend-workspace": false,
-        "chat/dm-backend-echo-followup": false
-      }
-    },
-    "codegemma:7b": {
-      "implement_pass_rate": 0.6,
       "chat_pass_rate": 0.5,
-      "overall_pass_rate": 0.5714,
-      "params_b": 7.0,
-      "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false,
-        "implement/ask-mode-no-write": true,
-        "implement/go-test-failure-repair": true,
-        "implement/typescript-compile-error-fix": false,
-        "chat/dm-backend-workspace": false,
-        "chat/dm-backend-echo-followup": true
-      }
-    },
-    "qwen3.5:9b": {
-      "implement_pass_rate": 0.2,
-      "chat_pass_rate": 0.5,
-      "overall_pass_rate": 0.2857,
+      "overall_pass_rate": 0.4286,
       "params_b": 9.0,
-      "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false,
-        "implement/ask-mode-no-write": false,
-        "implement/go-test-failure-repair": false,
-        "implement/typescript-compile-error-fix": false,
-        "chat/dm-backend-workspace": true,
-        "chat/dm-backend-echo-followup": false
-      }
-    },
-    "gemma3:12b": {
-      "implement_pass_rate": 0.0,
-      "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.0,
-      "params_b": 12.0,
-      "scenarios": {
-        "implement/go-handler": false,
-        "implement/theme-toggle": false,
-        "implement/ask-mode-no-write": false,
-        "implement/go-test-failure-repair": false,
-        "implement/typescript-compile-error-fix": false,
-        "chat/dm-backend-workspace": false,
-        "chat/dm-backend-echo-followup": false
-      }
-    },
-    "qwen2.5-coder:14b": {
-      "implement_pass_rate": 0.4,
-      "chat_pass_rate": 0.5,
-      "overall_pass_rate": 0.4286,
-      "params_b": 14.0,
-      "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false,
-        "implement/ask-mode-no-write": false,
-        "implement/go-test-failure-repair": true,
-        "implement/typescript-compile-error-fix": false,
-        "chat/dm-backend-workspace": false,
-        "chat/dm-backend-echo-followup": true
-      }
-    },
-    "codestral:22b": {
-      "implement_pass_rate": 0.4,
-      "chat_pass_rate": 0.5,
-      "overall_pass_rate": 0.4286,
-      "params_b": 22.0,
-      "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false,
-        "implement/ask-mode-no-write": true,
-        "implement/go-test-failure-repair": false,
-        "implement/typescript-compile-error-fix": false,
-        "chat/dm-backend-workspace": true,
-        "chat/dm-backend-echo-followup": false
-      }
-    },
-    "devstral:24b": {
-      "implement_pass_rate": 0.4,
-      "chat_pass_rate": 0.5,
-      "overall_pass_rate": 0.4286,
-      "params_b": 24.0,
       "scenarios": {
         "implement/go-handler": true,
         "implement/theme-toggle": false,

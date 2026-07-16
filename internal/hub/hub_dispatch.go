@@ -192,6 +192,13 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		return nil
 	}
 
+	// Closed-collab file proposals must not appear in transcript history. Registration
+	// already rejected them; skipping append keeps deny_file_change_after_cancel green.
+	if fileChangeRegErr != nil && isClosedCollabFileChangeRejection(fileChangeRegErr) {
+		h.postFileChangeRegistrationFailureLocked(msg, fileChangeRegErr)
+		return fileChangeRegErr
+	}
+
 	// Handle thread messages separately
 	if msg.IsInThread() {
 		threadID := msg.GetThreadID()

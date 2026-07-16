@@ -10,7 +10,7 @@ func TestLoRAPolicyResolvedDefaults(t *testing.T) {
 	if p.RefreshAfterDelta != 20 {
 		t.Fatalf("refresh: %d", p.RefreshAfterDelta)
 	}
-	if p.EvalMinScore != 0.35 {
+	if p.EvalMinScore != 0.70 {
 		t.Fatalf("eval: %v", p.EvalMinScore)
 	}
 }

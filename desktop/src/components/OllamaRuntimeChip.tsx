@@ -186,7 +186,8 @@ export function OllamaRuntimeChip({
                   Update Ollama
                 </button>
               )}
-              {status?.running ? (                <button
+              {status?.running ? (
+                <button
                   type="button"
                   disabled={busy}
                   onClick={() => void runAction('stop')}
@@ -197,8 +198,8 @@ export function OllamaRuntimeChip({
               ) : (
                 <button
                   type="button"
-                disabled={busy}
-                onClick={() => void runAction('start')}
+                  disabled={busy}
+                  onClick={() => void runAction('start')}
                   className="px-2.5 py-1 text-xs rounded bg-green-700/40 text-green-200 hover:bg-green-700/60 disabled:opacity-50"
                 >
                   Start
@@ -206,8 +207,8 @@ export function OllamaRuntimeChip({
               )}
               <button
                 type="button"
-              disabled={busy}
-              onClick={() => void runAction('restart')}
+                disabled={busy}
+                onClick={() => void runAction('restart')}
                 className="px-2.5 py-1 text-xs rounded bg-slack-bgHover text-slack-text hover:bg-slack-border disabled:opacity-50"
               >
                 Restart

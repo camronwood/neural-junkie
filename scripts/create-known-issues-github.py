@@ -214,7 +214,7 @@ GitHub Release macOS builds are **ad-hoc signed** until Apple Developer credenti
 
 ## Evidence
 - [layer-gate-collab-full-2026-07-05-2233-iter2.md](https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-gate-collab-full-2026-07-05-2233-iter2.md)
-- Multiple scenarios failing: `make-me-a-website`, `phoenix-resource-api-e2e`, `plan-dependency-prose-regression`, and others
+- Multiple scenarios failing: `make-me-a-website`, `resource-api-schema-regression`, `plan-dependency-prose-regression`, and others
 
 ## Symptoms
 - Agent silence / `shouldRespond blocked`
@@ -303,7 +303,7 @@ D5 work can start after parity soak passes; not a stable-cut blocker itself but 
 - `document-findings-execution`
 - `collab-participation-three-agent`
 - `planning-two-agent`
-- `phoenix-resource-api-e2e`
+- `resource-api-schema-regression`
 - `plan-dependency-prose-regression`
 
 ## Evidence

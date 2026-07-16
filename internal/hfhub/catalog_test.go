@@ -205,6 +205,12 @@ func TestTernaryBonsaiGGUFPrimary(t *testing.T) {
 	if fn != "Ternary-Bonsai-27B-Q2_0.gguf" {
 		t.Fatalf("primary = %q", fn)
 	}
+	if entry.DefaultOllamaTag != "nj-ternary-bonsai:27b" {
+		t.Fatalf("default tag = %q", entry.DefaultOllamaTag)
+	}
+	if entry.MinOllamaVersion != "0.30.0" {
+		t.Fatalf("min_ollama_version = %q", entry.MinOllamaVersion)
+	}
 }
 
 func TestResolveDownloadFilenameLoRACompanion(t *testing.T) {

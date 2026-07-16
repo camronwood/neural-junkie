@@ -119,7 +119,7 @@
       "action": "approve_file_changes",
       "path_match": "findings.md",
       "target_rel": "collabs/<collab-id>/findings.md",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": "120s"
     },

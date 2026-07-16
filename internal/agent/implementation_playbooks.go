@@ -19,6 +19,9 @@ func (a *Agent) tryEarlyCommandEvidencePlaybook(ctx context.Context, msg *protoc
 	if a == nil || msg == nil || state == nil || wsPath == "" {
 		return false
 	}
+	if skipCollabCodingFixtureSynths(msg) {
+		return false
+	}
 	sig := playbookSignatureFromCommandEvidence(msg.Content)
 	if sig == "" {
 		return false

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -228,6 +229,18 @@ def _llm_judge_criteria(spec: dict) -> str:
     return ""
 
 
+def judge_strict_enabled() -> bool:
+    """When NJ_DELIVERABLE_JUDGE_STRICT is set, judge fail/exception fails the scenario."""
+    raw = (os.environ.get("NJ_DELIVERABLE_JUDGE_STRICT") or "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+def _format_judge_detail(kind: str, detail: str, score: float | None) -> str:
+    if score is not None:
+        return f"judge:{kind}:SCORE={score:.2f}:{detail}"
+    return f"judge:{kind}:{detail}"
+
+
 def check_file_deliverable(
     *,
     root: str,
@@ -306,8 +319,9 @@ def check_file_deliverable(
         return False, detail
 
     if _llm_judge_enabled(spec):
+        strict = judge_strict_enabled()
         try:
-            ok, detail = judge_deliverable(
+            ok, detail, score = judge_deliverable(
                 question=question,
                 rel_path=rel,
                 file_body=body,
@@ -316,11 +330,14 @@ def check_file_deliverable(
                 hub_base=hub_base,
                 work_dir=root,
             )
-        except Exception as exc:  # noqa: BLE001 — advisory only; never fail the step
+        except Exception as exc:  # noqa: BLE001
+            if strict:
+                return False, f"judge:fail:exception:{exc}"
             return True, f"judge:warn:exception:{exc}"
         if not ok:
-            # Advisory: structural gates already passed; judge miss must not fail the scenario.
-            return True, f"judge:warn:{detail}"
-        return True, f"judge:pass:{detail}"
+            if strict:
+                return False, _format_judge_detail("fail", detail, score)
+            return True, _format_judge_detail("warn", detail, score)
+        return True, _format_judge_detail("pass", detail, score)
 
     return True, rel

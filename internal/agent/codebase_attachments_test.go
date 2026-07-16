@@ -38,12 +38,12 @@ func TestMergeCodebaseAttachments_keywordFallback(t *testing.T) {
 	if err := os.MkdirAll(widgetDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := "package internal\n\nfunc ComputePhoenixWidget() int { return 42 }\n"
+	body := "package internal\n\nfunc ComputeObscureWidget() int { return 42 }\n"
 	if err := os.WriteFile(filepath.Join(widgetDir, "widget.go"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	msg := &protocol.Message{
-		Content: "@codebase What does ComputePhoenixWidget return?",
+		Content: "@codebase What does ComputeObscureWidget return?",
 		Metadata: map[string]interface{}{
 			"workspace_context": map[string]interface{}{
 				"workspace_path": root,

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"strings"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/chatcontext"
@@ -36,7 +37,13 @@ func historyForGeneration(history []*protocol.Message, excludeID string) []*prot
 		if omitMessageFromLLMHistory(m) {
 			continue
 		}
-		out = append(out, m)
+		// Clone so channel history keeps the original grounding opener while the
+		// model sees the substantive body (required for multi-turn continuation).
+		cp := *m
+		if sanitized := chatcontext.SanitizeForLLMHistory(m.Content); sanitized != "" && sanitized != strings.TrimSpace(m.Content) {
+			cp.Content = sanitized
+		}
+		out = append(out, &cp)
 	}
 	return chatcontext.TrimTail(out, maxLLMHistoryMessages())
 }

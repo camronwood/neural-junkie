@@ -80,6 +80,14 @@ func TestRegisterFileChangeProposal_rejectsCancelledCollab(t *testing.T) {
 	if len(h.fileChangeManager.ListPendingFileChanges("a1")) > 0 {
 		t.Fatal("expected no pending file changes after rejected proposal")
 	}
+	h.mu.RLock()
+	msgs := h.messages[chName]
+	h.mu.RUnlock()
+	for _, m := range msgs {
+		if m != nil && m.Type == protocol.MessageTypeFileChange {
+			t.Fatalf("cancelled collab must not persist file_change in transcript history")
+		}
+	}
 }
 
 func TestRegisterFileChangeProposal_rejectsAskMode(t *testing.T) {

@@ -276,6 +276,10 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 	} else if resp, destructiveOutcome, ok := a.tryDenyDestructiveImplementationSession(msg); ok {
 		response = resp
 		implSessionOutcome = destructiveOutcome
+	} else if collabLightMarkdownEligible(msg) {
+		log.Printf("[%s] 📝 Collab light markdown execution...", a.Info.Name)
+		genCtx := a.withToolObserver(st.ctx, toolObserver)
+		response, implSessionProposed, implSessionFiles, err = a.runCollabLightMarkdownExecution(genCtx, msg, eff)
 	} else if shouldRunImplementationSession(a, msg) {
 		log.Printf("[%s] 🔧 Implementation session...", a.Info.Name)
 		genCtx := a.withToolObserver(st.ctx, toolObserver)
@@ -382,13 +386,18 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 		proposedFileChange = len(st.implSessionFiles) > 0
 	} else if isAskModeReadOnly(msg) {
 		response = sanitizeAskModeResponse(response)
+	} else if ctx.Err() != nil {
+		log.Printf("[%s] Skipping post-process file proposals: %v", a.Info.Name, ctx.Err())
+	} else if err := a.refuseInactiveCollabProposal(msg); err != nil {
+		log.Printf("[%s] Skipping post-process file proposals: %v", a.Info.Name, err)
 	} else {
-		response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
+		// Use the turn ctx so /cancel-plan abort stops late proposals (never Background).
+		response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(ctx, response, msg.Channel, msg)
 		if !proposedFileChange && proposalErr == nil {
-			response, proposedGitChange, proposalErr = a.maybeSubmitGitChangeFromResponse(context.Background(), response, msg.Channel, msg)
+			response, proposedGitChange, proposalErr = a.maybeSubmitGitChangeFromResponse(ctx, response, msg.Channel, msg)
 		}
 		if !proposedFileChange && !proposedGitChange && proposalErr == nil {
-			response, proposedFileChange, proposalErr = a.maybeProposeCombinedDeliveryExport(context.Background(), msg, response)
+			response, proposedFileChange, proposalErr = a.maybeProposeCombinedDeliveryExport(ctx, msg, response)
 		}
 	}
 	if proposalErr != nil {
@@ -569,32 +578,44 @@ func (st *turnState) stepDeliverResponse(ctx context.Context) error {
 		collabPhase = a.Collab.GetCollaboration(cid, a.Info.ID).Phase
 		if collabPhase != "executing" {
 			collabID = cid
-			if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
-				log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
-				if collabPhase == "planning" || collabPhase == "reviewing" {
-					st.clearResponded()
-					a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
-					if collabPhase == "planning" && a.Collab.IsActive(collabID) {
-						a.kickPlanningTurnWatchdog(collabID)
-					}
-					st.outcome = turnFailed
-					return errTurnPipelineHalt
-				}
-			} else {
-				a.Collab.AnalyzeConsensus(collabID, responseMsg)
-			}
 		}
 	}
 
 	if st.streamMsgID != "" {
 		a.broadcastStreamEnd(msg, st.streamMsgID)
 	}
+	// Channel-visible delivery first. Recording discussion before SendMessage caused
+	// dual-collab isolation flakes where hub msgs advanced with an empty channel transcript.
 	if err := a.Hub.SendMessage(responseMsg); err != nil {
 		log.Printf("[%s] Error sending message: %v", a.Info.Name, err)
 		a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
+		if collabID != "" && (collabPhase == "planning" || collabPhase == "reviewing") {
+			st.clearResponded()
+			if collabPhase == "planning" && a.Collab.IsActive(collabID) {
+				a.kickPlanningTurnWatchdog(collabID)
+			}
+		}
 		st.outcome = turnFailed
 		return errTurnPipelineHalt
 	}
+
+	if collabID != "" && a.Collab != nil {
+		if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
+			log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
+			if collabPhase == "planning" || collabPhase == "reviewing" {
+				st.clearResponded()
+				a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
+				if collabPhase == "planning" && a.Collab.IsActive(collabID) {
+					a.kickPlanningTurnWatchdog(collabID)
+				}
+				st.outcome = turnFailed
+				return errTurnPipelineHalt
+			}
+		} else {
+			a.Collab.AnalyzeConsensus(collabID, responseMsg)
+		}
+	}
+
 	learning.MaybeSuggestAfterAgentReply(msg.Channel, a.Info.ID, a.Info.Name, string(a.Info.Type), msg.Content, st.response)
 	a.addToHistory(responseMsg)
 	a.MaybePostHubGeneratedImageForCLI(msg, st.responseHasImage)

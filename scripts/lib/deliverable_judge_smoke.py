@@ -8,9 +8,10 @@ from lib.ollama_judge_auth import check_ollama_judge
 
 HUB_JUDGE_PROMPT = (
     "You are an independent automated test harness judge.\n"
-    "Reply with exactly two lines:\n"
+    "Reply with exactly three lines:\n"
     "Line 1: PASS\n"
-    "Line 2: ok"
+    "Line 2: SCORE: 1.00\n"
+    "Line 3: ok"
 )
 
 
@@ -88,7 +89,7 @@ def _cloud_judge_smoke(hub_url: str, *, timeout_s: float) -> tuple[bool, str]:
             from lib.deliverable_judge import hub_judge_deliverable
         except ImportError:
             from deliverable_judge import hub_judge_deliverable  # type: ignore[no-redef]
-        ok, detail = hub_judge_deliverable(
+        ok, detail, _score = hub_judge_deliverable(
             hub_base=base,
             agent_name=agent,
             prompt=HUB_JUDGE_PROMPT,

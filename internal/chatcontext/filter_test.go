@@ -1,6 +1,7 @@
 package chatcontext
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -53,6 +54,25 @@ func TestOmitFromLLMHistory_commandOutputEmptyOmitted(t *testing.T) {
 	)
 	if !OmitFromLLMHistory(m) {
 		t.Fatal("expected empty command_output omitted")
+	}
+}
+
+func TestOmitFromLLMHistory_groundedReplyKept(t *testing.T) {
+	m := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"c",
+		protocol.AgentInfo{ID: "be", Name: "BackendEngineer", Type: protocol.AgentTypeBackend},
+		"Grounding: I loaded 6 file(s) from the workspace context for this answer.\nI'll add theme support with CSS and a dark/light toggle.",
+	)
+	if OmitFromLLMHistory(m) {
+		t.Fatal("grounded theme reply must stay in LLM history for continuation")
+	}
+	got := SanitizeForLLMHistory(m.Content)
+	if strings.Contains(strings.ToLower(got), "grounding: i loaded") {
+		t.Fatalf("sanitize should strip grounding opener, got %q", got)
+	}
+	if !strings.Contains(got, "theme support") {
+		t.Fatalf("sanitize should keep body, got %q", got)
 	}
 }
 

@@ -232,7 +232,7 @@ Includes everything in **1.0.0-beta.33** plus fixes and test coverage on `main` 
 
 ### Fixed
 - **Thanks closure with @mention** — `@Assistant ok thanks` in public channels gets canned closure instead of an LLM re-answer.
-- **Collab plan-zero-tasks** — goal bootstrap + parser improvements for `plan-dependency-prose-regression`, `plan-distinct-deliverables-same-agent`, and `plan-phoenix-combined-regression`.
+- **Collab plan-zero-tasks** — goal bootstrap + parser improvements for `plan-dependency-prose-regression`, `plan-distinct-deliverables-same-agent`, and `plan-combined-resource-api-regression`.
 - **Collab deliverable size** — execution prompt hardening for `execution-no-stack-commands` findings files.
 
 ## [1.0.0-beta.24] - 2026-06-06

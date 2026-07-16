@@ -49,7 +49,7 @@ func TestIsDeliverableStubContent(t *testing.T) {
 	}
 }
 
-func TestMaterializePlanDeliverableStubs_skipsTruncatedPaths(t *testing.T) {
+func TestMaterializePlanDeliverableStubs_skipsHTMLAndTruncatedPaths(t *testing.T) {
 	root := t.TempDir()
 	c := &Collaboration{
 		ID:               "abc-1234-5678-90ab-cdef00000000",
@@ -67,8 +67,11 @@ func TestMaterializePlanDeliverableStubs_skipsTruncatedPaths(t *testing.T) {
 		if filepath.Base(rel) == "index...." {
 			t.Fatalf("should not create truncated stub %q", rel)
 		}
+		if filepath.Ext(rel) == ".html" {
+			t.Fatalf("HTML deliverables must not get plan-approval stubs, got %q", rel)
+		}
 	}
-	if _, err := os.Stat(filepath.Join(root, "index.html")); err != nil {
-		t.Fatalf("expected real index.html stub: %v", err)
+	if _, err := os.Stat(filepath.Join(root, "index.html")); !os.IsNotExist(err) {
+		t.Fatalf("expected no HTML stub on disk, stat err=%v", err)
 	}
 }

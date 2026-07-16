@@ -13,7 +13,7 @@ type LoRAPolicy struct {
 const (
 	defaultSuggestAfterTurns = 10
 	defaultRefreshAfterDelta = 20
-	defaultEvalMinScore      = 0.35
+	defaultEvalMinScore      = 0.70
 )
 
 // Resolved returns policy with pack defaults applied.

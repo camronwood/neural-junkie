@@ -21,7 +21,7 @@
       "--messages",
       "4"
     ],
-    "goal": "@BackendEngineer @PlatformEngineer Plan ONE task only: @BackendEngineer Write collabs/<id>/findings.md with three bullets grounded in README.md and core/sample/main.go. Do NOT plan docker, npm, or deployment work — markdown file only."
+    "goal": "@BackendEngineer @PlatformEngineer Plan ONE task only, using this exact line: - Task 1: @BackendEngineer - Write collabs/<id>/findings.md with three bullets grounded in README.md and core/sample/main.go. Do NOT plan docker, npm, or deployment work — markdown file only."
   },
   "expect_deliverables": [
     {
@@ -117,7 +117,7 @@
       "action": "approve_file_changes",
       "path_contains": "findings.md",
       "target_rel": "collabs/<collab-id>/findings.md",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": 90
     },

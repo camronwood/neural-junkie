@@ -23,6 +23,8 @@ Possible product names:
 - `NJ Mobile`
 - `NJ Companion`
 
+**Cost posture:** Neural Junkie is **100% free forever**. Prefer **$0 to build and $0 to distribute** — same reason we host Slack OAuth on free Cloudflare Workers instead of paid infra. No paid store accounts, no IAP, no “pay Apple/Google to give the app away” unless a later discovery need forces native listing.
+
 ## Why a separate app
 
 Current NJ is desktop-shaped:
@@ -103,6 +105,8 @@ The mobile app should keep its own local database for offline use, then sync wit
 - avoids standing up hosted accounts / storage as a requirement
 - keeps personal notes, tasks, and transcripts on user-controlled devices
 - works for users who do not want cloud vendor lock-in
+
+LAN sync is the **default** trust and discovery path. That does **not** rule out a later **anywhere** path — see [Anywhere access via edge relay](#anywhere-access-via-edge-relay). Anywhere access should still keep **compute and canonical state on the home hub**, not move the AI into a hosted cloud product.
 
 ## Current NJ building blocks
 
@@ -246,6 +250,60 @@ Platform caveats:
 - background sync is limited on iOS
 - mobile wake/sleep behavior means sync must tolerate intermittent connectivity
 
+## Anywhere access via edge relay
+
+**Captured:** July 2026 (follow-on to Slack OAuth relay discussion)
+
+Goal: talk to your home-hub agents from **NJ Pocket anywhere**, without turning NJ into a cloud-hosted AI product.
+
+### Product framing
+
+> Anywhere access = thin Cloudflare tunnel / session relay, **not** cloud AI.
+
+Slack already proves the *product* shape today: phone → agents on your machine (personal inbox / away mode), with the hub staying local. Pocket would be the first-party surface for that, without requiring Slack as the UI.
+
+### What already exists
+
+| Piece | Role today | Reuse for Pocket |
+| --- | --- | --- |
+| Slack OAuth relay (`workers/slack-oauth-relay/`) | Free HTTPS edge for OAuth redirects (`*.workers.dev`) | Proves CF Workers as a **zero-cost public edge** we already run |
+| Slack Socket Mode bridge | Hub opens **outbound** connection; no public hub URL | Pattern for hub → edge durable connect |
+| Personal inbox / away mode | Phone DMs reach local agents | UX proof that "from phone while hub runs locally" works |
+
+The OAuth Worker itself is **not** enough — it is a one-shot HTTPS redirect. Pocket needs a **durable tunnel / session relay**.
+
+### Recommended shape
+
+```mermaid
+flowchart LR
+  Phone[NJ Pocket] -->|HTTPS or WSS| Edge[CF Worker / Durable Object]
+  Hub[Local hub] -->|outbound persistent connect| Edge
+  Edge -.->|forward chat / sync| Hub
+```
+
+- Hub opens an **outbound** connection to the free edge (same idea as Slack Socket Mode — no inbound port, no public hub listen URL).
+- Pocket talks only to the relay (authenticated device credential).
+- Agents, tools, memory, and approvals still run on the **home hub**.
+- Edge stays thin: auth, fan-in, and short-lived forward — not model hosting, not long-term message storage as source of truth.
+
+### Design constraints
+
+- Opt-in separately from LAN sync ("Enable away / Pocket relay").
+- Reuse the same **device pairing credential** model as local sync; revoke from desktop Settings.
+- Do not expose the full hub HTTP API on the public internet; keep a small Pocket surface (chat send/receive, optional sync cursor).
+- Prefer the same free Cloudflare footprint we already use for Slack OAuth; AWS Lambda is an optional alternate (same as OAuth relay).
+- When the hub is offline, Pocket falls back to on-device chat / offline queue — same as LAN-unavailable behavior.
+
+### Implementation note (later phase)
+
+Land LAN pairing + offline-first Pocket first. Add the edge relay once pairing and the Pocket chat API are stable — otherwise "anywhere" couples tunnel ops to product discovery.
+
+References:
+
+- [SLACK_OAUTH_RELAY_SETUP.md](SLACK_OAUTH_RELAY_SETUP.md)
+- [SLACK_INTEGRATION.md](SLACK_INTEGRATION.md) (personal inbox, away mode)
+- `workers/slack-oauth-relay/`
+
 ## Sync protocol phases
 
 ### Phase 1: snapshot + pull
@@ -302,8 +360,9 @@ The important design choice is not the exact path names. It is keeping sync as a
 4. Bidirectional sync for notes/tasks/reminders
 5. DM/thread sync
 6. Desktop handoff polish
+7. Optional: anywhere access via edge tunnel relay (after Pocket chat API is stable)
 
-This order proves product value before taking on full mobile/desktop convergence.
+This order proves product value before taking on full mobile/desktop convergence, and keeps "from anywhere" off the critical path for v1.
 
 ## Open questions
 
@@ -312,15 +371,41 @@ This order proves product value before taking on full mobile/desktop convergence
 - Should synced conversations be limited to DMs and personal channels in v1?
 - How much of Assistant state should be editable on mobile vs view-only?
 - Should pairing be per-user, per-device, or per-desktop install?
+- For anywhere access: CF Durable Objects vs plain Worker + external session store? Same workers.dev account as Slack OAuth, or a separate `nj-pocket-relay` Worker?
+- Should Pocket anywhere share device credentials with LAN sync, or require a second "away relay" grant?
+- If a PWA is enough for chat + pairing + relay, should native Android APK stay optional forever?
+
+## Distribution (stay free)
+
+NJ (including Pocket) is **free forever** — no IAP, no paid app listing as monetization, no store cut that only exists because we charged users.
+
+Prefer distribution that costs **$0**:
+
+| Path | When | Cost |
+| --- | --- | --- |
+| **PWA / mobile web** (LAN hub or edge relay) | Default v1 | $0 (Cloudflare free tier if using the relay) |
+| **Android APK** on GitHub Releases | Optional later | $0 (sideload; no Play Console) |
+| **Slack personal inbox / away mode** | Interim phone UI today | $0 (already shipped) |
+| App Store / Play Store | Only if discovery clearly requires it | Account fees even for free apps (~$99/yr Apple, ~$25 Google one-time) — **avoid by default** |
+
+Do **not** plan native store submissions as a prerequisite for Pocket. Treat stores as a last resort distribution channel, not the product surface.
 
 ## Bottom line
 
 If this ships, it should ship as:
 
-> A separate NJ companion app with a small local model, offline-first chat, and explicit local sync to desktop NJ.
+> A separate NJ companion app with a small local model, offline-first chat, and explicit local sync to desktop NJ — with a later optional thin edge relay so Pocket can reach the home hub from anywhere without hosting the AI in the cloud. Distributed as a **free** PWA (and optional sideload), not as a paid-store product.
 
 Not:
 
 > The full desktop workspace squeezed onto a phone.
+
+And not:
+
+> A cloud chatbot with a phone UI that happens to share branding with NJ.
+
+And not:
+
+> A free app that still requires paying Apple or Google just to ship it.
 
 That narrower shape is much more realistic and better aligned with the current NJ architecture.

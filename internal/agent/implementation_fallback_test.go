@@ -282,6 +282,30 @@ export default function App() {
 	}
 }
 
+func TestTryEarlyGoMainFixtureFix_skipsCollabCodingDeliverable(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(dir, "core", "sample"), 0o755)
+	_ = os.WriteFile(filepath.Join(dir, "core", "sample", "main.go"), []byte("package sample\n"), 0o644)
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{}
+	msg := protocol.NewMessage(protocol.MessageTypeCollabTask, "collab-x",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"implement HelloWorld in core/sample/main.go")
+	msg.Metadata = map[string]interface{}{
+		"deliverable_kind":       "file",
+		"implementation_session": true,
+		"task_title":             "Impl",
+		"task_description":       "Create core/sample/main.go with HelloWorld",
+	}
+	if skipCollabCodingFixtureSynths(msg) != true {
+		t.Fatal("expected skip for collab coding")
+	}
+	if ag.tryEarlyGoMainFixtureFix(context.Background(), msg, dir, state) {
+		t.Fatal("fixture synth must not run for collab coding deliverable_kind=file")
+	}
+}
+
 func TestTryEarlyThemeToggleFix_tailwindOnlyNeeded(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

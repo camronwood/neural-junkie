@@ -24,7 +24,7 @@ fi
 DEFAULT_SCENARIOS=(
   plan-dependency-prose-regression
   planning-two-agent
-  plan-phoenix-combined-regression
+  plan-combined-resource-api-regression
   plan-findings-task-regression
   plan-distinct-deliverables-same-agent
   resource-api-schema-planning

@@ -66,13 +66,21 @@ export async function fetchOllamaRuntimeStatus(serverAddr: string): Promise<Olla
   ]);
 
   if (tauri?.bundled) {
+    // Keep hub version/update fields so Update Ollama + min gates still work in the desktop app.
     return {
       installed: true,
       bundled: true,
       running: tauri.running || hub?.running === true,
       managed: tauri.managed,
       version: tauri.version ?? hub?.version,
+      effectiveVersion: hub?.effectiveVersion ?? tauri.version ?? hub?.version,
       path: hub?.path,
+      autoInstallSupported: hub?.autoInstallSupported,
+      recommendedVersion: hub?.recommendedVersion,
+      minVersion: hub?.minVersion,
+      updateAvailable: hub?.updateAvailable,
+      meetsMinimum: hub?.meetsMinimum,
+      updateSupported: hub?.updateSupported,
     };
   }
 

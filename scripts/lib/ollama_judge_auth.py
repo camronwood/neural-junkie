@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import os
 
-PROMPT = "Reply with exactly two lines:\nLine 1: PASS\nLine 2: ok"
+PROMPT = (
+    "Reply with exactly three lines:\n"
+    "Line 1: PASS\n"
+    "Line 2: SCORE: 1.00\n"
+    "Line 3: ok"
+)
 
 
 def resolve_ollama_judge_model() -> str:
@@ -18,7 +23,7 @@ def check_ollama_judge(*, timeout_s: float = 90.0) -> tuple[bool, str]:
         from deliverable_judge import ollama_judge_deliverable  # type: ignore[no-redef]
 
     model = resolve_ollama_judge_model()
-    ok, detail = ollama_judge_deliverable(
+    ok, detail, _score = ollama_judge_deliverable(
         prompt=PROMPT,
         model=model,
         timeout_s=timeout_s,

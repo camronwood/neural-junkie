@@ -495,6 +495,14 @@ def _run_scenario_once(base: str, name: str, *, keep: bool = False) -> tuple[boo
         reset_fixture_baseline(scenario, root=ROOT)
         if scenario.get("cleanup", "clear") == "clear" and not keep:
             hub.clear_channel_history(ctx.base, ctx.channel)
+    metrics_payload = {
+        "prompt_tokens": outcome.get("prompt_tokens"),
+        "completion_tokens": outcome.get("completion_tokens"),
+        "ttft_ms": outcome.get("ttft_ms"),
+        "tok_per_s": outcome.get("tok_per_s"),
+        "repair_attempts": outcome.get("repair_attempts"),
+    }
+    print("METRICS_JSON:" + json.dumps(metrics_payload, separators=(",", ":")))
     print(f"=== {'PASS' if all_ok else 'FAIL'}: {name} ===\n")
     return all_ok, outcome, last_detail
 

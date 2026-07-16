@@ -16,10 +16,10 @@ import (
 const ollamaWebOrigin = "https://ollama.com"
 
 var (
-	libraryLinkRe = regexp.MustCompile(`href="/library/([a-zA-Z0-9._-]+)"`)
+	libraryLinkRe    = regexp.MustCompile(`href="/library/([a-zA-Z0-9._-]+)"`)
 	xNamespaceLinkRe = regexp.MustCompile(`href="/(x/[^":]+)"`)
-	tagLinkRe     = regexp.MustCompile(`href="/library/([a-zA-Z0-9._:-]+)"`)
-	xTagLinkRe    = regexp.MustCompile(`href="/(x/[^"]+)"`)
+	tagLinkRe        = regexp.MustCompile(`href="/library/([a-zA-Z0-9._:-]+)"`)
+	xTagLinkRe       = regexp.MustCompile(`href="/(x/[^"]+)"`)
 )
 
 // RegistryModel is one model family from the public Ollama library.
@@ -52,8 +52,8 @@ type RegistryTagsResult struct {
 }
 
 type registryClient struct {
-	httpClient *http.Client
-	cacheMu    sync.RWMutex
+	httpClient  *http.Client
+	cacheMu     sync.RWMutex
 	searchCache map[string]cachedSearch
 	tagsCache   map[string]cachedTags
 }
@@ -69,7 +69,7 @@ type cachedTags struct {
 }
 
 var defaultRegistry = &registryClient{
-	httpClient: &http.Client{Timeout: 20 * time.Second},
+	httpClient:  &http.Client{Timeout: 20 * time.Second},
 	searchCache: make(map[string]cachedSearch),
 	tagsCache:   make(map[string]cachedTags),
 }

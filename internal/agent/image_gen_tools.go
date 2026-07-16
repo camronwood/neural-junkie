@@ -75,11 +75,13 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
 		return true
 	}
+	// Any planning/reviewing wake (collab_discussion, question nudges, chat) must not image-gen.
+	phase := strings.ToLower(strings.TrimSpace(msg.GetCollaborationPhase()))
+	if phase == "planning" || phase == "reviewing" {
+		return true
+	}
 	if msg.Type == protocol.MessageTypeCollabDiscussion {
-		switch strings.ToLower(strings.TrimSpace(msg.GetCollaborationPhase())) {
-		case "planning", "reviewing":
-			return true
-		}
+		return true
 	}
 	return false
 }

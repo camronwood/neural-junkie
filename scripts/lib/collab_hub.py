@@ -200,6 +200,12 @@ def send_message(
     }
     if metadata:
         payload["metadata"] = metadata
+        if isinstance(metadata.get("type"), str) and metadata["type"].strip():
+            payload["type"] = metadata["type"].strip()
+            # Avoid duplicating type in metadata once lifted to the envelope.
+            meta_copy = dict(metadata)
+            meta_copy.pop("type", None)
+            payload["metadata"] = meta_copy
     for attempt in range(max_retries):
         code, data = hub_request(base, "POST", "/api/send", payload, max_retries=1, timeout=timeout)
         if code == 429 and attempt + 1 < max_retries:

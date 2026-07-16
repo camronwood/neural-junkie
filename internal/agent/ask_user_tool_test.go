@@ -9,7 +9,7 @@ import (
 func TestShouldOfferAskUserTool_codebaseInjected(t *testing.T) {
 	t.Parallel()
 	msg := &protocol.Message{
-		Content: "@codebase What does ComputePhoenixWidget return?",
+		Content: "@codebase What does ComputeObscureWidget return?",
 		Metadata: map[string]interface{}{
 			"injected_codebase_count": 2,
 		},

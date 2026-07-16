@@ -1,7 +1,6 @@
 {
   "release": {
-    "description": "Release gate — benchmark winners only (~10–20 min).",
-    "max_params_b": 14,
+    "description": "Release gate \u2014 benchmark winners only (~10\u201320 min).",
     "models": [
       "qwen2.5-coder:14b",
       "gemma3:12b"
@@ -17,13 +16,17 @@
     "chat": [
       "dm-backend-workspace",
       "dm-backend-echo-followup"
-    ]
+    ],
+    "arena": [
+      "logic-set"
+    ],
+    "max_size_gb": 9
   },
   "quick": {
-    "description": "Smoke benchmark — 5 implement + 2 chat scenarios (~15–45 min per model on ≤14B class).",
-    "max_params_b": 14,
+    "description": "Smoke benchmark \u2014 5 implement + 2 chat scenarios (~15\u201345 min per model; roster \u22649 GB footprint, e.g. Qwen 2.5 Coder 14B).",
     "models": [
       "deepseek-coder:6.7b",
+      "nj-bonsai:27b",
       "codegemma:7b",
       "qwen3.5:9b",
       "gemma3:12b",
@@ -39,23 +42,23 @@
     "chat": [
       "dm-backend-workspace",
       "dm-backend-echo-followup"
-    ]
+    ],
+    "max_size_gb": 9
   },
   "implement": {
     "description": "Full implement scenario suite (all scenarios/implement/*.json).",
-    "max_params_b": 14,
     "implement": "all",
-    "chat": []
+    "chat": [],
+    "max_size_gb": 9
   },
   "chat-regression": {
     "description": "All chat scenarios tagged regression.",
-    "max_params_b": 14,
     "implement": [],
-    "chat_tag": "regression"
+    "chat_tag": "regression",
+    "max_size_gb": 9
   },
   "standard": {
-    "description": "Balanced gate — quick implement + regression chat tag filter.",
-    "max_params_b": 14,
+    "description": "Balanced gate \u2014 quick implement + regression chat tag filter.",
     "implement": [
       "go-handler",
       "theme-toggle",
@@ -70,6 +73,48 @@
       "deny-destructive-command",
       "plan-mode-no-write"
     ],
-    "chat_tag": "regression"
+    "chat_tag": "regression",
+    "arena": [
+      "logic-set"
+    ],
+    "external": [
+      "humaneval-25"
+    ],
+    "max_size_gb": 9
+  },
+  "collab": {
+    "description": "Collab core participation/planning track (no implement/chat).",
+    "collab": "core",
+    "implement": [],
+    "chat": [],
+    "max_size_gb": 9
+  },
+  "arena": {
+    "description": "Arena logic + Connect4 smoke track.",
+    "arena": [
+      "logic-set",
+      "connect4-smoke"
+    ],
+    "implement": [],
+    "chat": [],
+    "max_size_gb": 9
+  },
+  "cad": {
+    "description": "CAD OpenSCAD compile evaluation track.",
+    "cad": [
+      "cad-compile"
+    ],
+    "implement": [],
+    "chat": [],
+    "max_size_gb": 9
+  },
+  "external": {
+    "description": "HumanEval-25 calibration",
+    "external": [
+      "humaneval-25"
+    ],
+    "implement": [],
+    "chat": [],
+    "max_size_gb": 9
   }
 }

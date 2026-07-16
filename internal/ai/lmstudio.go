@@ -21,6 +21,7 @@ type LMStudioProvider struct {
 	Endpoint   string
 	Model      string
 	httpClient *http.Client
+	usage      UsageAccumulator
 
 	nativeToolsUnsupported bool
 }
@@ -223,12 +224,35 @@ func (l *LMStudioProvider) GenerateResponse(ctx context.Context, prompt string, 
 		return "", fmt.Errorf("no choices in response")
 	}
 
+	if l != nil {
+		l.usage.Record(InferenceUsage{
+			PromptTokens:     response.Usage.PromptTokens,
+			CompletionTokens: response.Usage.CompletionTokens,
+			Calls:            1,
+		})
+	}
+
 	text := strings.TrimSpace(openAIMessageTextContent(response.Choices[0].Message.Content))
 	if text == "" {
 		return "", fmt.Errorf("no content in response")
 	}
 
 	return text, nil
+}
+
+// ResetSessionUsage implements UsageAware.
+func (l *LMStudioProvider) ResetSessionUsage() {
+	if l != nil {
+		l.usage.ResetSession()
+	}
+}
+
+// TakeSessionUsage implements UsageAware.
+func (l *LMStudioProvider) TakeSessionUsage() InferenceUsage {
+	if l == nil {
+		return InferenceUsage{}
+	}
+	return l.usage.TakeSession()
 }
 
 // GenerateVisionResponse uses OpenAI-compatible multimodal chat (vision models in LM Studio).

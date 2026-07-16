@@ -9,7 +9,7 @@ import (
 
 // Regression fixtures distilled from live collab failures (4ea36409, f7518f88).
 
-func phoenixAgents() []CollaborationAgent {
+func regressionAgents() []CollaborationAgent {
 	return []CollaborationAgent{
 		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
 		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
@@ -59,7 +59,7 @@ func TestExtractPlanFromTaskLists_singleStructuredRow(t *testing.T) {
 	if got == "" {
 		t.Fatal("expected plan from single task row")
 	}
-	tasks := ExtractTasksFromPlan(got, phoenixAgents())
+	tasks := ExtractTasksFromPlan(got, regressionAgents())
 	if len(tasks) != 1 {
 		t.Fatalf("expected 1 task, got %d", len(tasks))
 	}
@@ -74,7 +74,7 @@ Task 3: @PlatformEngineer - Write collabs/f7518f88-50a4-4561-9e88-174381f3090d/c
 - Task 1 depends on Task 2 for the markdown structure and style guide.
 - Task 3 can be started independently but should reference the schema and markdown documents once they are available.
 `
-	tasks := ExtractTasksFromPlan(plan, phoenixAgents())
+	tasks := ExtractTasksFromPlan(plan, regressionAgents())
 	if len(tasks) != 3 {
 		t.Fatalf("expected 3 tasks, got %d: %#v", len(tasks), taskTitles(tasks))
 	}
@@ -98,8 +98,8 @@ Task 3: @PlatformEngineer - Write collabs/f7518f88-50a4-4561-9e88-174381f3090d/c
 	c := &Collaboration{
 		ID:             "f7518f88-50a4-4561-9e88-174381f3090d",
 		Description:    "Investigate resource api document schema standardization/registration",
-		Agents:         phoenixAgents(),
-		SourceRepoPath: "/Users/test/Phoenix",
+		Agents:         regressionAgents(),
+		SourceRepoPath: "/Users/test/sample-repo",
 		Plan:           &SharedArtifact{Content: plan},
 	}
 	tasks, warnings := NormalizeAndValidateTasksForExecution(c)
@@ -119,7 +119,7 @@ Task 3: @PlatformEngineer - Write collabs/f7518f88-50a4-4561-9e88-174381f3090d/c
 func TestExtractTasksFromPlan_compoundInlinePlanRow(t *testing.T) {
 	id := "978d32ad-ab95-41fc-9fe1-e2ffa6f36910"
 	plan := "## Refined Plan (v2) - Task 1: @BackendEngineer - Write collabs/" + id + "/api_schema.md - Task 2: @SoftwareArchitect - Write collabs/" + id + "/markdown_doc_structure.md - Task 3: @PlatformEngineer - Write collabs/" + id + "/ci_cd_pipeline.md"
-	tasks := ExtractTasksFromPlan(plan, phoenixAgents())
+	tasks := ExtractTasksFromPlan(plan, regressionAgents())
 	if len(tasks) != 3 {
 		t.Fatalf("expected 3 tasks from compound row, got %d: %v", len(tasks), taskTitles(tasks))
 	}
@@ -136,11 +136,11 @@ func TestNormalizeAndValidateTasksForExecution_keepsBootstrappedTasksWhenPlanUnd
 	c := &Collaboration{
 		ID:             id,
 		Description:    goal,
-		Agents:         phoenixAgents(),
-		SourceRepoPath: "/Users/test/Phoenix",
+		Agents:         regressionAgents(),
+		SourceRepoPath: "/Users/test/sample-repo",
 		Plan:           &SharedArtifact{Content: plan},
 	}
-	c.Tasks = ExtractTasksFromCollaborationGoal(goal, id, phoenixAgents())
+	c.Tasks = ExtractTasksFromCollaborationGoal(goal, id, regressionAgents())
 	if len(c.Tasks) != 3 {
 		t.Fatalf("expected 3 bootstrapped tasks, got %d", len(c.Tasks))
 	}
@@ -159,7 +159,7 @@ Task 3: @Cursor - Implement initial draft of markdown document for resource API 
 Task 4: @SoftwareArchitect - Review and finalize markdown document for resource API document schema standardization/registration
 Task 5: @Assistant - Document findings and next steps in collabs/4ea36409-3abd-4760-94b5-70c1b3758a2b/findings.md
 `
-	tasks := ExtractTasksFromPlan(plan, phoenixAgents())
+	tasks := ExtractTasksFromPlan(plan, regressionAgents())
 	if len(tasks) != 5 {
 		t.Fatalf("expected 5 tasks, got %d: %#v", len(tasks), taskTitles(tasks))
 	}
@@ -195,7 +195,7 @@ Task 3: @Cursor - Implement initial draft of markdown document for resource API 
 Task 4: @SoftwareArchitect - Review and finalize markdown document for resource API document schema standardization/registration
 Task 5: @Assistant - Document findings and next steps in collabs/4ea36409-3abd-4760-94b5-70c1b3758a2b/findings.md
 `
-	agents := phoenixAgents()
+	agents := regressionAgents()
 	extracted := ExtractTasksFromPlan(plan, agents)
 	if len(extracted) != 5 {
 		t.Fatalf("extract: expected 5, got %d", len(extracted))
@@ -221,8 +221,8 @@ Task 5: @Assistant - Document findings and next steps in collabs/4ea36409-3abd-4
 	c := &Collaboration{
 		ID:             "4ea36409-3abd-4760-94b5-70c1b3758a2b",
 		Description:    "Produce a markdown document",
-		Agents:         phoenixAgents(),
-		SourceRepoPath: "/Users/test/Phoenix",
+		Agents:         regressionAgents(),
+		SourceRepoPath: "/Users/test/sample-repo",
 		Plan:           &SharedArtifact{Content: plan},
 	}
 	tasks, _ := NormalizeAndValidateTasksForExecution(c)
@@ -260,7 +260,7 @@ func TestExtractPlanFromTaskLists_ignoresDependencyBullets(t *testing.T) {
 	if plan == "" {
 		t.Fatal("expected plan from task lists")
 	}
-	tasks := ExtractTasksFromPlan(plan, phoenixAgents())
+	tasks := ExtractTasksFromPlan(plan, regressionAgents())
 	if len(tasks) != 2 {
 		t.Fatalf("expected 2 tasks in synthesized plan, got %d: %v", len(tasks), taskTitles(tasks))
 	}
@@ -275,7 +275,7 @@ Task 5: @Assistant - Document findings and next steps in collabs/abc/findings.md
 	c := &Collaboration{
 		ID:          "abc",
 		Description: "Produce a markdown document",
-		Agents:      phoenixAgents(),
+		Agents:      regressionAgents(),
 		Plan:        &SharedArtifact{Content: plan},
 	}
 	tasks, _ := NormalizeAndValidateTasksForExecution(c)

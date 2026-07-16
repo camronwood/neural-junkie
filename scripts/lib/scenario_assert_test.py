@@ -4,16 +4,22 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+
+_LIB_DIR = Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
 from deliverable_judge import (
     build_judge_prompt,
     cloud_judge_tripped,
     judge_deliverable,
     parse_judge_response,
+    parse_judge_response_scored,
     reset_cloud_judge_circuit,
 )
 from scenario_assert import (
@@ -24,6 +30,7 @@ from scenario_assert import (
     count_markdown_bullets,
     expand_deliverable_steps,
     is_harness_control_send,
+    judge_strict_enabled,
     looks_like_read_only_inspection_command,
     looks_like_stack_tool_command,
     merge_deliverable_step,
@@ -107,18 +114,19 @@ class DeliverableAssertTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "findings.md"
             path.write_text("# Findings\n- README.md is minimal\n", encoding="utf-8")
-            with mock.patch(
-                "scenario_assert.judge_deliverable",
-                return_value=(False, "ollama/qwen: not substantive"),
-            ):
-                ok, detail = check_file_deliverable(
-                    root=tmp,
-                    rel="findings.md",
-                    spec={"llm_judge": True, "min_bytes": 10},
-                    question="summarize README",
-                )
+            with mock.patch.dict(os.environ, {"NJ_DELIVERABLE_JUDGE_STRICT": ""}):
+                with mock.patch(
+                    "scenario_assert.judge_deliverable",
+                    return_value=(False, "ollama/qwen: not substantive", 0.2),
+                ):
+                    ok, detail = check_file_deliverable(
+                        root=tmp,
+                        rel="findings.md",
+                        spec={"llm_judge": True, "min_bytes": 10},
+                        question="summarize README",
+                    )
             self.assertTrue(ok)
-            self.assertTrue(detail.startswith("judge:warn:"), detail)
+            self.assertTrue(detail.startswith("judge:warn:SCORE=0.20:"), detail)
 
     def test_check_file_deliverable_judge_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -126,7 +134,7 @@ class DeliverableAssertTest(unittest.TestCase):
             path.write_text("# Findings\n- README.md is minimal\n", encoding="utf-8")
             with mock.patch(
                 "scenario_assert.judge_deliverable",
-                return_value=(True, "ollama/qwen: looks good"),
+                return_value=(True, "ollama/qwen: looks good", 0.85),
             ):
                 ok, detail = check_file_deliverable(
                     root=tmp,
@@ -135,24 +143,62 @@ class DeliverableAssertTest(unittest.TestCase):
                     question="summarize README",
                 )
             self.assertTrue(ok)
-            self.assertTrue(detail.startswith("judge:pass:"), detail)
+            self.assertTrue(detail.startswith("judge:pass:SCORE=0.85:"), detail)
 
     def test_check_file_deliverable_judge_exception_is_advisory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "findings.md"
             path.write_text("# Findings\n- README.md is minimal\n", encoding="utf-8")
-            with mock.patch(
-                "scenario_assert.judge_deliverable",
-                side_effect=RuntimeError("ollama down"),
-            ):
-                ok, detail = check_file_deliverable(
-                    root=tmp,
-                    rel="findings.md",
-                    spec={"llm_judge": True, "min_bytes": 10},
-                    question="summarize README",
-                )
+            with mock.patch.dict(os.environ, {"NJ_DELIVERABLE_JUDGE_STRICT": ""}):
+                with mock.patch(
+                    "scenario_assert.judge_deliverable",
+                    side_effect=RuntimeError("ollama down"),
+                ):
+                    ok, detail = check_file_deliverable(
+                        root=tmp,
+                        rel="findings.md",
+                        spec={"llm_judge": True, "min_bytes": 10},
+                        question="summarize README",
+                    )
             self.assertTrue(ok)
             self.assertTrue(detail.startswith("judge:warn:exception:"), detail)
+
+    def test_check_file_deliverable_judge_fail_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "findings.md"
+            path.write_text("# Findings\n- README.md is minimal\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"NJ_DELIVERABLE_JUDGE_STRICT": "1"}):
+                self.assertTrue(judge_strict_enabled())
+                with mock.patch(
+                    "scenario_assert.judge_deliverable",
+                    return_value=(False, "ollama/qwen: not substantive", 0.15),
+                ):
+                    ok, detail = check_file_deliverable(
+                        root=tmp,
+                        rel="findings.md",
+                        spec={"llm_judge": True, "min_bytes": 10},
+                        question="summarize README",
+                    )
+            self.assertFalse(ok)
+            self.assertTrue(detail.startswith("judge:fail:SCORE=0.15:"), detail)
+
+    def test_check_file_deliverable_judge_exception_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "findings.md"
+            path.write_text("# Findings\n- README.md is minimal\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"NJ_DELIVERABLE_JUDGE_STRICT": "yes"}):
+                with mock.patch(
+                    "scenario_assert.judge_deliverable",
+                    side_effect=RuntimeError("ollama down"),
+                ):
+                    ok, detail = check_file_deliverable(
+                        root=tmp,
+                        rel="findings.md",
+                        spec={"llm_judge": True, "min_bytes": 10},
+                        question="summarize README",
+                    )
+            self.assertFalse(ok)
+            self.assertTrue(detail.startswith("judge:fail:exception:"), detail)
 
     def test_check_file_deliverable_regex_still_hard_fail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -250,6 +296,23 @@ class DeliverableJudgeTest(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("stub", reason.lower())
 
+    def test_parse_judge_response_scored(self) -> None:
+        ok, reason, score = parse_judge_response_scored(
+            "PASS\nSCORE: 0.85\nGrounded in main.go"
+        )
+        self.assertTrue(ok)
+        self.assertEqual(score, 0.85)
+        self.assertIn("main.go", reason)
+        ok, reason, score = parse_judge_response_scored("FAIL\nSCORE: 0.10\nGeneric stub")
+        self.assertFalse(ok)
+        self.assertEqual(score, 0.10)
+        self.assertIn("stub", reason.lower())
+        # Legacy two-line responses still parse; score is None.
+        ok, reason, score = parse_judge_response_scored("PASS\nLooks good")
+        self.assertTrue(ok)
+        self.assertIsNone(score)
+        self.assertIn("good", reason.lower())
+
     def test_cloud_judge_falls_back_to_ollama(self) -> None:
         reset_cloud_judge_circuit()
         with mock.patch.dict(
@@ -262,13 +325,13 @@ class DeliverableJudgeTest(unittest.TestCase):
         ):
             with mock.patch(
                 "deliverable_judge.hub_judge_deliverable",
-                return_value=(False, "Sorry, I encountered an error while generating a response."),
+                return_value=(False, "Sorry, I encountered an error while generating a response.", None),
             ):
                 with mock.patch(
                     "deliverable_judge.ollama_judge_deliverable",
-                    return_value=(True, "substantive pass"),
+                    return_value=(True, "substantive pass", 0.9),
                 ):
-                    ok, detail = judge_deliverable(
+                    ok, detail, score = judge_deliverable(
                         question="write findings",
                         rel_path="findings.md",
                         file_body="# Findings\nmain.go",
@@ -276,6 +339,7 @@ class DeliverableJudgeTest(unittest.TestCase):
                     )
         self.assertTrue(ok)
         self.assertIn("ollama/", detail)
+        self.assertEqual(score, 0.9)
         self.assertTrue(cloud_judge_tripped("gemini"))
 
     def test_cloud_judge_circuit_skips_hub_on_second_call(self) -> None:
@@ -290,20 +354,20 @@ class DeliverableJudgeTest(unittest.TestCase):
         ):
             hub = mock.patch(
                 "deliverable_judge.hub_judge_deliverable",
-                return_value=(False, "quota exceeded for gemini-2.5-flash"),
+                return_value=(False, "quota exceeded for gemini-2.5-flash", None),
             )
             ollama = mock.patch(
                 "deliverable_judge.ollama_judge_deliverable",
-                return_value=(True, "substantive pass"),
+                return_value=(True, "substantive pass", 0.8),
             )
             with hub as hub_mock, ollama as ollama_mock:
-                ok1, _ = judge_deliverable(
+                ok1, _, _ = judge_deliverable(
                     question="write findings",
                     rel_path="findings.md",
                     file_body="# Findings\nmain.go",
                     hub_base="http://127.0.0.1:18765",
                 )
-                ok2, detail2 = judge_deliverable(
+                ok2, detail2, _ = judge_deliverable(
                     question="write findings",
                     rel_path="findings2.md",
                     file_body="# Findings\nmain.go",
@@ -323,9 +387,9 @@ class DeliverableJudgeTest(unittest.TestCase):
         ):
             with mock.patch(
                 "deliverable_judge.ollama_judge_deliverable",
-                return_value=(True, "independent pass"),
+                return_value=(True, "independent pass", 1.0),
             ):
-                ok, detail = judge_deliverable(
+                ok, detail, score = judge_deliverable(
                     question="write findings",
                     rel_path="findings.md",
                     file_body="# Findings\nmain.go",
@@ -333,6 +397,7 @@ class DeliverableJudgeTest(unittest.TestCase):
                 )
         self.assertTrue(ok)
         self.assertIn("ollama/", detail)
+        self.assertEqual(score, 1.0)
 
     def test_contains_all(self) -> None:
         ok, _ = check_contains_all("hello world", ["hello", "world"])

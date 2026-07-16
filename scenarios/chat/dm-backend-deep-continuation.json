@@ -21,7 +21,7 @@
     {
       "action": "send",
       "content": "go deeper on the approach — what would you implement first?",
-      "metadata": { "conversation_mode": "chat", "context_scope": "hint" }
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
     },
     { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {

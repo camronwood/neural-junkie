@@ -14,16 +14,14 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from lib import collab_hub as hub  # noqa: E402
-from lib.hub_regression import wait_for_hub  # noqa: E402
 from lib.model_benchmark import (  # noqa: E402
     MODELS_CONFIG,
     ModelBenchmarkResult,
-    ScenarioResult,
+    SCRIPT_BY_KIND,
     SUITES_CONFIG,
-    build_scenario_catalog,
+    SuiteTracks,
     fetch_hardware_snapshot,
-    filter_models_by_max_params,
+    filter_models_by_max_size_gb,
     format_duration,
     load_models,
     load_scenario_meta,
@@ -31,82 +29,41 @@ from lib.model_benchmark import (  # noqa: E402
     model_is_installed,
     model_params_b,
     model_pull_tag,
+    model_requires_hf_import,
     model_runtime_tag,
     ollama_installed_tags,
     pull_ollama_model,
+    resolve_benchmark_models,
     resolve_judge_provider_note,
-    resolve_suite_max_params_b,
-    resolve_suite_model_tags,
+    resolve_suite_max_size_gb,
     resolve_suite_scenarios,
     run_script_scenario,
     switch_all_ollama,
     write_reports,
 )
+from lib.regression_boot import maybe_boot_regression  # noqa: E402
 
 DEFAULT_OUT = ROOT / "docs" / "testing"
 
 
-def parse_models_arg(
-    raw: str,
-    config_path: Path | None,
-    *,
-    max_params_b: float | None = None,
-    allow_large: bool = False,
-) -> list[dict]:
-    catalog = {m["tag"]: m for m in load_models(config_path)}
-    tags = [t.strip() for t in raw.split(",") if t.strip()]
-    out: list[dict] = []
-    for tag in tags:
-        if tag in catalog:
-            out.append(catalog[tag])
-        else:
-            out.append({"id": tag.replace(":", "-"), "tag": tag, "title": tag, "size_hint_gb": None, "notes": "cli override"})
-    if max_params_b is not None and not allow_large:
-        out = filter_models_by_max_params(out, max_params_b, allow_unknown=True)
-    return out
-
-
-def resolve_benchmark_models(
-    suite: dict[str, Any],
-    *,
-    models_arg: str | None,
-    models_config: Path,
-    suites_config: Path,
-    max_params_b: float | None,
-    allow_large: bool,
-) -> list[dict]:
-    cap = max_params_b if max_params_b is not None else resolve_suite_max_params_b(suite, models_config)
-
-    if models_arg:
-        models = parse_models_arg(
-            models_arg,
-            models_config,
-            max_params_b=cap,
-            allow_large=allow_large,
+def configure_release_judge_isolation(model_tags: list[str]) -> None:
+    os.environ.setdefault("NJ_DELIVERABLE_JUDGE_PROVIDER", "claude")
+    os.environ["NJ_DELIVERABLE_JUDGE_STRICT"] = "1"
+    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "").lower()
+    judge_model = os.environ.get("NJ_DELIVERABLE_JUDGE_MODEL", "qwen2.5-coder:14b")
+    if provider == "ollama" and judge_model in model_tags:
+        # refuse same-model judging
+        os.environ["NJ_DELIVERABLE_JUDGE_MODEL"] = (
+            "qwen3.5:9b" if "qwen3.5:9b" not in model_tags else "deepseek-coder:6.7b"
         )
-    elif resolve_suite_model_tags(suite):
-        models = parse_models_arg(
-            ",".join(resolve_suite_model_tags(suite)),
-            models_config,
-            max_params_b=cap,
-            allow_large=allow_large,
-        )
-    else:
-        models = load_models(models_config)
-        if not allow_large:
-            models = filter_models_by_max_params(models, cap)
-
-    if not models:
-        raise ValueError(f"no models at or below {cap}B params (use --allow-large-models to bypass cap)")
-    return models
+        print("WARN: release judge model matched SUT; swapped judge model", file=sys.stderr)
 
 
 def benchmark_model(
     hub_url: str,
     model: dict,
     *,
-    implement: list[str],
-    chat: list[str],
+    tracks: SuiteTracks,
     pull: bool,
     skip_missing: bool,
     cooldown_s: float,
@@ -122,8 +79,15 @@ def benchmark_model(
     )
 
     installed = ollama_installed_tags(hub_url)
-    if not model_is_installed(installed, tag, pull_tag=pull_target):
-        if pull:
+    if model_requires_hf_import(model):
+        if not model_is_installed(installed, tag):
+            result.skipped = True
+            result.skip_reason = (
+                "requires HF import (Settings → Models); custom GGUF is not ollama-pullable"
+            )
+            return result
+    elif not model_is_installed(installed, tag, pull_tag=pull_target):
+        if pull and pull_target:
             print(f"  pulling {pull_target}…")
             ok, detail = pull_ollama_model(hub_url, pull_target)
             print(f"  pull: {detail}")
@@ -155,50 +119,35 @@ def benchmark_model(
         time.sleep(cooldown_s)
 
     model_t0 = time.monotonic()
-    for name in implement:
-        print(f"\n  [implement] {name}")
-        passed, elapsed, step_detail, judge_passed, judge_reason, uses_judge = run_script_scenario(
-            "implement-scenarios.py", name, hub_url
-        )
-        meta = load_scenario_meta("implement", name)
-        result.scenarios.append(
-            ScenarioResult(
-                name=name,
-                kind="implement",
-                passed=passed,
-                duration_s=elapsed,
-                detail=step_detail,
-                judge_passed=judge_passed,
-                judge_reason=judge_reason,
-                uses_llm_judge=uses_judge or bool(meta.get("llm_judge")),
-            )
-        )
-        mark = "PASS" if passed else "FAIL"
-        print(f"    {mark} in {format_duration(elapsed)} — {step_detail}")
-        if verbose and not passed:
-            return result
-        _recover_implement_channel(hub_url)
 
-    for name in chat:
-        print(f"\n  [chat] {name}")
-        passed, elapsed, step_detail, judge_passed, judge_reason, uses_judge = run_script_scenario(
-            "chat-scenarios.py", name, hub_url
-        )
-        meta = load_scenario_meta("chat", name)
-        result.scenarios.append(
-            ScenarioResult(
-                name=name,
-                kind="chat",
-                passed=passed,
-                duration_s=elapsed,
-                detail=step_detail,
-                judge_passed=judge_passed,
-                judge_reason=judge_reason,
-                uses_llm_judge=uses_judge or bool(meta.get("llm_judge")),
-            )
-        )
-        mark = "PASS" if passed else "FAIL"
-        print(f"    {mark} in {format_duration(elapsed)} — {step_detail}")
+    def _run_track(kind: str, names: list[str], *, with_model: bool = False) -> None:
+        script = SCRIPT_BY_KIND[kind]
+        for name in names:
+            print(f"\n  [{kind}] {name}")
+            extra: list[str] = []
+            if with_model:
+                extra.extend(["--model", runtime_tag])
+            scenario = run_script_scenario(script, name, hub_url, kind=kind, extra_args=extra or None)
+            meta = load_scenario_meta(kind, name)
+            if meta.get("llm_judge"):
+                scenario.uses_llm_judge = True
+            result.scenarios.append(scenario)
+            mark = "PASS" if scenario.passed else "FAIL"
+            print(f"    {mark} in {format_duration(scenario.duration_s)} — {scenario.detail}")
+            if verbose and not scenario.passed and kind == "implement":
+                return
+            if kind == "implement":
+                _recover_implement_channel(hub_url)
+
+    _run_track("implement", tracks.implement)
+    if verbose and any(not s.passed for s in result.scenarios if s.kind == "implement"):
+        result.total_duration_s = time.monotonic() - model_t0
+        return result
+    _run_track("chat", tracks.chat)
+    _run_track("collab", tracks.collab)
+    _run_track("arena", tracks.arena, with_model=True)
+    _run_track("cad", tracks.cad, with_model=True)
+    _run_track("external", tracks.external, with_model=True)
 
     result.total_duration_s = time.monotonic() - model_t0
     print(
@@ -245,15 +194,21 @@ def main() -> int:
     p.add_argument("--pull", action="store_true", help="Pull missing models via hub before each run")
     p.add_argument("--skip-missing", action="store_true", help="Skip models that are not installed")
     p.add_argument(
+        "--max-size-gb",
+        type=float,
+        default=None,
+        help="Cap roster by size_hint_gb (default: suite max_size_gb or ~9 GB = Qwen 2.5 Coder 14B)",
+    )
+    p.add_argument(
         "--max-params-b",
         type=float,
         default=None,
-        help="Cap benchmark roster to this size in billions of params (default: suite max_params_b or 14)",
+        help=argparse.SUPPRESS,  # deprecated alias for --max-size-gb
     )
     p.add_argument(
         "--allow-large-models",
         action="store_true",
-        help="Allow models above max-params-b cap (default cap is 24B)",
+        help="Allow models above max-size-gb footprint cap (default ~9 GB)",
     )
     p.add_argument("--cooldown", type=float, default=5.0, help="Seconds after switch-all before scenarios")
     p.add_argument("--verbose", "-v", action="store_true")
@@ -265,6 +220,12 @@ def main() -> int:
         default=1.0,
         help="Exit 0 when the top model meets this pass rate even if weaker models fail (default: 1.0)",
     )
+    p.add_argument(
+        "--min-model-pass-rate",
+        type=float,
+        default=0.5,
+        help="Release gate: every active model must meet this pass rate (default: 0.5)",
+    )
     args = p.parse_args()
 
     if args.list_suites:
@@ -274,15 +235,26 @@ def main() -> int:
         for name, suite in data.items():
             if not isinstance(suite, dict):
                 continue
-            impl, chat = resolve_suite_scenarios(suite)
-            print(f"{name}\t{suite.get('description', '')}\timplement={len(impl)}\tchat={len(chat)}")
+            tracks = resolve_suite_scenarios(suite)
+            print(
+                f"{name}\t{suite.get('description', '')}\t"
+                f"implement={len(tracks.implement)}\tchat={len(tracks.chat)}\t"
+                f"collab={len(tracks.collab)}\tarena={len(tracks.arena)}\t"
+                f"cad={len(tracks.cad)}\texternal={len(tracks.external)}"
+            )
         return 0
 
     if args.list_models:
-        cap = args.max_params_b if args.max_params_b is not None else resolve_suite_max_params_b({}, args.models_config)
+        cap = (
+            args.max_size_gb
+            if args.max_size_gb is not None
+            else args.max_params_b
+            if args.max_params_b is not None
+            else resolve_suite_max_size_gb({}, args.models_config)
+        )
         roster = load_models(args.models_config)
         if not args.allow_large_models:
-            roster = filter_models_by_max_params(roster, cap)
+            roster = filter_models_by_max_size_gb(roster, cap)
         for m in roster:
             gb = m.get("size_hint_gb")
             size = f"~{gb} GB" if gb else "?"
@@ -290,17 +262,22 @@ def main() -> int:
             pb = f"{params}B" if params is not None else "?"
             print(f"{m.get('tag')}\t{m.get('title')}\t{pb}\t{size}\t{m.get('notes', '')}")
         if not args.allow_large_models:
-            print(f"\n(roster capped at {cap}B — use --allow-large-models for full catalog)")
+            print(f"\n(roster capped at {cap} GB — use --allow-large-models for full catalog)")
         return 0
 
     hub_url = args.hub.rstrip("/")
-    if not wait_for_hub(hub_url):
-        print(f"hub unhealthy: {hub_url}\nStart with: make server-regression", file=sys.stderr)
+    # Match implement/collab/test-everything: boot Ollama + models + regression hub.
+    os.environ["BENCHMARK_SUITE"] = args.suite
+    if args.models:
+        os.environ.setdefault("BENCHMARK_MODELS", args.models)
+    if args.allow_large_models:
+        os.environ["BENCHMARK_ALLOW_LARGE"] = "1"
+    if not maybe_boot_regression(hub_url, root=ROOT, label="model-benchmark"):
         return 1
 
     suite = load_suite(args.suite, args.suites_config)
-    implement, chat = resolve_suite_scenarios(suite)
-    if not implement and not chat:
+    tracks = resolve_suite_scenarios(suite)
+    if not tracks.has_any():
         print(f"suite {args.suite!r} has no scenarios", file=sys.stderr)
         return 1
 
@@ -310,21 +287,34 @@ def main() -> int:
             models_arg=args.models,
             models_config=args.models_config,
             suites_config=args.suites_config,
-            max_params_b=args.max_params_b,
+            max_size_gb=args.max_size_gb if args.max_size_gb is not None else args.max_params_b,
             allow_large=args.allow_large_models,
         )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
     suite_desc = str(suite.get("description") or args.suite)
-    cap = args.max_params_b if args.max_params_b is not None else resolve_suite_max_params_b(suite, args.models_config)
+    cap = (
+        args.max_size_gb
+        if args.max_size_gb is not None
+        else args.max_params_b
+        if args.max_params_b is not None
+        else resolve_suite_max_size_gb(suite, args.models_config)
+    )
+
+    if args.suite == "release":
+        configure_release_judge_isolation([str(m.get("tag") or "").strip() for m in models])
 
     print(f"Model benchmark suite={args.suite}")
     print(f"  {suite_desc}")
-    print(f"  max_params_b: {cap}" + (" (large models allowed)" if args.allow_large_models else ""))
+    print(f"  max_size_gb: {cap}" + (" (large models allowed)" if args.allow_large_models else ""))
     print(f"  models: {', '.join(m['tag'] for m in models)}")
-    print(f"  implement ({len(implement)}): {', '.join(implement) or '(none)'}")
-    print(f"  chat ({len(chat)}): {', '.join(chat) or '(none)'}")
+    print(f"  implement ({len(tracks.implement)}): {', '.join(tracks.implement) or '(none)'}")
+    print(f"  chat ({len(tracks.chat)}): {', '.join(tracks.chat) or '(none)'}")
+    print(f"  collab ({len(tracks.collab)}): {', '.join(tracks.collab) or '(none)'}")
+    print(f"  arena ({len(tracks.arena)}): {', '.join(tracks.arena) or '(none)'}")
+    print(f"  cad ({len(tracks.cad)}): {', '.join(tracks.cad) or '(none)'}")
+    print(f"  external ({len(tracks.external)}): {', '.join(tracks.external) or '(none)'}")
 
     hardware = fetch_hardware_snapshot(hub_url)
     judge_provider = resolve_judge_provider_note()
@@ -340,15 +330,14 @@ def main() -> int:
             benchmark_model(
                 hub_url,
                 model,
-                implement=implement,
-                chat=chat,
+                tracks=tracks,
                 pull=args.pull,
                 skip_missing=args.skip_missing,
                 cooldown_s=args.cooldown,
                 verbose=args.verbose,
             )
         )
-        if i+1 < len(models):
+        if i + 1 < len(models):
             _recover_hub_between_models(hub_url)
 
     md_path, json_path, tsv_path = write_reports(
@@ -357,8 +346,12 @@ def main() -> int:
         suite_desc=suite_desc,
         hub_url=hub_url,
         results=results,
-        implement_names=implement,
-        chat_names=chat,
+        implement_names=tracks.implement,
+        chat_names=tracks.chat,
+        collab_names=tracks.collab,
+        arena_names=tracks.arena,
+        cad_names=tracks.cad,
+        external_names=tracks.external,
         hardware=hardware,
         judge_provider=judge_provider,
     )
@@ -381,9 +374,11 @@ def main() -> int:
         print(msg, file=sys.stderr)
         return 1
 
-    winner = max(active, key=lambda r: (r.pass_rate, r.passed, -r.total_duration_s))
+    use_composite = args.suite == "release"
+    rate_of = (lambda r: r.composite_pass_rate) if use_composite else (lambda r: r.pass_rate)
+    winner = max(active, key=lambda r: (rate_of(r), r.passed, -r.total_duration_s))
     print("\n=== Benchmark complete ===")
-    print(f"Winner: {winner.model_tag} ({winner.passed}/{winner.total}, {winner.pass_rate * 100:.0f}%)")
+    print(f"Winner: {winner.model_tag} ({winner.passed}/{winner.total}, {rate_of(winner) * 100:.0f}%)")
     print(f"Markdown: {md_path}")
     print(f"JSON:     {json_path}")
     print(f"TSV:      {tsv_path}")
@@ -392,11 +387,22 @@ def main() -> int:
 
     any_ran = any(r.scenarios for r in results)
     all_pass = all(r.passed == r.total for r in active if r.scenarios)
-    winner_ok = winner.pass_rate >= args.min_winner_pass_rate
+    winner_ok = rate_of(winner) >= args.min_winner_pass_rate
+
+    if args.suite == "release":
+        models_ok = all(rate_of(r) >= args.min_model_pass_rate for r in active)
+        if any_ran and winner_ok and not models_ok:
+            print(
+                f"Benchmark exit: release gate failed — some models below "
+                f"{args.min_model_pass_rate * 100:.0f}% min model pass rate",
+                file=sys.stderr,
+            )
+        return 0 if any_ran and winner_ok and models_ok else 1
+
     if any_ran and winner_ok and not all_pass:
         print(
             f"Benchmark exit: winner pass ({winner.model_tag} "
-            f"{winner.pass_rate * 100:.0f}% >= {args.min_winner_pass_rate * 100:.0f}% gate; weak models ignored)"
+            f"{rate_of(winner) * 100:.0f}% >= {args.min_winner_pass_rate * 100:.0f}% gate; weak models ignored)"
         )
     return 0 if any_ran and (all_pass or winner_ok) else 1
 

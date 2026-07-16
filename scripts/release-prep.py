@@ -406,7 +406,7 @@ def main() -> int:
             bench_cmd.extend(["--models", args.benchmark_models])
         if args.verbose:
             bench_cmd.append("--verbose")
-        phase = run_phase("model-benchmark", bench_cmd, env=hub_recovery_env)
+        phase = run_phase("model-benchmark", bench_cmd, env={**hub_recovery_env, "SKIP_BOOT": "1"})
         for pattern in (BENCH_MD_RE, BENCH_JSON_RE, BENCH_TSV_RE):
             path = first_match(pattern, phase.output)
             if path:

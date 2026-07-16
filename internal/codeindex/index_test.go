@@ -21,7 +21,7 @@ func TestChunkFile(t *testing.T) {
 func TestKeywordSearchFallback(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "helper.go")
-	if err := os.WriteFile(path, []byte("func ComputePhoenixWidget() int { return 42 }\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("func ComputeObscureWidget() int { return 42 }\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	results, err := Search(t.Context(), dir, "helper", 3)
@@ -33,12 +33,12 @@ func TestKeywordSearchFallback(t *testing.T) {
 	}
 	found := false
 	for _, r := range results {
-		if strings.Contains(r.Content, "PhoenixWidget") {
+		if strings.Contains(r.Content, "ObscureWidget") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("expected PhoenixWidget in results: %+v", results)
+		t.Fatalf("expected ObscureWidget in results: %+v", results)
 	}
 }
 

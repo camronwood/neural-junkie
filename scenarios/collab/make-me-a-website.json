@@ -1,10 +1,18 @@
 {
   "name": "make-me-a-website",
   "description": "Natural-language 'make me a website' must plan and execute real HTML/CSS pages, not markdown specs only.",
-  "tags": ["collab", "execution", "regression", "website"],
+  "tags": [
+    "collab",
+    "execution",
+    "regression",
+    "website"
+  ],
   "channel": "collab-scenarios",
   "agents": "@FrontendEngineer @Claude",
-  "required_agents": ["FrontendEngineer", "Claude"],
+  "required_agents": [
+    "FrontendEngineer",
+    "Claude"
+  ],
   "workspace": {
     "fixture": "website-prior-collab",
     "workspace_flag": true,
@@ -12,8 +20,14 @@
     "file_tree": "README.md\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/index.html\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/style.css\n"
   },
   "collaborate": {
-    "flags": ["--workspace", "--rounds", "2", "--messages", "12"],
-    "goal": "@FrontendEngineer @Claude I want you to make me a website called Collaboration Station. Colors: black, white, gray, blue, red. Three pages: home (index.html), about (about.html), contact (contact.html) — real HTML and CSS under collabs/<id>/, not markdown specs only."
+    "flags": [
+      "--workspace",
+      "--rounds",
+      "2",
+      "--messages",
+      "12"
+    ],
+    "goal": "@FrontendEngineer @Claude Make Collaboration Station (colors: black, white, gray, blue, red). Produce EXACTLY four tasks and no others, using these exact lines:\n- Task 1: @FrontendEngineer - Write collabs/<id>/style.css with the color palette\n- Task 2: @FrontendEngineer - Write collabs/<id>/index.html home page linking about/contact\n- Task 3: @Claude - Write collabs/<id>/about.html using style.css\n- Task 4: @Claude - Write collabs/<id>/contact.html using style.css\nReal HTML/CSS only — no markdown specs."
   },
   "expect_deliverables": [
     {
@@ -21,8 +35,12 @@
       "min_bytes": 80,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["<!DOCTYPE|<html|Collaboration Station"],
-        "none_match": ["_Initial stub created"]
+        "any_match": [
+          "<!DOCTYPE|<html|Collaboration Station"
+        ],
+        "none_match": [
+          "_Initial stub created"
+        ]
       },
       "llm_judge": true
     },
@@ -31,8 +49,12 @@
       "min_bytes": 80,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["<!DOCTYPE|<html|about|Collaboration Station"],
-        "none_match": ["_Initial stub created"]
+        "any_match": [
+          "<!DOCTYPE|<html|about|Collaboration Station"
+        ],
+        "none_match": [
+          "_Initial stub created"
+        ]
       },
       "llm_judge": true
     },
@@ -41,8 +63,12 @@
       "min_bytes": 80,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["<!DOCTYPE|<html|contact|Collaboration Station"],
-        "none_match": ["_Initial stub created"]
+        "any_match": [
+          "<!DOCTYPE|<html|contact|Collaboration Station"
+        ],
+        "none_match": [
+          "_Initial stub created"
+        ]
       },
       "llm_judge": true
     },
@@ -51,68 +77,98 @@
       "min_bytes": 40,
       "deny_task_status": true,
       "for_question": {
-        "any_match": ["color|background|font|#|rgb|Collaboration"],
-        "none_match": ["_Initial stub created"]
+        "any_match": [
+          "color|background|font|#|rgb|Collaboration"
+        ],
+        "none_match": [
+          "_Initial stub created"
+        ]
       },
       "llm_judge": true
     }
   ],
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 45},
+    {
+      "action": "wait_phase",
+      "phase": "planning",
+      "timeout": 45
+    },
     {
       "action": "wait_discussion",
       "min_total": 2,
       "min_per_agent": 1,
-      "required_agents": ["FrontendEngineer", "Claude"],
+      "required_agents": [
+        "FrontendEngineer",
+        "Claude"
+      ],
       "timeout": "360s",
       "retries": 1,
-      "nudge_agents": ["Claude"]
+      "nudge_agents": [
+        "Claude"
+      ]
     },
-    {"action": "wait_phase", "phase": "reviewing", "timeout": "300s"},
-    {"action": "wait_planning_recap", "timeout": "300s"},
+    {
+      "action": "wait_phase",
+      "phase": "reviewing",
+      "timeout": "300s"
+    },
+    {
+      "action": "wait_planning_recap",
+      "timeout": "300s"
+    },
     {
       "action": "assert_plan",
-      "min_tasks": 2,
-      "max_tasks": 6,
+      "min_tasks": 4,
+      "max_tasks": 5,
       "tasks_have_assignee": true,
       "tasks_have_file_deliverable": true,
-      "content_any_match": ["\\.html|\\.css"],
-      "content_none_match": ["specs only|planning docs only|before implementing pages"]
+      "content_any_match": [
+        "index\\.html",
+        "about\\.html",
+        "contact\\.html",
+        "style\\.css"
+      ],
+      "content_none_match": [
+        "specs only|planning docs only|before implementing pages"
+      ]
     },
     {
       "action": "assert_messages",
-      "none_match": ["Grounding: I loaded", "index\\.js", "utils\\.js"]
+      "none_match": [
+        "Grounding: I loaded",
+        "index\\.js",
+        "utils\\.js"
+      ]
     },
-    {"action": "approve_plan"},
-    {"action": "wait_phase", "phase": "executing", "timeout": 60},
+    {
+      "action": "approve_plan"
+    },
+    {
+      "action": "wait_phase",
+      "phase": "executing",
+      "timeout": 60
+    },
     {
       "action": "assert_collab",
       "phase": "executing",
       "workspace_acknowledged": true,
       "tasks_dispatched": true
     },
-    {"action": "send", "content": "/resume-plan <collab-id>"},
-    {
-      "action": "wait_tasks",
-      "min_completed": 2,
-      "all_match": false,
-      "timeout": "420s"
-    },
     {
       "action": "send",
-      "content": "@FrontendEngineer @Claude Finish the remaining HTML pages (about.html, contact.html) under collabs/<collab-id>/ using the same layout and style.css as index.html."
+      "content": "/resume-plan <collab-id>"
     },
     {
       "action": "wait_tasks",
-      "min_completed": 1,
-      "all_match": false,
-      "timeout": "300s"
+      "min_completed": 4,
+      "all_match": true,
+      "timeout": "540s"
     },
     {
       "action": "approve_file_changes",
       "path_match": "index.html",
       "target_rel": "collabs/<collab-id>/index.html",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": "120s"
     },
@@ -120,7 +176,7 @@
       "action": "approve_file_changes",
       "path_match": "about.html",
       "target_rel": "collabs/<collab-id>/about.html",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": "120s"
     },
@@ -128,7 +184,7 @@
       "action": "approve_file_changes",
       "path_match": "contact.html",
       "target_rel": "collabs/<collab-id>/contact.html",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": "120s"
     },
@@ -136,7 +192,7 @@
       "action": "approve_file_changes",
       "path_match": ".css",
       "target_rel": "collabs/<collab-id>/style.css",
-      "from_discussion_fallback": true,
+      "from_discussion_fallback": false,
       "min_approved": 0,
       "timeout": "120s"
     },

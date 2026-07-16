@@ -84,7 +84,7 @@ func TestCollaborateSkipsCollabSandboxAsSourceWorkspace(t *testing.T) {
 
 func TestCollaborateSkipsProjectCollabDeliverablePathAsSourceWorkspace(t *testing.T) {
 	h := NewHub()
-	collabDir := filepath.Join(t.TempDir(), "Phoenix", "collabs", "902f2cf4-0626-4726-835a-4f1b715c23f6")
+	collabDir := filepath.Join(t.TempDir(), "SampleRepo", "collabs", "902f2cf4-0626-4726-835a-4f1b715c23f6")
 	if err := os.MkdirAll(collabDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

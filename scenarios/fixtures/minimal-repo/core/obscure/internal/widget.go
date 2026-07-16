@@ -1,6 +1,6 @@
 package core
 
-// ComputePhoenixWidget is referenced by @codebase semantic search tests.
-func ComputePhoenixWidget() int {
+// ComputeObscureWidget is referenced by @codebase semantic search tests.
+func ComputeObscureWidget() int {
 	return 42
 }

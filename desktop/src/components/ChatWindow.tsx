@@ -89,6 +89,13 @@ import {
   isNonTerminalCollaborationPhase,
   resolvePanelCollaboration,
 } from '../utils/collaborationPanelState';
+import {
+  collaboratorsAddedSince,
+  decideCollabPanelOpen,
+  isTerminalCollaborationPhase as isTerminalCollabPhaseHelper,
+  parseCollabParticipantAddRequest,
+  shouldToastCollaboratorAdds,
+} from '../utils/chatInboundCollab';
 import { RunbookBuilderPanel } from './RunbookBuilderPanel';
 import { RunbookLibraryModal } from './runbook/RunbookLibraryModal';
 import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
@@ -606,8 +613,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [hubAccessLoading, setHubAccessLoading] = useState(false);
   const [hubAccessError, setHubAccessError] = useState<string | null>(null);
 
-  const isTerminalCollaborationPhase = (phase?: Collaboration['phase']) =>
-    phase === 'completed' || phase === 'cancelled';
+  const isTerminalCollaborationPhase = isTerminalCollabPhaseHelper;
 
   useEffect(() => {
     activeCollabRef.current = activeCollab;
@@ -1658,7 +1664,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         return;
       }
 
-      // Track collaboration snapshots from message metadata (transition: keeps typing/input responsive during agent bursts).
       const collabData = message.metadata?.collaboration_data as Collaboration | undefined;
       if (collabData?.id) {
         startTransition(() => {
@@ -1666,81 +1671,66 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           const isActiveChannelCollab = !collabChannel || collabChannel === activeChannel;
           const previousSnapshot = collaborationsByIDRef.current[collabData.id];
           if (
-            previousSnapshot &&
-            isActiveChannelCollab &&
-            (collabData.phase === 'planning' || collabData.phase === 'reviewing')
+            shouldToastCollaboratorAdds({
+              previous: previousSnapshot,
+              snapshot: collabData,
+              isActiveChannelCollab,
+            })
           ) {
-            const existingIDs = new Set((previousSnapshot.agents || []).map(a => a.agent_id));
-            const addedAgents = (collabData.agents || []).filter(a => !existingIDs.has(a.agent_id));
-            if (addedAgents.length > 0) {
-              const names = addedAgents.map(a => `@${a.agent_name}`).join(', ');
-              addToast({
-                type: 'info',
-                title: 'Collaborator added',
-                message: `${names} joined "${collabData.title}".`,
-              });
-            }
+            const addedAgents = collaboratorsAddedSince(previousSnapshot, collabData);
+            const names = addedAgents.map((a) => `@${a.agent_name}`).join(', ');
+            addToast({
+              type: 'info',
+              title: 'Collaborator added',
+              message: `${names} joined "${collabData.title}".`,
+            });
           }
           mergeCollaborationSnapshot(collabData);
-          const currentlyOpen = activeCollabRef.current;
-          if (currentlyOpen?.id === collabData.id) {
-            if (isActiveChannelCollab || isTerminalCollaborationPhase(collabData.phase)) {
-              setActiveCollab(collabData);
-            }
-          } else if (
-            !currentlyOpen &&
-            isActiveChannelCollab &&
-            isCollaborationMessage(message) &&
-            !isTerminalCollaborationPhase(collabData.phase)
-          ) {
-            setActiveCollab(collabData);
+          const decision = decideCollabPanelOpen({
+            snapshot: collabData,
+            activeChannel,
+            currentlyOpen: activeCollabRef.current,
+            message,
+          });
+          if (decision.action === 'open' || decision.action === 'update_open') {
+            setActiveCollab(decision.snapshot);
           }
         });
       }
 
-      if (message.metadata?.event === 'collab-participant-add-request') {
-        const collabID = getCollaborationId(message) || collabData?.id || '';
-        const agentID = typeof message.metadata.requested_agent_id === 'string'
-          ? message.metadata.requested_agent_id
-          : '';
-        if (collabID && agentID) {
-          const key = `${collabID}:${agentID}:${message.id}`;
-          if (!handledParticipantRequestPromptsRef.current.has(key)) {
-            handledParticipantRequestPromptsRef.current.add(key);
-            const agentName = typeof message.metadata.requested_agent_name === 'string'
-              ? message.metadata.requested_agent_name
-              : 'the agent';
-            const requestedBy = typeof message.metadata.requested_by_name === 'string'
-              ? message.metadata.requested_by_name
-              : 'An agent';
-            void (async () => {
-              const approved = window.confirm(
-                `${requestedBy} wants to add ${agentName} to this collaboration. Allow?`
-              );
-              try {
-                const updated = approved
-                  ? await api.approveCollabParticipantRequest(collabID, agentID)
-                  : await api.denyCollabParticipantRequest(collabID, agentID);
-                mergeCollaborationSnapshot(updated);
-                if (activeCollabRef.current?.id === updated.id) {
-                  setActiveCollab(updated);
-                }
-                addToast({
-                  type: approved ? 'success' : 'info',
-                  title: approved ? 'Agent added' : 'Agent add denied',
-                  message: approved
-                    ? `@${agentName} joined "${updated.title}".`
-                    : `@${agentName} was not added to "${updated.title}".`,
-                });
-              } catch (error) {
-                addToast({
-                  type: 'error',
-                  title: 'Participant request failed',
-                  message: error instanceof Error ? error.message : 'Could not update collaboration participants.',
-                });
+      const participantReq = parseCollabParticipantAddRequest(message);
+      if (participantReq) {
+        const { collabID, agentID, agentName, requestedBy } = participantReq;
+        const key = `${collabID}:${agentID}:${message.id}`;
+        if (!handledParticipantRequestPromptsRef.current.has(key)) {
+          handledParticipantRequestPromptsRef.current.add(key);
+          void (async () => {
+            const approved = window.confirm(
+              `${requestedBy} wants to add ${agentName} to this collaboration. Allow?`
+            );
+            try {
+              const updated = approved
+                ? await api.approveCollabParticipantRequest(collabID, agentID)
+                : await api.denyCollabParticipantRequest(collabID, agentID);
+              mergeCollaborationSnapshot(updated);
+              if (activeCollabRef.current?.id === updated.id) {
+                setActiveCollab(updated);
               }
-            })();
-          }
+              addToast({
+                type: approved ? 'success' : 'info',
+                title: approved ? 'Agent added' : 'Agent add denied',
+                message: approved
+                  ? `@${agentName} joined "${updated.title}".`
+                  : `@${agentName} was not added to "${updated.title}".`,
+              });
+            } catch (error) {
+              addToast({
+                type: 'error',
+                title: 'Participant request failed',
+                message: error instanceof Error ? error.message : 'Could not update collaboration participants.',
+              });
+            }
+          })();
         }
       }
 

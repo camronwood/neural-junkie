@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,7 +14,31 @@ import (
 var (
 	goalFileAssigneeRe = regexp.MustCompile(`(?i)([a-z0-9][a-z0-9_./-]*\.md)\s*\(@([a-zA-Z][a-zA-Z0-9]*)\)`)
 	goalInlineTaskRe   = regexp.MustCompile(`(?i)Task\s+\d+\s*:?\s*@[^\n;]+`)
+	goalExactlyNTasksRe = regexp.MustCompile(`(?i)exactly\s+(\d+)\s+tasks?`)
 )
+
+// goalPinsExactTaskList is true when the /collaborate goal pins an explicit exact task list
+// that should replace freestyle discussion plans instead of merging with them.
+func goalPinsExactTaskList(goal string, goalTaskCount int) bool {
+	if goalTaskCount <= 0 {
+		return false
+	}
+	goalLower := strings.ToLower(strings.TrimSpace(goal))
+	if goalTaskCount == 1 && (strings.Contains(goalLower, "plan one task") || strings.Contains(goalLower, "this exact line")) {
+		return true
+	}
+	if strings.Contains(goalLower, "using these exact lines") ||
+		strings.Contains(goalLower, "use exactly:") ||
+		strings.Contains(goalLower, "plan exactly:") {
+		return true
+	}
+	if m := goalExactlyNTasksRe.FindStringSubmatch(goalLower); len(m) == 2 {
+		if n, err := strconv.Atoi(m[1]); err == nil && n == goalTaskCount {
+			return true
+		}
+	}
+	return false
+}
 
 func substituteCollabIDPlaceholders(text, collabID string) string {
 	text = strings.ReplaceAll(text, "<collab-id>", collabID)
@@ -156,8 +181,7 @@ func (cm *CollaborationManager) ensurePlanTasksFromGoalLocked(c *Collaboration) 
 	if len(goalTasks) == 0 {
 		return
 	}
-	goalLower := strings.ToLower(strings.TrimSpace(c.Description))
-	if len(goalTasks) == 1 && (strings.Contains(goalLower, "plan one task") || strings.Contains(goalLower, "this exact line")) {
+	if goalPinsExactTaskList(c.Description, len(goalTasks)) {
 		if c.Plan == nil {
 			c.Plan = &SharedArtifact{}
 		}
@@ -166,9 +190,12 @@ func (cm *CollaborationManager) ensurePlanTasksFromGoalLocked(c *Collaboration) 
 		c.Plan.Version++
 		c.Plan.UpdatedAt = time.Now()
 		c.Plan.Status = ArtifactProposed
+		if len(goalTasks) > maxTasksLimit() {
+			goalTasks = goalTasks[:maxTasksLimit()]
+		}
 		c.Tasks = goalTasks
 		c.UpdatedAt = time.Now()
-		log.Printf("[CollaborationManager] Applied single goal task for %s", c.ID[:8])
+		log.Printf("[CollaborationManager] Applied pinned goal task list (%d) for %s", len(c.Tasks), c.ID[:8])
 		return
 	}
 	if c.Plan == nil {

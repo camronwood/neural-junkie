@@ -1,6 +1,6 @@
 {
-  "description": "Local coder models for NJ live benchmarks. Release gates use max_params_b=14 (nothing larger than 14B).",
-  "max_params_b_default": 14,
+  "description": "Local coder models for NJ live benchmarks. Default cap is max_size_gb≈9 (Qwen 2.5 Coder 14B footprint) — anything larger in memory is too slow for routine tests.",
+  "max_size_gb_default": 9,
   "models": [
     {
       "id": "qwen2.5-coder-14b",
@@ -8,7 +8,7 @@
       "title": "Qwen 2.5 Coder 14B",
       "params_b": 14,
       "size_hint_gb": 9,
-      "notes": "NJ historical specialist default; strong tool loops"
+      "notes": "NJ historical specialist default; strong tool loops; defines the ~9 GB speed ceiling"
     },
     {
       "id": "codestral-22b",
@@ -16,7 +16,7 @@
       "title": "Codestral 22B",
       "params_b": 22,
       "size_hint_gb": 13,
-      "notes": "Mistral code model; included in default ≤24B benchmarks"
+      "notes": "Mistral code model; above default ≤9 GB roster (use --allow-large-models)"
     },
     {
       "id": "devstral-24b",
@@ -24,7 +24,7 @@
       "title": "Devstral 24B",
       "params_b": 24,
       "size_hint_gb": 14,
-      "notes": "Mistral dev/agent model; included in default ≤24B benchmarks"
+      "notes": "Mistral dev/agent model; above default ≤9 GB roster (use --allow-large-models)"
     },
     {
       "id": "qwen3.5-9b",
@@ -42,6 +42,27 @@
       "params_b": 9,
       "size_hint_gb": 5.6,
       "notes": "DeepReinforce agentic coding model; reasoning + tool-calling (GGUF via HF)"
+    },
+    {
+      "id": "bonsai-27b",
+      "tag": "nj-bonsai:27b",
+      "pull_tag": "hf.co/prism-ml/Bonsai-27B-gguf:Q1_0",
+      "title": "1-bit Bonsai 27B",
+      "params_b": 27,
+      "size_hint_gb": 3.5,
+      "notes": "PrismML 1-bit Q1_0 multimodal 27B (Qwen3.6); ~3.5 GB in memory. Pull via hf.co (Q1_0). Needs Ollama with Q1_0 support."
+    },
+    {
+      "id": "ternary-bonsai-27b",
+      "tag": "nj-ternary-bonsai:27b",
+      "requires_hf_import": true,
+      "hf_repo_id": "prism-ml/Ternary-Bonsai-27B-gguf",
+      "hf_filename": "Ternary-Bonsai-27B-Q2_0.gguf",
+      "hf_mmproj": "Ternary-Bonsai-27B-mmproj-Q8_0.gguf",
+      "title": "Ternary Bonsai 27B",
+      "params_b": 27,
+      "size_hint_gb": 7.2,
+      "notes": "PrismML ternary Q2_0 ~7.2 GB. Stock ollama pull rejects :Q2_0 — download GGUF + ollama create (scripts/import-hf-gguf-models.py)."
     },
     {
       "id": "deepseek-coder-6.7b",
@@ -65,7 +86,7 @@
       "title": "Gemma 3 12B",
       "params_b": 12,
       "size_hint_gb": 8.1,
-      "notes": "Google Gemma 3 mid-tier; strong reasoning and MBPP/HumanEval class"
+      "notes": "Google Gemma 3 mid-tier; good general + code balance"
     }
   ]
 }

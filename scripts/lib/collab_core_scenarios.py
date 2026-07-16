@@ -1,6 +1,6 @@
 """Scenarios for collab-core layer — fast participation/planning gate (~45–90m).
 
-Heavy website/phoenix/execution sweeps stay in collab-full; use this layer for
+Heavy website/execution sweeps stay in collab-full; use this layer for
 fix-loop convergence and infra validation under batch Ollama load.
 """
 

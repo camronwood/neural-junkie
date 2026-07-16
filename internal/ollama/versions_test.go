@@ -1,6 +1,12 @@
 package ollama
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"testing"
+)
 
 func TestParseOllamaVersion(t *testing.T) {
 	cases := []struct {
@@ -59,7 +65,21 @@ func TestFetchOllamaScriptPinSync(t *testing.T) {
 	if RecommendedOllamaTag != "v"+RecommendedOllamaVersion {
 		t.Fatalf("tag %q", RecommendedOllamaTag)
 	}
-	if RecommendedOllamaVersion != "0.32.0" {
-		t.Fatalf("bump fetch-ollama.sh when changing RecommendedOllamaVersion (got %s)", RecommendedOllamaVersion)
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	script := filepath.Join(filepath.Dir(thisFile), "..", "..", "scripts", "fetch-ollama.sh")
+	raw, err := os.ReadFile(script)
+	if err != nil {
+		t.Fatalf("read %s: %v", script, err)
+	}
+	m := regexp.MustCompile(`(?m)^VERSION="\$\{OLLAMA_VERSION:-v([^}"]+)\}"`).FindSubmatch(raw)
+	if len(m) != 2 {
+		t.Fatalf("could not find OLLAMA_VERSION default in %s", script)
+	}
+	got := string(m[1])
+	if got != RecommendedOllamaVersion {
+		t.Fatalf("fetch-ollama.sh default %s != RecommendedOllamaVersion %s", got, RecommendedOllamaVersion)
 	}
 }

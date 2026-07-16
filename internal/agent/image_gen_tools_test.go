@@ -212,6 +212,17 @@ func TestImageGenerationToolsDisabledDuringCollabPlanning(t *testing.T) {
 			t.Fatal("generate_image should not be in tool list during collab planning")
 		}
 	}
+
+	nudge := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"collab-test",
+		protocol.AgentInfo{ID: "user", Name: "User"},
+		"@BackendEngineer please post your planning turn with concrete Task lines.",
+	)
+	nudge.SetCollaborationPhase("planning")
+	if a.imageGenerationToolsEnabledForMessage(nudge) {
+		t.Fatal("image gen must be disabled for planning-phase question nudges")
+	}
 }
 
 func TestTryHubImageGenerationShortcutSkippedDuringImplementationSession(t *testing.T) {

@@ -15,6 +15,29 @@ func TestCollabSchedulerTickDoesNotPanic(t *testing.T) {
 	h.TickCollabScheduler(now)
 }
 
+func TestCollabSchedulerOnPlanningKick(t *testing.T) {
+	h := newTestHub(t)
+	chName := "sched-kick"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeAssistant, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeArchitecture, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, chName, "tester", collaboration.DiscussionConfig{
+		MaxRounds:        1,
+		MaxTotalMessages: 8,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Should not panic; may or may not emit handoff depending on silence/turn.
+	NewCollabScheduler(h).OnPlanningKick(collab.ID)
+	h.KickPlanningDiscussionWatchdog(collab.ID)
+}
+
 func TestCollabSchedulerOnPlanningNeedHandoff(t *testing.T) {
 	h := newTestHub(t)
 	chName := "sched-handoff"

@@ -20,10 +20,14 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.model_benchmark import (  # noqa: E402
     MODELS_CONFIG,
     SUITES_CONFIG,
-    filter_models_by_max_params,
+    filter_models_by_max_size_gb,
     load_models,
     load_suite,
-    resolve_suite_max_params_b,
+    model_is_installed,
+    model_pull_tag,
+    model_requires_hf_import,
+    model_runtime_tag,
+    resolve_suite_max_size_gb,
     resolve_suite_model_tags,
 )
 
@@ -71,10 +75,33 @@ def loaded_tags() -> set[str]:
     return names
 
 
-def pull_tag(tag: str) -> bool:
+def catalog_by_tag() -> dict[str, dict]:
+    return {
+        str(m.get("tag") or "").strip(): m
+        for m in load_models(MODELS_CONFIG)
+        if isinstance(m, dict) and str(m.get("tag") or "").strip()
+    }
+
+
+def ollama_pull(tag: str) -> bool:
     print(f"  pull {tag} …")
     proc = subprocess.run(["ollama", "pull", tag], cwd=ROOT, check=False)
     return proc.returncode == 0
+
+
+def resolve_pull_target(tag: str, catalog: dict[str, dict] | None = None) -> str:
+    """Map brand/catalog tags (nj-ornith:9b) to their Ollama pull targets (hf.co/…)."""
+    cat = catalog if catalog is not None else catalog_by_tag()
+    model = cat.get(tag.strip())
+    if not model:
+        return tag.strip()
+    if model_requires_hf_import(model):
+        return ""
+    return model_pull_tag(model) or tag.strip()
+
+
+def is_optional_benchmark_tag(tag: str, warm_tags: list[str]) -> bool:
+    return tag not in warm_tags
 
 
 def warm_tag(tag: str, *, keep_alive: str, timeout_s: float) -> tuple[bool, str]:
@@ -145,7 +172,7 @@ def benchmark_pull_tags(
     allow_large: bool,
 ) -> list[str]:
     suite_cfg = load_suite(suite, SUITES_CONFIG)
-    cap = resolve_suite_max_params_b(suite_cfg, MODELS_CONFIG)
+    cap = resolve_suite_max_size_gb(suite_cfg, MODELS_CONFIG)
     if models_arg:
         want = [t.strip() for t in models_arg.split(",") if t.strip()]
         catalog = {str(m.get("tag") or "").strip(): m for m in load_models(MODELS_CONFIG)}
@@ -157,7 +184,7 @@ def benchmark_pull_tags(
         return [t for t in explicit if t in catalog]
     models = load_models(MODELS_CONFIG)
     if not allow_large:
-        models = filter_models_by_max_params(models, cap)
+        models = filter_models_by_max_size_gb(models, cap)
     tags: list[str] = []
     seen: set[str] = set()
     for model in models:
@@ -222,21 +249,71 @@ def main() -> int:
         print("FAIL: Ollama not reachable at 127.0.0.1:11434", file=sys.stderr)
         return 1
 
+    catalog = catalog_by_tag()
     if args.pull_missing:
         failed_pull: list[str] = []
+        skipped_import: list[str] = []
         for tag in pull_tags:
-            if tag in installed:
-                print(f"  installed: {tag}")
+            model = catalog.get(tag)
+            if model and model_requires_hf_import(model):
+                if model_is_installed(installed, tag):
+                    print(f"  installed: {tag} (HF import)")
+                else:
+                    print(f"  >>> importing HF GGUF for {tag} …")
+                    proc = subprocess.run(
+                        [
+                            sys.executable,
+                            str(ROOT / "scripts" / "import-hf-gguf-models.py"),
+                            "--models",
+                            tag,
+                        ],
+                        cwd=ROOT,
+                        check=False,
+                    )
+                    installed = installed_tags()
+                    if proc.returncode != 0 or not model_is_installed(installed, tag):
+                        if is_optional_benchmark_tag(tag, warm_tags):
+                            skipped_import.append(tag)
+                            print(
+                                f"  WARN: HF import failed for {tag} (continuing; benchmark will skip)",
+                                file=sys.stderr,
+                            )
+                        else:
+                            failed_pull.append(f"{tag} (HF import)")
                 continue
-            if not pull_tag(tag):
-                failed_pull.append(tag)
+            target = resolve_pull_target(tag, catalog)
+            if not target:
                 continue
-            installed.add(tag)
+            if model_is_installed(installed, tag, pull_tag=target):
+                label = tag if target == tag else f"{tag} (via {target})"
+                print(f"  installed: {label}")
+                continue
+            if not ollama_pull(target):
+                label = tag if target == tag else f"{tag} ← {target}"
+                if is_optional_benchmark_tag(tag, warm_tags):
+                    print(
+                        f"  WARN: optional pull failed for {label} (continuing)",
+                        file=sys.stderr,
+                    )
+                else:
+                    failed_pull.append(label)
+                continue
+            installed = installed_tags()
         if failed_pull:
             print(f"FAIL: pull failed for: {', '.join(failed_pull)}", file=sys.stderr)
             return 1
+        if skipped_import:
+            print(
+                f"  note: {len(skipped_import)} HF-import model(s) not installed — "
+                f"benchmark will skip them unless imported",
+                file=sys.stderr,
+            )
 
-    missing = [t for t in warm_tags if t not in installed]
+    missing = [
+        t
+        for t in warm_tags
+        if not model_is_installed(installed, t, pull_tag=resolve_pull_target(t, catalog) or "")
+    ]
     if missing:
         print(
             f"FAIL: models not installed: {', '.join(missing)} "
@@ -245,10 +322,18 @@ def main() -> int:
         )
         return 1
 
+    def runtime(tag: str) -> str:
+        model = catalog.get(tag)
+        if model:
+            return model_runtime_tag(model, installed)
+        return tag
+
     if args.warm:
         for tag in warm_tags:
-            print(f"  warming {tag} …")
-            ok, detail = warm_tag(tag, keep_alive=args.keep_alive, timeout_s=args.warm_timeout)
+            use = runtime(tag)
+            label = tag if use == tag else f"{tag} → {use}"
+            print(f"  warming {label} …")
+            ok, detail = warm_tag(use, keep_alive=args.keep_alive, timeout_s=args.warm_timeout)
             if not ok:
                 print(f"FAIL: warm {tag}: {detail}", file=sys.stderr)
                 return 1
@@ -256,8 +341,10 @@ def main() -> int:
 
     if args.smoke:
         for tag in warm_tags:
-            print(f"  smoke {tag} …")
-            ok, detail = smoke_tag(tag, keep_alive=args.keep_alive)
+            use = runtime(tag)
+            label = tag if use == tag else f"{tag} → {use}"
+            print(f"  smoke {label} …")
+            ok, detail = smoke_tag(use, keep_alive=args.keep_alive)
             if not ok:
                 print(f"FAIL: smoke {tag}: {detail}", file=sys.stderr)
                 return 1
@@ -266,9 +353,11 @@ def main() -> int:
     # End with the primary agent model resident; smaller/tool models may be evicted on tight RAM.
     if args.warm:
         primary = warm_tags[0]
-        if primary not in loaded_tags():
+        primary_rt = runtime(primary)
+        loaded = loaded_tags()
+        if primary_rt not in loaded and primary not in loaded:
             print(f"  re-warm {primary} (primary agent model) …")
-            ok, detail = warm_tag(primary, keep_alive=args.keep_alive, timeout_s=args.warm_timeout)
+            ok, detail = warm_tag(primary_rt, keep_alive=args.keep_alive, timeout_s=args.warm_timeout)
             if not ok:
                 print(f"FAIL: re-warm {primary}: {detail}", file=sys.stderr)
                 return 1
@@ -276,11 +365,16 @@ def main() -> int:
 
     loaded = loaded_tags()
     primary = warm_tags[0]
-    if args.warm and primary not in loaded:
+    primary_rt = runtime(primary)
+    if args.warm and primary_rt not in loaded and primary not in loaded:
         print(f"FAIL: primary model not in /api/ps: {primary}", file=sys.stderr)
         return 1
 
-    optional_cold = [t for t in warm_tags[1:] if t not in loaded]
+    optional_cold = [
+        t
+        for t in warm_tags[1:]
+        if runtime(t) not in loaded and t not in loaded
+    ]
     if optional_cold:
         print(
             f"  WARN: not all warm models resident simultaneously "

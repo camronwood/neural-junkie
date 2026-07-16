@@ -146,11 +146,10 @@ def _trip_cloud_judge_on_failure(provider: str, detail: str) -> None:
         trip_cloud_judge(provider, detail)
 
 
-def _judge_via_ollama(prompt: str, *, note: str) -> tuple[bool, str]:
-    ok, detail = ollama_judge_deliverable(prompt=prompt)
+def _judge_via_ollama(prompt: str, *, note: str) -> tuple[bool, str, float | None]:
+    ok, detail, score = ollama_judge_deliverable(prompt=prompt)
     prefix = note.strip() or "fallback"
-    return ok, f"{prefix} ollama/{DEFAULT_OLLAMA_MODEL}: {detail}"
-
+    return ok, f"{prefix} ollama/{DEFAULT_OLLAMA_MODEL}: {detail}", score
 
 def resolve_judge_agent(provider: str, spec_agent: str = "") -> str:
     if spec_agent.strip():
@@ -181,25 +180,51 @@ def build_judge_prompt(
         f"---{extra}\n\n"
         "Reject stubs, placeholders, unrelated boilerplate, or wrong-stack artifacts.\n"
         "Judge the deliverable file on substance and correctness, not whether it repeats the user's error log.\n\n"
-        "Reply with exactly two lines:\n"
+        "Score as the average of completeness, correctness, and minimalism (each 0.00–1.00).\n\n"
+        "Reply with exactly three lines:\n"
         "Line 1: PASS or FAIL\n"
-        "Line 2: one short reason"
+        "Line 2: SCORE: <0.00-1.00>\n"
+        "Line 3: one short reason"
     )
 
 
-def parse_judge_response(text: str) -> tuple[bool, str]:
+_SCORE_LINE_RE = re.compile(r"^SCORE:\s*([0-9]*\.?[0-9]+)\s*$", re.I)
+
+
+def parse_judge_response_scored(text: str) -> tuple[bool, str, float | None]:
+    """Parse PASS/FAIL, optional SCORE line, and reason. Returns (ok, reason, score)."""
     response = (text or "").strip()
     if not response:
-        return False, "empty judge response"
+        return False, "empty judge response", None
     lines = [ln.strip() for ln in response.splitlines() if ln.strip()]
     first = (lines[0] if lines else response).upper()
-    reason = lines[1] if len(lines) > 1 else response
+    score: float | None = None
+    reason_idx = 1
+    if len(lines) > 1:
+        m = _SCORE_LINE_RE.match(lines[1])
+        if m:
+            try:
+                score = max(0.0, min(1.0, float(m.group(1))))
+            except ValueError:
+                score = None
+            reason_idx = 2
+    if len(lines) > reason_idx:
+        reason = lines[reason_idx]
+    elif len(lines) > 1 and reason_idx == 1:
+        reason = lines[1]
+    else:
+        reason = response
     if first.startswith("PASS") or re.search(r"\bPASS\b", first):
-        return True, reason or "pass"
+        return True, reason or "pass", score
     if first.startswith("FAIL") or re.search(r"\bFAIL\b", first):
-        return False, reason or "fail"
-    return False, f"unparseable judge response: {response[:200]}"
+        return False, reason or "fail", score
+    return False, f"unparseable judge response: {response[:200]}", score
 
+
+def parse_judge_response(text: str) -> tuple[bool, str]:
+    """Backward-compatible wrapper; discards quality score."""
+    ok, reason, _score = parse_judge_response_scored(text)
+    return ok, reason
 
 def _judge_spec_provider(spec: dict[str, Any] | bool | None) -> str:
     if isinstance(spec, dict):
@@ -246,7 +271,7 @@ def ollama_judge_deliverable(
     model: str = DEFAULT_OLLAMA_MODEL,
     ollama_base: str = DEFAULT_OLLAMA_URL,
     timeout_s: float = JUDGE_TIMEOUT_S,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, float | None]:
     payload = {
         "model": model,
         "prompt": prompt,
@@ -264,11 +289,10 @@ def ollama_judge_deliverable(
         with urllib.request.urlopen(req, timeout=timeout_s) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.URLError as exc:
-        return False, f"ollama unreachable at {ollama_base}: {exc}"
+        return False, f"ollama unreachable at {ollama_base}: {exc}", None
     except TimeoutError:
-        return False, f"ollama judge timeout ({timeout_s}s)"
-    return parse_judge_response((data.get("response") or "").strip())
-
+        return False, f"ollama judge timeout ({timeout_s}s)", None
+    return parse_judge_response_scored((data.get("response") or "").strip())
 
 def cli_judge_deliverable(
     *,
@@ -276,23 +300,23 @@ def cli_judge_deliverable(
     prompt: str,
     work_dir: str = "",
     timeout_s: float = JUDGE_TIMEOUT_S,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, float | None]:
     if provider == "gemini":
         binary = shutil.which("gemini")
         if not binary:
-            return False, "gemini CLI not on PATH"
+            return False, "gemini CLI not on PATH", None
         cmd = [binary, "--output-format", "text", "-p", prompt]
         run_env = _gemini_cli_env()
     elif provider == "cursor":
         binary = shutil.which("agent")
         if not binary:
-            return False, "cursor agent CLI not on PATH"
+            return False, "cursor agent CLI not on PATH", None
         cmd = [binary, "-p", "--output-format", "text", prompt]
         run_env = None
     elif provider == "claude":
         binary = shutil.which("claude")
         if not binary:
-            return False, "claude CLI not on PATH"
+            return False, "claude CLI not on PATH", None
         cmd = [binary, "-p", prompt]
         try:
             from lib.claude_judge_auth import claude_subprocess_env
@@ -300,7 +324,7 @@ def cli_judge_deliverable(
             from claude_judge_auth import claude_subprocess_env  # type: ignore[no-redef]
         run_env = claude_subprocess_env()
     else:
-        return False, f"unsupported CLI judge provider {provider!r}"
+        return False, f"unsupported CLI judge provider {provider!r}", None
 
     if provider == "gemini":
         throttle_gemini_judge()
@@ -316,9 +340,9 @@ def cli_judge_deliverable(
             env=run_env,
         )
     except subprocess.TimeoutExpired:
-        return False, f"{provider} CLI judge timeout ({timeout_s}s)"
+        return False, f"{provider} CLI judge timeout ({timeout_s}s)", None
     except OSError as exc:
-        return False, f"{provider} CLI judge failed: {exc}"
+        return False, f"{provider} CLI judge failed: {exc}", None
 
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "").strip()
@@ -337,10 +361,9 @@ def cli_judge_deliverable(
                     env=run_env,
                 )
                 if proc.returncode == 0:
-                    return parse_judge_response(proc.stdout or "")
-        return False, detail
-    return parse_judge_response(proc.stdout or "")
-
+                    return parse_judge_response_scored(proc.stdout or "")
+        return False, detail, None
+    return parse_judge_response_scored(proc.stdout or "")
 
 def hub_judge_deliverable(
     *,
@@ -348,7 +371,7 @@ def hub_judge_deliverable(
     agent_name: str,
     prompt: str,
     timeout_s: float = JUDGE_TIMEOUT_S,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, float | None]:
     try:
         from lib import collab_hub as hub
     except ImportError:  # unittest cwd scripts/lib
@@ -360,11 +383,11 @@ def hub_judge_deliverable(
     base = hub_base.rstrip("/")
     ok, missing = hub.verify_agents_online(base, [agent_name])
     if not ok:
-        return False, f"judge agent offline: {', '.join(missing)}"
+        return False, f"judge agent offline: {', '.join(missing)}", None
 
     channel = hub.ensure_dm_channel(base, JUDGE_DM_USER, agent_name)
     if not channel:
-        return False, f"could not open DM with judge agent {agent_name!r}"
+        return False, f"could not open DM with judge agent {agent_name!r}", None
 
     hub.clear_channel_history(base, channel)
     time.sleep(2.0)
@@ -384,7 +407,7 @@ def hub_judge_deliverable(
         detail = f"judge send failed ({code})"
         if code == 403:
             trip_cloud_judge(agent_name, detail)
-        return False, detail
+        return False, detail, None
 
     deadline = time.time() + timeout_s
     while time.time() < deadline:
@@ -398,16 +421,15 @@ def hub_judge_deliverable(
             text = (msg.get("content") or "").strip()
             if text:
                 if _is_cloud_judge_agent_error(text):
-                    return False, f"{agent_name} judge error: {text[:300]}"
-                ok, detail = parse_judge_response(text)
+                    return False, f"{agent_name} judge error: {text[:300]}", None
+                ok, detail, score = parse_judge_response_scored(text)
                 if not ok and _is_cloud_judge_agent_error(detail):
-                    return False, f"{agent_name} judge error: {detail[:300]}"
+                    return False, f"{agent_name} judge error: {detail[:300]}", score
                 if ok:
-                    return True, detail
-                return False, detail
+                    return True, detail, score
+                return False, detail, score
         time.sleep(2.0)
-    return False, f"timeout waiting for {agent_name} judge ({timeout_s}s)"
-
+    return False, f"timeout waiting for {agent_name} judge ({timeout_s}s)", None
 
 def judge_deliverable(
     *,
@@ -418,10 +440,10 @@ def judge_deliverable(
     llm_judge_spec: dict[str, Any] | bool | None = True,
     hub_base: str = "",
     work_dir: str = "",
-) -> tuple[bool, str]:
+) -> tuple[bool, str, float | None]:
     """Route deliverable judging: cloud-first (hub Gemini), Ollama fallback when enabled."""
     if judge_skip_enabled():
-        return True, "skipped (NJ_DELIVERABLE_JUDGE_SKIP)"
+        return True, "skipped (NJ_DELIVERABLE_JUDGE_SKIP)", None
 
     provider = _judge_spec_provider(llm_judge_spec)
     agent = _judge_spec_agent(llm_judge_spec, provider)
@@ -438,22 +460,22 @@ def judge_deliverable(
         mode = "hub"
 
     if provider == "ollama" or mode == "ollama":
-        ok, detail = ollama_judge_deliverable(prompt=prompt)
-        return ok, f"ollama/{DEFAULT_OLLAMA_MODEL}: {detail}"
+        ok, detail, score = ollama_judge_deliverable(prompt=prompt)
+        return ok, f"ollama/{DEFAULT_OLLAMA_MODEL}: {detail}", score
 
     if (
         provider in ("gemini", "cursor", "claude")
         and cloud_judge_tripped(provider)
         and ollama_fallback_enabled()
     ):
-        ok, detail = ollama_judge_deliverable(prompt=prompt)
-        return ok, f"cloud circuit open → ollama/{DEFAULT_OLLAMA_MODEL}: {detail}"
+        ok, detail, score = ollama_judge_deliverable(prompt=prompt)
+        return ok, f"cloud circuit open → ollama/{DEFAULT_OLLAMA_MODEL}: {detail}", score
 
     if mode == "cli" or not hub_base.strip():
-        ok, detail = cli_judge_deliverable(provider=provider, prompt=prompt, work_dir=work_dir)
+        ok, detail, score = cli_judge_deliverable(provider=provider, prompt=prompt, work_dir=work_dir)
         if ok:
             prefix = f"{provider}-cli"
-            return ok, f"{prefix}: {detail}"
+            return ok, f"{prefix}: {detail}", score
         if _should_fallback_to_ollama(provider, detail):
             _trip_cloud_judge_on_failure(provider, detail)
             return _judge_via_ollama(prompt, note="cloud judge error")
@@ -461,24 +483,24 @@ def judge_deliverable(
             # fall through to hub when CLI fails and hub is available
             pass
         else:
-            return ok, f"{provider}-cli: {detail}"
+            return ok, f"{provider}-cli: {detail}", score
 
     if hub_base.strip():
-        ok, detail = hub_judge_deliverable(
+        ok, detail, score = hub_judge_deliverable(
             hub_base=hub_base,
             agent_name=agent,
             prompt=prompt,
         )
         full_detail = f"{agent}@{hub_base}: {detail}"
         if ok:
-            return ok, full_detail
+            return ok, full_detail, score
         if _should_fallback_to_ollama(provider, detail):
             _trip_cloud_judge_on_failure(provider, detail)
             return _judge_via_ollama(prompt, note="cloud judge error")
-        return False, full_detail
+        return False, full_detail, score
 
-    ok, detail = cli_judge_deliverable(provider=provider, prompt=prompt, work_dir=work_dir)
+    ok, detail, score = cli_judge_deliverable(provider=provider, prompt=prompt, work_dir=work_dir)
     if not ok and _should_fallback_to_ollama(provider, detail):
         _trip_cloud_judge_on_failure(provider, detail)
         return _judge_via_ollama(prompt, note="cloud judge error")
-    return ok, f"{provider}-cli: {detail}"
+    return ok, f"{provider}-cli: {detail}", score

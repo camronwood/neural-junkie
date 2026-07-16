@@ -60,7 +60,7 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | IDE routing from open file | `ide_route_agent_type` metadata | `dm-ide-route-backend` |
 | Workspace MCP tools (read/grep/glob) | `internal/mcp/workspace` | manual IDE Agent mode |
 | Everyone contributes in collab | Discussion turns, `@mention` out-of-turn | `make collab-scenarios-all`; `wait_discussion` + nudges |
-| Deliverables on real paths | Plan parser, execution sandbox | Collab regression scenarios, Phoenix with real repo |
+| Deliverables on real paths | Plan parser, execution sandbox | Collab regression scenarios with `NEURAL_JUNKIE_SCENARIO_REPO` |
 | Slack = same agent surface | Slack bridge → bound channel | `make slack-smoke`; optional `LIVE=1` (synthetic inbound, no posts); `SLACK_SMOKE_OUTBOUND=1` for gated outbound |
 | Cursor CLI on PATH | [CLI_AGENTS.md](CLI_AGENTS.md) | Optional manual `@Cursor` chat/collab (not CI) |
 | Go test failure repair | Verify loop + `go test ./...` | `go-test-failure-repair` |
@@ -166,8 +166,13 @@ Options: `SKIP_LIVE=1` (CI only), `NO_FULL=1` (skip collab-scenarios-all), `SKIP
 ```bash
 make model-benchmark-list
 make model-benchmark SUITE=quick MODELS='qwen2.5-coder:14b,qwen3.5:9b'
+make model-benchmark SUITE=collab   # core multi-agent track
+make model-benchmark SUITE=arena    # Arena logic + Connect4
+make model-benchmark SUITE=external # HumanEval-25 calibration (does not drive routing)
 # reports: docs/testing/model-benchmark-*.md|.json|.tsv
 ```
+
+Suites also capture optional **metrics** (tokens / TTFT / tok/s / repairs), **layered scores** (structural / quality / capability), and publish Arena / CAD / HumanEval tracks into `docs/data/model-benchmarks.json`.
 
 **Manual spot-check (real app):** Share workspace on a React+Tailwind repo (e.g. dickory-docs with `.neural-junkie/rules.md`), Agent mode + `auto_apply_edits`, prompt: implement light/dark theme. Expect root `tailwind.config.js` with `darkMode`, `.tsx` paths only (no `.vue`), and honest session summary (`applied and verified` or `proposals submitted`).
 
@@ -187,7 +192,7 @@ make model-benchmark SUITE=quick MODELS='qwen2.5-coder:14b,qwen3.5:9b'
 | Hub wiring, plan parser, collab API smoke | Full 15-scenario `collab-scenarios-all` sweep |
 | Slack handler mocks (`slack-smoke`) | `make layer-gate LAYER=chat`, `chat-scenarios-debug` |
 | `collab-smoke`, `learning-lora-smoke` | `learning-scenarios`, file deliverables on disk |
-| No Ollama, no 1–3h serial LLM work | Phoenix repo paths (`NEURAL_JUNKIE_SCENARIO_REPO`) |
+| No Ollama, no 1–3h serial LLM work | Optional scenario repo paths (`NEURAL_JUNKIE_SCENARIO_REPO`) |
 
 Do **not** add `collab-scenarios-all` to CI. Use `make collab-preflight` before live sweeps.
 
@@ -204,7 +209,7 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 7. `make chat-scenarios-debug`
 8. `make layer-gate LAYER=collab-full` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.
 9. `make learning-scenarios`
-10. Optional: `collab-scenario-matrix`, `collab-routing-matrix`, Phoenix with `NEURAL_JUNKIE_SCENARIO_REPO=/path/to/clone`
+10. Optional: `collab-scenario-matrix`, `collab-routing-matrix`, with `NEURAL_JUNKIE_SCENARIO_REPO=/path/to/clone`
 11. Optional Slack live smoke (maintainer, hub running with Slack connected):
     - **Default (no Slack messages sent):** `LIVE=1 make slack-smoke` — runs `POST /api/slack/smoke/run` with synthetic inbound only
     - **Optional outbound** (private `#nj-smoke-test`, bot + you only): `SLACK_SMOKE_ALLOW=1 SLACK_SMOKE_CHANNEL_ID=C… SLACK_SMOKE_OUTBOUND=1 LIVE=1 make slack-smoke`
@@ -254,7 +259,7 @@ Most collab scenarios stop after **partial execution** (`min_completed: 1`, `set
 | `collab-minimal-completion-regression` | Yes (first) | Full — fast single-agent minimal-repo |
 | `execute-deliverable` | Yes | Full — canonical fixture execution |
 | `document-findings-execution` | Yes | Full — "Document findings" phrasing |
-| `phoenix-resource-api-e2e` | `collab-scenarios-all` only | Full — multi-agent Phoenix stress test |
+| `resource-api-schema-regression` | `collab-scenarios-all` | Partial — multi-agent resource-api execute |
 
 **Live collab roster policy:** at most **two Ollama specialists** plus **@Claude** when a third participant is needed. Avoid `@Assistant` in scenarios — specialists implement; Claude covers cloud participation and judging.
 
@@ -295,11 +300,10 @@ make collab-sweep-serial RESUME=1
 | `multi-collab-isolation` | (profile default) | Blocker setup uses fast agents |
 | `plan-findings-task-regression` | BackendEngineer, SoftwareArchitect, Claude | |
 | `plan-distinct-deliverables-same-agent` | SoftwareArchitect, BackendEngineer | |
-| `plan-phoenix-combined-regression` | BackendEngineer, SoftwareArchitect, Claude | `NEURAL_JUNKIE_SCENARIO_REPO` |
+| `plan-combined-resource-api-regression` | BackendEngineer, SoftwareArchitect, Claude | `NEURAL_JUNKIE_SCENARIO_REPO` |
 | `plan-dependency-prose-regression` | BackendEngineer, SoftwareArchitect, Claude | `NEURAL_JUNKIE_SCENARIO_REPO` |
 | `resource-api-schema-regression` | BackendEngineer, FrontendEngineer, Claude | `NEURAL_JUNKIE_SCENARIO_REPO` |
 | `resource-api-schema-planning` | SoftwareArchitect, PlatformEngineer, Claude | |
-| `phoenix-resource-api-e2e` | SoftwareArchitect, BackendEngineer, Claude | `NEURAL_JUNKIE_SCENARIO_REPO`; full completion |
 | `execution-no-stack-commands` | BackendEngineer, PlatformEngineer | |
 
 Sweep logs: [testing/collab-sweep-2026-06-02.md](testing/collab-sweep-2026-06-02.md).
