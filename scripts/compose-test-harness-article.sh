@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-test-harness-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-test-harness-ad-1200.png"
+OUT="$ROOT/campaigns/test-harness/creatives/neural-junkie-test-harness-ad-1200.png"
 PY="$ROOT/.venv-icon/bin/python"
 
 if [[ ! -x "$PY" ]]; then

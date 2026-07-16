@@ -4,21 +4,23 @@ Images here are published at **https://camronwood.github.io/neural-junkie/galler
 
 ## Add new images
 
-1. Drop PNG or JPG files into a folder:
+Prefer adding source creatives under `campaigns/<slug>/creatives/`, then sync.
+
+For one-off gallery-only media, drop PNG or JPG files into:
 
 | Folder | Use for |
 |--------|---------|
-| `ads/` | Marketing ads (1080×1080) |
+| `ads/` | Marketing ads (usually synced from campaigns) |
 | `screenshots/` | Desktop / product screenshots |
 | `misc/` | Anything else (demos, Slack shots, etc.) |
 
-2. Regenerate the gallery index:
+Regenerate the gallery index:
 
 ```bash
 ./scripts/sync-gallery.sh
 ```
 
-3. Commit the new files under `docs/media/gallery/` and the updated `docs/gallery/manifest.json`.
+Commit the new files under `docs/media/gallery/` and the updated `docs/gallery/manifest.json`.
 
 ## Optional sidecar metadata
 
@@ -32,11 +34,11 @@ Add `my-shot.png.json` next to `my-shot.png`:
 }
 ```
 
-## Sync from repo `assets/`
+## Sync from `campaigns/`
 
-`sync-gallery.sh` also copies:
+`sync-gallery.sh` copies:
 
-- `assets/neural-junkie-*-ad-1080.png` → `ads/`
+- `campaigns/*/creatives/*-ad-*.png`, `*-1200.png`, `ide-v4-*`, `edge-ide-*` → `ads/`
 - `assets/screenshots/*` → `screenshots/`
 
-So you can keep composing ads in `assets/` and run sync before publishing.
+Keep composing ads in `campaigns/<slug>/creatives/` and run sync before publishing.

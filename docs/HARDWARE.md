@@ -167,4 +167,4 @@ Implementation: [`internal/hardware/`](../internal/hardware/).
 - [GETTING_STARTED.md](GETTING_STARTED.md) — pull models, provider setup
 - [DOWNLOAD.md](DOWNLOAD.md) — installers and troubleshooting
 - [LORA_ADAPTERS.md](LORA_ADAPTERS.md) — disk-efficient specialists
-- [marketing/HARDWARE-LINKEDIN.md](marketing/HARDWARE-LINKEDIN.md) — LinkedIn article publish copy
+- [marketing/HARDWARE-LINKEDIN.md](../campaigns/hardware/HARDWARE-LINKEDIN.md) — LinkedIn article publish copy

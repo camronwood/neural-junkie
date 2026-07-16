@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-beta-ad.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-beta-download-ad-1080.png"
+OUT="$ROOT/campaigns/launch/creatives/neural-junkie-beta-download-ad-1080.png"
 PY="$ROOT/.venv-icon/bin/python"
 
 if [[ ! -x "$PY" ]]; then
@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(sys.argv[1])
 OUT = Path(sys.argv[2])
-brand = ROOT / "assets/neural-junkie-social-ad-1080.png"
+brand = ROOT / "campaigns/launch/creatives/neural-junkie-social-ad-1080.png"
 shot = next((ROOT / "assets/screenshots").glob("Screenshot 2026-05-29 at 2.31.27*"))
 
 def font(path: str, size: int):

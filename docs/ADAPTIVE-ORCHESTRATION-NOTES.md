@@ -132,7 +132,7 @@ The article’s “knowledge topology” insight is the most actionable gap. Ret
 1. **Orchestration layer, not chat wrapper** — Context Stack (mode → intent → memory → grounding → persona → budget) is the same architecture enterprises are selling.
 2. **When not to use the model** — Closure path never loads LLM; casual gets minimal prompt + 2 history rows; delegation skipped for closure/casual.
 3. **Multi-agent collab = expensive path** — Task graphs, runbooks, specialist routing, HITL tool/file gates are the “graph + agentic + HITL” path.
-4. **Two-tier LoRA** — Inference tier (Qwen) vs LoRA tier (Llama/Mistral) is “right-size every call” for local stacks. See [TWO-TIER-LORA-LINKEDIN.md](marketing/TWO-TIER-LORA-LINKEDIN.md).
+4. **Two-tier LoRA** — Inference tier (Qwen) vs LoRA tier (Llama/Mistral) is “right-size every call” for local stacks. See [TWO-TIER-LORA-LINKEDIN.md](../campaigns/two-tier-lora/TWO-TIER-LORA-LINKEDIN.md).
 
 ## Enterprise noise (low relevance for NJ today)
 
@@ -190,9 +190,9 @@ Collab routing logs: `[collab-routing]` with `provider_id` and `reason`.
 - [CONTEXT_MODEL.md](CONTEXT_MODEL.md) — Conversation Context Stack (implementation)
 - [DELEGATION.md](DELEGATION.md) — cross-specialist consult after intent
 - [COLLABORATION.md](COLLABORATION.md) — task graphs, phases, runbooks
-- [marketing/CONVERSATION-MEMORY-LINKEDIN.md](marketing/CONVERSATION-MEMORY-LINKEDIN.md) — memory as topology-aware retrieval
-- [marketing/TWO-TIER-LORA-LINKEDIN.md](marketing/TWO-TIER-LORA-LINKEDIN.md) — model tiering
-- [marketing/CONVERSATIONAL-TEST-HARNESS.md](marketing/CONVERSATIONAL-TEST-HARNESS.md) — test orchestrator vs conversation separately
+- [marketing/CONVERSATION-MEMORY-LINKEDIN.md](../campaigns/conversation-memory/CONVERSATION-MEMORY-LINKEDIN.md) — memory as topology-aware retrieval
+- [marketing/TWO-TIER-LORA-LINKEDIN.md](../campaigns/two-tier-lora/TWO-TIER-LORA-LINKEDIN.md) — model tiering
+- [marketing/CONVERSATIONAL-TEST-HARNESS.md](../campaigns/test-harness/CONVERSATIONAL-TEST-HARNESS.md) — test orchestrator vs conversation separately
 
 ## External reference
 

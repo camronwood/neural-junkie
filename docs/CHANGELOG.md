@@ -425,7 +425,7 @@ Includes everything in **1.0.0-beta.33** plus fixes and test coverage on `main` 
 - **Scan summary viewer** — desktop viewer for plate/scan summary JSON with well navigation and TIFF preview (`ScanSummaryViewer`, hub scan-summary API).
 - **Slack integration** — OAuth, channel bindings, config API, and hub handlers. See [docs/SLACK_INTEGRATION.md](SLACK_INTEGRATION.md).
 - **Agent delegation** — consult/delegate flow between agents. See [docs/DELEGATION.md](DELEGATION.md).
-- **Marketing** — beta.13 ads (`assets/neural-junkie-*-beta13-ad-1080.png`); `./scripts/compose-beta13-ads.sh`; [docs/marketing/BETA13-ADS.md](marketing/BETA13-ADS.md).
+- **Marketing** — beta.13 ads (`campaigns/beta13/creatives/`); `./scripts/compose-beta13-ads.sh`; [campaigns/beta13/BETA13-ADS.md](../campaigns/beta13/BETA13-ADS.md).
 
 ### Fixed
 - **Desktop hub API** — `hubFetch` no longer recursed into itself (blocked auto-login and all authenticated hub calls after security pass).
@@ -444,7 +444,7 @@ Includes everything in **1.0.0-beta.33** plus fixes and test coverage on `main` 
 - **Runbook action tasks** — deterministic `http_get`, `http_post`, `webhook`, and conditional edges; bundled **runbook templates** (`GET /api/runbook-templates`). See [docs/RUNBOOK_ACTIONS.md](RUNBOOK_ACTIONS.md).
 - **Collab recap** — end-of-collaboration summary messages in collab channels.
 - **Google Meet notes** — Assistant integration for meeting note ingestion (Settings).
-- **Marketing** — beta.12 feature ads (`assets/neural-junkie-*-ad-1080.png`); `./scripts/compose-beta12-ads.sh`; [docs/marketing/BETA12-ADS.md](marketing/BETA12-ADS.md).
+- **Marketing** — beta.12 feature ads (`campaigns/beta12/creatives/`); `./scripts/compose-beta12-ads.sh`; [campaigns/beta12/BETA12-ADS.md](../campaigns/beta12/BETA12-ADS.md).
 
 ### Changed
 - **Specialist agents** — engineering specialists and MCP tool servers follow pack toggles (migration enables software-development pack when legacy config had dev agents enabled).
@@ -457,7 +457,7 @@ Includes everything in **1.0.0-beta.33** plus fixes and test coverage on `main` 
 - **Runbook builder** — desktop **RB** button and `/runbook`: define tasks, dependencies, and agent assignments; **Graph** view (xyflow) with drag-connect edges, inspector, auto-layout; import markdown runbooks.
 - **Runbook collaborations** — `POST /api/runbooks` creates `source: runbook` collaborations; DAG validation, suggest-assign for Auto tiles, hub dispatch and lifecycle aligned with slash-command collabs.
 - **Collab completion UX** — channel banner when a collaboration completes (`Collaboration complete — N/M tasks done`); read-only closed channel; desktop panel sync.
-- **Non-developer marketing assets** — `assets/neural-junkie-nondev-*-ad-1080.png` and `docs/marketing/NONDEV-ADS.md`; `./scripts/compose-nondev-ads.sh`.
+- **Non-developer marketing assets** — `campaigns/nondev/creatives/` and `campaigns/nondev/NONDEV-ADS.md`; `./scripts/compose-nondev-ads.sh`.
 
 ### Changed
 - **Collaboration manager** — runbook task orchestration, artifact handling, and hub limits refined for runbook + discussion flows.

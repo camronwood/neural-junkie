@@ -173,7 +173,7 @@
 <h2>Layer 1 — Deterministic Go tests (fast, CI always)</h2>
 <p><strong>What it covers:</strong> orchestrator logic and the Conversation Context Stack router — not model output.</p>
 <p><strong>Collaboration:</strong> lifecycle transitions, turn-taking, consensus, task assignment, plan parsing, dependency cycles, artifact edits. See <code>test/collaboration_test.go</code>.</p>
-<p><strong>Chat quality router:</strong> table-driven cases in <code>internal/agent/chat_quality_router_test.go</code> — intent (<code>closure</code> / <code>casual</code> / <code>substantive</code> / <code>task</code>), conversation mode (<code>chat</code> / <code>code</code> / <code>collab</code>), tooling gates, history caps, persona tier. This is the <strong>Layer A</strong> foundation described in <a href="../CONTEXT_MODEL.md">CONTEXT_MODEL.md</a>.</p>
+<p><strong>Chat quality router:</strong> table-driven cases in <code>internal/agent/chat_quality_router_test.go</code> — intent (<code>closure</code> / <code>casual</code> / <code>substantive</code> / <code>task</code>), conversation mode (<code>chat</code> / <code>code</code> / <code>collab</code>), tooling gates, history caps, persona tier. This is the <strong>Layer A</strong> foundation described in <a href="../../docs/CONTEXT_MODEL.md">CONTEXT_MODEL.md</a>.</p>
 <pre><code class="language-bash">make test-go    # entire module; chat router + collab tests included
 </code></pre>
 <p>These run on every change. They tell you the <strong>machinery</strong> still works. They do not tell you whether <code>@Assistant</code> will stay under 1200 characters on “hello.”</p>
@@ -235,7 +235,7 @@
 <li><strong><code>dm-greeting</code></strong> — same structural checks through a real DM channel</li>
 </ul>
 <p>Steps are declarative: <code>send</code>, <code>wait_reply</code>, <code>assert_messages</code>, <code>assert_reply_count</code>, <code>assert_debug_context</code>. When a step fails, the runner prints pass/fail per step and dumps the last ~12 transcript lines. No guessing why <code>@Assistant</code> went silent.</p>
-<p>Full reference: <a href="../CHAT_SCENARIOS.md">CHAT_SCENARIOS.md</a>.</p>
+<p>Full reference: <a href="../../docs/CHAT_SCENARIOS.md">CHAT_SCENARIOS.md</a>.</p>
 <hr />
 <h2>Collab scenarios: phases, plans, files on disk</h2>
 <p>Collaboration scenarios drive <code>/collaborate</code> end-to-end — or slice off just the planning phase for fast iteration.</p>
@@ -261,7 +261,7 @@
 <li><strong><code>resource-api-schema-planning</code></strong> — production-shaped goal with explicit agent lanes  </li>
 <li><strong><code>delivery-sandbox-auto-ack</code></strong> — sandbox workspace auto-ack on approve  </li>
 </ul>
-<p>Full reference: <a href="../COLLABORATION.md">COLLABORATION.md</a> § Live scenario harness.</p>
+<p>Full reference: <a href="../../docs/COLLABORATION.md">COLLABORATION.md</a> § Live scenario harness.</p>
 <hr />
 <h2>What makes the harness useful when something breaks</h2>
 <p>The runners are built for <strong>diagnosis</strong>, not just pass/fail.</p>
@@ -315,14 +315,14 @@ make collab-smoke                              # Layer 2
 make chat-scenario SCENARIO=greeting-chat-mode # Layer 3 — chat
 make collab-scenario SCENARIO=planning-two-agent # Layer 3 — collab
 </code></pre>
-<p><strong>Docs:</strong> <a href="../CHAT_SCENARIOS.md">CHAT_SCENARIOS.md</a> · <a href="../COLLABORATION.md">COLLABORATION.md</a> · <a href="../CONTEXT_MODEL.md">CONTEXT_MODEL.md</a></p>
+<p><strong>Docs:</strong> <a href="../../docs/CHAT_SCENARIOS.md">CHAT_SCENARIOS.md</a> · <a href="../../docs/COLLABORATION.md">COLLABORATION.md</a> · <a href="../../docs/CONTEXT_MODEL.md">CONTEXT_MODEL.md</a></p>
 <p>If you add a scenario or hit a failure mode the harness doesn’t cover yet, GitHub issues welcome — that’s how the JSON files grow.</p>
 <hr />
 <p><em>Camron Wood — Neural Junkie (personal project)</em></p>
     </article>
     <nav class="article-footer-nav">
       <a href="index.html">← All articles</a>
-      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/CONVERSATIONAL-TEST-HARNESS.md">Source markdown</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/campaigns/test-harness/CONVERSATIONAL-TEST-HARNESS.md">Source markdown</a>
     </nav>
   </main>
 

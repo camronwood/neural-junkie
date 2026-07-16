@@ -11,7 +11,7 @@ Neural Junkie composes **Ollama model tags** from a LoRA-compatible base plus a 
 
 Ollama safetensors `ADAPTER` supports **Llama, Mistral, Gemma** — not Qwen. Qwen remains the recommended inference model; LoRA bootstrap and training use Llama/Mistral bases. Assign composed tags (`nj-security:14b`, etc.) when you want domain-tuned weights.
 
-See also [TWO-TIER-LORA-LINKEDIN.md](marketing/TWO-TIER-LORA-LINKEDIN.md) for the full problem/solution story.
+See also [TWO-TIER-LORA-LINKEDIN.md](../campaigns/two-tier-lora/TWO-TIER-LORA-LINKEDIN.md) for the full problem/solution story.
 
 ## Concepts
 
@@ -119,8 +119,8 @@ Train on `llama3.1:8b` (not Qwen). See [LORA_TRAINING.md](LORA_TRAINING.md).
 ## Related
 
 - [LORA_TRAINING.md](LORA_TRAINING.md) — in-app training wizard
-- [TWO-TIER-LORA-LINKEDIN.md](marketing/TWO-TIER-LORA-LINKEDIN.md) — LinkedIn article (cover: `assets/neural-junkie-two-tier-lora-1200.png`)
+- [TWO-TIER-LORA-LINKEDIN.md](../campaigns/two-tier-lora/TWO-TIER-LORA-LINKEDIN.md) — LinkedIn article (cover: `campaigns/two-tier-lora/creatives/neural-junkie-two-tier-lora-1200.png`)
 - [LORA_V2.md](LORA_V2.md) — LoRA v2 compound specialist lifecycle
-- [LORA-LINKEDIN.md](marketing/LORA-LINKEDIN.md) — LoRA feature article
+- [LORA-LINKEDIN.md](../campaigns/lora/LORA-LINKEDIN.md) — LoRA feature article
 - [SPECIALIST_TUNING_PACK.md](SPECIALIST_TUNING_PACK.md)
 - [GETTING_STARTED.md](GETTING_STARTED.md)

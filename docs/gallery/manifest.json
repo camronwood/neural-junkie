@@ -1,7 +1,43 @@
 {
-  "updated": "2026-07-13T21:17:23Z",
-  "count": 67,
+  "updated": "2026-07-16T15:23:31Z",
+  "count": 79,
   "items": [
+    {
+      "id": "edge-ide-agents-panel",
+      "src": "../media/gallery/ads/edge-ide-agents-panel.png",
+      "title": "Edge Ide Agents Panel",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "edge-ide-agents-panel.png"
+    },
+    {
+      "id": "edge-ide-hero-banner",
+      "src": "../media/gallery/ads/edge-ide-hero-banner.png",
+      "title": "Edge Ide Hero Banner",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "edge-ide-hero-banner.png"
+    },
+    {
+      "id": "edge-ide-social-square",
+      "src": "../media/gallery/ads/edge-ide-social-square.png",
+      "title": "Edge Ide Social Square",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "edge-ide-social-square.png"
+    },
+    {
+      "id": "edge-ide-story-vertical",
+      "src": "../media/gallery/ads/edge-ide-story-vertical.png",
+      "title": "Edge Ide Story Vertical",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "edge-ide-story-vertical.png"
+    },
     {
       "id": "ide-v4-carousel-01",
       "src": "../media/gallery/ads/ide-v4-carousel-01.png",
@@ -82,6 +118,15 @@
       "category": "ads",
       "tags": [],
       "filename": "ide-v4-story-vertical.png"
+    },
+    {
+      "id": "neural-junkie-all-your-ai-chats-1080",
+      "src": "../media/gallery/ads/neural-junkie-all-your-ai-chats-1080.png",
+      "title": "All Your Ai Chats 1080",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-all-your-ai-chats-1080.png"
     },
     {
       "id": "neural-junkie-beta-download-ad-1080",
@@ -245,6 +290,24 @@
       "filename": "neural-junkie-domain-packs-ad-1080.png"
     },
     {
+      "id": "neural-junkie-fix-growth-loops-1200",
+      "src": "../media/gallery/ads/neural-junkie-fix-growth-loops-1200.png",
+      "title": "Fix Growth Loops 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-fix-growth-loops-1200.png"
+    },
+    {
+      "id": "neural-junkie-hardware-1200",
+      "src": "../media/gallery/ads/neural-junkie-hardware-1200.png",
+      "title": "Hardware 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-hardware-1200.png"
+    },
+    {
       "id": "neural-junkie-hardware-stacks-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-hardware-stacks-ad-1080.png",
       "title": "Hardware Stacks",
@@ -326,6 +389,15 @@
       "filename": "neural-junkie-lora-ad-1200.png"
     },
     {
+      "id": "neural-junkie-lora-v2-1200",
+      "src": "../media/gallery/ads/neural-junkie-lora-v2-1200.png",
+      "title": "Lora V2 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-lora-v2-1200.png"
+    },
+    {
       "id": "neural-junkie-lora-v2-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-lora-v2-ad-1080.png",
       "title": "Lora V2",
@@ -371,6 +443,17 @@
       "filename": "neural-junkie-modular-router-ad-1080.png"
     },
     {
+      "id": "neural-junkie-nondev-big-players-logos-1200",
+      "src": "../media/gallery/ads/neural-junkie-nondev-big-players-logos-1200.png",
+      "title": "Nondev Big Players Logos 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [
+        "non-dev"
+      ],
+      "filename": "neural-junkie-nondev-big-players-logos-1200.png"
+    },
+    {
       "id": "neural-junkie-nondev-collaborate-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-nondev-collaborate-ad-1080.png",
       "title": "Nondev Collaborate",
@@ -392,18 +475,6 @@
         "non-dev"
       ],
       "filename": "neural-junkie-nondev-experts-ad-1080.png"
-    },
-    {
-      "id": "neural-junkie-all-your-ai-chats-1080",
-      "src": "../media/gallery/ads/neural-junkie-all-your-ai-chats-1080.png",
-      "title": "All Your AI Chats",
-      "caption": "Claude · GPT · Gemini · Ollama · HF · Cursor · LM Studio — one Neural Junkie command center.",
-      "category": "ads",
-      "tags": [
-        "providers",
-        "models"
-      ],
-      "filename": "neural-junkie-all-your-ai-chats-1080.png"
     },
     {
       "id": "neural-junkie-nondev-providers-ad-1080",
@@ -545,6 +616,17 @@
       "filename": "neural-junkie-social-ad-1080.png"
     },
     {
+      "id": "neural-junkie-solo-vs-collab-parity-1200",
+      "src": "../media/gallery/ads/neural-junkie-solo-vs-collab-parity-1200.png",
+      "title": "Solo Vs Collab Parity 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [
+        "collaboration"
+      ],
+      "filename": "neural-junkie-solo-vs-collab-parity-1200.png"
+    },
+    {
       "id": "neural-junkie-stream-subscriptions-1200",
       "src": "../media/gallery/ads/neural-junkie-stream-subscriptions-1200.png",
       "title": "Stream Subscriptions 1200",
@@ -572,6 +654,15 @@
       "filename": "neural-junkie-tiff-previewer-ad-1080.png"
     },
     {
+      "id": "neural-junkie-try-local-ai-1200",
+      "src": "../media/gallery/ads/neural-junkie-try-local-ai-1200.png",
+      "title": "Try Local Ai 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-try-local-ai-1200.png"
+    },
+    {
       "id": "neural-junkie-try-local-ai-camps",
       "src": "../media/gallery/ads/neural-junkie-try-local-ai-camps.png",
       "title": "Try Local Ai Camps",
@@ -579,6 +670,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-try-local-ai-camps.png"
+    },
+    {
+      "id": "neural-junkie-two-tier-lora-1200",
+      "src": "../media/gallery/ads/neural-junkie-two-tier-lora-1200.png",
+      "title": "Two Tier Lora 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-two-tier-lora-1200.png"
     },
     {
       "id": "neural-junkie-two-tier-lora-ad-1200",

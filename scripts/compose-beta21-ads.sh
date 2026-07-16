@@ -274,7 +274,7 @@ else:
         raise SystemExit(f"unknown variant {VARIANT!r}; use slack|chat|test|all")
     targets = [VARIANTS[VARIANT]]
 
-assets = ROOT / "assets"
+assets = ROOT / "campaigns" / "beta21" / "creatives"
 assets.mkdir(parents=True, exist_ok=True)
 for name, fn in targets:
     fn(assets / name)
@@ -282,5 +282,5 @@ PY
 
 # Legacy single combined image (deprecated — use audience-specific ads)
 if [[ "$VARIANT" == "all" ]]; then
-  echo "Tip: post slack, chat, and test ads separately — see docs/marketing/BETA21-LINKEDIN.md"
+  echo "Tip: post slack, chat, and test ads separately — see campaigns/beta21/BETA21-LINKEDIN.md"
 fi

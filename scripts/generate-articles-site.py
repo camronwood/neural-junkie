@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build docs/articles/ from docs/marketing/* LinkedIn article sources."""
+"""Build docs/articles/ from campaigns/*/ LinkedIn article sources."""
 from __future__ import annotations
 
 import html
@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MARKETING = ROOT / "docs" / "marketing"
 OUT_DIR = ROOT / "docs" / "articles"
 COVERS_DIR = ROOT / "docs" / "media" / "articles" / "covers"
 MANIFEST = OUT_DIR / "manifest.json"
@@ -45,35 +44,36 @@ ARTICLE_ORDER = [
     "stream-subscriptions",
 ]
 
+# Paths relative to repo root under campaigns/<slug>/
 SOURCE_BY_SLUG = {
-    "beta-5": "BETA25-LINKEDIN.md",
-    "hardware": "HARDWARE-LINKEDIN.md",
-    "hub": "HUB-LINKEDIN.md",
-    "model-layering": "MODEL-LAYERING-LINKEDIN.md",
-    "modular-ai-composition": "MODULAR-AI-COMPOSITION-LINKEDIN.md",
-    "inference-layer": "INFERENCE-LAYER-LINKEDIN.md",
-    "loop-stack": "LOOP-STACK-LINKEDIN.md",
-    "react-tools": "REACT-TOOLS-LINKEDIN.md",
-    "fix-loop": "FIX-LOOP-LINKEDIN.md",
-    "fix-growth-loops": "FIX-GROWTH-LOOPS-LINKEDIN.md",
-    "ide-v4": "IDE-V4-LINKEDIN.md",
-    "conversation-memory": "CONVERSATION-MEMORY-LINKEDIN.md",
-    "personal-learning": "PERSONAL-LEARNING-LINKEDIN.md",
-    "lora": "LORA-LINKEDIN.md",
-    "lora-v2": "LORA-V2-LINKEDIN.md",
-    "two-tier-lora": "TWO-TIER-LORA-LINKEDIN.md",
-    "mcp-lora": "MCP-LORA-LINKEDIN.md",
-    "collaboration": "COLLABORATION-LINKEDIN.md",
-    "solo-vs-collab-parity": "SOLO-VS-COLLAB-PARITY-LINKEDIN.md",
-    "conversational-test-harness": "CONVERSATIONAL-TEST-HARNESS.md",
-    "stream-subscriptions": "STREAM-SUBSCRIPTIONS-LINKEDIN.md",
+    "beta-5": "campaigns/beta25/BETA25-LINKEDIN.md",
+    "hardware": "campaigns/hardware/HARDWARE-LINKEDIN.md",
+    "hub": "campaigns/hub/HUB-LINKEDIN.md",
+    "model-layering": "campaigns/model-layering/MODEL-LAYERING-LINKEDIN.md",
+    "modular-ai-composition": "campaigns/modular-ai/MODULAR-AI-COMPOSITION-LINKEDIN.md",
+    "inference-layer": "campaigns/inference-layer/INFERENCE-LAYER-LINKEDIN.md",
+    "loop-stack": "campaigns/loop-stack/LOOP-STACK-LINKEDIN.md",
+    "react-tools": "campaigns/react-tools/REACT-TOOLS-LINKEDIN.md",
+    "fix-loop": "campaigns/fix-loops/FIX-LOOP-LINKEDIN.md",
+    "fix-growth-loops": "campaigns/fix-loops/FIX-GROWTH-LOOPS-LINKEDIN.md",
+    "ide-v4": "campaigns/ide-v4/IDE-V4-LINKEDIN.md",
+    "conversation-memory": "campaigns/conversation-memory/CONVERSATION-MEMORY-LINKEDIN.md",
+    "personal-learning": "campaigns/personal-learning/PERSONAL-LEARNING-LINKEDIN.md",
+    "lora": "campaigns/lora/LORA-LINKEDIN.md",
+    "lora-v2": "campaigns/lora-v2/LORA-V2-LINKEDIN.md",
+    "two-tier-lora": "campaigns/two-tier-lora/TWO-TIER-LORA-LINKEDIN.md",
+    "mcp-lora": "campaigns/mcp-lora/MCP-LORA-LINKEDIN.md",
+    "collaboration": "campaigns/collaboration/COLLABORATION-LINKEDIN.md",
+    "solo-vs-collab-parity": "campaigns/solo-vs-collab-parity/SOLO-VS-COLLAB-PARITY-LINKEDIN.md",
+    "conversational-test-harness": "campaigns/test-harness/CONVERSATIONAL-TEST-HARNESS.md",
+    "stream-subscriptions": "campaigns/stream-subscriptions/STREAM-SUBSCRIPTIONS-LINKEDIN.md",
 }
 
 COVER_OVERRIDES = {
-    "beta-5": "assets/neural-junkie-beta5-1200.png",
-    "collaboration": "assets/neural-junkie-collaboration-ad-1080.png",
+    "beta-5": "campaigns/beta25/creatives/neural-junkie-beta5-1200.png",
+    "collaboration": "campaigns/collaboration/creatives/neural-junkie-collaboration-ad-1080.png",
     "fix-loop": "docs/media/articles/covers/neural-junkie-fix-loop-1200.png",
-    "ide-v4": "assets/marketing/ide-v4-hero-banner.png",
+    "ide-v4": "campaigns/ide-v4/creatives/ide-v4-hero-banner.png",
 }
 
 META_OVERRIDES: dict[str, dict[str, object]] = {
@@ -328,7 +328,7 @@ def article_html_page(meta: dict, body_html: str) -> str:
     </article>
     <nav class="article-footer-nav">
       <a href="index.html">← All articles</a>
-      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/{html.escape(meta.get('sourceFile', ''))}">Source markdown</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/{html.escape(meta.get('sourcePath', meta.get('sourceFile', '')))}">Source markdown</a>
     </nav>
   </main>
 
@@ -428,10 +428,10 @@ def write_index_page(items: list[dict], updated: str) -> None:
 
 
 def load_article(slug: str) -> dict | None:
-    source_name = SOURCE_BY_SLUG.get(slug)
-    if not source_name:
+    source_rel = SOURCE_BY_SLUG.get(slug)
+    if not source_rel:
         return None
-    path = MARKETING / source_name
+    path = ROOT / source_rel
     if not path.is_file():
         print(f"warn: missing source {path}", file=sys.stderr)
         return None
@@ -450,8 +450,8 @@ def load_article(slug: str) -> dict | None:
         "coverWeb": cover_web,
         "topic": TOPIC_BY_SLUG.get(slug, "general"),
         "tags": list(overrides.get("tags") or parse_tags(text)),
-        "sourceFile": source_name,
-        "sourcePath": f"docs/marketing/{source_name}",
+        "sourceFile": path.name,
+        "sourcePath": source_rel,
         "href": f"{slug}.html",
         "bodyMd": body_md,
         "bodyHtml": md_to_html(body_md),

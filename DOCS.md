@@ -84,9 +84,9 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 
 Legacy implementation summaries and migration notes — **not current documentation**. Kept for maintainer archaeology only.
 
-## Marketing drafts (`docs/marketing/`)
+## Marketing campaigns (`campaigns/`)
 
-LinkedIn articles, ads, and publish-ready copy — internal drafts, not user-facing guides.
+LinkedIn articles, ads, and creatives organized by campaign — see [campaigns/README.md](campaigns/README.md). Internal drafts, not user-facing product guides.
 
 ## Examples
 

@@ -18,9 +18,10 @@ root = Path(sys.argv[1])
 sys.path.insert(0, str(root / "scripts" / "lib"))
 from compose_lora_v2_graphics import render_article_cover, render_square_ad
 
-assets = root / "assets"
+assets = root / "campaigns" / "lora-v2" / "creatives"
 covers = root / "docs" / "media" / "articles" / "covers"
 gallery = root / "docs" / "media" / "gallery" / "ads"
+assets.mkdir(parents=True, exist_ok=True)
 
 render_article_cover(assets / "neural-junkie-lora-v2-1200.png", covers / "neural-junkie-lora-v2-1200.png")
 render_square_ad(assets / "neural-junkie-lora-v2-ad-1080.png")

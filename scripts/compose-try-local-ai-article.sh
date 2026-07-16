@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-try-local-ai-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-try-local-ai-1200.png"
+OUT="$ROOT/campaigns/try-local-ai/creatives/neural-junkie-try-local-ai-1200.png"
 GALLERY="$ROOT/docs/media/articles/covers/neural-junkie-try-local-ai-1200.png"
 PY="$ROOT/.venv-icon/bin/python"
 

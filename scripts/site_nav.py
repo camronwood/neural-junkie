@@ -446,7 +446,12 @@ def apply_site_chrome(
 
 
 def iter_site_html() -> list[Path]:
-    return sorted(DOCS.rglob("*.html"))
+    # Skip Search Console verification stubs (no full HTML document).
+    return sorted(
+        p
+        for p in DOCS.rglob("*.html")
+        if not (p.parent == DOCS and p.name.startswith("google") and p.suffix == ".html")
+    )
 
 
 _TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL | re.IGNORECASE)

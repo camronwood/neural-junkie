@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-hub-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-hub-1200.png"
+OUT="$ROOT/campaigns/hub/creatives/neural-junkie-hub-1200.png"
 GALLERY="$ROOT/docs/media/gallery/ads/neural-junkie-hub-1200.png"
 PY="$ROOT/.venv-icon/bin/python"
 

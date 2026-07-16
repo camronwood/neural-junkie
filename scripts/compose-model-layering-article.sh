@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-model-layering-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-model-layering-1200.png"
+OUT="$ROOT/campaigns/model-layering/creatives/neural-junkie-model-layering-1200.png"
 GALLERY="$ROOT/docs/media/gallery/ads/neural-junkie-model-layering-1200.png"
 PY="$ROOT/.venv-icon/bin/python"
 

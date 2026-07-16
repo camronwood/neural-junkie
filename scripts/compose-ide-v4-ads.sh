@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VARIANT="${1:-all}"
 PY="$ROOT/.venv-icon/bin/python"
-MARKETING="$ROOT/assets/marketing"
+MARKETING="$ROOT/campaigns/ide-v4/creatives"
 
 if [[ ! -x "$PY" ]]; then
   python3 -m venv "$ROOT/.venv-icon"

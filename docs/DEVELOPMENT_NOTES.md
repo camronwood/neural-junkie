@@ -11,7 +11,8 @@ neural-junkie/
 │   ├── agent/                 # Standalone agent runner
 │   ├── chat/                  # Interactive terminal chat
 │   └── cli/                   # CLI tool + MCP resource server
-├── assets/                    # Icons, marketing art, desktop screenshots (README)
+├── assets/                    # Icons, desktop screenshots (README)
+├── campaigns/                 # Marketing copy + creatives by campaign
 ├── desktop/                   # Tauri + React desktop app
 │   ├── src/                   # React components, stores, hooks, utils
 │   │   ├── components/        # 33 React components
@@ -188,14 +189,15 @@ Without these secrets, CI falls back to ad-hoc signing (`signingIdentity: "-"`).
 
 ## Marketing assets and static site
 
-Canonical art lives under `assets/`; published copies are generated — do not edit PNGs under `docs/media/` by hand.
+Canonical campaign copy + creatives live under `campaigns/<slug>/`. Published site copies are generated — do not edit PNGs under `docs/media/` by hand.
 
 ```text
-assets/neural-junkie-*.png          # source ads + article covers
-docs/marketing/*-LINKEDIN.md        # long-form article source (paste copy)
-scripts/compose-*-article.sh        # regenerate cover PNG + optional body tweaks
-make gallery-sync                   # assets → docs/media/gallery/ads/ + manifest
-make articles-sync                  # marketing MD → docs/articles/*.html + manifest.json
+campaigns/<slug>/                 # campaign brief + paste copy (*.md)
+campaigns/<slug>/creatives/       # source ads + article covers (*.png)
+assets/screenshots/               # product screenshots (README + gallery)
+scripts/compose-*.sh              # regenerate creatives into campaigns/
+make gallery-sync                 # campaigns/*/creatives → docs/media/gallery/ads/ + manifest
+make articles-sync                # campaign LinkedIn MD → docs/articles/*.html + manifest.json
 ```
 
 Article covers also sync to `docs/media/articles/covers/` during `articles-sync`. After changing source PNGs or LinkedIn markdown, run both sync targets before committing.

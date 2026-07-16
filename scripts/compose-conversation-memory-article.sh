@@ -3,8 +3,8 @@
 # Usage: ./scripts/compose-conversation-memory-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT_HEADER="$ROOT/assets/neural-junkie-conversation-memory-1200.png"
-OUT_AD="$ROOT/assets/neural-junkie-conversation-memory-ad-1080.png"
+OUT_HEADER="$ROOT/campaigns/conversation-memory/creatives/neural-junkie-conversation-memory-1200.png"
+OUT_AD="$ROOT/campaigns/conversation-memory/creatives/neural-junkie-conversation-memory-ad-1080.png"
 GALLERY_HEADER="$ROOT/docs/media/gallery/ads/neural-junkie-conversation-memory-1200.png"
 GALLERY_AD="$ROOT/docs/media/gallery/ads/neural-junkie-conversation-memory-ad-1080.png"
 PY="$ROOT/.venv-icon/bin/python"

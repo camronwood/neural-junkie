@@ -1,23 +1,32 @@
 #!/usr/bin/env bash
-# Copy ads + screenshots into docs/media/gallery and refresh manifest.json
+# Copy campaign creatives + screenshots into docs/media/gallery and refresh manifest.json
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GALLERY="${ROOT}/docs/media/gallery"
-ADS_SRC="${ROOT}/assets"
+CAMPAIGNS="${ROOT}/campaigns"
 SHOTS_SRC="${ROOT}/assets/screenshots"
 
 mkdir -p "${GALLERY}/ads" "${GALLERY}/screenshots" "${GALLERY}/misc"
 
 shopt -s nullglob
-for f in "${ADS_SRC}"/neural-junkie-*-ad-1080.png "${ADS_SRC}"/neural-junkie-*-ad-*.png; do
+# Prefer ad squares / named ads; also sync campaign creatives that match ad/cover patterns.
+for f in "${CAMPAIGNS}"/*/creatives/*-ad-*.png \
+         "${CAMPAIGNS}"/*/creatives/*-ad-1080.png \
+         "${CAMPAIGNS}"/*/creatives/ide-v4-*.png \
+         "${CAMPAIGNS}"/*/creatives/edge-ide-*.png; do
   [[ -f "$f" ]] || continue
   cp -f "$f" "${GALLERY}/ads/"
 done
 
-for f in "${ADS_SRC}"/marketing/ide-v4-*.png; do
+# Deduped copy of remaining campaign PNGs that look like published ads/covers
+# (already-copied files are overwritten with the same content — fine).
+for f in "${CAMPAIGNS}"/*/creatives/*.png; do
   [[ -f "$f" ]] || continue
-  cp -f "$f" "${GALLERY}/ads/"
+  base="$(basename "$f")"
+  case "$base" in
+    *-ad-*.png|*-1200.png|ide-v4-*.png|edge-ide-*.png) cp -f "$f" "${GALLERY}/ads/" ;;
+  esac
 done
 
 if [[ -d "${SHOTS_SRC}" ]]; then

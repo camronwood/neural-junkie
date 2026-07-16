@@ -68,5 +68,5 @@ curl -X POST http://localhost:18765/api/lora/train \
 
 - [SPECIALIST_TUNING_PACK.md](SPECIALIST_TUNING_PACK.md) — enable training, compose, and bootstrap adapters
 - [LORA_ADAPTERS.md](LORA_ADAPTERS.md) — import, compose, pack presets
-- [LORA-LINKEDIN.md](marketing/LORA-LINKEDIN.md) — LinkedIn article publish copy (cover: `assets/neural-junkie-lora-ad-1200.png`)
+- [LORA-LINKEDIN.md](../campaigns/lora/LORA-LINKEDIN.md) — LinkedIn article publish copy (cover: `campaigns/lora/creatives/neural-junkie-lora-ad-1200.png`)
 - [COLLABORATION.md](COLLABORATION.md) — collaboration task outputs as training data

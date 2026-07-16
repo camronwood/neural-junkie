@@ -82,4 +82,4 @@ Repo MCP exports may include:
 - [LORA_TRAINING.md](LORA_TRAINING.md) — wizard and prerequisites
 - [LORA_ADAPTERS.md](LORA_ADAPTERS.md) — import and compose
 - [LEARNING_LORA_TEST_HARNESS.md](LEARNING_LORA_TEST_HARNESS.md) — CI layers
-- [marketing/LORA-V2-LINKEDIN.md](marketing/LORA-V2-LINKEDIN.md) — launch article
+- [marketing/LORA-V2-LINKEDIN.md](../campaigns/lora-v2/LORA-V2-LINKEDIN.md) — launch article

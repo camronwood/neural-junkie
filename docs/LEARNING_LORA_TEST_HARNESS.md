@@ -84,4 +84,4 @@ Scenarios live under `scenarios/learning/`. Runner: `scripts/learning-scenarios.
 2. **Failures become scenarios** — regressions get a JSON file.
 3. **CI runs Layers 1–2 only** — Layer 3 needs a live hub (and optional GPU for real train).
 
-See also [PERSONAL_LEARNING_V2.md](PERSONAL_LEARNING_V2.md), [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md), and [marketing/CONVERSATIONAL-TEST-HARNESS.md](marketing/CONVERSATIONAL-TEST-HARNESS.md).
+See also [PERSONAL_LEARNING_V2.md](PERSONAL_LEARNING_V2.md), [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md), and [marketing/CONVERSATIONAL-TEST-HARNESS.md](../campaigns/test-harness/CONVERSATIONAL-TEST-HARNESS.md).

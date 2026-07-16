@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-community-ad.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-community-ad-1080.png"
+OUT="$ROOT/campaigns/community/creatives/neural-junkie-community-ad-1080.png"
 PY="$ROOT/.venv-icon/bin/python"
 
 if [[ ! -x "$PY" ]]; then

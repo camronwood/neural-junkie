@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate docs/articles/ from docs/marketing/* LinkedIn article sources.
+# Regenerate docs/articles/ from campaigns/* LinkedIn article sources.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

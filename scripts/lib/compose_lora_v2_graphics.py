@@ -302,7 +302,8 @@ def main() -> None:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     args = parser.parse_args()
     root = args.root
-    assets = root / "assets"
+    assets = root / "campaigns" / "lora-v2" / "creatives"
+    assets.mkdir(parents=True, exist_ok=True)
     covers = root / "docs" / "media" / "articles" / "covers"
     gallery_ads = root / "docs" / "media" / "gallery" / "ads"
 

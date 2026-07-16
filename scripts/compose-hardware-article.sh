@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-hardware-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-hardware-1200.png"
+OUT="$ROOT/campaigns/hardware/creatives/neural-junkie-hardware-1200.png"
 PY="$ROOT/.venv-icon/bin/python"
 
 if [[ ! -x "$PY" ]]; then

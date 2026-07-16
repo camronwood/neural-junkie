@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-fix-growth-loops-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-fix-growth-loops-1200.png"
+OUT="$ROOT/campaigns/fix-loops/creatives/neural-junkie-fix-growth-loops-1200.png"
 GALLERY="$ROOT/docs/media/articles/covers/neural-junkie-fix-growth-loops-1200.png"
 PY="$ROOT/.venv-icon/bin/python"
 

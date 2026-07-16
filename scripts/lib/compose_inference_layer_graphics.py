@@ -432,7 +432,8 @@ def main() -> None:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     args = parser.parse_args()
     root = args.root
-    assets = root / "assets"
+    assets = root / "campaigns" / "inference-layer" / "creatives"
+    assets.mkdir(parents=True, exist_ok=True)
     gallery = root / "docs" / "media" / "gallery" / "ads"
 
     renders = {

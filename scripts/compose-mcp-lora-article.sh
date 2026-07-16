@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-mcp-lora-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-mcp-lora-ad-1200.png"
+OUT="$ROOT/campaigns/mcp-lora/creatives/neural-junkie-mcp-lora-ad-1200.png"
 PY="$ROOT/.venv-icon/bin/python"
 
 if [[ ! -x "$PY" ]]; then

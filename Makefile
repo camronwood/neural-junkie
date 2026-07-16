@@ -97,7 +97,7 @@ gallery-sync: ## Copy ads/screenshots to docs/media/gallery and rebuild manifest
 	@chmod +x ./scripts/sync-gallery.sh
 	@./scripts/sync-gallery.sh
 
-articles-sync: ## Regenerate docs/articles from docs/marketing LinkedIn sources
+articles-sync: ## Regenerate docs/articles from campaigns LinkedIn sources
 	@chmod +x ./scripts/sync-articles.sh
 	@./scripts/sync-articles.sh
 	@python3 ./scripts/sync-site-nav.py

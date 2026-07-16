@@ -66,7 +66,7 @@ Or `make deps` after enabling this pack (optional; not required for hub runtime 
 ## Related
 
 - [LORA_ADAPTERS.md](LORA_ADAPTERS.md)
-- [TWO-TIER-LORA-LINKEDIN.md](marketing/TWO-TIER-LORA-LINKEDIN.md)
+- [TWO-TIER-LORA-LINKEDIN.md](../campaigns/two-tier-lora/TWO-TIER-LORA-LINKEDIN.md)
 - [LORA_TRAINING.md](LORA_TRAINING.md)
 - [PERSONAL_LEARNING_V2.md](PERSONAL_LEARNING_V2.md)
 - [SOFTWARE_DEVELOPMENT_PACK.md](SOFTWARE_DEVELOPMENT_PACK.md)

@@ -50,7 +50,7 @@ Sequence follows dependency order in [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md).
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Marketing rewrites for historical beta ads (`docs/marketing/BETA*.md`) | Deferred | |
+| Marketing rewrites for historical beta ads (`campaigns/beta*/`) | Deferred | |
 | Dropping Windows EXE from release artifacts | Deferred | |
 | macOS notarization (track as v1.2.1 when Apple creds ready) | Deferred | |
 

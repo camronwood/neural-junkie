@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-stream-subscriptions-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-stream-subscriptions-1200.png"
+OUT="$ROOT/campaigns/stream-subscriptions/creatives/neural-junkie-stream-subscriptions-1200.png"
 GALLERY="$ROOT/docs/media/articles/covers/neural-junkie-stream-subscriptions-1200.png"
 ADS="$ROOT/docs/media/gallery/ads/neural-junkie-stream-subscriptions-1200.png"
 PY="$ROOT/.venv-icon/bin/python"

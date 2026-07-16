@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-two-tier-lora-article.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-two-tier-lora-1200.png"
+OUT="$ROOT/campaigns/two-tier-lora/creatives/neural-junkie-two-tier-lora-1200.png"
 GALLERY="$ROOT/docs/media/gallery/ads/neural-junkie-two-tier-lora-ad-1200.png"
 PY="$ROOT/.venv-icon/bin/python"
 

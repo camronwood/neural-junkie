@@ -3,7 +3,7 @@
 # Usage: ./scripts/compose-context-scope-ad.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/assets/neural-junkie-context-scope-ad-1080.png"
+OUT="$ROOT/campaigns/product/creatives/neural-junkie-context-scope-ad-1080.png"
 PY="$ROOT/.venv-icon/bin/python"
 
 if [[ ! -x "$PY" ]]; then

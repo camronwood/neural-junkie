@@ -156,4 +156,4 @@ See [TESTING.md](TESTING.md) for `test-growth-list`, `test-growth-loop`, and rep
 
 - [CONTEXT_MODEL.md](CONTEXT_MODEL.md) — Conversation Context Stack (Layer A)
 - [COLLABORATION.md](COLLABORATION.md) — collab scenario harness
-- [marketing/CONVERSATIONAL-TEST-HARNESS.md](marketing/CONVERSATIONAL-TEST-HARNESS.md) — overview
+- [marketing/CONVERSATIONAL-TEST-HARNESS.md](../campaigns/test-harness/CONVERSATIONAL-TEST-HARNESS.md) — overview

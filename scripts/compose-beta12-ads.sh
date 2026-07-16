@@ -11,7 +11,7 @@ if [[ ! -x "$PY" ]]; then
   "$ROOT/.venv-icon/bin/pip" install -q Pillow
 fi
 
-exec "$PY" - "$ROOT/assets" "$VARIANT" <<'PY'
+exec "$PY" - "$ROOT/campaigns/beta12/creatives" "$VARIANT" <<'PY'
 import math
 import sys
 from pathlib import Path

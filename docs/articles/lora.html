@@ -163,7 +163,7 @@
 <p><strong>Domain pack presets (optional bootstrap).</strong> The <strong>Specialist tuning</strong> pack ships curated community adapters (security, code-review, backend, biology) — install via Pack store → <strong>Install LoRAs</strong> or <code>POST /api/packs/specialist-tuning/install-loras</code>. Assign tags manually in Settings; domain packs no longer auto-bind LoRAs.</p>
 <p><strong>Train from your history (hero path).</strong> Create a repo expert, accumulate Q&amp;A, open agent info → <strong>Train LoRA</strong> (or Model library → Train LoRA). Sources: channel/DM transcripts, collaboration task outputs, or repo-agent history. Set base tag, output tag (e.g. nj-repo-myapp:14b), rank/epochs, Start. Hub exports JSONL, runs Unsloth (<code>make deps-lora</code>, optional CUDA), composes into Ollama on success. Minimum 10 rows; one job at a time.</p>
 <h2>What you can do with it</h2>
-<p><strong>Security on a LoRA base.</strong> Install the Specialist tuning bootstrap LoRA — assign nj-security:14b to SecurityReviewer (composed on llama3.2:3b). See <a href="TWO-TIER-LORA-LINKEDIN.md">TWO-TIER-LORA-LINKEDIN.md</a> for why inference and LoRA use different bases.</p>
+<p><strong>Security on a LoRA base.</strong> Install the Specialist tuning bootstrap LoRA — assign nj-security:14b to SecurityReviewer (composed on llama3.2:3b). See <a href="../two-tier-lora/TWO-TIER-LORA-LINKEDIN.md">TWO-TIER-LORA-LINKEDIN.md</a> for why inference and LoRA use different bases.</p>
 <p><strong>Biology without a second full 8B.</strong> nj-biology:8b from llama3:8b + MedMCQA adapter — from Specialist tuning pack, not life-sciences.</p>
 <p><strong>Repo expert from your sessions.</strong> /create-repo-agent on your repo, accumulate Q&amp;A, <strong>Train LoRA</strong> from agent info → nj-repo-myapp:14b, assign back. Chat and collab become training signal.</p>
 <p><strong>Collab routing.</strong> With smart routing on, security tasks can prefer nj-security:14b locally when installed. Override per task with task_ollama_model when needed.</p>
@@ -182,7 +182,7 @@
     </article>
     <nav class="article-footer-nav">
       <a href="index.html">← All articles</a>
-      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/LORA-LINKEDIN.md">Source markdown</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/campaigns/lora/LORA-LINKEDIN.md">Source markdown</a>
     </nav>
   </main>
 
