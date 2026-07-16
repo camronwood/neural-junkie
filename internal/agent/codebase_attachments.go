@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	codebaseMentionRE = regexp.MustCompile(`(?i)@codebase\b`)
-	codebaseSymbolRE  = regexp.MustCompile(`[A-Z][a-zA-Z0-9]{3,}`)
+	codebaseMentionRE     = regexp.MustCompile(`(?i)@codebase\b`)
+	codebaseSymbolRE      = regexp.MustCompile(`[A-Z][a-zA-Z0-9]{3,}`)
+	codebaseIdentifierRE  = regexp.MustCompile(`[A-Z][a-z0-9]*(?:[A-Z][a-zA-Z0-9]+)+`)
 )
 
 // MergeCodebaseAttachments resolves @codebase in message content into prompt_attachments
@@ -67,8 +68,17 @@ func mergeCodebaseSearchIntoMessage(msg *protocol.Message, repoPaths []string, q
 			codeindex.BuildIndexAsync(repoPath)
 		}
 	}
+	symbols := codebaseIdentifierRE.FindAllString(query, -1)
+	if len(symbols) == 0 {
+		symbols = codebaseSymbolRE.FindAllString(query, -1)
+	}
 	hits, err := codeintel.SemanticSearchMulti(ctx, repoPaths, query, 4, 12)
-	if err != nil || len(hits) == 0 {
+	semanticOK := err == nil && len(hits) > 0
+	if semanticOK && len(symbols) > 0 && !semanticHitsContainAnySymbol(hits, symbols) {
+		// Semantic chunks can miss exact identifiers (e.g. ComputeObscureWidget in a deep path).
+		semanticOK = false
+	}
+	if !semanticOK {
 		return mergeCodebaseSearchFallback(msg, repoPaths, query)
 	}
 	if msg.Metadata == nil {
@@ -92,6 +102,20 @@ func mergeCodebaseSearchIntoMessage(msg *protocol.Message, repoPaths []string, q
 	return true
 }
 
+func semanticHitsContainAnySymbol(hits []codeintel.RepoSearchHit, symbols []string) bool {
+	if len(hits) == 0 || len(symbols) == 0 {
+		return false
+	}
+	for _, sym := range symbols {
+		for _, h := range hits {
+			if strings.Contains(h.Content, sym) || strings.Contains(h.Path, sym) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func mergeCodebaseSearchFallback(msg *protocol.Message, repoPaths []string, query string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -99,24 +123,28 @@ func mergeCodebaseSearchFallback(msg *protocol.Message, repoPaths []string, quer
 	var results []codeindex.SearchResult
 	var resultRepos []string
 	seen := make(map[string]bool)
+	appendResult := func(repoPath string, r codeindex.SearchResult) {
+		prefix := r.Content
+		if len(prefix) > 80 {
+			prefix = prefix[:80]
+		}
+		key := repoPath + "\x00" + r.Path + "\x00" + prefix
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		results = append(results, r)
+		resultRepos = append(resultRepos, repoPath)
+	}
+
+	symbols := codebaseIdentifierRE.FindAllString(query, -1)
+	if len(symbols) == 0 {
+		symbols = codebaseSymbolRE.FindAllString(query, -1)
+	}
 	for _, repoPath := range repoPaths {
-		for _, q := range codebaseSearchQueries(query) {
-			part, err := codeindex.Search(ctx, repoPath, q, 4)
-			if err != nil {
-				continue
-			}
-			for _, r := range part {
-				prefix := r.Content
-				if len(prefix) > 80 {
-					prefix = prefix[:80]
-				}
-				key := repoPath + "\x00" + r.Path + "\x00" + prefix
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				results = append(results, r)
-				resultRepos = append(resultRepos, repoPath)
+		for _, sym := range symbols {
+			for _, r := range grepWorkspaceSymbol(repoPath, sym, 4) {
+				appendResult(repoPath, r)
 				if len(results) >= 12 {
 					break
 				}
@@ -129,17 +157,15 @@ func mergeCodebaseSearchFallback(msg *protocol.Message, repoPaths []string, quer
 			break
 		}
 	}
-	if len(results) == 0 {
-		for _, repoPath := range repoPaths {
-			for _, sym := range codebaseSymbolRE.FindAllString(query, -1) {
-				part := grepWorkspaceSymbol(repoPath, sym, 4)
-				for _, r := range part {
-					results = append(results, r)
-					resultRepos = append(resultRepos, repoPath)
-					if len(results) >= 12 {
-						break
-					}
-				}
+
+	for _, repoPath := range repoPaths {
+		for _, q := range codebaseSearchQueries(query) {
+			part, err := codeindex.Search(ctx, repoPath, q, 4)
+			if err != nil {
+				continue
+			}
+			for _, r := range part {
+				appendResult(repoPath, r)
 				if len(results) >= 12 {
 					break
 				}
@@ -147,6 +173,9 @@ func mergeCodebaseSearchFallback(msg *protocol.Message, repoPaths []string, quer
 			if len(results) >= 12 {
 				break
 			}
+		}
+		if len(results) >= 12 {
+			break
 		}
 	}
 	if len(results) == 0 {

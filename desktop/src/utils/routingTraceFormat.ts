@@ -91,6 +91,8 @@ export function formatToolTelemetrySubline(payload: Record<string, unknown>): st
   return '';
 }
 
+export { formatUsageTelemetryHeadline, formatUsageTelemetrySubline } from './inferenceUsageFormat';
+
 export function routingMetaToTraceSections(meta: RoutingMeta) {
   return {
     routing: {

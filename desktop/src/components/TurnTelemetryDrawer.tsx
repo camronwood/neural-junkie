@@ -6,7 +6,11 @@ import {
   formatRoutingTelemetrySubline,
   formatToolTelemetryHeadline,
   formatToolTelemetrySubline,
+  formatUsageTelemetryHeadline,
+  formatUsageTelemetrySubline,
 } from '../utils/routingTraceFormat';
+import { formatSessionUsageLine } from '../utils/inferenceUsageFormat';
+import { usagePayloadFromRecord } from '../types/inferenceUsage';
 
 interface TurnTelemetryDrawerProps {
   channel: string;
@@ -56,6 +60,21 @@ function TelemetryRow({ ev }: { ev: TurnTelemetryEvent }) {
     );
   }
 
+  if (ev.kind === 'usage' && ev.payload) {
+    const parsed = usagePayloadFromRecord(ev.payload);
+    const headline = parsed ? formatUsageTelemetryHeadline(parsed) : ev.detail;
+    const subline = parsed ? formatUsageTelemetrySubline(parsed) : '';
+    return (
+      <li key={ev.id} className="leading-snug" data-testid="turn-telemetry-usage-row" title={ev.detail}>
+        <span className="text-slate-500">{formatElapsed(ev.at)}</span>{' '}
+        <span className="text-emerald-400/90">usage</span>{' '}
+        <span className="text-slate-300">{ev.agentName}</span>
+        <div className="text-slate-200 pl-4">{headline}</div>
+        {subline && <div className="text-slate-500 pl-4 truncate">{subline}</div>}
+      </li>
+    );
+  }
+
   return (
     <li key={ev.id} className="truncate" title={ev.detail}>
       <span className="text-slate-500">{formatElapsed(ev.at)}</span>{' '}
@@ -68,6 +87,7 @@ function TelemetryRow({ ev }: { ev: TurnTelemetryEvent }) {
 
 export function TurnTelemetryDrawer({ channel, enabled }: TurnTelemetryDrawerProps) {
   const events = useChatStore((s) => s.turnTelemetryByChannel.get(channel) ?? []);
+  const sessionUsage = useChatStore((s) => s.sessionUsage);
   const clearTurnTelemetry = useChatStore((s) => s.clearTurnTelemetry);
   const [open, setOpen] = useState(true);
 
@@ -87,6 +107,11 @@ export function TurnTelemetryDrawer({ channel, enabled }: TurnTelemetryDrawerPro
           onClick={() => setOpen((v) => !v)}
         >
           Turn telemetry ({events.length})
+          {(sessionUsage.promptTokens > 0 || sessionUsage.completionTokens > 0) && (
+            <span className="ml-2 font-normal text-slate-400">
+              · session {formatSessionUsageLine(sessionUsage)}
+            </span>
+          )}
         </button>
         <div className="flex items-center gap-2">
           <button

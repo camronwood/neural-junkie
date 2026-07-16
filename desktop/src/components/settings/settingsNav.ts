@@ -6,6 +6,7 @@ export type SettingsTab =
   | 'connection'
   | 'providers'
   | 'models-performance'
+  | 'inference-usage'
   | 'collab-routing'
   | 'memory-learning'
   | 'api-credentials'
@@ -50,6 +51,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     items: [
       { id: 'providers', label: 'Providers' },
       { id: 'models-performance', label: 'Models & performance' },
+      { id: 'inference-usage', label: 'Usage & cost' },
       { id: 'collab-routing', label: 'Routing & collab' },
       { id: 'memory-learning', label: 'Memory & learning' },
     ],

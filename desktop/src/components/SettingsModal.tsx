@@ -13,6 +13,7 @@ import { KeyboardSettingsTab } from './settings/KeyboardSettingsTab';
 import { ChatSettingsTab } from './settings/ChatSettingsTab';
 import { ProvidersSettingsTab } from './settings/ProvidersSettingsTab';
 import { ModelsPerformanceSettingsTab } from './settings/ModelsPerformanceSettingsTab';
+import { InferenceUsageSettingsTab } from './settings/InferenceUsageSettingsTab';
 import { CollabRoutingSettingsTab } from './settings/CollabRoutingSettingsTab';
 import { MemoryLearningSettingsTab } from './settings/MemoryLearningSettingsTab';
 import { ApiCredentialsSettingsTab } from './settings/ApiCredentialsSettingsTab';
@@ -120,6 +121,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <ConnectionSettingsTab hubHttp={hubHttp} isActive={activeTab === 'connection'} />
             <ProvidersSettingsTab hubHttp={hubHttp} isActive={activeTab === 'providers'} />
             <ModelsPerformanceSettingsTab hubHttp={hubHttp} isActive={activeTab === 'models-performance'} />
+            <InferenceUsageSettingsTab hubHttp={hubHttp} isActive={activeTab === 'inference-usage'} />
             <CollabRoutingSettingsTab hubHttp={hubHttp} isActive={activeTab === 'collab-routing'} />
             <MemoryLearningSettingsTab hubHttp={hubHttp} isActive={activeTab === 'memory-learning'} />
             <ApiCredentialsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'api-credentials'} />

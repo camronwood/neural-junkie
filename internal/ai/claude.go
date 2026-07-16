@@ -22,6 +22,7 @@ type ClaudeProvider struct {
 	BaseURL    string
 	UseAIHub   bool
 	httpClient *http.Client
+	usage      UsageAccumulator
 }
 
 // NewClaudeProvider creates a new Claude AI provider
@@ -130,6 +131,10 @@ type ClaudeResponse struct {
 	} `json:"content"`
 	Model      string `json:"model"`
 	StopReason string `json:"stop_reason"`
+	Usage      struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
 }
 
 // GenerateResponse generates a response using Claude API or AI Hub
@@ -211,6 +216,8 @@ func (c *ClaudeProvider) GenerateResponse(ctx context.Context, prompt string, co
 		return "", fmt.Errorf("no content in response")
 	}
 
+	c.recordUsage(response.Usage.InputTokens, response.Usage.OutputTokens)
+
 	return response.Content[0].Text, nil
 }
 
@@ -232,11 +239,46 @@ func (c *ClaudeProvider) SupportsStreaming() bool { return true }
 
 // claudeSSEEvent represents an SSE event from the Claude streaming API.
 type claudeSSEEvent struct {
-	Type  string `json:"type"`
+	Type    string `json:"type"`
+	Message struct {
+		Usage struct {
+			InputTokens int `json:"input_tokens"`
+		} `json:"usage"`
+	} `json:"message"`
+	Usage struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
 	Delta struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"delta"`
+}
+
+func (c *ClaudeProvider) recordUsage(inputTokens, outputTokens int) {
+	if c == nil || (inputTokens == 0 && outputTokens == 0) {
+		return
+	}
+	c.usage.Record(InferenceUsage{
+		PromptTokens:     inputTokens,
+		CompletionTokens: outputTokens,
+		Calls:            1,
+	})
+}
+
+// ResetSessionUsage implements UsageAware.
+func (c *ClaudeProvider) ResetSessionUsage() {
+	if c != nil {
+		c.usage.ResetSession()
+	}
+}
+
+// TakeSessionUsage implements UsageAware.
+func (c *ClaudeProvider) TakeSessionUsage() InferenceUsage {
+	if c == nil {
+		return InferenceUsage{}
+	}
+	return c.usage.TakeSession()
 }
 
 // GenerateResponseStream returns a channel of StreamTokens from Claude's SSE
@@ -301,6 +343,7 @@ func (c *ClaudeProvider) GenerateResponseStream(ctx context.Context, prompt stri
 		defer resp.Body.Close()
 
 		scanner := bufio.NewScanner(resp.Body)
+		var inputTokens, outputTokens int
 		for scanner.Scan() {
 			if ctx.Err() != nil {
 				ch <- StreamToken{Error: ctx.Err(), Done: true}
@@ -318,11 +361,20 @@ func (c *ClaudeProvider) GenerateResponseStream(ctx context.Context, prompt stri
 			}
 
 			switch event.Type {
+			case "message_start":
+				if event.Message.Usage.InputTokens > 0 {
+					inputTokens = event.Message.Usage.InputTokens
+				}
 			case "content_block_delta":
 				if event.Delta.Text != "" {
 					ch <- StreamToken{Content: event.Delta.Text}
 				}
+			case "message_delta":
+				if event.Usage.OutputTokens > 0 {
+					outputTokens = event.Usage.OutputTokens
+				}
 			case "message_stop":
+				c.recordUsage(inputTokens, outputTokens)
 				ch <- StreamToken{Done: true}
 				return
 			case "error":

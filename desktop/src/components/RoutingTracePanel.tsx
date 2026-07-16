@@ -7,8 +7,11 @@ import {
   formatRetrievalLabel,
   formatRoutingModelLine,
   formatTierLabel,
+  formatUsageTelemetryHeadline,
+  formatUsageTelemetrySubline,
   isTurnTraceResponse,
 } from '../utils/routingTraceFormat';
+import { usagePayloadFromRecord } from '../types/inferenceUsage';
 
 interface RoutingTracePanelProps {
   channel: string;
@@ -69,6 +72,20 @@ function StructuredTrace({ trace }: { trace: TurnTraceResponse }) {
           <TraceField label="Composer" value={governance.composer_mode} />
           <TraceField label="Context scope" value={governance.context_scope} />
           <TraceField label="Impl session" value={governance.impl_session} />
+        </TraceSection>
+      )}
+      {trace.inference_usage && typeof trace.inference_usage === 'object' && (
+        <TraceSection title="Inference usage">
+          {(() => {
+            const parsed = usagePayloadFromRecord(trace.inference_usage as Record<string, unknown>);
+            if (!parsed) return <div className="text-slate-500">No usage recorded</div>;
+            return (
+              <>
+                <div>{formatUsageTelemetryHeadline(parsed)}</div>
+                <div className="text-slate-500">{formatUsageTelemetrySubline(parsed)}</div>
+              </>
+            );
+          })()}
         </TraceSection>
       )}
       {Array.isArray(trace.tool_steps) && trace.tool_steps.length > 0 && (

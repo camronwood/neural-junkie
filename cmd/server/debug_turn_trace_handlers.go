@@ -116,6 +116,9 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 			if steps, ok := target.Metadata["tool_steps"]; ok {
 				trace["tool_steps"] = steps
 			}
+			if raw, ok := target.Metadata[protocol.MetadataInferenceUsage]; ok {
+				trace["inference_usage"] = raw
+			}
 			if rt, ok := target.Metadata["reasoning_text"].(string); ok && rt != "" {
 				trace["reasoning_text"] = rt
 			}

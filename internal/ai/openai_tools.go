@@ -106,6 +106,8 @@ func (p *OpenAICompatProvider) GenerateResponseWithTools(
 			return "", fmt.Errorf("no choices in response")
 		}
 
+		recordOpenAICompatUsage(&p.usage, response.Usage.PromptTokens, response.Usage.CompletionTokens)
+
 		choice := response.Choices[0]
 		msg := choice.Message
 		if len(msg.ToolCalls) == 0 {

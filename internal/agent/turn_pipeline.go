@@ -214,6 +214,9 @@ func (st *turnState) stepProviderRoute(ctx context.Context) error {
 		eff = a.GetAIProvider()
 	}
 	st.eff = eff
+	if ua, ok := eff.(ai.UsageAware); ok {
+		ua.ResetSessionUsage()
+	}
 	reason := "default_agent_provider"
 	source := "rules"
 	if msg.Type != protocol.MessageTypeCollabTask && !shouldRunImplementationSession(a, msg) {
@@ -555,6 +558,7 @@ func (st *turnState) stepStampMetadata(ctx context.Context) error {
 	a.ApplyRoutingMetadataToResponse(responseMsg)
 	a.ApplyCompressMetadataToResponse(responseMsg)
 	a.ApplyTraceMetadataToResponse(responseMsg, st.traceRecorder, st.toolSteps)
+	a.applyUsageTelemetry(st)
 	return nil
 }
 

@@ -925,8 +925,13 @@ func (cm *CollaborationManager) enterReviewingFromPlanningLocked(c *Collaboratio
 	if c == nil || c.Phase != PhasePlanning {
 		return false
 	}
-	cm.synthesizePlanFromDiscussionLocked(c)
-	cm.ensurePlanTasksFromGoalLocked(c)
+	goalTasks := ExtractTasksFromCollaborationGoal(c.Description, c.ID, c.Agents)
+	if goalPinsExactTaskList(c.Description, len(goalTasks)) {
+		cm.ensurePlanTasksFromGoalLocked(c)
+	} else {
+		cm.synthesizePlanFromDiscussionLocked(c)
+		cm.ensurePlanTasksFromGoalLocked(c)
+	}
 	c.Phase = PhaseReviewing
 	if c.Discussion != nil && c.Discussion.Status == DiscussionActive {
 		c.Discussion.Status = DiscussionConverged

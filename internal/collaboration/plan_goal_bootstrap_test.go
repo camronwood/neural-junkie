@@ -136,3 +136,40 @@ Task 3: @Claude - Propose page inventory for home/about/contact
 		t.Fatalf("freestyle discussion tasks should not remain after pin: %s", c.Plan.Content)
 	}
 }
+
+func TestEnterReviewingFromPlanning_skipsSynthesisWhenGoalPinned(t *testing.T) {
+	cm := NewCollaborationManager(nil)
+	agents := []CollaborationAgent{
+		{AgentID: "sa-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "pe-1", AgentName: "PlatformEngineer", AgentType: protocol.AgentTypeDevOps},
+	}
+	goal := "@SoftwareArchitect @PlatformEngineer Investigate resource api document schema standardization/registration. Produce EXACTLY two tasks and no others, using these exact lines:\n" +
+		"- Task 1: @SoftwareArchitect - Write collabs/<id>/schema-standards.md covering schema/doc standards\n" +
+		"- Task 2: @PlatformEngineer - Write collabs/<id>/ci-release-docs.md covering CI/release of docs"
+	c := &Collaboration{
+		ID:          "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+		Phase:       PhasePlanning,
+		Description: goal,
+		Agents:      agents,
+		Plan: &SharedArtifact{Content: `## Plan
+
+Task 1: @SoftwareArchitect - Review kubectl logs and namespace config
+Task 2: @SoftwareArchitect - Draft unrelated markdown
+Task 3: @PlatformEngineer - Extra freestyle task
+`},
+		Discussion: &DiscussionSession{Status: DiscussionActive},
+	}
+	cm.mu.Lock()
+	entered := cm.enterReviewingFromPlanningLocked(c)
+	cm.mu.Unlock()
+	if !entered {
+		t.Fatal("expected enter reviewing")
+	}
+	if len(c.Tasks) != 2 {
+		t.Fatalf("expected pinned 2 tasks, got %d: %#v", len(c.Tasks), taskTitles(c.Tasks))
+	}
+	joined := strings.ToLower(c.Plan.Content)
+	if strings.Contains(joined, "kubectl") || strings.Contains(joined, "freestyle") {
+		t.Fatalf("freestyle plan should not remain: %s", c.Plan.Content)
+	}
+}

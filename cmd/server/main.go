@@ -138,6 +138,7 @@ func main() {
 	initAuthStore()
 	hub.EnsureBootstrapToken()
 	initConversationMemory()
+	initInferenceStats()
 	if appConfig != nil {
 		for _, ch := range appConfig.Server.DurableChannels {
 			if strings.TrimSpace(ch) != "" {

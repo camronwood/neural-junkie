@@ -482,6 +482,7 @@ func (o *OllamaProvider) GenerateResponseStream(ctx context.Context, prompt stri
 				ch <- StreamToken{Content: chunk.Message.Content}
 			}
 			if chunk.Done {
+				o.recordUsage(chunk)
 				if accumulatedContent.Len() == 0 && accumulatedThinking.Len() > 0 {
 					ch <- StreamToken{Error: errOllamaReasoningOnly, Done: true}
 					return

@@ -286,6 +286,7 @@ export type TurnTraceResponse = {
   retrieval?: TurnTraceRetrieval;
   governance?: RoutingGovernanceMeta;
   tool_steps?: unknown;
+  inference_usage?: Record<string, unknown>;
   spans?: TurnTraceSpan[];
   reasoning_text?: string;
   compress?: {

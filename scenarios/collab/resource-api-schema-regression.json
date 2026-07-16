@@ -54,8 +54,10 @@
       "timeout": "240s",
       "retries": 1,
       "nudge_agents": [
-        "FrontendEngineer"
-      ]
+        "FrontendEngineer",
+        "Claude"
+      ],
+      "nudge_silent_agents": true
     },
     {
       "action": "wait_phase",

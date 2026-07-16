@@ -85,5 +85,20 @@ func (p *HuggingFaceProvider) NativeToolsMarkedUnsupported() bool {
 	return p.inner.NativeToolsMarkedUnsupported()
 }
 
+// ResetSessionUsage implements UsageAware via inner OpenAI-compat provider.
+func (p *HuggingFaceProvider) ResetSessionUsage() {
+	if p != nil && p.inner != nil {
+		p.inner.ResetSessionUsage()
+	}
+}
+
+// TakeSessionUsage implements UsageAware via inner OpenAI-compat provider.
+func (p *HuggingFaceProvider) TakeSessionUsage() InferenceUsage {
+	if p == nil || p.inner == nil {
+		return InferenceUsage{}
+	}
+	return p.inner.TakeSessionUsage()
+}
+
 // Ensure HuggingFaceProvider implements ToolCapableProvider.
 var _ ToolCapableProvider = (*HuggingFaceProvider)(nil)

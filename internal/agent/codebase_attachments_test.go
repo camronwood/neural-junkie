@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/codeintel"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -58,5 +59,19 @@ func TestMergeCodebaseAttachments_keywordFallback(t *testing.T) {
 	arr, ok := raw.([]interface{})
 	if !ok || len(arr) == 0 {
 		t.Fatalf("expected chunks, got %v", raw)
+	}
+}
+
+func TestSemanticHitsContainAnySymbol(t *testing.T) {
+	t.Parallel()
+	hits := []codeintel.RepoSearchHit{
+		{Hit: codeintel.Hit{Path: "README.md", Content: "overview only"}},
+	}
+	if semanticHitsContainAnySymbol(hits, []string{"ComputeObscureWidget"}) {
+		t.Fatal("expected false when symbol missing from semantic hits")
+	}
+	hits[0].Content = "func ComputeObscureWidget() int { return 42 }"
+	if !semanticHitsContainAnySymbol(hits, []string{"ComputeObscureWidget"}) {
+		t.Fatal("expected true when symbol present in hit content")
 	}
 }

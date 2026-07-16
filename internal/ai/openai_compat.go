@@ -23,6 +23,7 @@ type OpenAICompatProvider struct {
 	Model      string
 	Headers    map[string]string
 	httpClient *http.Client
+	usage      UsageAccumulator
 
 	nativeToolsUnsupported bool
 }
@@ -100,6 +101,7 @@ func (p *OpenAICompatProvider) GenerateResponse(ctx context.Context, prompt stri
 	if len(response.Choices) == 0 {
 		return "", fmt.Errorf("no choices in response")
 	}
+	recordOpenAICompatUsage(&p.usage, response.Usage.PromptTokens, response.Usage.CompletionTokens)
 	text := strings.TrimSpace(openAIMessageTextContent(response.Choices[0].Message.Content))
 	if text == "" {
 		return "", fmt.Errorf("no content in response")
@@ -159,6 +161,7 @@ func (p *OpenAICompatProvider) GenerateMultimodal(ctx context.Context, prompt st
 	if len(response.Choices) == 0 {
 		return "", fmt.Errorf("no choices in response")
 	}
+	recordOpenAICompatUsage(&p.usage, response.Usage.PromptTokens, response.Usage.CompletionTokens)
 	text := strings.TrimSpace(openAIMessageTextContent(response.Choices[0].Message.Content))
 	if text == "" {
 		return "", fmt.Errorf("no content in response")
@@ -174,6 +177,9 @@ func (p *OpenAICompatProvider) GenerateMultimodalStream(ctx context.Context, pro
 		Model:    p.Model,
 		Messages: messages,
 		Stream:   true,
+		StreamOptions: &OpenAIStreamOptions{
+			IncludeUsage: true,
+		},
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -229,6 +235,9 @@ func (p *OpenAICompatProvider) GenerateMultimodalStream(ctx context.Context, pro
 			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 				continue
 			}
+			if chunk.Usage.PromptTokens > 0 || chunk.Usage.CompletionTokens > 0 {
+				recordOpenAICompatUsage(&p.usage, chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens)
+			}
 			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
 				ch <- StreamToken{Content: chunk.Choices[0].Delta.Content}
 			}
@@ -245,6 +254,21 @@ func (p *OpenAICompatProvider) GenerateMultimodalStream(ctx context.Context, pro
 	}()
 
 	return ch, nil
+}
+
+// ResetSessionUsage implements UsageAware.
+func (p *OpenAICompatProvider) ResetSessionUsage() {
+	if p != nil {
+		p.usage.ResetSession()
+	}
+}
+
+// TakeSessionUsage implements UsageAware.
+func (p *OpenAICompatProvider) TakeSessionUsage() InferenceUsage {
+	if p == nil {
+		return InferenceUsage{}
+	}
+	return p.usage.TakeSession()
 }
 
 func (p *OpenAICompatProvider) GetModel() string { return p.Model }

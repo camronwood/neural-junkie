@@ -314,7 +314,7 @@ export function ModelsPerformanceSettingsTab({ hubHttp, isActive }: SettingsTabP
       <div className="flex-1">
         <div className="font-medium text-slack-text">Turn telemetry drawer</div>
         <div className="text-sm text-slack-textMuted">
-          Live routing, tool, and activity events above the composer (power-user debug)
+          Live routing, tool, usage, and activity events above the composer (power-user debug)
         </div>
       </div>
       <label className="relative inline-flex items-center cursor-pointer">

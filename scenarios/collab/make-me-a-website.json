@@ -160,6 +160,16 @@
     },
     {
       "action": "wait_tasks",
+      "min_completed": 2,
+      "all_match": false,
+      "timeout": "360s"
+    },
+    {
+      "action": "send",
+      "content": "/resume-plan <collab-id>"
+    },
+    {
+      "action": "wait_tasks",
       "min_completed": 4,
       "all_match": true,
       "timeout": "540s"

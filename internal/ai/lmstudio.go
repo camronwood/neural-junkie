@@ -28,11 +28,17 @@ type LMStudioProvider struct {
 
 // OpenAICompatibleRequest represents a request to OpenAI-compatible API (used by LM Studio)
 type OpenAICompatibleRequest struct {
-	Model      string                    `json:"model"`
-	Messages   []OpenAICompatibleMessage `json:"messages"`
-	Stream     bool                      `json:"stream,omitempty"`
-	Tools      []OpenAITool              `json:"tools,omitempty"`
-	ToolChoice string                    `json:"tool_choice,omitempty"`
+	Model         string                    `json:"model"`
+	Messages      []OpenAICompatibleMessage `json:"messages"`
+	Stream        bool                      `json:"stream,omitempty"`
+	StreamOptions *OpenAIStreamOptions      `json:"stream_options,omitempty"`
+	Tools         []OpenAITool              `json:"tools,omitempty"`
+	ToolChoice    string                    `json:"tool_choice,omitempty"`
+}
+
+// OpenAIStreamOptions configures streaming behavior (OpenAI-compatible APIs).
+type OpenAIStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 // OpenAICompatibleMessage represents a message in OpenAI API format
@@ -356,6 +362,21 @@ type openAIStreamChunk struct {
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
+}
+
+func recordOpenAICompatUsage(acc *UsageAccumulator, pt, ct int) {
+	if acc == nil || (pt == 0 && ct == 0) {
+		return
+	}
+	acc.Record(InferenceUsage{
+		PromptTokens:     pt,
+		CompletionTokens: ct,
+		Calls:            1,
+	})
 }
 
 // SupportsStreaming returns true -- LM Studio supports OpenAI-compatible SSE.
@@ -397,6 +418,9 @@ func (l *LMStudioProvider) GenerateResponseStream(ctx context.Context, prompt st
 		Model:    model,
 		Messages: messages,
 		Stream:   true,
+		StreamOptions: &OpenAIStreamOptions{
+			IncludeUsage: true,
+		},
 	}
 
 	jsonData, err := json.Marshal(request)
@@ -445,6 +469,9 @@ func (l *LMStudioProvider) GenerateResponseStream(ctx context.Context, prompt st
 			var chunk openAIStreamChunk
 			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 				continue
+			}
+			if chunk.Usage.PromptTokens > 0 || chunk.Usage.CompletionTokens > 0 {
+				recordOpenAICompatUsage(&l.usage, chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens)
 			}
 			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
 				ch <- StreamToken{Content: chunk.Choices[0].Delta.Content}

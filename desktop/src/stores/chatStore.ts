@@ -22,6 +22,12 @@ import {
   MAX_UI_THREAD_MESSAGES,
   trimMessagesToMax,
 } from '../config/messageLimits';
+import {
+  addSessionUsage,
+  EMPTY_SESSION_USAGE,
+  usagePayloadFromRecord,
+  type SessionUsageTotals,
+} from '../types/inferenceUsage';
 
 function isPendingLocalSlashCommand(message: Message): boolean {
   return (
@@ -138,6 +144,9 @@ export interface ChatState {
 
   /** Per-channel ring buffer of live turn telemetry (routing, tools, activity). */
   turnTelemetryByChannel: Map<string, TurnTelemetryEvent[]>;
+
+  /** Desktop session rollup (since app open) for token/cost totals. */
+  sessionUsage: SessionUsageTotals;
   
   // Actions
   setConnectionStatus: (status: ConnectionStatus) => void;
@@ -174,6 +183,8 @@ export interface ChatState {
   cleanupStaleThinking: (channelName: string, messages: Message[]) => void;
   appendTurnTelemetryEvent: (channelName: string, event: Omit<TurnTelemetryEvent, 'id' | 'at' | 'channel'>) => void;
   clearTurnTelemetry: (channelName?: string) => void;
+  recordSessionUsageFromPayload: (payload: Record<string, unknown>) => void;
+  clearSessionUsage: () => void;
   updateAgentStatus: (agentId: string, updates: Partial<AgentInfo>) => void;
   
   // Channel actions
@@ -271,6 +282,7 @@ const initialState = {
   streamingMessages: {} as Record<string, Message>,
   channelHeld: new Map<string, boolean>(),
   turnTelemetryByChannel: new Map<string, TurnTelemetryEvent[]>(),
+  sessionUsage: { ...EMPTY_SESSION_USAGE },
 };
 
 export const useChatStore = create<ChatState>((set, get) => {
@@ -520,8 +532,24 @@ export const useChatStore = create<ChatState>((set, get) => {
       const next = [...prev, row].slice(-100);
       const outer = new Map(state.turnTelemetryByChannel);
       outer.set(channelName, next);
-      return { turnTelemetryByChannel: outer };
+      let sessionUsage = state.sessionUsage;
+      if (event.kind === 'usage' && event.payload) {
+        const parsed = usagePayloadFromRecord(event.payload);
+        if (parsed) {
+          sessionUsage = addSessionUsage(state.sessionUsage, parsed);
+        }
+      }
+      return { turnTelemetryByChannel: outer, sessionUsage };
     }),
+
+  recordSessionUsageFromPayload: (payload) =>
+    set((state) => {
+      const parsed = usagePayloadFromRecord(payload);
+      if (!parsed) return state;
+      return { sessionUsage: addSessionUsage(state.sessionUsage, parsed) };
+    }),
+
+  clearSessionUsage: () => set({ sessionUsage: { ...EMPTY_SESSION_USAGE } }),
 
   clearTurnTelemetry: (channelName) =>
     set((state) => {
@@ -952,6 +980,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       streamingMessages: {},
       channelHeld: new Map<string, boolean>(),
       turnTelemetryByChannel: new Map<string, TurnTelemetryEvent[]>(),
+      sessionUsage: { ...EMPTY_SESSION_USAGE },
     });
   },
   
@@ -970,6 +999,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     streamingMessages: {},
     channelHeld: new Map<string, boolean>(),
     turnTelemetryByChannel: new Map<string, TurnTelemetryEvent[]>(),
+    sessionUsage: { ...EMPTY_SESSION_USAGE },
   });
   },
 };

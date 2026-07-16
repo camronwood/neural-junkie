@@ -206,6 +206,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/image-gen/config", corsMiddleware(localOnly(handleImageGenConfig)))
 	http.HandleFunc("/api/system/hardware", corsMiddleware(handleSystemHardware))
 	http.HandleFunc("/api/system/memory", corsMiddleware(handleSystemMemory))
+	http.HandleFunc("/api/inference/usage", corsMiddleware(handleInferenceUsage))
 	http.HandleFunc("/api/system/security", corsMiddleware(handleSystemSecurity))
 
 	http.HandleFunc("/api/hf/status", corsMiddleware(handleHfStatus))
