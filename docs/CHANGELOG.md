@@ -6,6 +6,34 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.6] - 2026-07-17
+
+The release where the workstation gets a memory of its own code — a native repository knowledge graph, Model Arena, event-driven stream subscriptions, and a wave of collab, packaging, and site hardening.
+
+### Added
+- **Repository knowledge graph** — native code graph index (`internal/codeindex/graph`), `/api/repo/graph*` APIs, a `code_graph` knowledge route that grounds agent turns, and a React Flow **Knowledge Graph workbench** in the desktop IDE ([KNOWLEDGE_GRAPH.md](KNOWLEDGE_GRAPH.md) · [feature guide](features/knowledge-graph.html)).
+- **Model Arena pack** — head-to-head model matches with reliable move handling and observable match status.
+- **Inference usage telemetry** — per-turn inference accounting surfaced across the stack.
+- **Stream subscriptions** — MQTT/Kafka subscriptions that trigger runbooks, channels, or webhooks.
+- **PrismML Bonsai 27B** — added to the model library with `mmproj` support, a prompted Ollama updater, and min-version gates.
+- **Room Chat pack** — ephemeral LAN rooms hosted on a host hub.
+- **Homebrew distribution** — macOS and Linux formulae with an automated cask bump on release.
+- **Domain pack v2 plumbing** — CAD, AWS, and software-development pack sidecar/platform plumbing.
+- **Platform foundations** — turn pipeline, span tracing, and durable collab state.
+- **Site** — living development timeline, standard model benchmark run, provider logo strip, Hub architecture article, and SEO meta/sitemap/canonical work.
+
+### Changed
+- **Homepage messaging** — leads with any-model, local-or-cloud; marketing site refresh with new demo videos and article cover images in OG/Twitter previews.
+- **Collab deliverable scoping** — tightened scoping and banned out-of-scope path disclaimers in minimal-repo findings deliverables.
+
+### Fixed
+- **Workspace image previews** — editor images load through the hub as data URLs (local and remote), with a widened Tauri `assetScope` for home-directory assets.
+- **Pack toolbar chips** — chips appear immediately on install/enable; the client mutation parser now preserves `capability_registry` and `short_id_collisions`.
+- **Collaboration regression gates** — chat layer gate fixes (closure, `@codebase`, public theme), collab-core/full gate hardening, and planning generation-error turn advance.
+
+### Known issues
+- **Live parity gate** — `test-parity-stable-restart` (live-model collab parity) is currently failing and is tracked for a follow-up beta; it is not part of the release CI test gate.
+
 ## [1.2.0-beta.5] - 2026-07-06
 
 The release where the loops close — ReAct tools, routing trace, Runbooks v2, multi-repo workspace scope, collab hardening, LoRA v2 specialists, personal learning, Slack diagnostics, and release-engineering automation.
