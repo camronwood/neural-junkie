@@ -12,6 +12,12 @@ const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
     category: 'Neural Junkie',
     arguments: [],
   },
+  {
+    name: '/nj-open-knowledge-graph',
+    description: 'Open knowledge graph for the active workspace (communities, imports, path explain)',
+    category: 'Neural Junkie',
+    arguments: [],
+  },
 ];
 
 export function withClientPaletteCommands(defs: CommandDefinition[]): CommandDefinition[] {

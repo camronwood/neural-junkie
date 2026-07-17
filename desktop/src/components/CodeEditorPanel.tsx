@@ -19,6 +19,7 @@ import { StructureWorkbench } from './StructureWorkbench';
 import { HtmlBrowserWorkbench } from './HtmlBrowserWorkbench';
 import { MusicWorkbench } from './MusicWorkbench';
 import { ArenaWorkbench } from './ArenaWorkbench';
+import { KnowledgeGraphWorkbench } from './knowledge-graph/KnowledgeGraphWorkbench';
 import { ScanAnalysisViewer } from './ScanAnalysisViewer';
 import { ComparatorAnalysisViewer } from './ComparatorAnalysisViewer';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -30,6 +31,7 @@ import { isEditableCsvPath } from '../utils/csvTable';
 import { isMarkdownPath } from '../utils/markdownFile';
 
 function tabLabel(tab: EditorTab): string {
+  if (tab.viewMode === 'knowledge-graph-workbench') return 'Knowledge Graph';
   const path = tab.path ?? '';
   if (!path) return 'Untitled';
   const parts = path.split('/');
@@ -180,11 +182,12 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   const isStructureWorkbenchTab = activeTab?.viewMode === 'structure-workbench';
   const isMusicWorkbenchTab = activeTab?.viewMode === 'music-workbench';
   const isArenaWorkbenchTab = activeTab?.viewMode === 'arena-workbench';
+  const isKnowledgeGraphTab = activeTab?.viewMode === 'knowledge-graph-workbench';
   const isCsvTableTab = activeTab?.viewMode === 'csv-table';
   const isMarkdownPreviewTab = activeTab?.viewMode === 'markdown-preview';
   const isCsvFileTab = activeTab ? isEditableCsvPath(activeTab.path) : false;
   const isMarkdownFileTab = activeTab ? isMarkdownPath(activeTab.path) : false;
-  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab || isStructureWorkbenchTab || isMusicWorkbenchTab || isArenaWorkbenchTab;
+  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab || isStructureWorkbenchTab || isMusicWorkbenchTab || isArenaWorkbenchTab || isKnowledgeGraphTab;
 
   useEffect(() => {
     if (!activeTabId) {
@@ -233,7 +236,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench' || tab.viewMode === 'knowledge-graph-workbench') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -311,7 +314,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
   const handleSave = useCallback(async () => {
     const tab = useEditorStore.getState().getActiveTab();
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || useEditorStore.getState().saving) return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'knowledge-graph-workbench' || useEditorStore.getState().saving) return;
 
     const success = await saveTab(tab.id);
     if (success) {
@@ -442,6 +445,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     if (tab.viewMode === 'html-preview') return '🌐';
     if (tab.viewMode === 'music-workbench') return '🎵';
     if (tab.viewMode === 'arena-workbench') return '♟';
+    if (tab.viewMode === 'knowledge-graph-workbench') return '◈';
     if (tab.viewMode === 'scan-summary') return '🔬';
     if (tab.viewMode === 'scan-analysis') return '📊';
     if (tab.viewMode === 'comparator-analysis') return '📈';
@@ -668,6 +672,12 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               workspaceId={activeTab.workspaceId}
               sessionPath={activeTab.arenaPath ?? activeTab.path}
               tabId={activeTab.id}
+            />
+          ) : activeTab.viewMode === 'knowledge-graph-workbench' && activeTab.knowledgeGraphRepoPath ? (
+            <KnowledgeGraphWorkbench
+              key={`${activeTab.id}:${activeTab.knowledgeGraphRepoPath}`}
+              workspaceId={activeTab.workspaceId}
+              repoPath={activeTab.knowledgeGraphRepoPath}
             />
           ) : activeTab.viewMode === 'html-preview' && activeTab.htmlPath ? (
             <HtmlBrowserWorkbench

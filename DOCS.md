@@ -26,6 +26,7 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 | Slack Connect | [SLACK_INTEGRATION.md](docs/SLACK_INTEGRATION.md) |
 | Personal learning v2 | [PERSONAL_LEARNING_V2.md](docs/PERSONAL_LEARNING_V2.md) |
 | Repo indexing agents | [REPO_AGENTS.md](docs/REPO_AGENTS.md) |
+| Knowledge graph | [KNOWLEDGE_GRAPH.md](docs/KNOWLEDGE_GRAPH.md) · [feature guide](docs/features/knowledge-graph.html) |
 | Confluence agents | [CONFLUENCE_AGENTS.md](docs/CONFLUENCE_AGENTS.md) |
 | Assistant (tasks, reminders, meetings) | [ASSISTANT_AGENT.md](docs/ASSISTANT_AGENT.md) |
 | CLI agents (Cursor, Gemini, …) | [CLI_AGENTS.md](docs/CLI_AGENTS.md) |

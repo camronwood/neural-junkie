@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knowledge graph — Neural Junkie</title>
+  <meta name="description" content="Explore your codebase as a clickable knowledge graph: communities, import edges, path explain, and agent grounding — local-first inside Neural Junkie." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/features/knowledge-graph.html" />
+  <meta property="og:title" content="Knowledge graph — Neural Junkie" />
+  <meta property="og:description" content="Explore your codebase as a clickable knowledge graph: communities, import edges, path explain, and agent grounding — local-first inside Neural Junkie." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/features/knowledge-graph.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/media/knowledge-graph-preview.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Knowledge graph — Neural Junkie" />
+  <meta name="twitter:description" content="Explore your codebase as a clickable knowledge graph: communities, import edges, path explain, and agent grounding — local-first inside Neural Junkie." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/media/knowledge-graph-preview.svg" />
+<!-- NJ-SITE-SEO:END -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap site-header-bar">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../packs.html">Packs</a>
+        <a class="btn btn-primary" href="../features/index.html" aria-current="page">Guides</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+          <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+          <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+          <a class="btn btn-ghost" href="../packs.html">Packs</a>
+          <a class="btn btn-primary" href="../features/index.html" aria-current="page">Guides</a>
+          <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+          <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+          <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+          <a class="btn btn-ghost" href="../security.html">Security</a>
+          <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+          <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+          <a class="btn btn-ghost" href="../download.html">Download</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Knowledge graph
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Knowledge graph</h1>
+      <p class="feature-deep-lead">Map packages, files, symbols, and imports into a clickable community graph your agents can <strong>query, path, and explain</strong> — without grepping blind.</p>
+      <figure style="margin-top: 1.5rem;">
+        <img src="../media/knowledge-graph-preview.svg" alt="Neural Junkie knowledge graph with communities sidebar" width="1200" height="630" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid rgba(148,163,184,0.25);" />
+      </figure>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Why it exists</h2>
+      <p>Vector search finds similar chunks. A knowledge graph answers <em>how things connect</em>: who imports whom, which package is a hub, and the path between two symbols — with <code>EXTRACTED</code> vs <code>INFERRED</code> provenance on every edge.</p>
+
+      <h2>Open it</h2>
+      <ul>
+        <li>Toolbar <strong>◈</strong> button</li>
+        <li>Files panel → <strong>Open knowledge graph</strong></li>
+        <li>Command palette → <code>/nj-open-knowledge-graph</code></li>
+      </ul>
+
+      <h2>What you get</h2>
+      <ul>
+        <li>Colored <strong>communities</strong> (package/directory clusters)</li>
+        <li><strong>God nodes</strong> ranked by degree</li>
+        <li>Search, path mode (pick two nodes), explain inspector</li>
+        <li>Double-click to open the file in the editor</li>
+        <li>Ask agents about a selected node (composer prefill)</li>
+      </ul>
+
+      <h2>Agent grounding</h2>
+      <p>Questions like “how does X relate to Y” or “path between A and B” route through the knowledge graph retriever and inject neighborhood/path context alongside <code>@codebase</code> search.</p>
+
+      <h2>Local-first</h2>
+      <p>Structure is built on-device from symbols and imports (Go, TypeScript/JavaScript, Python, Rust). Graphs live under <code>~/.neural-junkie/code-graph/</code>. No third-party Graphify dependency.</p>
+
+      <p><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWLEDGE_GRAPH.md">KNOWLEDGE_GRAPH.md</a> · <a href="desktop-workspace.html">Desktop workspace</a> · <a href="ide-v4.html">IDE v4</a></p>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

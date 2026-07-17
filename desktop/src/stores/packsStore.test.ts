@@ -108,4 +108,43 @@ describe('packsStore', () => {
     expect(pack.dev_linked).toBe(true);
     expect(pack.dev_source_path).toBe('/tmp/acme-lab');
   });
+
+  it('mutation-shaped payload with toolbar capability surfaces toolbar actions', () => {
+    usePacksStore.getState().applyPacksResponse({
+      packs: [
+        {
+          id: 'model-arena',
+          title: 'Model Arena',
+          description: '',
+          installed: true,
+          enabled: true,
+        },
+      ],
+      pack_id: 'model-arena',
+      layout_owner: '',
+      layout_profile: 'team',
+      capabilities: ['model-arena-launcher'],
+      capability_registry: [
+        {
+          id: 'model-arena-launcher',
+          qualified_id: 'model-arena/model-arena-launcher',
+          pack_id: 'model-arena',
+          kind: 'toolbar-chip',
+          ui: { toolbar: { id: 'arena', label: 'Arena' }, modal: 'model-arena' },
+        },
+      ],
+      short_id_collisions: [],
+    });
+
+    const actions = usePacksStore.getState().getToolbarActions();
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      id: 'arena',
+      label: 'ARE',
+      modal: 'model-arena',
+      packId: 'model-arena',
+      packTitle: 'Model Arena',
+    });
+    expect(usePacksStore.getState().shortIdCollisions).toEqual([]);
+  });
 });

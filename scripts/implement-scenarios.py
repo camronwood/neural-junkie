@@ -104,14 +104,33 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
             pass
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     until_any = step.get("until_any_match")
+    until_files = step.get("until_file_exists") or step.get("until_files_exist") or []
+    if isinstance(until_files, str):
+        until_files = [until_files]
+    until_files = [str(p).strip() for p in until_files if str(p).strip()]
     baseline = int(step.get("baseline", ctx.baseline_agent_count.get(from_name, _chat_baseline(ctx, from_name))))
+    root = Path(scenario_repo_root(ctx.scenario))
     deadline = time.time() + secs
     while time.time() < deadline:
+        for rel in until_files:
+            path = (root / rel).resolve()
+            if path.is_file() and path.stat().st_size > 0:
+                return True, f"deliverable on disk ({rel})"
         msgs = hub.list_messages(ctx.base, ctx.channel, 200)
-        pool = hub.chat_agent_messages(msgs)
+        # Implementation turns often surface as file_change / user_question without a plain chat row.
+        pool = hub.agent_messages(
+            msgs,
+            types=hub.CHAT_REPLY_TYPES | {"file_change"},
+        )
         candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
         for msg in candidates[baseline:]:
             text = msg.get("content") or ""
+            meta = msg.get("metadata") if isinstance(msg.get("metadata"), dict) else {}
+            proposal = meta.get("file_change_proposal") if isinstance(meta, dict) else None
+            if isinstance(proposal, dict):
+                path = str(proposal.get("path") or proposal.get("rel_path") or "")
+                if path:
+                    text = f"{text}\n{path}"
             if until_any:
                 ok, detail = check_text_patterns(text, any_match=until_any)
                 if ok:

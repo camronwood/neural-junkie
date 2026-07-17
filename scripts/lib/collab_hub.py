@@ -31,7 +31,8 @@ DISCUSSION_TYPES = frozenset(
     }
 )
 
-CHAT_REPLY_TYPES = frozenset({"chat", "answer"})
+# user_question is a valid agent turn (ask-user tool); treat it like chat for wait_reply.
+CHAT_REPLY_TYPES = frozenset({"chat", "answer", "user_question"})
 
 
 def hub_request(
@@ -412,12 +413,14 @@ def agent_messages(
         if exclude_generation_errors and is_generation_error_message(m):
             continue
         typ = m.get("type") or ""
-        if types and typ not in types:
+        if types is not None:
+            if typ not in types:
+                continue
+        elif typ not in DISCUSSION_TYPES and typ != "collaboration_discussion":
             continue
-        if typ in DISCUSSION_TYPES or typ == "collaboration_discussion":
-            who = (m.get("from") or {}).get("name") or ""
-            if who and who != "System":
-                out.append(m)
+        who = (m.get("from") or {}).get("name") or ""
+        if who and who != "System":
+            out.append(m)
     return out
 
 

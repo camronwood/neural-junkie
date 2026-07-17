@@ -1,12 +1,13 @@
 package codeindex
 
 import (
+	"path/filepath"
 	"strings"
 
-	"path/filepath"
+	"github.com/camronwood/neural-junkie/internal/workspacesymbols"
 )
 
-// chunkFileAST splits source into logical chunks on function/type boundaries when possible.
+// chunkFileAST splits source into logical chunks on function/type symbol boundaries when possible.
 func chunkFileAST(relPath, content string) []Chunk {
 	lines := strings.Split(content, "\n")
 	if len(lines) == 0 {
@@ -15,10 +16,70 @@ func chunkFileAST(relPath, content string) []Chunk {
 	ext := strings.ToLower(filepath.Ext(relPath))
 	switch ext {
 	case ".go", ".rs", ".py", ".js", ".ts", ".tsx", ".jsx":
+		if bounds := workspacesymbols.DefinitionLines(relPath, content); len(bounds) > 0 {
+			return chunkBySymbolLines(relPath, lines, bounds)
+		}
 		return chunkByBlankLines(relPath, lines)
 	default:
 		return chunkLines(relPath, lines, defaultChunkLines)
 	}
+}
+
+// chunkBySymbolLines splits at definition start lines from the symbol indexer.
+func chunkBySymbolLines(relPath string, lines []string, starts []int) []Chunk {
+	if len(starts) == 0 {
+		return chunkByBlankLines(relPath, lines)
+	}
+	var chunks []Chunk
+	// Preamble before first symbol.
+	if starts[0] > 1 {
+		text := strings.Join(lines[0:starts[0]-1], "\n")
+		if strings.TrimSpace(text) != "" {
+			chunks = append(chunks, Chunk{
+				ID: chunkID(relPath, 1, starts[0]-1), Path: relPath,
+				Start: 1, End: starts[0] - 1, Content: text,
+			})
+		}
+	}
+	for i, start := range starts {
+		end := len(lines)
+		if i+1 < len(starts) {
+			end = starts[i+1] - 1
+		}
+		if end < start {
+			end = start
+		}
+		if end > len(lines) {
+			end = len(lines)
+		}
+		text := strings.Join(lines[start-1:end], "\n")
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		// Cap oversized symbol bodies.
+		if end-start+1 > defaultChunkLines {
+			for s := start; s <= end; s += defaultChunkLines {
+				e := s + defaultChunkLines - 1
+				if e > end {
+					e = end
+				}
+				part := strings.Join(lines[s-1:e], "\n")
+				chunks = append(chunks, Chunk{
+					ID: chunkID(relPath, s, e), Path: relPath,
+					Start: s, End: e, Content: part,
+				})
+			}
+			continue
+		}
+		chunks = append(chunks, Chunk{
+			ID: chunkID(relPath, start, end), Path: relPath,
+			Start: start, End: end, Content: text,
+		})
+	}
+	if len(chunks) == 0 {
+		return chunkByBlankLines(relPath, lines)
+	}
+	return chunks
 }
 
 func chunkByBlankLines(relPath string, lines []string) []Chunk {

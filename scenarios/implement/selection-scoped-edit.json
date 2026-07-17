@@ -43,7 +43,8 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "420s",
-      "until_any_match": ["applied and verified|implementation session complete|SidebarFooter|footer"]
+      "until_any_match": ["applied and verified|implementation session complete|SidebarFooter|footer"],
+      "until_file_exists": "src/components/SidebarFooter.tsx"
     },
     {
       "action": "assert_files_unchanged",

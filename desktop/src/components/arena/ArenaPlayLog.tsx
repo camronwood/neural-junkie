@@ -13,7 +13,6 @@ export type ArenaPlayLogEntry = {
 };
 
 export function formatArenaMoveLabel(
-  challenge: string,
   parsed?: Record<string, unknown>,
   parsedAnswer?: string,
 ): string | undefined {
@@ -25,7 +24,7 @@ export function formatArenaMoveLabel(
   return undefined;
 }
 
-export function stepMetaToLogEntry(step: ArenaStepMeta | undefined, challenge: string): ArenaPlayLogEntry | null {
+export function stepMetaToLogEntry(step: ArenaStepMeta | undefined, _challenge?: string): ArenaPlayLogEntry | null {
   if (!step) return null;
   if (step.skipped) {
     const attempts =
@@ -46,7 +45,7 @@ export function stepMetaToLogEntry(step: ArenaStepMeta | undefined, challenge: s
     };
   }
   const parsed = step.parsed_move as Record<string, unknown> | undefined;
-  const moveLabel = formatArenaMoveLabel(challenge, parsed, step.parsed_answer);
+  const moveLabel = formatArenaMoveLabel(parsed, step.parsed_answer);
   const retryNote =
     typeof step.attempts === 'number' && step.attempts > 1 ? ` (retry ${step.attempts})` : '';
   return {

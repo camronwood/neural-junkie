@@ -2981,6 +2981,78 @@ export class ChatAPI {
     return response.json();
   }
 
+  async repoGraph(repoPath: string): Promise<import('../components/knowledge-graph/types').KnowledgeGraphSummary> {
+    const params = new URLSearchParams({ repo_path: repoPath });
+    const response = await this.hubFetch(`/api/repo/graph?${params}`);
+    if (!response.ok) {
+      throw new Error(`Knowledge graph failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async repoGraphSubgraph(
+    repoPath: string,
+    q: string,
+    hops = 1,
+    limit = 120,
+  ): Promise<import('../components/knowledge-graph/types').KnowledgeGraphSummary & { query?: string; nodes: import('../components/knowledge-graph/types').KnowledgeGraphNode[]; edges: import('../components/knowledge-graph/types').KnowledgeGraphEdge[] }> {
+    const params = new URLSearchParams({
+      repo_path: repoPath,
+      q,
+      hops: String(hops),
+      limit: String(limit),
+    });
+    const response = await this.hubFetch(`/api/repo/graph/subgraph?${params}`);
+    if (!response.ok) {
+      throw new Error(`Graph subgraph failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async repoGraphPath(
+    repoPath: string,
+    from: string,
+    to: string,
+  ): Promise<{
+    from: string;
+    to: string;
+    found: boolean;
+    nodes: import('../components/knowledge-graph/types').KnowledgeGraphNode[];
+    edges: import('../components/knowledge-graph/types').KnowledgeGraphEdge[];
+  }> {
+    const params = new URLSearchParams({ repo_path: repoPath, from, to });
+    const response = await this.hubFetch(`/api/repo/graph/path?${params}`);
+    if (!response.ok) {
+      throw new Error(`Graph path failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async repoGraphExplain(
+    repoPath: string,
+    node: string,
+  ): Promise<import('../components/knowledge-graph/types').KnowledgeGraphExplain> {
+    const params = new URLSearchParams({ repo_path: repoPath, node });
+    const response = await this.hubFetch(`/api/repo/graph/explain?${params}`);
+    if (!response.ok) {
+      throw new Error(`Graph explain failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async repoGraphStatus(
+    repoPath: string,
+    rebuild = false,
+  ): Promise<import('../components/knowledge-graph/types').KnowledgeGraphMeta> {
+    const params = new URLSearchParams({ repo_path: repoPath });
+    if (rebuild) params.set('rebuild', '1');
+    const response = await this.hubFetch(`/api/repo/graph/status?${params}`);
+    if (!response.ok) {
+      throw new Error(`Graph status failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
   // Tool approval API methods
 
   async fetchPendingToolApprovals(): Promise<
@@ -3665,6 +3737,8 @@ export class ChatAPI {
       layout_owner: data.layout_owner as string | undefined,
       layout_profile: data.layout_profile as string | undefined,
       capabilities: (data.capabilities as string[]) ?? [],
+      capability_registry: (data.capability_registry as ResolvedCapability[]) ?? [],
+      short_id_collisions: (data.short_id_collisions as string[]) ?? [],
     };
   }
 

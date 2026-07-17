@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -36,6 +37,30 @@ var (
 // Search finds symbols whose name contains q (case-insensitive). Uses disk-backed index when possible.
 func Search(ctx context.Context, workspaceRoot, q string, limit int) ([]Symbol, error) {
 	return SearchIndexed(ctx, workspaceRoot, q, "", limit)
+}
+
+// DefinitionLines returns sorted 1-based line numbers where definitions start in content.
+// Used by codeindex chunking so embeddings align with graph symbol units.
+func DefinitionLines(relPath, content string) []int {
+	lang := langForPath(relPath)
+	if lang == "" {
+		return nil
+	}
+	syms, err := scanContent(relPath, lang, content)
+	if err != nil || len(syms) == 0 {
+		return nil
+	}
+	seen := map[int]bool{}
+	var lines []int
+	for _, s := range syms {
+		if s.Line <= 0 || seen[s.Line] {
+			continue
+		}
+		seen[s.Line] = true
+		lines = append(lines, s.Line)
+	}
+	sort.Ints(lines)
+	return lines
 }
 
 func langForPath(p string) string {

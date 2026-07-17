@@ -41,6 +41,7 @@ export interface ChatToolbarActionsProps {
   onOpenPendingChanges: () => void;
   onOpenFileExplorer: () => void;
   onOpenCodeEditor: () => void;
+  onOpenKnowledgeGraph?: () => void;
   customPackToolbarActions?: PackToolbarAction[];
   onCustomPackToolbarAction?: (modal: string) => void;
   taskManagementOpen: boolean;
@@ -89,6 +90,7 @@ export function ChatToolbarActions({
   onOpenPendingChanges,
   onOpenFileExplorer,
   onOpenCodeEditor,
+  onOpenKnowledgeGraph,
   customPackToolbarActions = [],
   onCustomPackToolbarAction,
   taskManagementOpen,
@@ -224,6 +226,18 @@ export function ChatToolbarActions({
         >
           <EditorIcon className="w-3.5 h-3.5" />
         </button>
+
+        {onOpenKnowledgeGraph && (
+          <button
+            type="button"
+            onClick={onOpenKnowledgeGraph}
+            className={`${iconBtn} bg-cyan-700 hover:bg-cyan-600 text-white focus-visible:outline-cyan-400 text-[11px] font-bold`}
+            title="Open knowledge graph"
+            aria-label="Open knowledge graph"
+          >
+            ◈
+          </button>
+        )}
 
         {ideLayoutAvailable && (
           <button

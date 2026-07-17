@@ -11,6 +11,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib.collab_hub import (  # noqa: E402
+    CHAT_REPLY_TYPES,
     _collect_bullet_findings,
     _is_turn_handoff_content,
     collaborate_agent_names,
@@ -19,6 +20,25 @@ from lib.collab_hub import (  # noqa: E402
 
 
 class CollabHubAgentParseTest(unittest.TestCase):
+    def test_chat_reply_types_include_user_question(self) -> None:
+        self.assertIn("user_question", CHAT_REPLY_TYPES)
+        self.assertIn("chat", CHAT_REPLY_TYPES)
+        self.assertIn("answer", CHAT_REPLY_TYPES)
+
+    def test_agent_messages_honors_explicit_types(self) -> None:
+        from lib.collab_hub import agent_messages
+
+        msgs = [
+            {"type": "user_question", "from": {"name": "BackendEngineer"}, "content": "Which theme?"},
+            {"type": "file_change", "from": {"name": "FrontendEngineer"}, "content": "edit SidebarFooter"},
+            {"type": "system_info", "from": {"name": "System"}, "content": "noise"},
+        ]
+        chatish = agent_messages(msgs, types=CHAT_REPLY_TYPES)
+        self.assertEqual(len(chatish), 1)
+        self.assertEqual(chatish[0]["type"], "user_question")
+        files = agent_messages(msgs, types=frozenset({"file_change"}))
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0]["from"]["name"], "FrontendEngineer")
     def test_parse_agent_mentions(self) -> None:
         names = parse_agent_mentions("@ChatModerator @Assistant @BackendEngineer")
         self.assertEqual(names, ["ChatModerator", "Assistant", "BackendEngineer"])

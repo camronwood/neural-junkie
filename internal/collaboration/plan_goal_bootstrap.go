@@ -12,10 +12,24 @@ import (
 )
 
 var (
-	goalFileAssigneeRe = regexp.MustCompile(`(?i)([a-z0-9][a-z0-9_./-]*\.md)\s*\(@([a-zA-Z][a-zA-Z0-9]*)\)`)
-	goalInlineTaskRe   = regexp.MustCompile(`(?i)Task\s+\d+\s*:?\s*@[^\n;]+`)
-	goalExactlyNTasksRe = regexp.MustCompile(`(?i)exactly\s+(\d+)\s+tasks?`)
+	goalFileAssigneeRe  = regexp.MustCompile(`(?i)([a-z0-9][a-z0-9_./-]*\.md)\s*\(@([a-zA-Z][a-zA-Z0-9]*)\)`)
+	goalInlineTaskRe    = regexp.MustCompile(`(?i)Task\s+\d+\s*:?\s*@[^\n;]+`)
+	goalExactlyNTasksRe = regexp.MustCompile(`(?i)exactly\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:[a-z-]+\s+)*tasks?`)
 )
+
+var goalExactCountWords = map[string]int{
+	"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+	"six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+}
+
+func parseGoalExactTaskCount(raw string) (int, bool) {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	if n, err := strconv.Atoi(raw); err == nil {
+		return n, true
+	}
+	n, ok := goalExactCountWords[raw]
+	return n, ok
+}
 
 // goalPinsExactTaskList is true when the /collaborate goal pins an explicit exact task list
 // that should replace freestyle discussion plans instead of merging with them.
@@ -33,7 +47,7 @@ func goalPinsExactTaskList(goal string, goalTaskCount int) bool {
 		return true
 	}
 	if m := goalExactlyNTasksRe.FindStringSubmatch(goalLower); len(m) == 2 {
-		if n, err := strconv.Atoi(m[1]); err == nil && n == goalTaskCount {
+		if n, ok := parseGoalExactTaskCount(m[1]); ok && n == goalTaskCount {
 			return true
 		}
 	}

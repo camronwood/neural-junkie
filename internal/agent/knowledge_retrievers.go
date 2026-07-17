@@ -33,6 +33,7 @@ type KnowledgeRetriever interface {
 
 var knowledgeRetrievers = []KnowledgeRetriever{
 	codebaseRetriever{},
+	codeGraphRetriever{},
 	learningsRetriever{},
 	memoryRetriever{},
 	priorReferenceRetriever{},
@@ -104,6 +105,20 @@ func explicitCodebaseRequest(msg *protocol.Message) bool {
 		}
 	}
 	return false
+}
+
+type codeGraphRetriever struct{}
+
+func (codeGraphRetriever) Target() routing.RouteTarget { return routing.RouteCodeGraph }
+func (codeGraphRetriever) Phase() KnowledgePhase       { return KnowledgePhaseEarly }
+func (codeGraphRetriever) ShouldRun(plan routing.KnowledgePlan, _ *protocol.Message, _ TurnIntent) bool {
+	return plan.Has(routing.RouteCodeGraph)
+}
+func (codeGraphRetriever) Execute(_ context.Context, _ *Agent, msg *protocol.Message, plan routing.KnowledgePlan, _ TurnIntent) (KnowledgeResult, error) {
+	if MergeGraphNeighborhoodForRoute(msg, plan) {
+		return KnowledgeResult{Executed: true, Path: "code_graph"}, nil
+	}
+	return KnowledgeResult{}, nil
 }
 
 type memoryRetriever struct{}

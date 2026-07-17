@@ -364,6 +364,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
   const openFileInEditor = useEditorStore((s) => s.openFile);
   const openArenaWorkbench = useEditorStore((s) => s.openArenaWorkbench);
+  const openKnowledgeGraphWorkbench = useEditorStore((s) => s.openKnowledgeGraphWorkbench);
   const revealLineInEditor = useEditorStore((s) => s.revealLine);
   const activeEditorTab = useEditorStore((s) => {
     const id = s.activeTabId;
@@ -2336,6 +2337,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
       return;
     }
+    if (trimmed === '/nj-open-knowledge-graph') {
+      appendLocalSlashCommand(trimmed);
+      const fe = useFileExplorerStore.getState();
+      const ws = fe.workspaces.find((w) => w.id === fe.activeWorkspaceId);
+      if (ws?.path && fe.activeWorkspaceId) {
+        useEditorStore.getState().openKnowledgeGraphWorkbench(fe.activeWorkspaceId, ws.path);
+        setCodeEditorOpen(true);
+        void updateLayoutSettings({ editorPanelVisible: true });
+      } else {
+        addToast({
+          type: 'warning',
+          title: 'No workspace',
+          message: 'Open a workspace in the Files panel first.',
+        });
+      }
+      (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
+      return;
+    }
     const repoAgentCmd = parseCreateRepoAgentCommand(trimmed);
     const sent = await handleSendMessage(commandString, metadata);
     if (sent !== false) {
@@ -2589,6 +2608,20 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         setCodeEditorOpen(true);
         void updateLayoutSettings({ editorPanelVisible: true });
       },
+      onOpenKnowledgeGraph: () => {
+        const ws = explorerWorkspaces.find((w) => w.id === activeWorkspaceId);
+        if (ws?.path && activeWorkspaceId) {
+          openKnowledgeGraphWorkbench(activeWorkspaceId, ws.path);
+          setCodeEditorOpen(true);
+          void updateLayoutSettings({ editorPanelVisible: true });
+        } else {
+          addToast({
+            type: 'warning',
+            title: 'No workspace',
+            message: 'Open a workspace in the Files panel first.',
+          });
+        }
+      },
       customPackToolbarActions,
       onCustomPackToolbarAction: (modal: string) => setActivePackModal(modal),
       taskManagementOpen,
@@ -2636,6 +2669,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       handleLogout,
       username,
       serverAddr,
+      activeWorkspaceId,
+      explorerWorkspaces,
+      openKnowledgeGraphWorkbench,
+      addToast,
     ]
   );
 

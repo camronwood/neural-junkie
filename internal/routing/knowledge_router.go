@@ -12,6 +12,7 @@ const (
 	RouteGeneral            RouteTarget = "general"
 	RouteConversationMemory RouteTarget = "conversation_memory"
 	RouteCodebase           RouteTarget = "codebase"
+	RouteCodeGraph          RouteTarget = "code_graph"
 	RouteCollabArtifact     RouteTarget = "collab_artifact"
 	RoutePriorReference     RouteTarget = "prior_reference"
 	RouteLearning           RouteTarget = "learning"
@@ -58,6 +59,11 @@ func PlanKnowledgeRoute(text string) KnowledgePlan {
 	}
 	if matchesCodebaseCue(lower, text) {
 		add(RouteCodebase, "codebase_cue")
+	}
+	if matchesCodeGraphCue(lower) {
+		add(RouteCodeGraph, "code_graph_cue")
+		// Graph questions usually also benefit from codebase chunks.
+		add(RouteCodebase, "code_graph_implies_codebase")
 	}
 	if matchesCollabArtifactCue(lower) {
 		add(RouteCollabArtifact, "collab_cue")
@@ -142,6 +148,21 @@ func matchesCodebaseCue(lower, raw string) bool {
 		strings.Contains(lower, "in the repo")
 	if locationCue && codebaseSymbolRE.MatchString(raw) {
 		return true
+	}
+	return false
+}
+
+func matchesCodeGraphCue(lower string) bool {
+	cues := []string{
+		"how does", "how do", "relate to", "related to",
+		"path between", "who calls", "who imports", "what imports",
+		"depends on", "dependency on", "call graph", "knowledge graph",
+		"connected to", "imports from", "used by", "where is it used",
+	}
+	for _, c := range cues {
+		if strings.Contains(lower, c) {
+			return true
+		}
 	}
 	return false
 }

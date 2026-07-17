@@ -14,7 +14,7 @@
       "--messages",
       "4"
     ],
-    "goal": "Design a small CLI file encryption tool. Propose a plan using lines like: - Task 1: @AgentName - description. Include at least two tasks for different agents."
+    "goal": "Design a small CLI file encryption tool. Produce EXACTLY two tasks and no others, using these exact lines:\n- Task 1: @SoftwareArchitect - Write encryption-spec.md defining CLI encryption requirements and threat model.\n- Task 2: @BackendEngineer - Write cli-entry-design.md describing the CLI entry point and encryption service interface."
   },
   "steps": [
     {

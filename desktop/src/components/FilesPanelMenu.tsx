@@ -2,6 +2,8 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { useEditorStore } from '../stores/editorStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { useWorkspaceIndexLabel } from './WorkspaceIndexStatus';
 import { ProjectSetDialog, type ProjectSetDialogResult } from './ProjectSetDialog';
 import { useWorkspaceAgentScope } from '../hooks/useWorkspaceAgentScope';
@@ -36,8 +38,18 @@ export function FilesPanelMenu({ repoPath, variant = 'inline' }: FilesPanelMenuP
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const indexLabel = useWorkspaceIndexLabel(repoPath);
+  const openKnowledgeGraphWorkbench = useEditorStore((s) => s.openKnowledgeGraphWorkbench);
+  const updateLayoutSettings = useSettingsStore((s) => s.updateLayoutSettings);
 
   const menuTitle = [activeProjectSet?.name, scopeLabel, indexLabel].filter(Boolean).join(' · ');
+
+  const openKnowledgeGraph = () => {
+    const ws = workspaces.find((w) => w.id === activeWorkspaceId);
+    if (!ws?.path || !activeWorkspaceId) return;
+    closeMenu();
+    openKnowledgeGraphWorkbench(activeWorkspaceId, ws.path);
+    void updateLayoutSettings({ editorPanelVisible: true });
+  };
 
   useLayoutEffect(() => {
     if (!open || !anchorRef.current) return;
@@ -111,21 +123,32 @@ export function FilesPanelMenu({ repoPath, variant = 'inline' }: FilesPanelMenuP
             role="dialog"
             aria-label="Files options"
           >
-            {indexLabel && (
+            {(indexLabel || repoPath) && (
               <section>
                 <h4 className="text-[10px] uppercase tracking-wide text-slack-textMuted mb-1.5">
                   Code index
                 </h4>
-                <div className="flex items-center gap-2 text-xs text-slack-text">
-                  <span
-                    className={`w-2 h-2 rounded-full flex-shrink-0 ${indexDotClass(indexLabel)}`}
-                    aria-hidden
-                  />
-                  {indexLabel}
-                </div>
+                {indexLabel && (
+                  <div className="flex items-center gap-2 text-xs text-slack-text">
+                    <span
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${indexDotClass(indexLabel)}`}
+                      aria-hidden
+                    />
+                    {indexLabel}
+                  </div>
+                )}
                 <p className="text-[11px] text-slack-textMuted mt-1">
                   Powers @codebase search and specialist consult for the active workspace.
                 </p>
+                {repoPath && activeWorkspaceId && (
+                  <button
+                    type="button"
+                    onClick={openKnowledgeGraph}
+                    className="mt-2 w-full text-left text-xs px-2 py-1.5 rounded bg-slack-bgHover hover:bg-slack-border text-slack-text"
+                  >
+                    Open knowledge graph
+                  </button>
+                )}
               </section>
             )}
 

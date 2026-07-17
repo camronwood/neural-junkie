@@ -21,7 +21,7 @@
       "4",
       "--workspace"
     ],
-    "goal": "@BackendEngineer @SoftwareArchitect @Claude Produce a short plan with exactly three file tasks under collabs/<id>/: api_schema.md (@BackendEngineer), markdown_doc_structure.md (@SoftwareArchitect), ci_cd_pipeline.md (@Claude). Put dependency notes AFTER the tasks as plain bullets starting with 'depends on' — do not make those bullets separate @assigned tasks."
+    "goal": "@BackendEngineer @SoftwareArchitect @Claude Produce EXACTLY three file tasks and no others under collabs/<id>/, using these exact lines:\n- Task 1: @BackendEngineer - Write collabs/<id>/api_schema.md\n- Task 2: @SoftwareArchitect - Write collabs/<id>/markdown_doc_structure.md\n- Task 3: @Claude - Write collabs/<id>/ci_cd_pipeline.md\nPut dependency notes AFTER the tasks as plain bullets starting with 'depends on' — do not make those bullets separate @assigned tasks."
   },
   "steps": [
     {

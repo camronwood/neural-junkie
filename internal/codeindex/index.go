@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/codeindex/graph"
 	"github.com/camronwood/neural-junkie/internal/codeindex/store"
 	"github.com/camronwood/neural-junkie/internal/embed"
 	"github.com/camronwood/neural-junkie/internal/git"
@@ -336,7 +337,12 @@ func BuildIndex(ctx context.Context, repoPath string) error {
 	}
 	mp, _ := metaPath(repoPath)
 	mb, _ := json.MarshalIndent(meta, "", "  ")
-	return os.WriteFile(mp, mb, 0o644)
+	if err := os.WriteFile(mp, mb, 0o644); err != nil {
+		return err
+	}
+	// Keep the knowledge graph in sync with the semantic index (async, best-effort).
+	graph.BuildIndexAsync(repoPath)
+	return nil
 }
 
 // BuildIndexAsync starts a background index build.

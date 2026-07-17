@@ -94,8 +94,46 @@ func TestGoalPinsExactTaskList(t *testing.T) {
 	if !goalPinsExactTaskList("Investigate schema. Plan exactly: Task 1 @BE Write a.md; Task 2 @SA Write b.md", 2) {
 		t.Fatal("expected Plan exactly: to pin")
 	}
+	if !goalPinsExactTaskList("Produce a short plan with exactly three file tasks under collabs/<id>/: a.md (@BE), b.md (@SA), c.md (@PE).", 3) {
+		t.Fatal("expected word-number 'exactly three file tasks' to pin")
+	}
+	if !goalPinsExactTaskList("Ship exactly 3 tasks for the release checklist.", 3) {
+		t.Fatal("expected digit 'exactly 3 tasks' to pin")
+	}
 	if goalPinsExactTaskList("Write a flexible plan with a few tasks", 3) {
 		t.Fatal("freestyle goal should not pin")
+	}
+}
+
+func TestEnsurePlanTasksFromGoal_pinsWordNumberFileTasks(t *testing.T) {
+	cm := NewCollaborationManager(nil)
+	agents := []CollaborationAgent{
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "cl-1", AgentName: "Claude", AgentType: protocol.AgentTypeAssistant},
+	}
+	c := &Collaboration{
+		ID: "f7518f88-50a4-4561-9e88-174381f3090d",
+		Description: "@BackendEngineer @SoftwareArchitect @Claude Produce a short plan with exactly three file tasks under collabs/<id>/: api_schema.md (@BackendEngineer), markdown_doc_structure.md (@SoftwareArchitect), ci_cd_pipeline.md (@Claude). Put dependency notes AFTER the tasks as plain bullets starting with 'depends on'.",
+		Agents: agents,
+		Plan: &SharedArtifact{Content: `## Plan
+
+Task 1: @BackendEngineer - Write api_schema.md
+Task 2: @SoftwareArchitect - Write markdown_doc_structure.md
+Task 3: @Claude - Write ci_cd_pipeline.md
+Task 4: @BackendEngineer - Extra freestyle review notes
+Task 5: @SoftwareArchitect - Another invented deliverable
+`},
+	}
+	cm.mu.Lock()
+	cm.ensurePlanTasksFromGoalLocked(c)
+	cm.mu.Unlock()
+	if len(c.Tasks) != 3 {
+		t.Fatalf("expected pinned 3 tasks from word-number goal, got %d: %#v", len(c.Tasks), taskTitles(c.Tasks))
+	}
+	joined := strings.ToLower(c.Plan.Content)
+	if strings.Contains(joined, "freestyle") || strings.Contains(joined, "invented") {
+		t.Fatalf("freestyle tasks should not remain after pin: %s", c.Plan.Content)
 	}
 }
 

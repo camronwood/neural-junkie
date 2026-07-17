@@ -11,7 +11,7 @@ import { isMarkdownPath } from '../utils/markdownFile';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench' | 'structure-workbench' | 'html-preview' | 'music-workbench' | 'arena-workbench';
+export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench' | 'structure-workbench' | 'html-preview' | 'music-workbench' | 'arena-workbench' | 'knowledge-graph-workbench';
 
 export interface EditorTab {
   id: string;
@@ -57,6 +57,8 @@ export interface EditorTab {
   musicProjectPath?: string;
   /** Model Arena workbench session file path. */
   arenaPath?: string;
+  /** Knowledge graph workbench: absolute repo path for graph APIs. */
+  knowledgeGraphRepoPath?: string;
 }
 
 export interface OpenFileOptions {
@@ -140,6 +142,7 @@ interface EditorState {
     options?: { projectPath?: string; audioPath?: string }
   ) => void;
   openArenaWorkbench: (workspaceId: string, filePath: string) => void;
+  openKnowledgeGraphWorkbench: (workspaceId: string, repoPath: string) => void;
   linkScanToAnalysisTab: (tabId: string, scanDir: string) => void;
   linkAnalysisToScanTab: (tabId: string, analysisDir: string) => void;
   findLinkedAnalysisTab: (workspaceId: string, scanDir: string) => EditorTab | undefined;
@@ -202,7 +205,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content,
       isDirty: false,
       contentSyncKey: 0,
-      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'structure-workbench' || viewMode === 'html-preview' || viewMode === 'music-workbench' || viewMode === 'arena-workbench' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'structure-workbench' || viewMode === 'html-preview' || viewMode === 'music-workbench' || viewMode === 'arena-workbench' || viewMode === 'knowledge-graph-workbench' ? undefined : language,
       viewMode,
       imageSrc,
       scanSummaryDir: options?.scanSummaryDir,
@@ -589,6 +592,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  openKnowledgeGraphWorkbench: (workspaceId, repoPath) => {
+    const state = get();
+    const existingTab = state.tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'knowledge-graph-workbench' &&
+        t.knowledgeGraphRepoPath === repoPath,
+    );
+    if (existingTab) {
+      set({ activeTabId: existingTab.id });
+      return;
+    }
+    const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTab: EditorTab = {
+      id: tabId,
+      workspaceId,
+      path: 'knowledge-graph',
+      content: '',
+      isDirty: false,
+      viewMode: 'knowledge-graph-workbench',
+      knowledgeGraphRepoPath: repoPath,
+    };
+    set({
+      tabs: [...state.tabs, newTab],
+      activeTabId: tabId,
+    });
+  },
+
   openMusicWorkbench: (workspaceId, filePath, content = '', options) => {
     const state = get();
     const normalized = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
@@ -742,7 +773,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((tab) => {
         if (tab.id !== tabId) return tab;
-        if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench') {
+        if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench' || tab.viewMode === 'knowledge-graph-workbench') {
           return tab.content === content ? tab : { ...tab, content, isDirty: false };
         }
         if (tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
@@ -788,7 +819,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     const tab = state.getTabById(tabId);
     if (!tab) return false;
-    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench') return true;
+    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench' || tab.viewMode === 'knowledge-graph-workbench') return true;
 
     set({ saving: true, error: null });
 
@@ -817,7 +848,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveAllTabs: async () => {
     const state = get();
     const dirtyTabs = state.tabs.filter(
-      (tab) => tab.isDirty && tab.viewMode !== 'image' && tab.viewMode !== 'scan-summary' && tab.viewMode !== 'scan-analysis' && tab.viewMode !== 'comparator-analysis' && tab.viewMode !== 'cad-workbench' && tab.viewMode !== 'structure-workbench' && tab.viewMode !== 'music-workbench' && tab.viewMode !== 'arena-workbench'
+      (tab) => tab.isDirty && tab.viewMode !== 'image' && tab.viewMode !== 'scan-summary' && tab.viewMode !== 'scan-analysis' && tab.viewMode !== 'comparator-analysis' && tab.viewMode !== 'cad-workbench' && tab.viewMode !== 'structure-workbench' && tab.viewMode !== 'music-workbench' && tab.viewMode !== 'arena-workbench' && tab.viewMode !== 'knowledge-graph-workbench'
     );
     
     if (dirtyTabs.length === 0) return true;
@@ -868,7 +899,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
 
-    if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench') {
+    if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench' || tab.viewMode === 'knowledge-graph-workbench') {
       try {
         const latestContent = await api.fetchFileContent(workspaceId, path);
         set(current => ({
