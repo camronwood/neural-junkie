@@ -36,7 +36,10 @@
         "assetScope": [
           "$APPDATA/**",
           "$APPLOCALDATA/**",
-          "$HOME/.neural-junkie/**",
+          "$HOME/**",
+          "$DOCUMENT/**",
+          "$DOWNLOAD/**",
+          "$DESKTOP/**",
           "$TEMP/**",
           "/tmp/**",
           "/private/tmp/**"

@@ -11,17 +11,16 @@ function isTauriShell(): boolean {
 
 /**
  * Image src for the code editor (workspace files).
- * Tauri: asset protocol. Browser dev: hub base64 data URL.
+ * Always loads via the hub as a data URL so previews work for any workspace
+ * path (local or remote) without depending on Tauri assetScope.
+ * `absolutePath` is retained for callers / future local fallbacks.
  */
 export async function resolveEditorImageSrc(options: {
   workspaceId: string;
   relativePath: string;
   absolutePath: string;
 }): Promise<string> {
-  const { workspaceId, relativePath, absolutePath } = options;
-  if (isTauriShell()) {
-    return convertFileSrc(absolutePath);
-  }
+  const { workspaceId, relativePath } = options;
   const api = new ChatAPI(getHubBaseURL());
   return api.fetchWorkspaceImageDataUrl(workspaceId, relativePath);
 }
