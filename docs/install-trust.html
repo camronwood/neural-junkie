@@ -180,10 +180,10 @@ brew install --cask neural-junkie</code></pre>
       <h2 id="verify">Verify download integrity</h2>
       <p>Each GitHub Release publishes <code>SHA256SUMS</code> for installer assets (generated in CI). Verify before install:</p>
       <pre><code># macOS / Linux
-./scripts/verify-release-checksums.sh v1.2.0-beta.5 ~/Downloads/Neural.Junkie_1.2.0-beta.5_aarch64.dmg
+./scripts/verify-release-checksums.sh v1.2.0-beta.6 ~/Downloads/Neural.Junkie_1.2.0-beta.6_aarch64.dmg
 
 # Or manually
-curl -LO https://github.com/camronwood/neural-junkie/releases/download/v1.2.0-beta.5/SHA256SUMS
+curl -LO https://github.com/camronwood/neural-junkie/releases/download/v1.2.0-beta.6/SHA256SUMS
 shasum -a 256 -c SHA256SUMS --ignore-missing</code></pre>
       <p>On Windows, compare the hash from <code>SHA256SUMS</code> with PowerShell: <code>Get-FileHash .\Neural.Junkie_*.msi -Algorithm SHA256</code></p>
 
@@ -202,7 +202,7 @@ brew install neural-junkie</code></pre>
       <p>Requires <a href="https://docs.brew.sh/Homebrew-on-Linux">Homebrew on Linux</a>. Use <code>brew install</code> — not <code>--cask</code>. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/HOMEBREW.md">HOMEBREW.md</a>.</p>
 
       <h3>Option B — .deb</h3>
-      <pre><code>sudo dpkg -i neural-junkie_1.2.0-beta.5_amd64.deb
+      <pre><code>sudo dpkg -i neural-junkie_1.2.0-beta.6_amd64.deb
 neural-junkie</code></pre>
       <p>Slim <code>.deb</code> — wizard installs Ollama on first launch. No Snap/Flatpak gatekeeper; trust is your package manager + our GitHub repo.</p>
 

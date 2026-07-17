@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5">v1.2.0-beta.5</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.6">v1.2.0-beta.6</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-2-0-beta-6">1.2.0-beta.6</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-2-0-beta-5">1.2.0-beta.5</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-2-0-beta-4">1.2.0-beta.4</a>
@@ -238,6 +240,41 @@
       <h3>Known limitation</h3>
       <ul>
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
+      </ul>
+
+      <h2 id="v1-2-0-beta-6" class="release-version-heading">1.2.0-beta.6 <span class="release-date">— 2026-07-17</span></h2>
+
+      <p><strong>A memory of its own code.</strong> Native repository knowledge graph, Model Arena, MQTT/Kafka stream subscriptions, PrismML Bonsai 27B, Room Chat, Homebrew distribution, domain pack v2 plumbing, plus workspace image preview and pack toolbar chip fixes. Install from <a href="download.html">Downloads</a>, <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.6">GitHub Releases</a>, or read the <a href="articles/beta-6.html">beta.6 article</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Repository knowledge graph</strong> — native code graph index, <code>/api/repo/graph*</code> APIs, <code>code_graph</code> agent route, and Knowledge Graph workbench. See <a href="features/knowledge-graph.html">feature guide</a>.</li>
+        <li><strong>Model Arena pack</strong> — head-to-head model matches with reliable move handling and observable status.</li>
+        <li><strong>Inference usage telemetry</strong> — per-turn inference accounting.</li>
+        <li><strong>Stream subscriptions</strong> — MQTT/Kafka triggers for runbooks, channels, or webhooks. See <a href="articles/stream-subscriptions.html">stream subscriptions article</a>.</li>
+        <li><strong>PrismML Bonsai 27B</strong> — model library entry with <code>mmproj</code>, prompted Ollama updater, and min-version gates.</li>
+        <li><strong>Room Chat pack</strong> — ephemeral LAN rooms on a host hub.</li>
+        <li><strong>Homebrew distribution</strong> — macOS cask and Linux formula with automated tap bump on release.</li>
+        <li><strong>Domain pack v2 plumbing</strong> — CAD, AWS, and software-development sidecar/platform work.</li>
+        <li><strong>Platform foundations</strong> — turn pipeline, span tracing, and durable collab state.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Homepage messaging</strong> — any-model, local-or-cloud lead; marketing refresh and SEO.</li>
+        <li><strong>Collab deliverable scoping</strong> — tighter scoping for minimal-repo findings.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Workspace image previews</strong> — hub data URLs for editor images; wider Tauri asset scope.</li>
+        <li><strong>Pack toolbar chips</strong> — chips appear immediately on install/enable.</li>
+        <li><strong>Collaboration regression gates</strong> — chat and collab-core/full gate hardening.</li>
+      </ul>
+
+      <h3>Known issues</h3>
+      <ul>
+        <li><strong>Live parity gate</strong> — <code>test-parity-stable-restart</code> still failing; tracked for a follow-up beta (not part of release CI).</li>
       </ul>
 
       <h2 id="v1-2-0-beta-5" class="release-version-heading">1.2.0-beta.5 <span class="release-date">— 2026-07-06</span></h2>

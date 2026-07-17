@@ -1,7 +1,27 @@
 {
-  "updated": "2026-07-16T15:24:38Z",
-  "count": 21,
+  "updated": "2026-07-17T15:09:56Z",
+  "count": 22,
   "items": [
+    {
+      "slug": "beta-6",
+      "title": "v1.2.0-beta.6: A Memory of Its Own Code",
+      "teaser": "Native knowledge graph, Model Arena, MQTT/Kafka stream subscriptions, PrismML Bonsai 27B, Room Chat, Homebrew installs, and the polish beta users asked for \u2014 pack toolbar chips and workspace image previews that finally just work.",
+      "cover": "campaigns/beta26/creatives/neural-junkie-beta6-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-beta6-1200.png",
+      "topic": "release",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "opensource",
+        "developertools",
+        "release",
+        "knowledgegraph"
+      ],
+      "sourceFile": "BETA26-LINKEDIN.md",
+      "sourcePath": "campaigns/beta26/BETA26-LINKEDIN.md",
+      "href": "beta-6.html"
+    },
     {
       "slug": "beta-5",
       "title": "v1.2.0-beta.5: The Release Where the Loops Close",

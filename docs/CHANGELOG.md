@@ -30,6 +30,7 @@ The release where the workstation gets a memory of its own code — a native rep
 - **Workspace image previews** — editor images load through the hub as data URLs (local and remote), with a widened Tauri `assetScope` for home-directory assets.
 - **Pack toolbar chips** — chips appear immediately on install/enable; the client mutation parser now preserves `capability_registry` and `short_id_collisions`.
 - **Collaboration regression gates** — chat layer gate fixes (closure, `@codebase`, public theme), collab-core/full gate hardening, and planning generation-error turn advance.
+- **Beta.6 release article** — [articles/beta-6.html](articles/beta-6.html) with cover image.
 
 ### Known issues
 - **Live parity gate** — `test-parity-stable-restart` (live-model collab parity) is currently failing and is tracked for a follow-up beta; it is not part of the release CI test gate.

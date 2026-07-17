@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>v1.2.0-beta.6: A Memory of Its Own Code — Neural Junkie</title>
+  <meta name="description" content="Native knowledge graph, Model Arena, MQTT/Kafka stream subscriptions, PrismML Bonsai 27B, Room Chat, Homebrew installs, and the polish beta users asked for — pack toolbar chips and workspace image previews that finally just work." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/articles/beta-6.html" />
+  <meta property="og:title" content="v1.2.0-beta.6: A Memory of Its Own Code — Neural Junkie" />
+  <meta property="og:description" content="Native knowledge graph, Model Arena, MQTT/Kafka stream subscriptions, PrismML Bonsai 27B, Room Chat, Homebrew installs, and the polish beta users asked for — pack toolbar chips and workspace image previews that finally just work." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/articles/beta-6.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-beta6-1200.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="627" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="v1.2.0-beta.6: A Memory of Its Own Code — Neural Junkie" />
+  <meta name="twitter:description" content="Native knowledge graph, Model Arena, MQTT/Kafka stream subscriptions, PrismML Bonsai 27B, Room Chat, Homebrew installs, and the polish beta users asked for — pack toolbar chips and workspace image previews that finally just work." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-beta6-1200.png" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "v1.2.0-beta.6: A Memory of Its Own Code",
+  "description": "Native knowledge graph, Model Arena, MQTT/Kafka stream subscriptions, PrismML Bonsai 27B, Room Chat, Homebrew installs, and the polish beta users asked for \u2014 pack toolbar chips and workspace image previews that finally just work.",
+  "url": "https://camronwood.github.io/neural-junkie/articles/beta-6.html",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Neural Junkie"
+  },
+  "image": [
+    "https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-beta6-1200.png"
+  ]
+}
+  </script>
+<!-- NJ-SITE-SEO:END -->
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap site-header-bar">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+          <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+          <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+          <a class="btn btn-ghost" href="../packs.html">Packs</a>
+          <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+          <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+          <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+          <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+          <a class="btn btn-ghost" href="../security.html">Security</a>
+          <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+          <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+          <a class="btn btn-ghost" href="../download.html">Download</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · v1.2.0-beta.6: A Memory of Its Own Code
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>v1.2.0-beta.6: A Memory of Its Own Code</h1>
+      <p class="article-lead">Native knowledge graph, Model Arena, MQTT/Kafka stream subscriptions, PrismML Bonsai 27B, Room Chat, Homebrew installs, and the polish beta users asked for — pack toolbar chips and workspace image previews that finally just work.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">opensource</span><span class="article-tag">developertools</span><span class="article-tag">release</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-beta6-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p><strong>Neural Junkie v1.2.0-beta.6</strong> is the open-beta release where the workstation stops treating your repo as a bag of files and starts treating it as a <strong>graph of relationships</strong> you can explore, query, and ground agent turns on.</p>
+<p>If beta.5 closed the operational loops — ReAct tools, routing trace, Runbooks v2, collab hardening — beta.6 is what happens when that stack meets <strong>code memory</strong>: a native knowledge graph, head-to-head Model Arena, event-driven stream subscriptions, and distribution polish (Homebrew on macOS and Linux) so beta users can install and update without hunting GitHub assets.</p>
+<p>Download: macOS, Windows, Linux — same local-first desktop app, same MIT-licensed hub. Prefer Homebrew? <code>brew tap camronwood/tap</code> then install the cask (macOS) or formula (Linux).</p>
+<h2>The headline in one paragraph</h2>
+<p>You get a <strong>repository knowledge graph</strong> (index, APIs, IDE workbench, and a <code>code_graph</code> agent route), <strong>Model Arena</strong> with reliable matches and inference usage telemetry, <strong>MQTT/Kafka stream subscriptions</strong> that fire runbooks or channels, <strong>PrismML Bonsai 27B</strong> in the model library, <strong>Room Chat</strong> for ephemeral LAN rooms, <strong>Homebrew distribution</strong>, domain <strong>pack v2 plumbing</strong>, and the everyday fixes that matter when you live in the app: <strong>workspace image previews</strong> and <strong>pack toolbar chips that appear on enable</strong>.</p>
+<h2>1. Repository knowledge graph — memory of its own code</h2>
+<p>Beta users kept asking the same class of question: <em>how does this relate to that?</em> <em>who calls this?</em> <em>what path connects A to B?</em></p>
+<p>Beta.6 ships a native graph under the hood:</p>
+<ul>
+<li>Build and store a code graph for the active workspace</li>
+<li>Query subgraphs, paths, and node explain</li>
+<li>Open a <strong>Knowledge Graph workbench</strong> in the IDE (toolbar chip, Files panel, or <code>/nj-open-knowledge-graph</code>)</li>
+<li>Route agent turns through <code>code_graph</code> when the question is about relationships, not just chunks</li>
+</ul>
+<p>This is not a separate SaaS product bolted on. It is part of the same hub that already indexes your repo for <code>@codebase</code> — now with structure you can see and navigate.</p>
+<p>Deep dive: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWLEDGE_GRAPH.md">Knowledge graph docs</a> · <a href="https://camronwood.github.io/neural-junkie/features/knowledge-graph.html">feature guide</a></p>
+<h2>2. Model Arena — put two models in the ring</h2>
+<p>Packs are how Neural Junkie grows without bloating the core. <strong>Model Arena</strong> is the beta.6 pack headline for people who care about model quality in the open:</p>
+<ul>
+<li>Head-to-head matches with observable status</li>
+<li>Hardened move handling so sessions do not stall mid-match</li>
+<li>Inference usage telemetry so you can see what a run actually cost in tokens and time</li>
+</ul>
+<p>It is the same local-first philosophy: your hub, your models, your ring.</p>
+<h2>3. Stream subscriptions — MQTT and Kafka that fire work</h2>
+<p>Chatbots that sit on a topic and narrate every message are the wrong abstraction. Beta.6 continues the stream-subscription story: long-lived MQTT/Kafka listeners that <strong>match messages and do something useful</strong> — run a runbook, post into a hub channel, or hit a webhook.</p>
+<p>Settings UI included. Your ops bus stays an ops bus; Neural Junkie becomes the agent that reacts when the signal matches.</p>
+<h2>4. Models and rooms — Bonsai, Room Chat, Homebrew</h2>
+<p>Three distribution and access wins for beta users:</p>
+<ul>
+<li><strong>PrismML Bonsai 27B</strong> lands in the model library with <code>mmproj</code> support, prompted Ollama updater guidance, and min-version gates so you are not guessing which runtime works.</li>
+<li><strong>Room Chat</strong> pack: ephemeral LAN rooms hosted on a host hub — bring a room online without standing up a permanent team channel.</li>
+<li><strong>Homebrew</strong>: <code>brew install --cask neural-junkie</code> on macOS and <code>brew install neural-junkie</code> on Linux from <code>camronwood/tap</code>, with automated tap bumps on release.</li>
+</ul>
+<h2>5. Packs and polish that show up immediately</h2>
+<p>Domain pack <strong>v2 plumbing</strong> continues for CAD, AWS, and software-development. Platform foundations add turn pipeline, span tracing, and durable collab state.</p>
+<p>And the two bugs that make a beta feel unfinished:</p>
+<ul>
+<li><strong>Workspace image previews</strong> — PNGs in your project open in the editor again (hub data URLs + wider Tauri asset scope).</li>
+<li><strong>Pack toolbar chips</strong> — enable a pack with a toolbar capability and the chip appears <strong>without</strong> needing an IDE layout refresh.</li>
+</ul>
+<p>Small? Yes. Visible every day? Also yes.</p>
+<h2>What we are still honest about</h2>
+<p>Open beta means we ship progress and name the gaps. The live <strong>parity gate</strong> (<code>test-parity-stable-restart</code>) is still failing and is tracked for a follow-up beta. Release CI still runs the unit and race gates that block installers; the live-model parity suite is the next bar we intend to clear.</p>
+<p>Known issues page stays the source of truth for what is still wrong on purpose.</p>
+<h2>Get it</h2>
+<ul>
+<li>Releases: <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.6">v1.2.0-beta.6</a></li>
+<li>Download page: <a href="https://camronwood.github.io/neural-junkie/download.html">camronwood.github.io/neural-junkie/download.html</a></li>
+<li>Homebrew: <code>brew tap camronwood/tap</code> then install cask or formula</li>
+<li>Changelog: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">docs/CHANGELOG.md</a></li>
+</ul>
+<p>Star the repo if this is useful. File issues if something breaks. Beta.6 is for people who want a local multi-agent workstation that can <strong>see</strong> how code connects — not just retrieve the nearest chunk.</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/campaigns/beta26/BETA26-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="../timeline.html">Timeline</a>
+        <a class="btn btn-ghost btn-sm" href="../thanks.html">Thank you</a>
+        <a class="btn btn-ghost btn-sm" href="../install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="beta-6.html">v1.2.0-beta.6: A Memory of Its Own Code</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

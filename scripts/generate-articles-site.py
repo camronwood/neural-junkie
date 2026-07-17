@@ -21,6 +21,7 @@ from site_nav import render_footer_explore, render_site_chrome  # noqa: E402
 
 # Explicit order + optional overrides (cover when not in source metadata).
 ARTICLE_ORDER = [
+    "beta-6",
     "beta-5",
     "hardware",
     "hub",
@@ -46,6 +47,7 @@ ARTICLE_ORDER = [
 
 # Paths relative to repo root under campaigns/<slug>/
 SOURCE_BY_SLUG = {
+    "beta-6": "campaigns/beta26/BETA26-LINKEDIN.md",
     "beta-5": "campaigns/beta25/BETA25-LINKEDIN.md",
     "hardware": "campaigns/hardware/HARDWARE-LINKEDIN.md",
     "hub": "campaigns/hub/HUB-LINKEDIN.md",
@@ -70,6 +72,7 @@ SOURCE_BY_SLUG = {
 }
 
 COVER_OVERRIDES = {
+    "beta-6": "campaigns/beta26/creatives/neural-junkie-beta6-1200.png",
     "beta-5": "campaigns/beta25/creatives/neural-junkie-beta5-1200.png",
     "collaboration": "campaigns/collaboration/creatives/neural-junkie-collaboration-ad-1080.png",
     "fix-loop": "docs/media/articles/covers/neural-junkie-fix-loop-1200.png",
@@ -77,6 +80,15 @@ COVER_OVERRIDES = {
 }
 
 META_OVERRIDES: dict[str, dict[str, object]] = {
+    "beta-6": {
+        "title": "v1.2.0-beta.6: A Memory of Its Own Code",
+        "teaser": (
+            "Native knowledge graph, Model Arena, MQTT/Kafka stream subscriptions, PrismML Bonsai 27B, "
+            "Room Chat, Homebrew installs, and the polish beta users asked for — pack toolbar chips and "
+            "workspace image previews that finally just work."
+        ),
+        "tags": ["ai", "localai", "multiagent", "opensource", "developertools", "release", "knowledgegraph"],
+    },
     "beta-5": {
         "title": "v1.2.0-beta.5: The Release Where the Loops Close",
         "teaser": (
@@ -114,6 +126,7 @@ META_OVERRIDES: dict[str, dict[str, object]] = {
 }
 
 TOPIC_BY_SLUG = {
+    "beta-6": "release",
     "beta-5": "release",
     "hardware": "hardware",
     "hub": "architecture",

@@ -11,11 +11,11 @@
   <meta property="og:description" content="Explore your codebase as a clickable knowledge graph: communities, import edges, path explain, and agent grounding — local-first inside Neural Junkie." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://camronwood.github.io/neural-junkie/features/knowledge-graph.html" />
-  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/media/knowledge-graph-preview.svg" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Knowledge graph — Neural Junkie" />
   <meta name="twitter:description" content="Explore your codebase as a clickable knowledge graph: communities, import edges, path explain, and agent grounding — local-first inside Neural Junkie." />
-  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/media/knowledge-graph-preview.svg" />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
 <!-- NJ-SITE-SEO:END -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -82,6 +82,7 @@
     var toggle = header.querySelector(".nav-toggle");
     var panel = document.getElementById("site-nav-mobile");
     if (!toggle || !panel) return;
+
     function setOpen(open) {
       header.classList.toggle("is-nav-open", open);
       document.body.classList.toggle("nav-open", open);
@@ -89,19 +90,24 @@
       panel.hidden = !open;
       toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
     }
+
     toggle.addEventListener("click", function () {
       setOpen(toggle.getAttribute("aria-expanded") !== "true");
     });
+
     panel.addEventListener("click", function (event) {
       if (event.target.closest("a")) setOpen(false);
     });
+
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape") setOpen(false);
     });
+
     document.addEventListener("click", function (event) {
       if (!header.classList.contains("is-nav-open")) return;
       if (!header.contains(event.target)) setOpen(false);
     });
+
     window.addEventListener("resize", function () {
       if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
     });
@@ -154,6 +160,25 @@
 
   <footer class="site-footer">
     <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="../timeline.html">Timeline</a>
+        <a class="btn btn-ghost btn-sm" href="../thanks.html">Thank you</a>
+        <a class="btn btn-ghost btn-sm" href="../install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html" aria-current="page">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
       <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
     </div>
   </footer>

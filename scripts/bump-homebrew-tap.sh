@@ -4,7 +4,7 @@
 # in the homebrew tap from a GitHub release tag.
 #
 # Usage:
-#   ./scripts/bump-homebrew-tap.sh v1.2.0-beta.5 [tap-dir]
+#   ./scripts/bump-homebrew-tap.sh v1.2.0-beta.6 [tap-dir]
 #
 # Default tap-dir: ../homebrew-tap (sibling of neural-junkie repo)
 
