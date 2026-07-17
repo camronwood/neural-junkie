@@ -92,7 +92,6 @@ class NeuralJunkie < Formula
   sha256 "${SHA_LINUX}"
   license :cannot_represent
 
-  depends_on :linux
   depends_on "at-spi2-core"
   depends_on "cairo"
   depends_on "dbus"
@@ -100,6 +99,7 @@ class NeuralJunkie < Formula
   depends_on "glib"
   depends_on "gtk+3"
   depends_on "librsvg"
+  depends_on :linux
   depends_on "pango"
   depends_on "webkitgtk"
 
