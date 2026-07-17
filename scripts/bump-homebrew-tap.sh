@@ -88,7 +88,6 @@ cat >"${FORMULA_FILE}" <<EOF
 class NeuralJunkie < Formula
   desc "Multi-agent orchestration workspace with local-first AI"
   homepage "https://camronwood.github.io/neural-junkie/"
-  version "${VERSION}"
   license :cannot_represent
 
   on_macos do
@@ -101,7 +100,7 @@ class NeuralJunkie < Formula
   end
 
   on_linux do
-    url "https://github.com/${REPO}/releases/download/v#{version}/neural-junkie_#{version}_amd64.deb"
+    url "https://github.com/${REPO}/releases/download/v${VERSION}/neural-junkie_${VERSION}_amd64.deb"
     sha256 "${SHA_LINUX}"
 
     depends_on "at-spi2-core"
@@ -112,7 +111,7 @@ class NeuralJunkie < Formula
     depends_on "gtk+3"
     depends_on "librsvg"
     depends_on "pango"
-    depends_on "webkit2gtk"
+    depends_on "webkitgtk"
 
     def install
       extract = buildpath/"deb-extract"
