@@ -181,7 +181,7 @@ end
 Re-enable in tap CI:
 
 ```yaml
-brew audit --cask --online --strict Casks/*
+brew audit --cask --online --strict camronwood/tap/neural-junkie
 ```
 
 ### Upstream maintenance
