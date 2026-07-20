@@ -12,9 +12,7 @@ import {
   LogoutIcon,
   TaskManagementIcon,
 } from './Icons';
-import { conversationModeSettingLabel } from '../utils/conversationMode';
 import { workspaceContextModeLabel } from '../utils/outboundChatMetadata';
-import type { ConversationModeSetting } from '../utils/conversationMode';
 import type { WorkspaceContextMode } from '../constants/promptMetadata';
 import type { SettingsTab } from './SettingsModal';
 import { OllamaRuntimeChip } from './OllamaRuntimeChip';
@@ -32,8 +30,6 @@ export type ChatToolbarActionsLayout = 'horizontal' | 'vertical';
 export interface ChatToolbarActionsProps {
   layout: ChatToolbarActionsLayout;
   onOpenCommandPalette: () => void;
-  conversationModeSetting: ConversationModeSetting;
-  onCycleConversationMode: () => void;
   workspaceContextMode: WorkspaceContextMode;
   onCycleWorkspaceContext: () => void;
   workspaceContextButtonTitle: string;
@@ -81,8 +77,6 @@ const iconBtn =
 export function ChatToolbarActions({
   layout,
   onOpenCommandPalette,
-  conversationModeSetting,
-  onCycleConversationMode,
   workspaceContextMode,
   onCycleWorkspaceContext,
   workspaceContextButtonTitle,
@@ -148,20 +142,6 @@ export function ChatToolbarActions({
       <ToolbarDivider layout={layout} />
 
       <div className={groupClass} aria-label="File workspace tools">
-        <button
-          type="button"
-          onClick={onCycleConversationMode}
-          className={`${isVertical ? 'w-7 px-0' : 'px-2'} h-7 rounded text-[11px] font-medium transition-colors ${
-            conversationModeSetting !== 'auto'
-              ? 'bg-sky-600 hover:bg-sky-700 text-white ring-1 ring-sky-400 ring-offset-1 ring-offset-slack-bg'
-              : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
-          }`}
-          title={`Conversation mode: ${conversationModeSettingLabel(conversationModeSetting)} (click to cycle Auto / Chat / Code)`}
-          aria-label={`Conversation mode ${conversationModeSettingLabel(conversationModeSetting)}`}
-        >
-          {conversationModeSettingLabel(conversationModeSetting)}
-        </button>
-
         <button
           type="button"
           onClick={onCycleWorkspaceContext}

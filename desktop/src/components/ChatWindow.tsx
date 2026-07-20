@@ -27,11 +27,9 @@ import {
   WORKSPACE_CONTEXT_MODE_KEY,
 } from '../utils/outboundChatMetadata';
 import {
-  cycleConversationModeSetting,
   formatContextIndicator,
   loadConversationModeSetting,
   resolveConversationMode,
-  CONVERSATION_MODE_STORAGE_KEY,
 } from '../utils/conversationMode';
 import { channelNameToKind, resolveContextScope } from '../utils/inferContextScope';
 import type { ConversationModeSetting, WorkspaceContextMode } from '../constants/promptMetadata';
@@ -639,6 +637,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [composerMode, setComposerMode] = useState<ComposerMode>(() => loadComposerMode());
   const composerPrefillPending = useComposerPrefillStore((s) => s.pendingText);
   const consumeComposerPrefill = useComposerPrefillStore((s) => s.consumePrefill);
+
+  useEffect(() => {
+    const syncMode = () => setConversationModeSetting(loadConversationModeSetting());
+    window.addEventListener('nj-conversation-mode-changed', syncMode);
+    return () => window.removeEventListener('nj-conversation-mode-changed', syncMode);
+  }, []);
 
   useEffect(() => {
     if (!composerPrefillPending) return;
@@ -2653,12 +2657,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const toolbarActionsProps = useMemo(
     () => ({
       onOpenCommandPalette: openCommandPalette,
-      conversationModeSetting,
-      onCycleConversationMode: () => {
-        const next = cycleConversationModeSetting(conversationModeSetting);
-        setConversationModeSetting(next);
-        localStorage.setItem(CONVERSATION_MODE_STORAGE_KEY, next);
-      },
       workspaceContextMode,
       onCycleWorkspaceContext: () => {
         const next = cycleWorkspaceContextMode(workspaceContextMode);
@@ -2720,7 +2718,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [
       openCommandPalette,
       updateLayoutSettings,
-      conversationModeSetting,
       workspaceContextMode,
       contextScopePreview.scope,
       taskManagementOpen,

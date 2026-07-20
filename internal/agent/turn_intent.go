@@ -83,6 +83,11 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 
 	mode := EffectiveConversationMode(msg, channelType)
 
+	// Client Auto inference was ambiguous: ask in chat, do not treat weak verbs as tasks yet.
+	if mode == ConversationModeClarify {
+		return IntentSubstantive
+	}
+
 	if hasCodeTaskSignals(content) {
 		return IntentTask
 	}
@@ -298,7 +303,7 @@ func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protoco
 	if msg != nil && userRequestsContentDelivery(msg.Content) {
 		return true
 	}
-	mode := EffectiveConversationMode(msg, a.effectiveChannelType(msg.Channel))
+	mode := ToolingConversationMode(msg, a.effectiveChannelType(msg.Channel))
 	if mode == ConversationModeCode || intent == IntentTask || messageNeedsWorkspaceFileLoad(a, msg) {
 		if ContextScopeFromMessage(msg) == ContextScopeNone && !messageHasWorkspaceContext(msg) {
 			return intent == IntentTask

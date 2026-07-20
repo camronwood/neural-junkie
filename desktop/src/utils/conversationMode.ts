@@ -12,18 +12,26 @@ import {
 import { CONVERSATION_MODE_METADATA_KEY } from '../constants/promptMetadata';
 
 export type ConversationModeSetting = 'auto' | 'chat' | 'code';
-export type ResolvedConversationMode = 'chat' | 'code' | 'collab';
+/** Resolved mode sent on outbound messages. `clarify` = Auto could not tell chat vs code. */
+export type ResolvedConversationMode = 'chat' | 'code' | 'collab' | 'clarify';
 
 export const CONVERSATION_MODE_STORAGE_KEY = 'conversation-mode';
 
 const CODE_VERBS_RE =
   /\b(review|refactor|debug|fix|implement|compile|lint|test|patch|edit|change|update|add|remove|rewrite|optimize|trace|diff|analyze|analyse)\b/i;
 
+/** Verbs that almost always mean hands-on code work (not casual English). */
+const STRONG_CODE_VERBS_RE =
+  /\b(refactor|debug|implement|compile|lint|patch|rewrite|trace|diff)\b/i;
+
 const FILE_PATH_RE =
   /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/;
 
 const GREETING_RE =
   /^(?:@\w+\s+)?(?:hi|hello|hey|yo|sup|what'?s up|howdy|good (?:morning|afternoon|evening)|thanks|thank you|ok|okay|nice|cool)[!.?\s]*$/i;
+
+const VAGUE_HELP_RE =
+  /^(?:@\w+\s+)?(?:help|look|check|can you|could you|please)\b/i;
 
 export function loadConversationModeSetting(): ConversationModeSetting {
   try {
@@ -38,6 +46,19 @@ export function loadConversationModeSetting(): ConversationModeSetting {
   return 'auto';
 }
 
+export function saveConversationModeSetting(mode: ConversationModeSetting): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(CONVERSATION_MODE_STORAGE_KEY, mode);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('nj-conversation-mode-changed', { detail: mode }));
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** @deprecated Prefer Settings → Chat; kept for tests / power users. */
 export function cycleConversationModeSetting(current: ConversationModeSetting): ConversationModeSetting {
   if (current === 'auto') return 'chat';
   if (current === 'chat') return 'code';
@@ -63,7 +84,8 @@ export function hasScanOrEditorTaskSignals(message: string): boolean {
   return false;
 }
 
-export function hasCodeTaskSignals(message: string): boolean {
+/** High-confidence code/workspace task signals (not everyday English like "update"). */
+export function hasStrongCodeTaskSignals(message: string): boolean {
   const text = (message ?? '').trim();
   if (!text) return false;
   if (hasImplementationContinuationSignals(text)) return true;
@@ -72,9 +94,54 @@ export function hasCodeTaskSignals(message: string): boolean {
   if (hasScanOrEditorTaskSignals(text)) return true;
   if (/@codebase\b/i.test(text)) return true;
   if (hasCodeGraphSignals(text)) return true;
-  if (CODE_VERBS_RE.test(text)) return true;
   if (FILE_PATH_RE.test(text)) return true;
+  if (STRONG_CODE_VERBS_RE.test(text)) return true;
+  if (/`[^`]+`/.test(text) && CODE_VERBS_RE.test(text)) return true;
+  return false;
+}
+
+export function hasCodeTaskSignals(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  if (hasStrongCodeTaskSignals(text)) return true;
+  if (CODE_VERBS_RE.test(text)) return true;
   if (/`[^`]+`/.test(text)) return true;
+  return false;
+}
+
+/**
+ * True when Auto cannot confidently choose chat vs code.
+ * Explicit Chat/Code settings never use this — only Auto inference.
+ */
+export function isConversationModeAmbiguous(
+  message: string,
+  options?: { ideCoding?: boolean; channelKind?: ChannelKind; hasOpenTab?: boolean }
+): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  if (options?.channelKind === 'collaboration') return false;
+  if (GREETING_RE.test(text)) return false;
+  // IDE coding layout already implies workspace work.
+  if (options?.ideCoding) return false;
+  if (hasStrongCodeTaskSignals(text)) return false;
+
+  const weakCode = hasCodeTaskSignals(text);
+  const isQuestion = text.includes('?');
+
+  // "how do I update AWS SSO?" — weak verb + question, no path.
+  if (weakCode && isQuestion) return true;
+  // Short/medium weak-verb asks without a clear discuss-vs-edit cue.
+  if (weakCode && text.length < 100) return true;
+  // Vague help with an open tab but no code signals.
+  if (
+    options?.hasOpenTab &&
+    !weakCode &&
+    !isQuestion &&
+    VAGUE_HELP_RE.test(text) &&
+    text.length < 80
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -90,6 +157,9 @@ export function inferResolvedConversationMode(
   }
   if (options?.channelKind === 'collaboration') {
     return 'collab';
+  }
+  if (isConversationModeAmbiguous(message, options)) {
+    return 'clarify';
   }
   if (hasCodeTaskSignals(message)) {
     return 'code';

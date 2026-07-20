@@ -3,6 +3,7 @@ import {
   cycleConversationModeSetting,
   formatContextIndicator,
   inferResolvedConversationMode,
+  isConversationModeAmbiguous,
   resolveConversationMode,
 } from './conversationMode';
 
@@ -32,7 +33,12 @@ describe('conversationMode', () => {
     ).toBe('chat');
   });
 
-  it('infers code for review verbs', () => {
+  it('clarifies weak verb + question without a path', () => {
+    expect(isConversationModeAmbiguous('How do I update my AWS SSO credentials?')).toBe(true);
+    expect(inferResolvedConversationMode('How do I update my AWS SSO credentials?')).toBe('clarify');
+  });
+
+  it('infers code for review verbs with paths', () => {
     expect(inferResolvedConversationMode('review cmd/server/main.go')).toBe('code');
   });
 
@@ -42,17 +48,18 @@ describe('conversationMode', () => {
     ).toBe('code');
   });
 
-  it('honors explicit chat setting', () => {
-    expect(resolveConversationMode('chat', 'review main.go')).toBe('chat');
+  it('honors explicit chat setting over ambiguity', () => {
+    expect(resolveConversationMode('chat', 'How do I update my SSO?')).toBe('chat');
+    expect(resolveConversationMode('code', 'How do I update my SSO?')).toBe('code');
   });
 
-  it('formats context indicator', () => {
+  it('formats context indicator including clarify', () => {
     const label = formatContextIndicator({
       modeSetting: 'auto',
-      resolvedMode: 'chat',
-      scope: 'none',
+      resolvedMode: 'clarify',
+      scope: 'hint',
     });
-    expect(label).toContain('Auto→chat');
-    expect(label).toContain('no files');
+    expect(label).toContain('Auto→clarify');
+    expect(label).toContain('hint');
   });
 });

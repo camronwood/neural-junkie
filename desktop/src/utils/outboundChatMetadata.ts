@@ -474,6 +474,14 @@ export function buildHumanOutboundMetadata(options: {
     ideCoding,
   });
 
+  // Ambiguous Auto: keep context light until the agent clarifies chat vs code.
+  if (resolvedConversationMode === 'clarify' && contextMode !== 'always' && contextMode !== 'off') {
+    if (scope === 'full' || scope === 'outline' || scope === 'focus') {
+      scope = 'hint';
+      reason = 'clarify mode — wait for chat vs code';
+    }
+  }
+
   let explicitEditorMode =
     typeof composerMetadata?.[EDITOR_MODE_KEY] === 'string'
       ? String(composerMetadata[EDITOR_MODE_KEY]).trim()
@@ -589,17 +597,23 @@ export function buildHumanOutboundMetadata(options: {
       scope = 'hint';
       reason = 'CAD file operation needs workspace path';
     }
-  } else if (resolvedConversationMode === 'chat' && contextMode !== 'always') {
+  } else if (
+    (resolvedConversationMode === 'chat' || resolvedConversationMode === 'clarify') &&
+    contextMode !== 'always'
+  ) {
     // Knowledge Graph / codebase questions still need workspace_path for semantic_search
     // even when the conversation-mode setting is Chat.
-    if (hasCodeTaskSignals(message)) {
+    if (hasCodeTaskSignals(message) && resolvedConversationMode !== 'clarify') {
       if (scope === 'none' || scope === 'hint') {
         scope = 'outline';
         reason = 'code/graph question needs workspace path';
       }
     } else {
-      scope = 'none';
-      reason = 'conversation mode: chat';
+      scope = resolvedConversationMode === 'clarify' ? 'hint' : 'none';
+      reason =
+        resolvedConversationMode === 'clarify'
+          ? 'clarify mode — wait for chat vs code'
+          : 'conversation mode: chat';
     }
   } else if (resolvedConversationMode === 'collab') {
     // scope follows collab / inferContextScope rules

@@ -68,7 +68,10 @@ func (a *Agent) shouldIncludeToolingInPrompt(msg *protocol.Message, intent TurnI
 	if intent == IntentClosure || intent == IntentLowSignal || intent == IntentMeta {
 		return false
 	}
-	mode := EffectiveConversationMode(msg, a.effectiveChannelType(msg.Channel))
+	mode := ToolingConversationMode(msg, a.effectiveChannelType(msg.Channel))
+	if ConversationModeFromMessage(msg) == ConversationModeClarify {
+		return false
+	}
 	if mode == ConversationModeChat && intent != IntentTask {
 		return false
 	}

@@ -16,6 +16,25 @@ func TestEffectiveConversationMode_chatMetadata(t *testing.T) {
 	}
 }
 
+func TestEffectiveConversationMode_clarifyMetadata(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "How do I update SSO?")
+	msg.Metadata = map[string]interface{}{MetadataConversationMode: ConversationModeClarify}
+	if got := EffectiveConversationMode(msg, protocol.ChannelTypePublic); got != ConversationModeClarify {
+		t.Fatalf("got %q want clarify", got)
+	}
+	if got := ToolingConversationMode(msg, protocol.ChannelTypePublic); got != ConversationModeChat {
+		t.Fatalf("tooling mode got %q want chat", got)
+	}
+}
+
+func TestClassifyTurnIntent_clarifyModeNotTask(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "How do I update my AWS SSO?")
+	msg.Metadata = map[string]interface{}{MetadataConversationMode: ConversationModeClarify}
+	if got := classifyTurnIntent(msg, protocol.ChannelTypePublic, "a1", nil); got != IntentSubstantive {
+		t.Fatalf("got %v want substantive", got)
+	}
+}
+
 func TestClassifyTurnIntent_taskVerb(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "review cmd/server/main.go")
 	if got := classifyTurnIntent(msg, protocol.ChannelTypePublic, "a1", nil); got != IntentTask {

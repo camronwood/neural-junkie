@@ -1,7 +1,13 @@
 import { shallow } from 'zustand/shallow';
+import { useEffect, useState } from 'react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useChatStore } from '../../stores/chatStore';
 import { agentSidebarHideKey, parseDMDisplayName } from '../../utils/dmChannelDisplay';
+import {
+  loadConversationModeSetting,
+  saveConversationModeSetting,
+  type ConversationModeSetting,
+} from '../../utils/conversationMode';
 import type { SettingsTabProps } from './settingsShared';
 
 function addUnique(items: string[] | undefined, value: string): string[] {
@@ -22,6 +28,14 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
     }),
     shallow
   );
+  const [conversationMode, setConversationMode] = useState<ConversationModeSetting>(() =>
+    loadConversationModeSetting()
+  );
+
+  useEffect(() => {
+    if (!isActive) return;
+    setConversationMode(loadConversationModeSetting());
+  }, [isActive]);
 
   if (!isActive) return null;
 
@@ -129,6 +143,45 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
 
   return (
     <div className="space-y-8">
+      <div>
+        <h3 className="text-lg font-semibold text-slack-text mb-2">Conversation mode</h3>
+        <p className="text-sm text-slack-textMuted mb-3">
+          Auto infers whether a message is discussion or hands-on code work. When Auto is unsure, the agent
+          asks you in chat before using tools or editing files. Force Chat or Code here if you want a fixed
+          override.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { id: 'auto', label: 'Auto', hint: 'Infer (clarify when unsure)' },
+              { id: 'chat', label: 'Chat', hint: 'Discussion only' },
+              { id: 'code', label: 'Code', hint: 'Workspace / tools' },
+            ] as const
+          ).map((opt) => {
+            const selected = conversationMode === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  setConversationMode(opt.id);
+                  saveConversationModeSetting(opt.id);
+                }}
+                className={`px-3 py-2 rounded border text-left text-sm transition-colors ${
+                  selected
+                    ? 'border-slack-accent bg-slack-accent/20 text-slack-text'
+                    : 'border-slack-border bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+                }`}
+                title={opt.hint}
+              >
+                <span className="font-medium block">{opt.label}</span>
+                <span className="text-[11px] opacity-80">{opt.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div>
         <h3 className="text-lg font-semibold text-slack-text mb-2">User rules (markdown)</h3>
         <p className="text-sm text-slack-textMuted mb-2">

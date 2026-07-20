@@ -10,9 +10,10 @@ import (
 const (
 	MetadataConversationMode = "conversation_mode"
 
-	ConversationModeChat   = "chat"
-	ConversationModeCode   = "code"
-	ConversationModeCollab = "collab"
+	ConversationModeChat    = "chat"
+	ConversationModeCode    = "code"
+	ConversationModeCollab  = "collab"
+	ConversationModeClarify = "clarify"
 )
 
 var (
@@ -104,6 +105,23 @@ func EffectiveConversationMode(msg *protocol.Message, channelType protocol.Chann
 		return mode
 	}
 	return inferConversationModeFromMessage(msg, channelType)
+}
+
+// ToolingConversationMode maps clarify → chat so agents ask before using tools.
+func ToolingConversationMode(msg *protocol.Message, channelType protocol.ChannelType) string {
+	mode := EffectiveConversationMode(msg, channelType)
+	if mode == ConversationModeClarify {
+		return ConversationModeChat
+	}
+	return mode
+}
+
+func appendConversationModeClarifyPrompt(system *strings.Builder) {
+	system.WriteString("=== INTENT CLARIFICATION REQUIRED ===\n")
+	system.WriteString("It is unclear whether the user wants a conversational answer or hands-on code/workspace work.\n")
+	system.WriteString("Ask one short clarifying question in chat before using tools, editing files, or running commands.\n")
+	system.WriteString("Offer clear choices, for example: discuss/explain vs edit/run in the workspace.\n")
+	system.WriteString("Do not call tools or propose file edits until they choose.\n\n")
 }
 
 func ContextScopeFromMessage(msg *protocol.Message) string {
