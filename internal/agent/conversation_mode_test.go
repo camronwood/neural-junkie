@@ -8,6 +8,50 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+func TestIsSocialOrStatusPing(t *testing.T) {
+	if !isSocialOrStatusPing("@here whats going on!?!") {
+		t.Fatal("expected @here status ping")
+	}
+	if !isSocialOrStatusPing("@here") {
+		t.Fatal("expected bare @here")
+	}
+	if isSocialOrStatusPing("@here refactor cmd/server/main.go") {
+		t.Fatal("code task with @here should not be social-only")
+	}
+}
+
+func TestInferConversationMode_socialPing(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "@here whats going on!?!")
+	if got := inferConversationModeFromMessage(msg, protocol.ChannelTypePublic); got != ConversationModeChat {
+		t.Fatalf("got %q want chat", got)
+	}
+}
+
+func TestBuildCLIBridgePrompt_omitsNJProtocols(t *testing.T) {
+	hub := shouldRespondTestHub{}
+	ag := NewAgent(protocol.AgentTypeCLI, "ClaudeCode", []string{"code"}, ai.NewMockProvider(), hub)
+	ag.Info.AIProvider = "claude-cli"
+	ag.Info.AIModel = "claude-agent"
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "@here whats going on!?!")
+	msg.Metadata = map[string]interface{}{MetadataConversationMode: "chat"}
+	prompt := ag.buildPrompt(msg)
+	if strings.Contains(prompt, "[FILE_CHANGE]") || strings.Contains(prompt, "[/FILE_CHANGE]") {
+		t.Fatal("CLI bridge prompt should not include FILE_CHANGE protocol blocks")
+	}
+	if strings.Contains(prompt, "appendAskUser") || strings.Contains(strings.ToLower(prompt), "tool: ask_user") {
+		t.Fatal("CLI bridge prompt should not include ask_user tool docs")
+	}
+	if !strings.Contains(prompt, "CLI coding agent") {
+		t.Fatal("expected CLI bridge identity")
+	}
+	if !strings.Contains(prompt, "CHANNEL PING") {
+		t.Fatal("expected social ping guidance")
+	}
+	if !strings.Contains(prompt, "Neural Junkie-native protocols") {
+		t.Fatal("expected explicit NJ-protocol exclusion")
+	}
+}
+
 func TestEffectiveConversationMode_chatMetadata(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "hello")
 	msg.Metadata = map[string]interface{}{MetadataConversationMode: "chat"}

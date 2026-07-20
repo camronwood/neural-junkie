@@ -237,6 +237,10 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	// Prompt is already on argv for headless CLIs (codex exec, claude -p, …).
+	// An open inherited stdin makes Codex wait for "Reading additional input…".
+	stdinCleanup := attachClosedCLIStdin(cmd)
+	defer stdinCleanup()
 
 	start := time.Now()
 
@@ -399,6 +403,9 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok && channel != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("NEURAL_JUNKIE_CHANNEL=%s", channel))
 	}
+
+	stdinCleanup := attachClosedCLIStdin(cmd)
+	defer stdinCleanup()
 
 	if c.shouldUsePTYStreaming() {
 		ptmx, err := pty.Start(cmd)
@@ -738,13 +745,28 @@ func (c *CLIAgentProvider) shouldUsePTYStreaming() bool {
 	if c.ProviderName == "gemini-cli" && !cli.GeminiCLIPTY && os.Getenv("NEURAL_JUNKIE_GEMINI_CLI_PTY") != "1" {
 		return false
 	}
-	// Claude -p headless runs more reliably with pipes (PTY can hang on permission prompts).
-	if c.ProviderName == "claude-cli" {
+	// Claude -p and Codex exec pass the prompt on argv; a PTY keeps stdin open and
+	// Codex hangs with "Reading additional input from stdin…".
+	if c.ProviderName == "claude-cli" || c.ProviderName == "codex-cli" {
 		return false
 	}
 	// Default to PTY streaming for other CLI-backed agents so tools that buffer
 	// on non-TTY stdout still emit incremental tokens.
 	return true
+}
+
+// attachClosedCLIStdin points cmd.Stdin at /dev/null so headless CLIs that already
+// received the prompt as an argv don't block waiting for more stdin.
+func attachClosedCLIStdin(cmd *exec.Cmd) func() {
+	if cmd == nil {
+		return func() {}
+	}
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		return func() {}
+	}
+	cmd.Stdin = f
+	return func() { _ = f.Close() }
 }
 
 // sanitizeGeminiCLIPromptEcho removes leading CLI noise and any contiguous echo of

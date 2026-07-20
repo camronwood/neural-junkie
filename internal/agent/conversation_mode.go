@@ -18,11 +18,71 @@ const (
 
 var (
 	taskVerbRE = regexp.MustCompile(`(?i)\b(review|refactor|debug|fix|implement|compile|lint|test|patch|edit|change|update|add|remove|rewrite|optimize|trace|diff|analyze|analyse)\b`)
+	strongTaskVerbRE = regexp.MustCompile(`(?i)\b(refactor|debug|implement|compile|lint|patch|rewrite|trace|diff)\b`)
 	filePathRE = regexp.MustCompile("(?:^|[\\s\"'`(])([./]?(?:[a-zA-Z0-9_-]+/)+[a-zA-Z0-9_-]+\\.[a-zA-Z0-9]+)")
 	greetingRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:hi|hello|hey|yo|sup|what'?s up|howdy|good (?:morning|afternoon|evening)|thanks|thank you|ok|okay|nice|cool)[!.?\s]*$`)
+	hereMentionRE = regexp.MustCompile(`(?i)(?:^|[\s])@(?:here|channel|everyone)\b`)
+	socialPingRE = regexp.MustCompile(`(?i)^(?:@(?:here|channel|everyone|\w+)\s+)*(?:what'?s\s+going\s+on|what\s+is\s+going\s+on|whats\s+up|how'?s\s+it\s+going|how\s+are\s+things|anyone\s+around|you\s+there|status\??|ping)[?!.\s]*$`)
+	leadingMentionsRE = regexp.MustCompile(`(?i)^(?:\s*@(?:here|channel|everyone|\w+)\b)+\s*`)
 	scanToolRE = regexp.MustCompile(`(?i)\b(summarize_scan_summary|summarize_scan_analysis|scan analysis|scan summary)\b`)
 	editorOpenRE = regexp.MustCompile(`(?i)\b(file i have open|open in my editor|in my editor|editor open|active tab|active file|have open)\b`)
 )
+
+func stripLeadingMentions(content string) string {
+	return strings.TrimSpace(leadingMentionsRE.ReplaceAllString(content, ""))
+}
+
+func hasHereOrChannelMention(content string) bool {
+	return hereMentionRE.MatchString(content)
+}
+
+func hasStrongCodeTaskSignals(content string) bool {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return false
+	}
+	if strongTaskVerbRE.MatchString(content) {
+		return true
+	}
+	if filePathRE.MatchString(content) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(content), "@codebase") {
+		return true
+	}
+	return hasScanOrEditorTaskSignals(content)
+}
+
+// isSocialOrStatusPing reports casual @here / vibe-check messages that should stay in chat mode.
+func isSocialOrStatusPing(content string) bool {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return false
+	}
+	if hasStrongCodeTaskSignals(content) {
+		return false
+	}
+	stripped := stripLeadingMentions(content)
+	if stripped == "" {
+		return hasHereOrChannelMention(content)
+	}
+	if greetingRE.MatchString(content) || greetingRE.MatchString(stripped) {
+		return true
+	}
+	if socialPingRE.MatchString(content) || socialPingRE.MatchString(stripped) {
+		return true
+	}
+	if hasHereOrChannelMention(content) && len(stripped) <= 80 && !hasCodeTaskSignals(stripped) {
+		return true
+	}
+	return false
+}
+
+func appendHereOrSocialPingPrompt(system *strings.Builder) {
+	system.WriteString("=== CHANNEL PING ===\n")
+	system.WriteString("This is a casual @here/@channel (or short status) ping. Reply in 1-3 sentences.\n")
+	system.WriteString("Do not inventory the repo, invent file tours, or use tools unless the user explicitly asks for work.\n\n")
+}
 
 // ConversationModeFromMessage returns chat/code/collab from outbound metadata (empty if unset).
 func ConversationModeFromMessage(msg *protocol.Message) string {
@@ -84,6 +144,9 @@ func inferConversationModeFromMessage(msg *protocol.Message, channelType protoco
 		return ConversationModeCollab
 	}
 	content := strings.TrimSpace(msg.Content)
+	if isSocialOrStatusPing(content) {
+		return ConversationModeChat
+	}
 	if hasCodeTaskSignals(content) {
 		return ConversationModeCode
 	}

@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -132,6 +133,22 @@ func TestShouldUsePTYStreaming_ClaudeOff(t *testing.T) {
 	p := &CLIAgentProvider{ProviderName: "claude-cli"}
 	if p.shouldUsePTYStreaming() {
 		t.Fatal("expected claude-cli to use pipe streaming, not PTY")
+	}
+}
+
+func TestShouldUsePTYStreaming_CodexOff(t *testing.T) {
+	p := &CLIAgentProvider{ProviderName: "codex-cli"}
+	if p.shouldUsePTYStreaming() {
+		t.Fatal("expected codex-cli to use pipe streaming, not PTY")
+	}
+}
+
+func TestAttachClosedCLIStdin(t *testing.T) {
+	cmd := exec.Command("true")
+	cleanup := attachClosedCLIStdin(cmd)
+	defer cleanup()
+	if cmd.Stdin == nil {
+		t.Fatal("expected Stdin to be set to /dev/null")
 	}
 }
 

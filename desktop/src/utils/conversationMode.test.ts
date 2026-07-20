@@ -19,6 +19,25 @@ describe('conversationMode', () => {
     expect(inferResolvedConversationMode('@Assistant hi')).toBe('chat');
   });
 
+  it('infers chat for @here / social pings even in IDE layout', () => {
+    expect(
+      inferResolvedConversationMode('@here whats going on!?!', { ideCoding: true })
+    ).toBe('chat');
+    expect(inferResolvedConversationMode('@here', { ideCoding: true })).toBe('chat');
+    expect(
+      inferResolvedConversationMode("@channel how's it going?", { ideCoding: true })
+    ).toBe('chat');
+    expect(isConversationModeAmbiguous('@here whats going on', { ideCoding: true })).toBe(
+      false
+    );
+  });
+
+  it('still forces code in IDE for real tasks', () => {
+    expect(
+      inferResolvedConversationMode('refactor cmd/server/main.go', { ideCoding: true })
+    ).toBe('code');
+  });
+
   it('infers code for knowledge-graph relate questions', () => {
     expect(
       inferResolvedConversationMode(

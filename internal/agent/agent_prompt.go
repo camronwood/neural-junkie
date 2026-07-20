@@ -47,6 +47,9 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if isCollabRecapMessage(msg) {
 		return buildCollabRecapPrompt(a.Info.Name, msg)
 	}
+	if a.isCLIAgent() {
+		return a.buildCLIBridgePrompt(msg)
+	}
 	if a.useCompactOllamaPrompt(msg) {
 		return a.buildCompactOllamaPrompt(msg)
 	}
@@ -62,6 +65,9 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	a.writePersonaOpening(&system, msg, personaTier)
 	if ConversationModeFromMessage(msg) == ConversationModeClarify {
 		appendConversationModeClarifyPrompt(&system)
+	}
+	if isSocialOrStatusPing(msg.Content) {
+		appendHereOrSocialPingPrompt(&system)
 	}
 	if askModeReadOnly {
 		system.WriteString("=== ASK MODE (READ-ONLY) ===\n")
@@ -102,7 +108,9 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if a.arenaToolsEnabledForMessage(msg) {
 		appendArenaPrompt(&system)
 	}
-	appendAskUserToolPrompt(&system)
+	if !isSocialOrStatusPing(msg.Content) {
+		appendAskUserToolPrompt(&system)
+	}
 
 	if isCollab {
 		// Collaboration-specific behavioral rules

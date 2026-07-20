@@ -30,8 +30,49 @@ const FILE_PATH_RE =
 const GREETING_RE =
   /^(?:@\w+\s+)?(?:hi|hello|hey|yo|sup|what'?s up|howdy|good (?:morning|afternoon|evening)|thanks|thank you|ok|okay|nice|cool)[!.?\s]*$/i;
 
+/** @here / @channel / @everyone — channel-wide fan-out. */
+const HERE_MENTION_RE = /(?:^|[\s])@(?:here|channel|everyone)\b/i;
+
+/** Short social / status pings that should never force code mode. */
+const SOCIAL_PING_RE =
+  /^(?:@(?:here|channel|everyone|\w+)\s+)*(?:what'?s\s+going\s+on|what\s+is\s+going\s+on|whats\s+up|how'?s\s+it\s+going|how\s+are\s+things|anyone\s+around|you\s+there|status\??|ping)[?!.\s]*$/i;
+
 const VAGUE_HELP_RE =
   /^(?:@\w+\s+)?(?:help|look|check|can you|could you|please)\b/i;
+
+/** Strip leading @mentions for greeting / social classification. */
+export function stripLeadingMentions(message: string): string {
+  return (message ?? '')
+    .replace(/^(?:\s*@(?:here|channel|everyone|\w+)\b)+\s*/gi, '')
+    .trim();
+}
+
+export function hasHereOrChannelMention(message: string): boolean {
+  return HERE_MENTION_RE.test(message ?? '');
+}
+
+/** Casual room ping — discuss, don't dive into tools/repo. */
+export function isSocialOrStatusPing(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  if (hasStrongCodeTaskSignals(text)) return false;
+  const stripped = stripLeadingMentions(text);
+  if (!stripped) {
+    // Bare @here / @channel with no body.
+    return hasHereOrChannelMention(text);
+  }
+  if (GREETING_RE.test(text) || GREETING_RE.test(stripped)) return true;
+  if (SOCIAL_PING_RE.test(text) || SOCIAL_PING_RE.test(stripped)) return true;
+  // Short question with @here and no code signals.
+  if (
+    hasHereOrChannelMention(text) &&
+    stripped.length <= 80 &&
+    !hasCodeTaskSignals(stripped)
+  ) {
+    return true;
+  }
+  return false;
+}
 
 export function loadConversationModeSetting(): ConversationModeSetting {
   try {
@@ -120,8 +161,9 @@ export function isConversationModeAmbiguous(
   const text = (message ?? '').trim();
   if (!text) return false;
   if (options?.channelKind === 'collaboration') return false;
-  if (GREETING_RE.test(text)) return false;
-  // IDE coding layout already implies workspace work.
+  if (isSocialOrStatusPing(text) || GREETING_RE.test(text)) return false;
+  // IDE coding layout already implies workspace work — except social/@here pings
+  // which are handled in inferResolvedConversationMode before this runs.
   if (options?.ideCoding) return false;
   if (hasStrongCodeTaskSignals(text)) return false;
 
@@ -149,8 +191,13 @@ export function inferResolvedConversationMode(
   message: string,
   options?: { ideCoding?: boolean; channelKind?: ChannelKind; hasOpenTab?: boolean }
 ): ResolvedConversationMode {
+  const text = message.trim();
+  // Social / @here pings stay conversational even in IDE layout.
+  if (isSocialOrStatusPing(text)) {
+    return 'chat';
+  }
   if (options?.ideCoding) {
-    if (GREETING_RE.test(message.trim())) {
+    if (GREETING_RE.test(text)) {
       return 'chat';
     }
     return 'code';
@@ -164,17 +211,11 @@ export function inferResolvedConversationMode(
   if (hasCodeTaskSignals(message)) {
     return 'code';
   }
-  if (options?.ideCoding && options?.hasOpenTab && CODE_VERBS_RE.test(message)) {
-    return 'code';
-  }
-  if (GREETING_RE.test(message.trim())) {
+  if (GREETING_RE.test(text)) {
     return 'chat';
   }
-  if (message.includes('?') && message.trim().length >= 20 && !hasCodeTaskSignals(message)) {
+  if (message.includes('?') && text.length >= 20 && !hasCodeTaskSignals(message)) {
     return 'chat';
-  }
-  if (options?.ideCoding && options?.hasOpenTab && !GREETING_RE.test(message.trim())) {
-    return 'code';
   }
   return 'chat';
 }
