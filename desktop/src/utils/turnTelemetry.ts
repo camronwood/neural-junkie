@@ -5,6 +5,7 @@ import {
   THINKING_ACTIVITY_DETAIL_KEY,
 } from '../types/protocol';
 import { useChatStore } from '../stores/chatStore';
+import { logActivity } from '../stores/activityLogStore';
 
 /** Record agent_status telemetry for the turn debug drawer. */
 export function appendTurnTelemetryFromAgentStatus(channel: string, message: Message): void {
@@ -41,6 +42,14 @@ export function appendTurnTelemetryFromAgentStatus(channel: string, message: Mes
     detail,
     payload,
   });
+  if (kind === 'tool' || activity) {
+    logActivity({
+      kind: 'agent',
+      title: `${message.from.name}: ${kind}`,
+      detail,
+      channel,
+    });
+  }
 }
 
 /** Record stream_delta tool steps in the telemetry drawer. */
@@ -59,5 +68,11 @@ export function appendTurnTelemetryFromToolStep(channel: string, message: Messag
       kind: meta.tool_step,
       preview,
     },
+  });
+  logActivity({
+    kind: 'agent',
+    title: `${message.from.name}: ${name}`,
+    detail: preview || String(meta.tool_step),
+    channel,
   });
 }

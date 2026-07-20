@@ -162,7 +162,8 @@ export function TerminalPanel({ height, channel, api, collaboration }: TerminalP
         ))}
       </div>
       <div className="shrink-0 px-2 py-0.5 border-t border-slack-border/50 text-[10px] text-slack-textMuted">
-        Ctrl+C interrupt · {navigator.platform.toUpperCase().includes('MAC') ? 'Cmd' : 'Mod'}+K clear
+        Ctrl+C interrupt · Ctrl+L / {navigator.platform.toUpperCase().includes('MAC') ? 'Cmd' : 'Mod'}+K
+        clear · links open in browser
       </div>
     </div>
   );

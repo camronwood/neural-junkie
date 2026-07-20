@@ -624,16 +624,22 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
             openFile(activeWorkspace.id, file.path, '', undefined, {
               viewMode: 'image',
               imageSrc,
+              preview: e?.detail !== 2,
             });
           } else if (isEditableCsvPath(file.path)) {
             const content = await api.fetchFileContent(activeWorkspace.id, file.path);
             devLog('CSV file loaded, opening table view...');
-            openFile(activeWorkspace.id, file.path, content, 'plaintext', { viewMode: 'csv-table' });
+            openFile(activeWorkspace.id, file.path, content, 'plaintext', {
+              viewMode: 'csv-table',
+              preview: e?.detail !== 2,
+            });
           } else {
             const content = await api.fetchFileContent(activeWorkspace.id, file.path);
             const language = getLanguageFromPath(file.path);
             devLog('File content loaded, opening in editor...');
-            openFile(activeWorkspace.id, file.path, content, language);
+            openFile(activeWorkspace.id, file.path, content, language, {
+              preview: e?.detail !== 2,
+            });
           }
           // Auto-open the editor panel when a file is opened
           if (onFileOpen) {
@@ -1195,7 +1201,11 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           onDragEnd={handleFileDragEnd}
           onClick={(e) => void handleFileClick(file, e)}
           onContextMenu={(e) => handleContextMenu(e, file)}
-          title={file.is_dir ? undefined : 'Drag to chat to attach as context'}
+          title={
+            file.is_dir
+              ? undefined
+              : 'Click to preview · double-click to keep open · drag to chat for context'
+          }
         >
           <span className="text-sm">{renderFileIcon(file)}</span>
           <span className="text-sm truncate flex-1">{file.name}</span>

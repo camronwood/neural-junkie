@@ -1175,6 +1175,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       setActiveCollab(null);
       useChatStore.getState().switchChannel(channelName);
       localStorage.setItem('last-channel', channelName);
+      void import('../stores/activityLogStore').then(({ logActivity }) => {
+        logActivity({
+          kind: 'channel',
+          title: 'Switched channel',
+          channel: channelName,
+          detail: prevChannel ? `from #${prevChannel}` : undefined,
+        });
+      });
       if (prevChannel && prevChannel !== channelName) {
         useChatStore.getState().clearThinkingAgents(prevChannel);
       }
@@ -1282,7 +1290,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const handleDeleteChannel = useCallback(
     async (name: string) => {
-      if (!window.confirm(`Delete channel #${name}? This cannot be undone.`)) return;
+      const ch = useChatStore.getState().channels.find((c) => c.name === name);
+      const label = ch?.type === 'collaboration' ? 'collaboration' : 'channel';
+      if (!window.confirm(`Delete ${label} #${name}? This cannot be undone.`)) return;
       try {
         await api.deleteChannel(name);
         const wasActive = useChatStore.getState().channel === name;
@@ -1291,6 +1301,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           await handleSwitchChannel('general');
         }
         setChannelInfoModal((cur) => (cur?.name === name ? null : cur));
+        const { logActivity } = await import('../stores/activityLogStore');
+        logActivity({
+          kind: 'channel',
+          title: `Deleted ${label}`,
+          detail: name,
+          channel: name,
+        });
         addToast({
           type: 'success',
           title: 'Channel deleted',

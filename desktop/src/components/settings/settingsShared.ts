@@ -1,3 +1,5 @@
+import { openExternalLink as openExternalLinkImpl } from '../../utils/openExternalLink';
+
 export async function mergeSettingsPut(
   hubHttp: string,
   patch: (cfg: Record<string, unknown>) => Record<string, unknown>
@@ -18,11 +20,7 @@ export async function mergeSettingsPut(
 }
 
 export function openExternalLink(url: string): void {
-  if (typeof window !== 'undefined' && (window as { __TAURI__?: unknown }).__TAURI__) {
-    void import('@tauri-apps/api/shell').then(({ open }) => open(url));
-  } else {
-    window.open(url, '_blank');
-  }
+  openExternalLinkImpl(url);
 }
 
 export interface SettingsTabProps {

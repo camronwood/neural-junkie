@@ -111,8 +111,14 @@ async fn create_pty_session(
 
     let shell = default_shell();
     let mut cmd = CommandBuilder::new(&shell);
-    // Launch as interactive login shell
+    // Launch as interactive login shell with a real terminal type so
+    // backspace, clear, colors, and zsh/readline editing work.
     cmd.arg("-l");
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    if std::env::var_os("TERM_PROGRAM").is_none() {
+        cmd.env("TERM_PROGRAM", "neural-junkie");
+    }
     cmd.cwd(working_dir);
 
     let child = pair
@@ -282,33 +288,15 @@ async fn open_browser_window(
     url: String,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    // Create unique window ID for browser
-    let window_id = "browser-popout";
-    
-    // Check if window already exists
-    if app_handle.get_window(window_id).is_some() {
-        // Focus existing window
-        if let Some(window) = app_handle.get_window(window_id) {
-            let _ = window.set_focus();
-        }
-        return Ok(());
+    // Never render arbitrary http(s) pages inside Neural Junkie.
+    // In-app HTML preview belongs to the web-browser pack workbench only.
+    // Always hand off to the OS default browser.
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err("empty URL".to_string());
     }
-    
-    // Create new browser window with webview
-    let window = tauri::WindowBuilder::new(
-        &app_handle,
-        window_id,
-        tauri::WindowUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?)
-    )
-    .title("Neural Junkie - Browser")
-    .inner_size(1200.0, 800.0)
-    .min_inner_size(800.0, 600.0)
-    .resizable(true)
-    .center()
-    .build()
-    .map_err(|e| format!("Failed to create browser window: {}", e))?;
-    
-    let _ = window.set_focus();
+    tauri::api::shell::open(&app_handle.shell_scope(), trimmed, None)
+        .map_err(|e| format!("Failed to open URL in system browser: {}", e))?;
     Ok(())
 }
 

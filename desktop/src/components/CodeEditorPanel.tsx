@@ -58,6 +58,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     error,
     hasUnsavedChanges,
     setActiveTab,
+    pinTab,
     saveTab,
     saveAllTabs,
     closeTab,
@@ -71,6 +72,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
       error: s.error,
       hasUnsavedChanges: s.tabs.some((t) => t.isDirty),
       setActiveTab: s.setActiveTab,
+      pinTab: s.pinTab,
       saveTab: s.saveTab,
       saveAllTabs: s.saveAllTabs,
       closeTab: s.closeTab,
@@ -425,8 +427,11 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     }
   };
 
-  const handleTabClick = (tabId: string) => {
+  const handleTabClick = (tabId: string, e?: React.MouseEvent) => {
     setActiveTab(tabId);
+    if (e && e.detail >= 2) {
+      pinTab(tabId);
+    }
   };
 
   const handleTabClose = (e: React.MouseEvent, tabId: string) => {
@@ -575,11 +580,16 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
                   ? 'bg-slack-bg text-slack-text'
                   : 'text-slack-textMuted hover:text-slack-text hover:bg-slack-bg'
               }`}
-              onClick={() => handleTabClick(tab.id)}
+              onClick={(e) => handleTabClick(tab.id, e)}
               onContextMenu={handleTabContextMenu}
             >
               <span className="text-sm">{getTabIcon(tab)}</span>
-              <span className="text-sm truncate max-w-32">{tabLabel(tab)}</span>
+              <span
+                className={`text-sm truncate max-w-32 ${tab.isPreview ? 'italic opacity-90' : ''}`}
+                title={tab.isPreview ? 'Preview — double-click tab or edit to keep open' : tab.path}
+              >
+                {tabLabel(tab)}
+              </span>
               {tab.isDirty && <span className="text-xs text-yellow-500">●</span>}
               <button
                 onClick={(e) => handleTabClose(e, tab.id)}

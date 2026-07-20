@@ -25,6 +25,7 @@ import { SecuritySettingsTab } from './settings/SecuritySettingsTab';
 import { ServerNetworkSettingsTab } from './settings/ServerNetworkSettingsTab';
 import { ConnectionSettingsTab } from './settings/ConnectionSettingsTab';
 import { AutomationSettingsTab } from './settings/AutomationSettingsTab';
+import { ActivitySettingsTab } from './settings/ActivitySettingsTab';
 import { AboutSettingsTab } from './settings/AboutSettingsTab';
 
 export type { SettingsTab } from './settings/settingsNav';
@@ -132,6 +133,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <SecuritySettingsTab hubHttp={hubHttp} isActive={activeTab === 'security'} />
             <ServerNetworkSettingsTab hubHttp={hubHttp} isActive={activeTab === 'server-network'} />
             <AutomationSettingsTab hubHttp={hubHttp} isActive={activeTab === 'automation'} />
+            <ActivitySettingsTab hubHttp={hubHttp} isActive={activeTab === 'activity'} />
             <AboutSettingsTab hubHttp={hubHttp} isActive={activeTab === 'about'} />
           </div>
         </div>

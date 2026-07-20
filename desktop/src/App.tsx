@@ -17,6 +17,7 @@ import { loadConnectionSettings } from './stores/connectionStore';
 import { applyMermaidTheme } from './utils/mermaidConfig';
 import { isTauriRuntime } from './utils/promptAttachments';
 import { DesktopOnlyGate } from './components/DesktopOnlyGate';
+import { installExternalLinkClickInterceptor } from './utils/openExternalLink';
 
 type AppPhase = 'loading' | 'setup' | 'login' | 'chat';
 
@@ -54,6 +55,9 @@ function App() {
       setServerAddr(conn.hubUrl);
     });
   }, [loadSettings, setServerAddr]);
+
+  // Keep http(s) clicks in the OS browser — never navigate the Tauri webview.
+  useEffect(() => installExternalLinkClickInterceptor(), []);
 
   // Return to login when hub rejects the session (401).
   useEffect(() => {

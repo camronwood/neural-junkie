@@ -6,6 +6,8 @@ import { terminalAPI } from '../api/terminalAPI';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useTerminalStore } from '../stores/terminalStore';
 import { getTerminalTheme } from '../utils/editorThemes';
+import { openExternalLink } from '../utils/openExternalLink';
+import { logActivity } from '../stores/activityLogStore';
 import '@xterm/xterm/css/xterm.css';
 
 interface XTerminalProps {
@@ -38,10 +40,14 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
       theme: getTerminalTheme(themeAtInit),
       allowProposedApi: true,
       scrollback: 10000,
+      macOptionIsMeta: true,
+      rightClickSelectsWord: true,
     });
 
     const fit = new FitAddon();
-    const webLinks = new WebLinksAddon();
+    const webLinks = new WebLinksAddon((_event, uri) => {
+      openExternalLink(uri);
+    });
     term.loadAddon(fit);
     term.loadAddon(webLinks);
 
@@ -72,9 +78,40 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
       unlistenPty = unlisten;
     });
 
-
     const onDataDispose = term.onData((data) => {
       terminalAPI.writePtySession(sessionId, data).catch(() => {});
+    });
+
+    // Ctrl+L: clear viewport + send form-feed so shell `clear` semantics work.
+    const onKeyDispose = term.onKey(({ domEvent }) => {
+      if (domEvent.ctrlKey && !domEvent.metaKey && !domEvent.altKey && domEvent.key.toLowerCase() === 'l') {
+        domEvent.preventDefault();
+        term.clear();
+        void terminalAPI.writePtySession(sessionId, '\x0c');
+      }
+    });
+
+    const onCopy = (e: ClipboardEvent) => {
+      if (!term.hasSelection()) return;
+      const sel = term.getSelection();
+      if (!sel) return;
+      e.clipboardData?.setData('text/plain', sel);
+      e.preventDefault();
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData('text/plain');
+      if (!text) return;
+      e.preventDefault();
+      void terminalAPI.writePtySession(sessionId, text);
+    };
+    containerRef.current.addEventListener('copy', onCopy);
+    containerRef.current.addEventListener('paste', onPaste);
+
+    logActivity({
+      kind: 'terminal',
+      title: 'Terminal session started',
+      detail: cwd ? `cwd ${cwd}` : undefined,
+      path: cwd,
     });
 
     const resizeObserver = new ResizeObserver(() => {
@@ -91,9 +128,13 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
     });
     resizeObserver.observe(containerRef.current);
 
+    const el = containerRef.current;
     return () => {
       resizeObserver.disconnect();
       onDataDispose.dispose();
+      onKeyDispose.dispose();
+      el?.removeEventListener('copy', onCopy);
+      el?.removeEventListener('paste', onPaste);
       unlistenPty?.();
       terminalAPI.closePtySession(sessionId).catch(() => {});
       term.dispose();
@@ -121,8 +162,10 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
   useEffect(() => {
     if (clearBufferNonce > 0) {
       termRef.current?.clear();
+      // Also send form-feed so the shell prompt redraws cleanly.
+      void terminalAPI.writePtySession(sessionId, '\x0c');
     }
-  }, [clearBufferNonce]);
+  }, [clearBufferNonce, sessionId]);
 
   return (
     <div

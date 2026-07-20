@@ -8,6 +8,7 @@ import { isScanAnalysisResultsPath, SCAN_ANALYSIS_RESULTS_FILE } from '../utils/
 import type { PanelQCReport } from '../utils/secondaryAnalysis';
 import { getLanguageFromPath } from '../utils/editorLanguage';
 import { isMarkdownPath } from '../utils/markdownFile';
+import { logActivity } from './activityLogStore';
 
 const api = new ChatAPI(getHubBaseURL());
 
@@ -19,6 +20,8 @@ export interface EditorTab {
   path: string;
   content: string;
   isDirty: boolean;
+  /** Preview (soft) tab — replaced by the next soft-open until pinned/hard-opened. */
+  isPreview?: boolean;
   /** Bumped on disk refresh so the editor can sync without tying effects to every keystroke. */
   contentSyncKey?: number;
   cursorPosition?: { line: number; column: number };
@@ -70,6 +73,10 @@ export interface OpenFileOptions {
   scanAnalysisData?: ScanAnalysisData;
   linkedScanDir?: string;
   linkedAnalysisDir?: string;
+  /** Soft-open as a replaceable preview tab (VS Code style). Default false = hard open. */
+  preview?: boolean;
+  /** When false, open/create tab without stealing focus. Default true. */
+  activate?: boolean;
 }
 
 export interface EditorSelectionContext {
@@ -151,6 +158,8 @@ interface EditorState {
   activateScanWell: (tabId: string, wellId: string) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
+  /** Promote a preview tab to a permanent (hard) tab. */
+  pinTab: (tabId: string) => void;
   cycleActiveTab: (direction: 1 | -1) => void;
   setTabViewMode: (tabId: string, viewMode: EditorTabViewMode) => void;
   updateTabContent: (tabId: string, content: string) => void;
@@ -189,21 +198,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const viewMode =
       options?.viewMode ?? (isMarkdownPath(path) ? 'markdown-preview' : 'text');
     const imageSrc = options?.imageSrc;
+    const asPreview = options?.preview === true;
+    const activate = options?.activate !== false;
 
     // Check if file is already open
     const existingTab = state.getTabByPath(workspaceId, path);
     if (existingTab) {
-      set({ activeTabId: existingTab.id });
+      set({
+        activeTabId: activate ? existingTab.id : state.activeTabId,
+        tabs: asPreview
+          ? state.tabs
+          : state.tabs.map((t) =>
+              t.id === existingTab.id ? { ...t, isPreview: false } : t
+            ),
+      });
       return;
     }
 
-    // Create new tab
     const newTab: EditorTab = {
       id: `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       workspaceId,
       path,
       content,
       isDirty: false,
+      isPreview: asPreview || undefined,
       contentSyncKey: 0,
       language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'structure-workbench' || viewMode === 'html-preview' || viewMode === 'music-workbench' || viewMode === 'arena-workbench' || viewMode === 'knowledge-graph-workbench' ? undefined : language,
       viewMode,
@@ -215,10 +233,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       linkedScanDir: options?.linkedScanDir,
       linkedAnalysisDir: options?.linkedAnalysisDir,
     };
-    
+
+    let nextTabs = state.tabs;
+    if (asPreview) {
+      // Replace the current preview tab (if any) instead of stacking soft opens.
+      const previewIdx = nextTabs.findIndex((t) => t.isPreview && !t.isDirty);
+      if (previewIdx >= 0) {
+        nextTabs = [...nextTabs];
+        nextTabs[previewIdx] = newTab;
+      } else {
+        nextTabs = [...nextTabs, newTab];
+      }
+    } else {
+      nextTabs = [...nextTabs, newTab];
+    }
+
     set({
-      tabs: [...state.tabs, newTab],
-      activeTabId: newTab.id,
+      tabs: nextTabs,
+      activeTabId: activate ? newTab.id : state.activeTabId,
+    });
+
+    logActivity({
+      kind: 'file',
+      title: asPreview ? 'Previewed file' : 'Opened file',
+      path,
+      detail: workspaceId,
     });
   },
 
@@ -746,6 +785,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ activeTabId: tabId });
   },
 
+  pinTab: (tabId) => {
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === tabId && tab.isPreview ? { ...tab, isPreview: false } : tab
+      ),
+    }));
+  },
+
   cycleActiveTab: (direction) => {
     const { tabs, activeTabId } = get();
     if (tabs.length === 0) return;
@@ -778,7 +825,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
         if (tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
         if (tab.content === content) return tab;
-        return { ...tab, content, isDirty: true };
+        // Editing a preview tab pins it (hard open).
+        return { ...tab, content, isDirty: true, isPreview: false };
       }),
     }));
   },

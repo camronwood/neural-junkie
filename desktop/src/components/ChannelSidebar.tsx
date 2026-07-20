@@ -479,7 +479,8 @@ export function ChannelSidebar({
           ? 'text-white font-semibold hover:bg-white/10'
           : 'text-slack-textMuted hover:bg-white/10 hover:text-white'
     }`;
-    const showDelete = ch.type === 'custom' && onDeleteChannel;
+    const showDelete =
+      (ch.type === 'custom' || ch.type === 'collaboration') && onDeleteChannel;
     const isCollab = ch.type === 'collaboration';
     const isRoom = ch.type === 'room';
     const isHiddenCollabRow = isCollab && hiddenCollabSet.has(ch.name) && normalizedQuery.length > 0;
@@ -524,7 +525,7 @@ export function ChannelSidebar({
             ⓘ
           </button>
         )}
-        {isCollab && (
+        {isCollab && !showDelete && (
           <button
             type="button"
             onClick={(e) => {
@@ -546,7 +547,7 @@ export function ChannelSidebar({
               onDeleteChannel!(ch.name);
             }}
             className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-red-400 rounded hover:bg-white/10"
-            title="Delete channel"
+            title={isCollab ? 'Delete collaboration channel' : 'Delete channel'}
             aria-label={`Delete channel ${ch.name}`}
           >
             ×
@@ -610,8 +611,8 @@ export function ChannelSidebar({
             hideDmFromSidebar(ch.name);
           }}
           className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-white/90 rounded hover:bg-white/10"
-          title="Hide from sidebar"
-          aria-label={`Hide DM ${displayName} from sidebar`}
+          title="Remove from sidebar"
+          aria-label={`Remove DM ${displayName} from sidebar`}
         >
           ×
         </button>

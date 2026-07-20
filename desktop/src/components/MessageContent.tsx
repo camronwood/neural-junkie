@@ -17,6 +17,7 @@ import {
   getCachedRenderedMarkdown,
 } from '../utils/messageContentCache';
 import { renderChatMarkdown } from '../utils/markdownRenderer';
+import { openExternalLink } from '../utils/openExternalLink';
 import { perfMarkEnd, perfMarkStart } from '../utils/perfMarks';
 
 export type { ContentPart } from '../utils/messageContentCache';
@@ -191,6 +192,10 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
             target="_blank"
             rel="noopener noreferrer"
             className="text-slack-accent hover:underline"
+            onClick={(e) => {
+              e.preventDefault();
+              openExternalLink(m.url);
+            }}
           >
             {m.content}
           </a>

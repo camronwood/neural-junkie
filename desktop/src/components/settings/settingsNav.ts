@@ -17,6 +17,7 @@ export type SettingsTab =
   | 'security'
   | 'server-network'
   | 'automation'
+  | 'activity'
   | 'about';
 
 /** Map deprecated tab ids from older deep links. */
@@ -72,6 +73,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       { id: 'security', label: 'Security' },
       { id: 'server-network', label: 'Server & network' },
       { id: 'automation', label: 'Automation & testing' },
+      { id: 'activity', label: 'Activity' },
       { id: 'about', label: 'About' },
     ],
   },
