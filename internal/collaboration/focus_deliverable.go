@@ -77,12 +77,30 @@ func FocusScopedDeliverableInventoryHit(content string, allowedPaths []string) s
 		if tok == "" {
 			continue
 		}
+		// Bare web asset basenames (about.html, style.css) are normal href/src links in HTML/CSS
+		// deliverables, not fixture inventory. Only flag path-qualified or non-web tokens.
+		if focusTokenIsRelativeWebAsset(tok) {
+			continue
+		}
 		if focusTokenAllowed(tok, allowedPaths) {
 			continue
 		}
 		return tok
 	}
 	return ""
+}
+
+func focusTokenIsRelativeWebAsset(tok string) bool {
+	tok = filepath.ToSlash(strings.TrimSpace(tok))
+	if tok == "" || strings.Contains(tok, "/") {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(tok)) {
+	case ".html", ".htm", ".css", ".js", ".mjs", ".cjs":
+		return true
+	default:
+		return false
+	}
 }
 
 func focusTokenAllowed(tok string, allowedPaths []string) bool {

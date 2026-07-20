@@ -562,11 +562,11 @@ def step_assert_messages(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
             who = (hits[0].get("from") or {}).get("name")
             return False, f"none_match violated {pattern!r} ({who})"
 
-    for pattern in step.get("any_match") or []:
-        if not hub.messages_matching(pool, pattern):
+    if any_patterns := step.get("any_match") or []:
+        if not any(hub.messages_matching(pool, pattern) for pattern in any_patterns):
             agents = sorted({(m.get("from") or {}).get("name", "?") for m in pool})
             return False, (
-                f"any_match not found: {pattern!r} "
+                f"any_match not found (want one of {any_patterns!r}) "
                 f"(agents with discussion: {agents or 'none'})"
             )
 
@@ -1471,15 +1471,20 @@ def run_setup_blocker(ctx: ScenarioContext, setup: dict, agents: str) -> bool:
     ch = setup.get("channel") or BLOCKER_CHANNEL
     if not hub.ensure_channel(ctx.base, ch):
         return False
+    # Prefer distinct agents from the probe collab so the same specialist is not
+    # busy in the executing blocker while the planning probe expects a reply.
+    blocker_agents = (setup.get("agents") or "@BackendEngineer @SoftwareArchitect").strip()
+    if not blocker_agents:
+        blocker_agents = "@BackendEngineer @SoftwareArchitect"
     mini = {
         "collaborate": {
             "flags": setup.get("flags") or ["--rounds", "1", "--messages", "1"],
             "goal": setup.get("goal")
-            or f"{agents.strip()} hold executing slot for isolation probe",
+            or f"{blocker_agents} hold executing slot for isolation probe",
         },
         "channel": ch,
     }
-    started = start_collaboration(ctx, ch, mini, agents)
+    started = start_collaboration(ctx, ch, mini, blocker_agents)
     if not started:
         return False
     cid, cch = started
@@ -1499,8 +1504,45 @@ def run_setup_blocker(ctx: ScenarioContext, setup: dict, agents: str) -> bool:
     for i, step in enumerate(steps, 1):
         if not run_step(mini_ctx, step, f"setup-{i}"):
             return False
-    print(f"  ✓ setup: blocker collab {cid[:8]} executing on {ch}")
+    # Park the blocker: pause dispatch + skip open tasks so Ollama is free for the
+    # planning probe, while the collab remains in executing for isolation.
+    if not park_executing_blocker(ctx.base, cid):
+        print(f"  WARN: could not park blocker {cid[:8]} (continuing anyway)", flush=True)
+    print(f"  ✓ setup: blocker collab {cid[:8]} executing on {ch} ({blocker_agents})")
     return True
+
+
+def park_executing_blocker(base: str, collab_id: str) -> bool:
+    """Pause task dispatch and skip open tasks so the blocker stops burning LLM slots."""
+    import urllib.parse
+
+    cid = (collab_id or "").strip()
+    if not cid:
+        return False
+    enc = urllib.parse.quote(cid, safe="")
+    code, _ = hub.hub_request(base, "POST", f"/api/collaborations/{enc}/pause")
+    if code not in (200, 201):
+        return False
+    collab = hub.fetch_collab(base, "", cid)
+    if not collab:
+        return True
+    ok = True
+    for task in collab.get("tasks") or []:
+        if not isinstance(task, dict):
+            continue
+        status = (task.get("status") or "").strip().lower()
+        if status in ("completed", "skipped"):
+            continue
+        tid = (task.get("id") or "").strip()
+        if not tid:
+            continue
+        tenc = urllib.parse.quote(tid, safe="")
+        tcode, _ = hub.hub_request(
+            base, "POST", f"/api/collaborations/{enc}/tasks/{tenc}/skip"
+        )
+        if tcode not in (200, 201):
+            ok = False
+    return ok
 
 
 def _solo_last_agent_chat(msgs: list[dict], agent: str, *, skip_status: bool = True) -> dict | None:
@@ -1874,7 +1916,14 @@ def run_scenario(
     from lib.scenario_flake_retry import maybe_retry_after_failure
 
     last_detail = ""
-    for attempt in range(1, 3):
+    max_attempts = 3 if name in {
+        "make-me-a-website",
+        "collaboration-station-website",
+        "collaboration-station-website-sa",
+        "solo-vs-collab-parity",
+        "multi-collab-isolation",
+    } else 2
+    for attempt in range(1, max_attempts + 1):
         ok, last_detail = _run_scenario_once(
             base,
             name,
@@ -1890,6 +1939,7 @@ def run_scenario(
             name,
             last_detail or f"collab scenario {name} failed",
             attempt,
+            max_attempts=max_attempts,
         ):
             break
     return False

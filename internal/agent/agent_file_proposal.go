@@ -774,6 +774,31 @@ func rejectFocusScopedInventoryDeliverable(msg *protocol.Message, path, content 
 	rel := filepath.ToSlash(strings.TrimPrefix(strings.TrimSpace(path), "./"))
 	lowerPath := strings.ToLower(rel)
 	allowed := collaborationFocusAllowedReadPaths(msg)
+	task := collaboration.CollaborationTask{Title: msg.Content, Description: msg.Content}
+	if title, _ := msg.Metadata["task_title"].(string); title != "" {
+		task.Title = title
+	}
+	if desc, _ := msg.Metadata["task_description"].(string); desc != "" {
+		task.Description = desc
+	}
+	// Markdown deliverable tasks must propose the named deliverable (e.g. findings.md),
+	// not an arbitrary sibling like file.md under collabs/<id>/.
+	if dests := collaboration.ReferencedDeliverablePaths(task); len(dests) > 0 {
+		wantBase := make(map[string]bool, len(dests))
+		for _, d := range dests {
+			base := strings.ToLower(filepath.Base(filepath.ToSlash(d)))
+			if base != "" {
+				wantBase[base] = true
+			}
+		}
+		gotBase := strings.ToLower(filepath.Base(rel))
+		if len(wantBase) > 0 && !wantBase[gotBase] {
+			return fmt.Errorf(
+				"focus-scoped deliverable must propose one of %v (got %q)",
+				dests, rel,
+			)
+		}
+	}
 	if len(allowed) > 0 {
 		pathAllowed := strings.HasPrefix(lowerPath, collaboration.ProjectCollabsDirName+"/")
 		if !pathAllowed {
@@ -793,13 +818,6 @@ func rejectFocusScopedInventoryDeliverable(msg *protocol.Message, path, content 
 		}
 	}
 	if !strings.HasSuffix(lowerPath, "findings.md") {
-		task := collaboration.CollaborationTask{Title: msg.Content, Description: msg.Content}
-		if title, _ := msg.Metadata["task_title"].(string); title != "" {
-			task.Title = title
-		}
-		if desc, _ := msg.Metadata["task_description"].(string); desc != "" {
-			task.Description = desc
-		}
 		policy := collaboration.NewDeliverablePolicy(task, "", allowed)
 		if !policy.ResearchFindings() && !isResearchDocumentationDeliverable(msg.Content) {
 			return nil

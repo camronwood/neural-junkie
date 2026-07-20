@@ -15,6 +15,7 @@ var (
 	goalFileAssigneeRe  = regexp.MustCompile(`(?i)([a-z0-9][a-z0-9_./-]*\.md)\s*\(@([a-zA-Z][a-zA-Z0-9]*)\)`)
 	goalInlineTaskRe    = regexp.MustCompile(`(?i)Task\s+\d+\s*:?\s*@[^\n;]+`)
 	goalExactlyNTasksRe = regexp.MustCompile(`(?i)exactly\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:[a-z-]+\s+)*tasks?`)
+	planOneTaskColonRe  = regexp.MustCompile(`(?i)\bplan\s+one\s+task\s*:\s*(.+)`)
 )
 
 var goalExactCountWords = map[string]int{
@@ -43,7 +44,8 @@ func goalPinsExactTaskList(goal string, goalTaskCount int) bool {
 	}
 	if strings.Contains(goalLower, "using these exact lines") ||
 		strings.Contains(goalLower, "use exactly:") ||
-		strings.Contains(goalLower, "plan exactly:") {
+		strings.Contains(goalLower, "plan exactly:") ||
+		strings.Contains(goalLower, "exact deliverables") {
 		return true
 	}
 	if m := goalExactlyNTasksRe.FindStringSubmatch(goalLower); len(m) == 2 {
@@ -54,10 +56,60 @@ func goalPinsExactTaskList(goal string, goalTaskCount int) bool {
 	return false
 }
 
+// CollaborationPinsExactGoalTasks reports whether c's goal pins an exact task list.
+func CollaborationPinsExactGoalTasks(c *Collaboration) bool {
+	if c == nil {
+		return false
+	}
+	goalTasks := ExtractTasksFromCollaborationGoal(c.Description, c.ID, c.Agents)
+	return goalPinsExactTaskList(c.Description, len(goalTasks))
+}
+
+// PinnedGoalTasks returns the goal-extracted task list when the goal pins exact lines.
+func PinnedGoalTasks(c *Collaboration) ([]CollaborationTask, bool) {
+	if c == nil {
+		return nil, false
+	}
+	goalTasks := ExtractTasksFromCollaborationGoal(c.Description, c.ID, c.Agents)
+	if !goalPinsExactTaskList(c.Description, len(goalTasks)) {
+		return nil, false
+	}
+	return goalTasks, true
+}
+
 func substituteCollabIDPlaceholders(text, collabID string) string {
 	text = strings.ReplaceAll(text, "<collab-id>", collabID)
 	text = strings.ReplaceAll(text, "<id>", collabID)
 	return text
+}
+
+// normalizePlanOneTaskColon turns "Plan one task: @Agent Write path…" into a Task 1 row.
+// Returns empty when the goal does not use that colon form.
+func normalizePlanOneTaskColon(goal string) string {
+	m := planOneTaskColonRe.FindStringSubmatch(goal)
+	if len(m) < 2 {
+		return ""
+	}
+	body := strings.TrimSpace(m[1])
+	if body == "" {
+		return ""
+	}
+	lower := strings.ToLower(body)
+	if strings.HasPrefix(lower, "task ") || strings.HasPrefix(body, "-") {
+		return body
+	}
+	if strings.HasPrefix(body, "@") {
+		agent, rest, ok := strings.Cut(body, " ")
+		if ok && strings.TrimSpace(rest) != "" {
+			rest = strings.TrimSpace(rest)
+			if !strings.HasPrefix(rest, "-") {
+				rest = "- " + rest
+			}
+			return "Task 1: " + agent + " " + rest
+		}
+		return "Task 1: " + body
+	}
+	return "Task 1: " + body
 }
 
 func extractInlineGoalTasks(goal string, agents []CollaborationAgent) []CollaborationTask {
@@ -113,6 +165,11 @@ func ExtractTasksFromCollaborationGoal(description, collabID string, agents []Co
 	goal := substituteCollabIDPlaceholders(strings.TrimSpace(description), collabID)
 	if goal == "" {
 		return nil
+	}
+	if one := normalizePlanOneTaskColon(goal); one != "" {
+		if tasks := ExtractTasksFromPlan("## Plan\n\n"+one, agents); len(tasks) > 0 {
+			return DedupeTasks(tasks)
+		}
 	}
 	if inline := extractInlineGoalTasks(goal, agents); len(inline) > 0 {
 		return DedupeTasks(inline)

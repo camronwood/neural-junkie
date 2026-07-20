@@ -91,6 +91,9 @@ func TestGoalPinsExactTaskList(t *testing.T) {
 	if !goalPinsExactTaskList("Plan one task using this exact line: - Task 1: @BE - Write findings.md", 1) {
 		t.Fatal("expected single exact-line pin")
 	}
+	if !goalPinsExactTaskList("MUST include these exact deliverables: Task 1 @BE Write a.md; Task 2 @SA Write b.md", 2) {
+		t.Fatal("expected exact deliverables phrasing to pin")
+	}
 	if !goalPinsExactTaskList("Investigate schema. Plan exactly: Task 1 @BE Write a.md; Task 2 @SA Write b.md", 2) {
 		t.Fatal("expected Plan exactly: to pin")
 	}
@@ -209,5 +212,142 @@ Task 3: @PlatformEngineer - Extra freestyle task
 	joined := strings.ToLower(c.Plan.Content)
 	if strings.Contains(joined, "kubectl") || strings.Contains(joined, "freestyle") {
 		t.Fatalf("freestyle plan should not remain: %s", c.Plan.Content)
+	}
+}
+
+func TestExtractTasksFromCollaborationGoal_planDependencyProseScenario(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "be", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "sa", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "cl", AgentName: "Claude", AgentType: protocol.AgentTypeCLI},
+	}
+	id := "56ab2c02-d3e3-4be9-8bbe-3c09c88e441e"
+	goal := "@BackendEngineer @SoftwareArchitect @Claude Produce EXACTLY three file tasks and no others under collabs/<id>/, using these exact lines:\n- Task 1: @BackendEngineer - Write collabs/<id>/api_schema.md\n- Task 2: @SoftwareArchitect - Write collabs/<id>/markdown_doc_structure.md\n- Task 3: @Claude - Write collabs/<id>/ci_cd_pipeline.md\nPut dependency notes AFTER the tasks as plain bullets starting with 'depends on' — do not make those bullets separate @assigned tasks."
+	tasks := ExtractTasksFromCollaborationGoal(goal, id, agents)
+	if len(tasks) != 3 {
+		t.Fatalf("got %d tasks want 3: %#v", len(tasks), taskTitles(tasks))
+	}
+	if !goalPinsExactTaskList(goal, len(tasks)) {
+		t.Fatal("expected goal pin")
+	}
+}
+
+func TestSetTasks_keepsPinnedGoalAgainstFreestyleExplosion(t *testing.T) {
+	cm := NewCollaborationManager(nil)
+	agents := []CollaborationAgent{
+		{AgentID: "be", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "sa", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "cl", AgentName: "Claude", AgentType: protocol.AgentTypeCLI},
+	}
+	id := "56ab2c02-d3e3-4be9-8bbe-3c09c88e441e"
+	goal := "@BackendEngineer @SoftwareArchitect @Claude Produce EXACTLY three file tasks and no others under collabs/<id>/, using these exact lines:\n- Task 1: @BackendEngineer - Write collabs/<id>/api_schema.md\n- Task 2: @SoftwareArchitect - Write collabs/<id>/markdown_doc_structure.md\n- Task 3: @Claude - Write collabs/<id>/ci_cd_pipeline.md\nPut dependency notes AFTER the tasks as plain bullets starting with 'depends on' — do not make those bullets separate @assigned tasks."
+	c := &Collaboration{
+		ID:          id,
+		Phase:       PhasePlanning,
+		Description: goal,
+		Agents:      agents,
+		Plan:        &SharedArtifact{Content: "## Plan\n"},
+	}
+	cm.mu.Lock()
+	cm.collaborations[id] = c
+	cm.mu.Unlock()
+
+	freestyle := []CollaborationTask{
+		{ID: "1", Description: "Write collabs/" + id + "/api_schema.md", AssignedName: "BackendEngineer"},
+		{ID: "2", Description: "Write collabs/" + id + "/markdown_doc_structure.md", AssignedName: "SoftwareArchitect"},
+		{ID: "3", Description: "Write collabs/" + id + "/ci_cd_pipeline.md", AssignedName: "Claude"},
+		{ID: "4", Description: "Task 1 depends on Task 2 for the markdown structure", AssignedName: "BackendEngineer"},
+		{ID: "5", Description: "Can be started independently but should reference the schema", AssignedName: "Claude"},
+	}
+	if err := cm.SetTasks(id, freestyle); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := cm.GetCollaborationSnapshot(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Tasks) != 3 {
+		t.Fatalf("expected pinned 3 tasks after freestyle SetTasks, got %d: %#v", len(snap.Tasks), taskTitles(snap.Tasks))
+	}
+}
+
+func TestTransitionToReviewing_repinsWhenAlreadyReviewing(t *testing.T) {
+	cm := NewCollaborationManager(nil)
+	agents := []CollaborationAgent{
+		{AgentID: "sa", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "be", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+	}
+	id := "bd94d2da-88f5-40cc-8f8c-a50840c59ce8"
+	goal := "Design a small CLI file encryption tool. Produce EXACTLY two tasks and no others, using these exact lines:\n- Task 1: @SoftwareArchitect - Write encryption-spec.md defining CLI encryption requirements and threat model.\n- Task 2: @BackendEngineer - Write cli-entry-design.md describing the CLI entry point and encryption service interface."
+	c := &Collaboration{
+		ID:          id,
+		Phase:       PhaseReviewing,
+		Description: goal,
+		Agents:      agents,
+		Tasks:       []CollaborationTask{{ID: "only", Description: "Write encryption-spec.md", AssignedName: "SoftwareArchitect", Status: TaskPending}},
+		Plan:        &SharedArtifact{Content: "## Plan\n\n- Task 1: @SoftwareArchitect - Write encryption-spec.md"},
+	}
+	cm.mu.Lock()
+	cm.collaborations[id] = c
+	cm.mu.Unlock()
+
+	if _, err := cm.TransitionToReviewing(id); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := cm.GetCollaborationSnapshot(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Tasks) != 2 {
+		t.Fatalf("expected re-pin to 2 tasks, got %d: %#v", len(snap.Tasks), taskTitles(snap.Tasks))
+	}
+}
+
+func TestExtractTasksFromCollaborationGoal_planningTwoAgentScenario(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "sa", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "be", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+	}
+	id := "bd94d2da-88f5-40cc-8f8c-a50840c59ce8"
+	goal := "Design a small CLI file encryption tool. Produce EXACTLY two tasks and no others, using these exact lines:\n- Task 1: @SoftwareArchitect - Write encryption-spec.md defining CLI encryption requirements and threat model.\n- Task 2: @BackendEngineer - Write cli-entry-design.md describing the CLI entry point and encryption service interface."
+	tasks := ExtractTasksFromCollaborationGoal(goal, id, agents)
+	if len(tasks) != 2 {
+		t.Fatalf("got %d tasks want 2: %#v", len(tasks), taskTitles(tasks))
+	}
+	if !goalPinsExactTaskList(goal, len(tasks)) {
+		t.Fatal("expected goal pin")
+	}
+}
+
+func TestExtractTasksFromCollaborationGoal_collabNoEditAfterCancel(t *testing.T) {
+	goal := "@BackendEngineer @SoftwareArchitect Plan one task: @BackendEngineer Write collabs/<id>/findings.md with three bullets from README.md."
+	agents := []CollaborationAgent{
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "sa-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+	}
+	tasks := ExtractTasksFromCollaborationGoal(goal, "ec2f0e30-69e2-488b-9b1d-7d2f3223fcca", agents)
+	t.Logf("tasks=%d titles=%v pinned=%v", len(tasks), taskTitles(tasks), goalPinsExactTaskList(goal, len(tasks)))
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d: %#v", len(tasks), taskTitles(tasks))
+	}
+	if !goalPinsExactTaskList(goal, len(tasks)) {
+		t.Fatal("expected plan one task goal to pin")
+	}
+}
+
+func TestExtractTasksFromCollaborationGoal_planFindingsTaskRegression(t *testing.T) {
+	goal := "@BackendEngineer @SoftwareArchitect @Claude Plan 4–5 tasks for API schema documentation under collabs/<id>/. MUST include these exact deliverables: Task 1 @BackendEngineer Write collabs/<id>/api_schema.md; Task 2 @SoftwareArchitect Write collabs/<id>/standards.md; Task 3 @Claude Write collabs/<id>/summary.md; Task 4 Document findings in collabs/<id>/findings.md (any assignee). Use - Task N: @Agent - description format only for real tasks."
+	agents := []CollaborationAgent{
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "sa-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "cl-1", AgentName: "Claude", AgentType: protocol.AgentTypeAssistant},
+	}
+	tasks := ExtractTasksFromCollaborationGoal(goal, "abc-123", agents)
+	if len(tasks) < 4 || len(tasks) > 5 {
+		t.Fatalf("expected 4-5 tasks, got %d: %#v", len(tasks), taskTitles(tasks))
+	}
+	c := &Collaboration{ID: "abc-123", Description: goal, Agents: agents}
+	if !CollaborationPinsExactGoalTasks(c) {
+		t.Fatalf("expected plan-findings goal to pin exact deliverables (got %d tasks)", len(tasks))
 	}
 }

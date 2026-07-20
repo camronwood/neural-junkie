@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -62,6 +63,14 @@ func TestLooksLikeAsksUserToPasteWorkspaceFiles(t *testing.T) {
 	if looksLikeAsksUserToPasteWorkspaceFiles(msg, ok) {
 		t.Fatal("expected grounded answer to pass")
 	}
+	deny := "Since I don't have visibility into your specific codebase yet (the context window is empty of your actual project files), I cannot give you a tailored first step."
+	if !looksLikeAsksUserToPasteWorkspaceFiles(msg, deny) {
+		t.Fatal("expected empty-context denial with shared workspace")
+	}
+	deny2 := "Since the specific project files aren't visible in this immediate context, I'll assume we are building a robust backend starting with the core data layer."
+	if !looksLikeAsksUserToPasteWorkspaceFiles(msg, deny2) {
+		t.Fatal("expected immediate-context denial with shared workspace")
+	}
 	msg.Metadata = nil
 	if looksLikeAsksUserToPasteWorkspaceFiles(msg, paste) {
 		t.Fatal("expected no workspace context to skip")
@@ -88,5 +97,45 @@ func TestLooksLikePrematureFileApplyClaim(t *testing.T) {
 	}
 	if looksLikePrematureFileApplyClaim(msg, claim, hist) {
 		t.Fatal("expected prior Applied change to suppress flag")
+	}
+}
+
+func TestLooksLikeIgnoresCodebaseAttachments(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm",
+		protocol.AgentInfo{Name: "User", Type: "human"},
+		"@codebase What does ComputeObscureWidget return?",
+	)
+	msg.Metadata = map[string]interface{}{
+		MetadataPromptAttachments: []interface{}{
+			map[string]interface{}{
+				"type":    "codebase_chunk",
+				"path":    "core/obscure/internal/widget.go",
+				"content": "func ComputeObscureWidget() int {\n\treturn 42\n}\n",
+			},
+		},
+		"codebase_answer_from_attachments": true,
+	}
+	hallucinated := "The ComputeObscureWidget function returns a boolean value indicating whether a widget is obscured."
+	if !looksLikeIgnoresCodebaseAttachments(msg, hallucinated) {
+		t.Fatal("expected hallucination without 42 to be flagged")
+	}
+	grounded := "ComputeObscureWidget returns 42."
+	if looksLikeIgnoresCodebaseAttachments(msg, grounded) {
+		t.Fatal("expected grounded reply citing 42 to pass")
+	}
+	ans, ok := tryCodebaseReturnLiteralAnswer(msg)
+	if !ok || !strings.Contains(ans, "42") {
+		t.Fatalf("expected deterministic return-literal answer with 42, got %q ok=%v", ans, ok)
+	}
+	plain := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"dm",
+		protocol.AgentInfo{Name: "User", Type: "human"},
+		"how do I add themes?",
+	)
+	if looksLikeIgnoresCodebaseAttachments(plain, hallucinated) {
+		t.Fatal("non-@codebase messages must not be flagged")
 	}
 }

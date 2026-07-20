@@ -63,6 +63,11 @@ def main() -> int:
         action="store_true",
         help="make stop && make server-regression between sweeps (avoids hub OOM)",
     )
+    p.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Accepted for layer-gate compatibility (sweeps already stream full output).",
+    )
     args = p.parse_args()
 
     if args.runs < 1:

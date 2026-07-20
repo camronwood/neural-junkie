@@ -281,6 +281,15 @@ def main() -> int:
         print(f"suite {args.suite!r} has no scenarios", file=sys.stderr)
         return 1
 
+    if tracks.arena:
+        from lib.arena_pack import ensure_model_arena_pack
+
+        ok_arena, detail_arena = ensure_model_arena_pack(hub_url)
+        print(f"  arena pack: {detail_arena}")
+        if not ok_arena:
+            print(f"FAIL: {detail_arena}", file=sys.stderr)
+            return 1
+
     try:
         models = resolve_benchmark_models(
             suite,

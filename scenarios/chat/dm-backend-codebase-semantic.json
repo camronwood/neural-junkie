@@ -21,8 +21,8 @@
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "BackendEngineer",
-      "any_match": ["42", "ObscureWidget", "obscure"],
-      "none_match": ["golang.org/x/", "I cannot see", "no workspace"]
+      "any_match": ["\\b42\\b"],
+      "none_match": ["golang.org/x/", "I cannot see", "no workspace", "boolean"]
     }
   ],
   "cleanup": "clear"

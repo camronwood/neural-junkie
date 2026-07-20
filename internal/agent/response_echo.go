@@ -138,7 +138,7 @@ func looksLikeReAskAfterAffirmation(msg *protocol.Message, response string, hist
 }
 
 // looksLikeAsksUserToPasteWorkspaceFiles reports replies that request pasted file content
-// when the user already shared a workspace.
+// or falsely claim the shared workspace is unavailable.
 func looksLikeAsksUserToPasteWorkspaceFiles(msg *protocol.Message, response string) bool {
 	if msg == nil || !messageHasWorkspaceContext(msg) {
 		return false
@@ -157,6 +157,35 @@ func looksLikeAsksUserToPasteWorkspaceFiles(msg *protocol.Message, response stri
 	}
 	if strings.Contains(r, "share the content") || strings.Contains(r, "provide the content") {
 		return true
+	}
+	// Follow-ups after a grounded turn sometimes claim the context window is empty.
+	denyMarkers := []string{
+		"context window is empty",
+		"don't have visibility",
+		"do not have visibility",
+		"don't have your specific codebase",
+		"do not have your specific codebase",
+		"cannot give you a tailored",
+		"can't give you a tailored",
+		"codebase mounted",
+		"not the actual file tree",
+		"unless they are explicitly",
+		"enable workspace sharing",
+		"aren't visible in this",
+		"are not visible in this",
+		"files aren't visible",
+		"files are not visible",
+		"project files aren't visible",
+		"project files are not visible",
+		"specific project files aren't",
+		"immediate context",
+		"i'll assume we are building",
+		"i will assume we are building",
+	}
+	for _, m := range denyMarkers {
+		if strings.Contains(r, m) {
+			return true
+		}
 	}
 	return false
 }
@@ -261,7 +290,173 @@ func (a *Agent) maybeRetryConversationalQuality(ctx context.Context, msg *protoc
 			return retry
 		}
 	}
+	if looksLikeIgnoresCodebaseAttachments(msg, response) {
+		retry, err := eff.GenerateResponse(approvalCtx, a.buildCodebaseAttachmentRetryPrompt(msg), nil)
+		if err == nil && strings.TrimSpace(retry) != "" &&
+			!looksLikeIgnoresCodebaseAttachments(msg, retry) {
+			log.Printf("[%s] @codebase reply ignored attachments; used grounded retry", a.Info.Name)
+			return retry
+		}
+		if ans, ok := tryCodebaseReturnLiteralAnswer(msg); ok {
+			log.Printf("[%s] @codebase return-literal fallback after ungrounded reply", a.Info.Name)
+			return ans
+		}
+	}
 	return response
+}
+
+var codebaseReturnLitRE = regexp.MustCompile(`(?m)\breturn\s+(-?\d+|true|false|"[^"\n]{1,64}"|'[^'\n]{1,64}')`)
+
+func codebaseChunkContents(msg *protocol.Message) []string {
+	if msg == nil || msg.Metadata == nil {
+		return nil
+	}
+	raw, ok := msg.Metadata[MetadataPromptAttachments]
+	if !ok || raw == nil {
+		return nil
+	}
+	arr, ok := raw.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, item := range arr {
+		fm, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		typ, _ := fm["type"].(string)
+		content, _ := fm["content"].(string)
+		if strings.TrimSpace(content) == "" {
+			continue
+		}
+		if typ != "" && typ != "codebase_chunk" {
+			continue
+		}
+		out = append(out, content)
+	}
+	return out
+}
+
+func codebaseReturnLiterals(contents []string) []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, c := range contents {
+		for _, m := range codebaseReturnLitRE.FindAllStringSubmatch(c, -1) {
+			if len(m) < 2 {
+				continue
+			}
+			lit := strings.Trim(m[1], `"'`)
+			if lit == "" || seen[lit] {
+				continue
+			}
+			seen[lit] = true
+			out = append(out, lit)
+		}
+	}
+	return out
+}
+
+// looksLikeIgnoresCodebaseAttachments reports @codebase replies that invent behavior
+// instead of citing return values / literals present in injected source chunks.
+func looksLikeIgnoresCodebaseAttachments(msg *protocol.Message, response string) bool {
+	if msg == nil || !codebaseMentionRE.MatchString(msg.Content) {
+		return false
+	}
+	ensureCodebaseAttachments(msg)
+	contents := codebaseChunkContents(msg)
+	if len(contents) == 0 {
+		return false
+	}
+	lits := codebaseReturnLiterals(contents)
+	if len(lits) == 0 {
+		return false
+	}
+	r := strings.TrimSpace(response)
+	if r == "" {
+		return true
+	}
+	for _, lit := range lits {
+		if strings.Contains(r, lit) {
+			return false
+		}
+	}
+	return true
+}
+
+func ensureCodebaseAttachments(msg *protocol.Message) {
+	if msg == nil || !codebaseMentionRE.MatchString(msg.Content) {
+		return
+	}
+	if len(codebaseChunkContents(msg)) > 0 {
+		return
+	}
+	MergeCodebaseAttachments(msg)
+}
+
+// tryCodebaseReturnLiteralAnswer answers "@codebase … return?" from attached return literals
+// without another model call — used when the LLM invents behavior despite chunks.
+func tryCodebaseReturnLiteralAnswer(msg *protocol.Message) (string, bool) {
+	if msg == nil || !codebaseMentionRE.MatchString(msg.Content) {
+		return "", false
+	}
+	q := strings.ToLower(msg.Content)
+	if !strings.Contains(q, "return") {
+		return "", false
+	}
+	ensureCodebaseAttachments(msg)
+	contents := codebaseChunkContents(msg)
+	lits := codebaseReturnLiterals(contents)
+	if len(lits) == 0 {
+		return "", false
+	}
+	lit := lits[0]
+	sym := "it"
+	if ids := codebaseIdentifierRE.FindAllString(msg.Content, -1); len(ids) > 0 {
+		sym = ids[0]
+	}
+	path := ""
+	if raw, ok := msg.Metadata[MetadataPromptAttachments].([]interface{}); ok {
+		for _, item := range raw {
+			fm, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			content, _ := fm["content"].(string)
+			if strings.Contains(content, lit) {
+				path, _ = fm["path"].(string)
+				break
+			}
+		}
+	}
+	if path != "" {
+		return fmt.Sprintf("`%s` returns %s (see `%s`).", sym, lit, path), true
+	}
+	return fmt.Sprintf("`%s` returns %s.", sym, lit), true
+}
+
+func (a *Agent) buildCodebaseAttachmentRetryPrompt(msg *protocol.Message) string {
+	var chunks strings.Builder
+	for i, c := range codebaseChunkContents(msg) {
+		if i >= 4 {
+			break
+		}
+		if len(c) > 1200 {
+			c = c[:1200]
+		}
+		chunks.WriteString(c)
+		chunks.WriteString("\n---\n")
+	}
+	system := fmt.Sprintf(
+		"You are %s. This is an @codebase lookup. Answer ONLY from the source chunks below.\n"+
+			"If a function returns a literal (number, bool, or string), state that exact value.\n"+
+			"Do not invent UI/layout behavior that is not in the chunks.\n\n"+
+			"SOURCE CHUNKS:\n%s",
+		a.Info.Name,
+		chunks.String(),
+	)
+	user := strings.TrimSpace(msg.Content)
+	return system + ai.SystemPromptSeparator + user
 }
 
 // looksLikeIgnoresWorkspaceVisibility reports generic coding advice when the user asked what workspace the agent can see.

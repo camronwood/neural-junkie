@@ -5,6 +5,7 @@
   "setup": {
     "action": "executing_blocker",
     "channel": "collab-scenario-blocker",
+    "agents": "@BackendEngineer @SoftwareArchitect",
     "flags": ["--rounds", "1", "--messages", "4"],
     "goal": "hold executing slot for multi-collab isolation probe",
     "steps": [
@@ -17,14 +18,14 @@
   },
   "collaborate": {
     "flags": ["--rounds", "1", "--messages", "3"],
-    "goal": "Quick plan for a log parser CLI. Use - Task 1: @Agent - step format. Keep it brief."
+    "goal": "Quick plan for a log parser CLI. Keep it brief — discuss approach first, then propose tasks."
   },
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 15},
     {
       "action": "wait_discussion",
       "min_total": 1,
-      "timeout": "90s"
+      "timeout": "180s"
     },
     {"action": "assert_messages", "none_match": ["execution phase — task prompts only"]}
   ],

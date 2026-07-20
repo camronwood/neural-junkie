@@ -1,0 +1,594 @@
+{
+  "suite": "release",
+  "description": "Release gate \u2014 benchmark winners only (~10\u201320 min).",
+  "hub": "http://127.0.0.1:18765",
+  "generated_at": "2026-07-20T03:26:43.218604+00:00",
+  "hardware": {
+    "total_memory_gb": 24,
+    "total_memory_bytes": 25769803776,
+    "tier": "recommended"
+  },
+  "hardware_note": "24 GB RAM (recommended tier)",
+  "judge_provider": "claude",
+  "scenario_catalog": [
+    {
+      "name": "go-handler",
+      "kind": "implement",
+      "description": "IDE Agent implementation session on minimal Go fixture.",
+      "tags": [
+        "implement",
+        "backend",
+        "go"
+      ],
+      "llm_judge": true,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "theme-toggle",
+      "kind": "implement",
+      "description": "Frontend implementation session asks for theme-related deliverable.",
+      "tags": [
+        "implement",
+        "frontend"
+      ],
+      "llm_judge": true,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "ask-mode-no-write",
+      "kind": "implement",
+      "description": "IDE Ask mode must not run implementation session or propose edits.",
+      "tags": [
+        "implement",
+        "ask"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "go-test-failure-repair",
+      "kind": "implement",
+      "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "go",
+        "verify"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "rules-constrained-implement",
+      "kind": "implement",
+      "description": "Implement theme toggle respecting .neural-junkie/rules.md constraints.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "react",
+        "rules"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "plan-mode-no-write",
+      "kind": "implement",
+      "description": "Plan composer mode produces structured plan without file edits.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "plan"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "dm-backend-workspace",
+      "kind": "chat",
+      "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+      "tags": [
+        "dm",
+        "backend",
+        "workspace",
+        "regression",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "dm-backend-echo-followup",
+      "kind": "chat",
+      "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+      "tags": [
+        "dm",
+        "backend",
+        "echo",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "logic-set",
+      "kind": "arena",
+      "description": "Arena track scenario logic-set",
+      "llm_judge": false,
+      "tags": [
+        "arena"
+      ],
+      "target_agent": ""
+    }
+  ],
+  "implement_scenarios": [
+    "go-handler",
+    "theme-toggle",
+    "ask-mode-no-write",
+    "go-test-failure-repair",
+    "rules-constrained-implement",
+    "plan-mode-no-write"
+  ],
+  "chat_scenarios": [
+    "dm-backend-workspace",
+    "dm-backend-echo-followup"
+  ],
+  "collab_scenarios": [],
+  "arena_scenarios": [
+    "logic-set"
+  ],
+  "cad_scenarios": [],
+  "external_scenarios": [],
+  "results": [
+    {
+      "model_id": "qwen2.5-coder-14b",
+      "model_tag": "qwen2.5-coder:14b",
+      "title": "Qwen 2.5 Coder 14B",
+      "size_hint_gb": 9,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 23.249687124975026,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Claude@http://127.0.0.1:18765: PASS SCORE: 1.00 The deliverable file correctly implements  the HelloWorld function and calls it from the  main function.",
+          "uses_llm_judge": true,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": 5,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": 1.0,
+          "quality_passed": true,
+          "agent_efficiency": null
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 23.18556479102699,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "Claude@http://127.0.0.1:18765: PASS SCORE: 1.00 Reason: The deliverable file \"src/theme.css\"  correctly implements light and dark theme variables as  requested.",
+          "uses_llm_judge": true,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": 5,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": 1.0,
+          "quality_passed": true,
+          "agent_efficiency": null
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 29.219773416989483,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": null,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 9.141132667020429,
+          "detail": "=== PASS: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": 5,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "rules-constrained-implement",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 7.141495250049047,
+          "detail": "=== PASS: rules-constrained-implement ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": 5,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "plan-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 53.243480999954045,
+          "detail": "=== PASS: plan-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": null,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 47.632264915970154,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": null,
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 44.69538979197387,
+          "detail": "=== PASS: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": null,
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "logic-set",
+          "kind": "arena",
+          "passed": false,
+          "duration_s": 0.1772195830126293,
+          "detail": "FAIL: arena unavailable (HTTP 400 /api/arena/match/run: Ollama API request failed with status 404: {\"error\":\"model 'model' not found\"}",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": null,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": false,
+          "capability_passed": false,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        }
+      ],
+      "switch_duration_s": 0.004612999968230724,
+      "total_duration_s": 249.73275704099797,
+      "passed_count": 8,
+      "total_count": 9,
+      "pass_rate": 0.8889,
+      "structural_pass_rate": 0.8889,
+      "quality_pass_rate": 1.0,
+      "composite_pass_rate": 0.8889
+    },
+    {
+      "model_id": "gemma3-12b",
+      "model_tag": "gemma3:12b",
+      "title": "Gemma 3 12B",
+      "size_hint_gb": 8.1,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 21.30375229101628,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Claude@http://127.0.0.1:18765: PASS SCORE: 1.00 The function is implemented and  called as requested.",
+          "uses_llm_judge": true,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": 5,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": 1.0,
+          "quality_passed": true,
+          "agent_efficiency": null
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 17.242530624964274,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "Claude@http://127.0.0.1:18765: PASS SCORE: 0.93 Correctly implements light and dark  theme variables.",
+          "uses_llm_judge": true,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": 5,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": 0.93,
+          "quality_passed": true,
+          "agent_efficiency": null
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 31.245308584009763,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": null,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 11.194540959026199,
+          "detail": "=== PASS: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": 5,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "rules-constrained-implement",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 7.227188666991424,
+          "detail": "=== PASS: rules-constrained-implement ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": 5,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "plan-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 29.205703415966127,
+          "detail": "=== PASS: plan-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": null,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 51.43560233298922,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": null,
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 35.34207879099995,
+          "detail": "=== PASS: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": null,
+          "structural_passed": true,
+          "capability_passed": null,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        },
+        {
+          "name": "logic-set",
+          "kind": "arena",
+          "passed": false,
+          "duration_s": 0.14031866699224338,
+          "detail": "FAIL: arena unavailable (HTTP 400 /api/arena/match/run: Ollama API request failed with status 404: {\"error\":\"model 'model' not found\"}",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false,
+          "metrics": {
+            "prompt_tokens": null,
+            "completion_tokens": null,
+            "ttft_ms": null,
+            "tok_per_s": null,
+            "tool_calls": null,
+            "repair_attempts": null,
+            "wall_duration_s": null,
+            "cost_usd": null
+          },
+          "structural_passed": false,
+          "capability_passed": false,
+          "quality_score": null,
+          "quality_passed": null,
+          "agent_efficiency": null
+        }
+      ],
+      "switch_duration_s": 0.010515415982808918,
+      "total_duration_s": 216.387636541971,
+      "passed_count": 8,
+      "total_count": 9,
+      "pass_rate": 0.8889,
+      "structural_pass_rate": 0.8889,
+      "quality_pass_rate": 1.0,
+      "composite_pass_rate": 0.8889
+    }
+  ]
+}

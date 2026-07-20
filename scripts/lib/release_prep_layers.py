@@ -114,7 +114,7 @@ LAYERS: dict[str, LayerSpec] = {
     ),
     "collab-full": LayerSpec(
         name="collab-full",
-        description="Full collab-scenarios sweep (25 scenarios, ~2–4h)",
+        description="Full collab-scenarios sweep (24 scenarios, ~2–4h)",
         requires_hub=True,
         est_minutes=120,
         stages=(

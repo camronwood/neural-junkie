@@ -147,4 +147,33 @@ describe('packsStore', () => {
     });
     expect(usePacksStore.getState().shortIdCollisions).toEqual([]);
   });
+
+  it('mutation payload preserves short_id_collisions and refreshes toolbar chips', () => {
+    usePacksStore.getState().applyPacksResponse({
+      packs: [
+        {
+          id: 'knowledge-graph',
+          title: 'Knowledge Graph',
+          description: '',
+          installed: true,
+          enabled: true,
+        },
+      ],
+      capabilities: ['knowledge-graph'],
+      capability_registry: [
+        {
+          id: 'knowledge-graph',
+          qualified_id: 'knowledge-graph/knowledge-graph',
+          pack_id: 'knowledge-graph',
+          kind: 'toolbar-chip',
+          ui: { toolbar: { id: 'kg', label: 'Graph' }, modal: 'knowledge-graph' },
+        },
+      ],
+      short_id_collisions: ['scan'],
+    });
+    expect(usePacksStore.getState().shortIdCollisions).toEqual(['scan']);
+    const actions = usePacksStore.getState().getToolbarActions();
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({ id: 'kg', label: 'GRA', modal: 'knowledge-graph' });
+  });
 });

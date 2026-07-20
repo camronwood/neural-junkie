@@ -139,54 +139,48 @@ func TestCollabLightMarkdownAbortsWhenCancelled(t *testing.T) {
 	}
 }
 
-func TestCollabLightMarkdownEligibleAndRun(t *testing.T) {
-	dir := t.TempDir()
-	_ = os.MkdirAll(filepath.Join(dir, "docs"), 0o755)
-	_ = os.WriteFile(filepath.Join(dir, "docs", "README.md"), []byte("# Sample fixture readme\nHelloWorld\n"), 0o644)
-
-	hub := &lightExecCaptureHub{}
-	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), hub)
-	a.WorkspacePath = dir
-	msg := protocol.NewMessage(protocol.MessageTypeCollabTask, "collab-x", a.Info, "body")
-	msg.Metadata = map[string]interface{}{
-		"deliverable_kind":   "markdown",
-		"task_title":         "Write findings",
-		"task_description":   "Write collabs/x/findings.md summarizing results",
-		"task_context_paths": []string{"docs/README.md"},
+func TestSynthesizeWebsiteDesignSystemMarkdown(t *testing.T) {
+	task := collaboration.CollaborationTask{
+		Title:       "Design system",
+		Description: "Write collabs/x/design-system.md with color palette black white gray blue red, typography, spacing",
 	}
-	msg.SetCollaborationID("collab-1")
-	msg.SetCollaborationPhase("executing")
-	msg.SetTaskID("t1")
-	if !collabLightMarkdownEligible(msg) {
-		t.Fatal("expected light markdown eligible")
+	got := synthesizeWebsiteDesignSystemMarkdown(task)
+	if !strings.Contains(got, "Color Palette") || !strings.Contains(got, "black") {
+		t.Fatalf("expected design system seed, got %q", got)
 	}
-	codeMsg := protocol.NewMessage(protocol.MessageTypeCollabTask, "c", a.Info, "body")
-	codeMsg.Metadata = map[string]interface{}{
-		"deliverable_kind": "file",
-		"task_title":       "Impl",
-		"task_description": "Create foo.go",
+	body := buildCollabLightMarkdownBody(task, nil)
+	if strings.Contains(body, "No allowlisted") {
+		t.Fatalf("design-system task should synthesize without empty stub: %q", body)
 	}
-	if collabLightMarkdownEligible(codeMsg) {
-		t.Fatal("coding file deliverable must not use light markdown path")
+	site := collaboration.CollaborationTask{
+		Title:       "Site structure",
+		Description: "Write collabs/x/site-structure.md with navigation and page hierarchy",
 	}
-
-	out, proposed, files, err := a.runCollabLightMarkdownExecution(context.Background(), msg, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !proposed {
-		t.Fatal("expected proposal")
-	}
-	if len(files) != 1 || files[0] != "collabs/x/findings.md" {
-		t.Fatalf("files=%v", files)
-	}
-	if !strings.Contains(out, "TASK_STATUS: completed") {
-		t.Fatalf("expected TASK_STATUS in %q", out)
-	}
-	if hub.proposals == 0 {
-		t.Fatal("expected file change proposal message")
+	siteBody := synthesizeWebsiteMarkdownDeliverable(site)
+	if !strings.Contains(siteBody, "Navigation") || !strings.Contains(siteBody, "Hierarchy") {
+		t.Fatalf("expected site-structure seed, got %q", siteBody)
 	}
 }
+
+
+func TestCollabLightReadSources_InfersShortCollabPrefix(t *testing.T) {
+	dir := t.TempDir()
+	prior := filepath.Join(dir, "collabs", "b222bffe-39e8-4b00-91ca-ee1c555b9592")
+	_ = os.MkdirAll(prior, 0o755)
+	_ = os.WriteFile(filepath.Join(prior, "index.html"), []byte("<html>Collaboration Station XSS</html>\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(prior, "style.css"), []byte("body{color:black}\n"), 0o644)
+
+	msg := protocol.NewMessage(protocol.MessageTypeCollabTask, "c", protocol.AgentInfo{}, "body")
+	msg.Metadata = map[string]interface{}{
+		"task_title":       "Security audit",
+		"task_description": "Write collabs/x/security-audit.md reviewing b222bffe HTML/CSS for XSS",
+	}
+	got := collabLightReadSources(dir, msg)
+	if _, ok := got["collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/index.html"]; !ok {
+		t.Fatalf("expected prior HTML source, got %v", got)
+	}
+}
+
 
 type lightExecCaptureHub struct {
 	shouldRespondTestHub

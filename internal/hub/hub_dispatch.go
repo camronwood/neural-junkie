@@ -616,6 +616,13 @@ func (h *Hub) maybeIngestPlanArtifact(msg *protocol.Message, collabID string) {
 	if collabSnapshot.Phase != collaboration.PhasePlanning {
 		return
 	}
+	// Exact-line goals: keep pinned task list; freestyle discussion plans often explode or under-parse.
+	if collaboration.CollaborationPinsExactGoalTasks(collabSnapshot) {
+		if err := h.collabManager.ApplyPinnedGoalTasks(collabID); err != nil {
+			log.Printf("[Collaboration] Failed to keep pinned goal tasks for %s: %v", collabID[:8], err)
+		}
+		return
+	}
 	if collabSnapshot.Plan != nil && strings.TrimSpace(collabSnapshot.Plan.Content) == strings.TrimSpace(planContent) {
 		return
 	}
@@ -680,8 +687,11 @@ func (h *Hub) maybeIngestPlanArtifact(msg *protocol.Message, collabID string) {
 	}
 	h.persistCollaborationReviewAssets(collabID)
 
-	// Solo collab: short-circuit planning → reviewing after the first valid plan ingest.
-	if updated != nil && updated.IsSolo() {
+	// Solo collab: short-circuit planning → reviewing after the first valid *agent* plan.
+	// Do not short-circuit on user /collaborate text (goals often embed Task N examples),
+	// which would skip discussion and break multi-collab isolation probes.
+	if updated != nil && updated.IsSolo() &&
+		!protocol.IsUserLikeSender(msg.From) && !msg.IsFromSystem() {
 		if _, err := h.collabManager.TransitionToReviewing(collabID); err != nil {
 			log.Printf("[Collaboration] Solo short-circuit to reviewing for %s: %v", collabID[:8], err)
 		}

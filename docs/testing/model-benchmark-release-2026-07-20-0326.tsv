@@ -1,0 +1,19 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	prompt_tokens	completion_tokens	ttft_ms	tok_per_s	repair_attempts	quality_score	structural_passed	detail
+qwen2.5-coder:14b	implement	go-handler	1	23.2	1	Claude@http://127.0.0.1:18765: PASS SCORE: 1.00 The deliverable file correctly implements  the HelloWorld function and calls it from the  main function.					5	1.0000	1	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	1	23.2	1	Claude@http://127.0.0.1:18765: PASS SCORE: 1.00 Reason: The deliverable file "src/theme.css"  correctly implements light and dark theme variables as  requested.					5	1.0000	1	=== PASS: theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	1	29.2									1	=== PASS: ask-mode-no-write ===
+qwen2.5-coder:14b	implement	go-test-failure-repair	1	9.1							5		1	=== PASS: go-test-failure-repair ===
+qwen2.5-coder:14b	implement	rules-constrained-implement	1	7.1							5		1	=== PASS: rules-constrained-implement ===
+qwen2.5-coder:14b	implement	plan-mode-no-write	1	53.2									1	=== PASS: plan-mode-no-write ===
+qwen2.5-coder:14b	chat	dm-backend-workspace	1	47.6									1	=== PASS: dm-backend-workspace ===
+qwen2.5-coder:14b	chat	dm-backend-echo-followup	1	44.7									1	=== PASS: dm-backend-echo-followup ===
+qwen2.5-coder:14b	arena	logic-set	0	0.2									0	FAIL: arena unavailable (HTTP 400 /api/arena/match/run: Ollama API request failed with status 404: {"error":"model 'model' not found"}
+gemma3:12b	implement	go-handler	1	21.3	1	Claude@http://127.0.0.1:18765: PASS SCORE: 1.00 The function is implemented and  called as requested.					5	1.0000	1	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	1	17.2	1	Claude@http://127.0.0.1:18765: PASS SCORE: 0.93 Correctly implements light and dark  theme variables.					5	0.9300	1	=== PASS: theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	1	31.2									1	=== PASS: ask-mode-no-write ===
+gemma3:12b	implement	go-test-failure-repair	1	11.2							5		1	=== PASS: go-test-failure-repair ===
+gemma3:12b	implement	rules-constrained-implement	1	7.2							5		1	=== PASS: rules-constrained-implement ===
+gemma3:12b	implement	plan-mode-no-write	1	29.2									1	=== PASS: plan-mode-no-write ===
+gemma3:12b	chat	dm-backend-workspace	1	51.4									1	=== PASS: dm-backend-workspace ===
+gemma3:12b	chat	dm-backend-echo-followup	1	35.3									1	=== PASS: dm-backend-echo-followup ===
+gemma3:12b	arena	logic-set	0	0.1									0	FAIL: arena unavailable (HTTP 400 /api/arena/match/run: Ollama API request failed with status 404: {"error":"model 'model' not found"}

@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-07-15T17:14:17.627347+00:00",
+  "updated_at": "2026-07-20T03:36:49.761068+00:00",
   "source_run_id": "quick-2026-06-29-1755",
   "source_suite": "quick",
   "task_classes": {
@@ -20,14 +20,8 @@
     ],
     "implement_heavy": [],
     "arena_logic": [
-      "codegemma:7b",
-      "deepseek-coder:6.7b",
-      "qwen3.5:9b",
-      "nj-bonsai:27b",
       "gemma3:12b",
-      "nj-ornith:9b",
-      "qwen2.5-coder:14b",
-      "nj-ternary-bonsai:27b"
+      "qwen2.5-coder:14b"
     ]
   },
   "model_scores": {

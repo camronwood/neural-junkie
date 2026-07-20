@@ -887,6 +887,21 @@ func (cm *CollaborationManager) synthesizePlanFromDiscussionLocked(c *Collaborat
 	log.Printf("[CollaborationManager] Synthesized plan for %s (%d tasks)", c.ID[:8], len(c.Tasks))
 }
 
+// ApplyPinnedGoalTasks replaces plan/tasks from an exact-line goal when pinned.
+func (cm *CollaborationManager) ApplyPinnedGoalTasks(collabID string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if _, pinned := PinnedGoalTasks(c); !pinned {
+		return nil
+	}
+	cm.ensurePlanTasksFromGoalLocked(c)
+	return nil
+}
+
 // TransitionToReviewing moves a planning collaboration into user review.
 func (cm *CollaborationManager) TransitionToReviewing(collabID string) (*Collaboration, error) {
 	var notify string
@@ -898,6 +913,8 @@ func (cm *CollaborationManager) TransitionToReviewing(collabID string) (*Collabo
 		return nil, fmt.Errorf("collaboration %s not found", collabID)
 	}
 	if c.Phase == PhaseReviewing {
+		// Re-apply pinned goals if freestyle ingest raced before the first transition.
+		cm.ensurePlanTasksFromGoalLocked(c)
 		cm.mu.Unlock()
 		return c, nil
 	}
@@ -1143,6 +1160,15 @@ func (cm *CollaborationManager) SetTasks(collabID string, tasks []CollaborationT
 	if !ok {
 		return fmt.Errorf("collaboration %s not found", collabID)
 	}
+	// Exact-line goals win over freestyle discussion parses (parser explosion / under-parse).
+	if pinned, ok := PinnedGoalTasks(c); ok && len(pinned) > 0 {
+		if len(tasks) != len(pinned) || freestyleDivergesFromPinnedGoal(tasks, pinned) {
+			cm.ensurePlanTasksFromGoalLocked(c)
+			log.Printf("[CollaborationManager] SetTasks ignored freestyle (%d) — kept pinned goal list (%d) for %s",
+				len(tasks), len(c.Tasks), collabID[:8])
+			return nil
+		}
+	}
 	tasks = DedupeTasks(tasks)
 	if len(tasks) > maxTasksLimit() {
 		tasks = tasks[:maxTasksLimit()]
@@ -1158,6 +1184,53 @@ func (cm *CollaborationManager) SetTasks(collabID string, tasks []CollaborationT
 	c.Tasks = tasks
 	c.UpdatedAt = time.Now()
 	return nil
+}
+
+// freestyleDivergesFromPinnedGoal is true when freestyle tasks invent extra deliverables
+// or drop pinned ones (dependency-prose explosion / incomplete discussion plans).
+func freestyleDivergesFromPinnedGoal(freestyle, pinned []CollaborationTask) bool {
+	if len(freestyle) != len(pinned) {
+		return true
+	}
+	want := make(map[string]bool, len(pinned))
+	for _, t := range pinned {
+		for _, p := range ReferencedDeliverablePaths(t) {
+			want[strings.ToLower(p)] = true
+		}
+		base := strings.ToLower(filepath.Base(strings.TrimSpace(t.Description)))
+		if strings.HasSuffix(base, ".md") {
+			want[base] = true
+		}
+	}
+	if len(want) == 0 {
+		return false
+	}
+	have := 0
+	for _, t := range freestyle {
+		combined := strings.ToLower(t.Title + " " + t.Description)
+		if isTaskDependencyProse(combined) {
+			return true
+		}
+		matched := false
+		for _, p := range ReferencedDeliverablePaths(t) {
+			if want[strings.ToLower(p)] || want[strings.ToLower(filepath.Base(p))] {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			for k := range want {
+				if strings.Contains(combined, k) {
+					matched = true
+					break
+				}
+			}
+		}
+		if matched {
+			have++
+		}
+	}
+	return have < len(pinned)
 }
 
 // MarkTaskPromptDispatched records that a collaboration_task prompt was sent for one task

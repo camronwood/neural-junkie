@@ -66,7 +66,9 @@ def apply_verbose_to_stage_cmd(cmd: list[str], *, verbose: bool) -> tuple[list[s
     if cmd and cmd[0] == "make":
         extra_env["VERBOSE"] = "1"
         return cmd, extra_env
-    if "implement-scenarios.py" in " ".join(cmd):
+    joined = " ".join(cmd)
+    # These scripts either lack --verbose or already stream enough detail.
+    if "implement-scenarios.py" in joined or "implement-scenarios-stable.py" in joined:
         return cmd, extra_env
     return [*cmd, "--verbose"], extra_env
 

@@ -124,6 +124,9 @@ func parseLooseFileChange(response string) (*fileChangeDirective, bool) {
 }
 
 func looseFileChangeBodyAfterPath(tail, path string) string {
+	if body := extractLooseFileChangeContentField(tail); body != "" {
+		return body
+	}
 	lines := strings.Split(tail, "\n")
 	var bodyLines []string
 	pastHeader := false
@@ -133,21 +136,68 @@ func looseFileChangeBodyAfterPath(tail, path string) string {
 			if strings.Contains(strings.ToLower(trimmed), "[file_change]") {
 				re := regexp.MustCompile(`(?i)\[FILE_CHANGE\]\s*` + regexp.QuoteMeta(path) + `\s*(.*)`)
 				if m := re.FindStringSubmatch(trimmed); len(m) >= 2 && strings.TrimSpace(m[1]) != "" {
-					bodyLines = append(bodyLines, strings.TrimSpace(m[1]))
+					rest := strings.TrimSpace(m[1])
+					// Same-line residue is often "operation: create path: …" — not body.
+					if !looksLikeFileChangeHeaderResidue(rest) {
+						bodyLines = append(bodyLines, rest)
+					}
 				}
 				pastHeader = true
 			}
 			continue
 		}
-		if strings.HasPrefix(strings.ToLower(trimmed), "path:") {
+		low := strings.ToLower(trimmed)
+		if strings.HasPrefix(low, "path:") || strings.HasPrefix(low, "operation:") ||
+			strings.HasPrefix(low, "old_path:") || strings.HasPrefix(low, "new_path:") ||
+			strings.HasPrefix(low, "content:") ||
+			trimmed == "---" || trimmed == "```" {
 			continue
 		}
-		if strings.HasPrefix(strings.ToLower(trimmed), "task_status:") {
+		if strings.HasPrefix(low, "task_status:") {
 			break
 		}
 		bodyLines = append(bodyLines, line)
 	}
-	return strings.TrimSpace(strings.Join(bodyLines, "\n"))
+	body := strings.TrimSpace(strings.Join(bodyLines, "\n"))
+	if looksLikeFileChangeDirectivePayload(body) {
+		return ""
+	}
+	return body
+}
+
+func extractLooseFileChangeContentField(tail string) string {
+	reInline := regexp.MustCompile(`(?is)\bcontent:\s*(?:"((?:\\.|[^"])*)"|'((?:\\.|[^'])*)'|(.*))$`)
+	for _, line := range strings.Split(tail, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.Contains(strings.ToLower(trimmed), "content:") {
+			continue
+		}
+		m := reInline.FindStringSubmatch(trimmed)
+		if len(m) < 4 {
+			continue
+		}
+		body := strings.TrimSpace(m[1] + m[2] + m[3])
+		body = strings.ReplaceAll(body, `\"`, `"`)
+		if body == "" || looksLikeFileChangeHeaderResidue(body) || looksLikeFileChangeDirectivePayload(body) {
+			continue
+		}
+		return body
+	}
+	return ""
+}
+
+func looksLikeFileChangeHeaderResidue(s string) bool {
+	low := strings.ToLower(strings.TrimSpace(s))
+	if low == "" {
+		return true
+	}
+	if strings.HasPrefix(low, "operation:") || strings.HasPrefix(low, "path:") || strings.HasPrefix(low, "content:") {
+		return true
+	}
+	if strings.Contains(low, "operation:") && strings.Contains(low, "path:") {
+		return true
+	}
+	return false
 }
 
 func stripLooseFileChangeBlock(response string) string {

@@ -81,12 +81,69 @@ func validateProposalContent(path, content string) error {
 	if isToolCallJSONContent(content) {
 		return fmt.Errorf("proposal content looks like a tool-call payload, not file source")
 	}
+	if looksLikeFileChangeDirectivePayload(content) {
+		return fmt.Errorf("proposal content looks like a FILE_CHANGE directive header, not file source")
+	}
 	path = strings.ToLower(normalizeFileChangeRelPath(path))
 	if strings.Contains(path, "tailwind.config") {
 		lower := strings.ToLower(content)
 		if !strings.Contains(lower, "tailwind") && !strings.Contains(lower, "darkmode") &&
 			!strings.Contains(lower, "content:") && !strings.Contains(lower, "module.exports") {
 			return fmt.Errorf("tailwind config proposal must contain tailwind/darkMode settings")
+		}
+	}
+	if err := validateWebAssetProposalContent(path, content); err != nil {
+		return err
+	}
+	return nil
+}
+
+// looksLikeFileChangeDirectivePayload is true when the body is (mostly) a leaked
+// [FILE_CHANGE] header instead of real deliverable text.
+func looksLikeFileChangeDirectivePayload(content string) bool {
+	trim := strings.TrimSpace(content)
+	if trim == "" {
+		return false
+	}
+	lower := strings.ToLower(trim)
+	if strings.Contains(lower, "[file_change]") {
+		return true
+	}
+	if strings.HasPrefix(lower, "operation:") && strings.Contains(lower, "path:") {
+		return true
+	}
+	if strings.HasPrefix(lower, "markdown [file_change]") || strings.HasPrefix(lower, "markdown[file_change]") {
+		return true
+	}
+	return false
+}
+
+// validateWebAssetProposalContent rejects HTML/CSS proposals with the wrong language shape
+// (e.g. CSS dumped into about.html, or HTML dumped into style.css).
+func validateWebAssetProposalContent(path, content string) error {
+	trim := strings.TrimSpace(content)
+	if trim == "" {
+		return nil
+	}
+	// Strip accidental FILE_CHANGE field wrappers: `content: /* css */` or `content: "<!DOCTYPE…"`
+	if strings.HasPrefix(strings.ToLower(trim), "content:") {
+		trim = strings.TrimSpace(trim[len("content:"):])
+		trim = strings.Trim(trim, "\"'`")
+	}
+	lower := strings.ToLower(trim)
+	switch {
+	case strings.HasSuffix(path, ".html"), strings.HasSuffix(path, ".htm"):
+		hasHTML := strings.Contains(lower, "<!doctype") || strings.Contains(lower, "<html") ||
+			strings.Contains(lower, "<body") || strings.Contains(lower, "<head")
+		looksCSS := !hasHTML && strings.Contains(lower, "{") &&
+			(strings.Contains(lower, "margin:") || strings.Contains(lower, "padding:") ||
+				strings.Contains(lower, "background") || strings.Contains(lower, "font-family"))
+		if looksCSS || !hasHTML {
+			return fmt.Errorf("html proposal must contain HTML markup, not CSS-only content")
+		}
+	case strings.HasSuffix(path, ".css"):
+		if strings.Contains(lower, "<!doctype") || strings.Contains(lower, "<html") {
+			return fmt.Errorf("css proposal must not contain HTML markup")
 		}
 	}
 	return nil
@@ -115,7 +172,11 @@ func fencedContentPlausibleForPath(path, lang, content string) bool {
 	case strings.HasSuffix(path, ".go"):
 		return strings.Contains(lower, "package ") || strings.HasPrefix(lower, "func ") || lang == "go"
 	case strings.HasSuffix(path, ".css"):
-		return strings.Contains(lower, "{") && !strings.Contains(lower, "import ")
+		return strings.Contains(lower, "{") && !strings.Contains(lower, "import ") &&
+			!strings.Contains(lower, "<!doctype") && !strings.Contains(lower, "<html")
+	case strings.HasSuffix(path, ".html"), strings.HasSuffix(path, ".htm"):
+		return strings.Contains(lower, "<!doctype") || strings.Contains(lower, "<html") ||
+			strings.Contains(lower, "<body") || lang == "html"
 	case strings.HasSuffix(path, ".tsx"), strings.HasSuffix(path, ".jsx"):
 		return strings.Contains(lower, "export ") || strings.Contains(lower, "import ") || lang == "tsx" || lang == "jsx"
 	default:

@@ -116,7 +116,11 @@ def run_logic_set(
     for idx, puzzle in enumerate(puzzles):
         puzzle_id = str(puzzle.get("id") or "").strip()
         label = puzzle_id or f"logic-{idx + 1}"
-        create_body: dict[str, Any] = {}
+        create_body: dict[str, Any] = {
+            # Sidecar defaults black="model" (placeholder); pin the real Ollama tag.
+            "white": "human",
+            "black": model,
+        }
         if puzzle_id:
             create_body["puzzle_id"] = puzzle_id
         session = _create_session(hub, "logic", **create_body)

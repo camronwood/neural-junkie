@@ -283,6 +283,29 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 		log.Printf("[%s] 📝 Collab light markdown execution...", a.Info.Name)
 		genCtx := a.withToolObserver(st.ctx, toolObserver)
 		response, implSessionProposed, implSessionFiles, err = a.runCollabLightMarkdownExecution(genCtx, msg, eff)
+		if err == nil && !implSessionProposed {
+			// No grounded sources — fall back to normal generation instead of shipping an empty stub.
+			log.Printf("[%s] light markdown deferred; falling back to generation...", a.Info.Name)
+			if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
+				log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
+				llmSpan := trace.StartSpan(genCtx, "llm_call", map[string]any{"mode": "stream", "light_fallback": true})
+				response, streamMsgID, reasoningText, err = a.generateResponseStreaming(genCtx, msg, eff)
+				if err != nil {
+					llmSpan.EndError(err, nil)
+				} else {
+					llmSpan.End(nil)
+				}
+			} else {
+				log.Printf("[%s] 📝 Generating response (batch)...", a.Info.Name)
+				llmSpan := trace.StartSpan(genCtx, "llm_call", map[string]any{"mode": "batch", "light_fallback": true})
+				response, err = a.generateResponse(genCtx, msg, eff)
+				if err != nil {
+					llmSpan.EndError(err, nil)
+				} else {
+					llmSpan.End(nil)
+				}
+			}
+		}
 	} else if shouldRunImplementationSession(a, msg) {
 		log.Printf("[%s] 🔧 Implementation session...", a.Info.Name)
 		genCtx := a.withToolObserver(st.ctx, toolObserver)

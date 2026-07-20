@@ -30,7 +30,7 @@
   "steps": [
     {
       "action": "send",
-      "content": "Extract the selected sidebar footer block from src/App.tsx into src/components/SidebarFooter.tsx and import it in App. Do not change tailwind.config.js or package.json.",
+      "content": "@FrontendEngineer Extract the selected sidebar footer block from src/App.tsx into src/components/SidebarFooter.tsx and import it in App. Do not change tailwind.config.js or package.json.",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "frontend",

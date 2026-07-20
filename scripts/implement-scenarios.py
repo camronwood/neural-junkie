@@ -111,6 +111,7 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     baseline = int(step.get("baseline", ctx.baseline_agent_count.get(from_name, _chat_baseline(ctx, from_name))))
     root = Path(scenario_repo_root(ctx.scenario))
     deadline = time.time() + secs
+    nudged = False
     while time.time() < deadline:
         for rel in until_files:
             path = (root / rel).resolve()
@@ -137,6 +138,18 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
                     return True, f"reply from {from_name} ({detail})"
             else:
                 return True, f"reply from {from_name}"
+        # Mid-wait nudge once if the assignee is silent (common under Ollama soak).
+        if not nudged and time.time() > deadline - (secs * 0.45):
+            nudged = True
+            mention = from_name if from_name.startswith("@") else f"@{from_name}"
+            hub.send_message(
+                ctx.base,
+                ctx.channel,
+                f"{mention} please continue the implementation from the prior request.",
+                metadata={"conversation_mode": "code", "implementation_session": True},
+                from_name=DEFAULT_FROM,
+            )
+            print(f"  wait_reply: nudged silent @{from_name}", flush=True)
         time.sleep(2)
     hub.abort_channel_agents(ctx.base, ctx.channel, held_by="ImplementScenario")
     return False, f"timeout waiting for {from_name}"
@@ -450,16 +463,23 @@ def run_scenario_with_stats(base: str, name: str, *, runs: int, best_of_k: int, 
 
 
 def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dict]:
-    from lib.scenario_flake_retry import maybe_retry_after_failure
+    from lib.scenario_flake_retry import maybe_retry_after_failure, pause_before_retry
 
     outcome: dict = {}
     last_detail = ""
-    for attempt in range(1, 3):
+    # Selection-scoped extract is late in alpha order and flaky under Ollama soak — allow 3 attempts.
+    max_attempts = 3 if name == "selection-scoped-edit" else 2
+    for attempt in range(1, max_attempts + 1):
         ok, outcome, last_detail = _run_scenario_once(base, name, keep=keep)
         if ok:
             return ok, outcome
-        if not maybe_retry_after_failure(base, name, last_detail, attempt):
+        if not maybe_retry_after_failure(
+            base, name, last_detail, attempt, max_attempts=max_attempts
+        ):
             break
+        # Clear stuck implementation turns before the next attempt.
+        hub.abort_channel_agents(base, "implement-scenarios", held_by="ImplementScenario")
+        pause_before_retry(8.0)
     return False, outcome
 
 

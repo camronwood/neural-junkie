@@ -202,7 +202,7 @@ collab-scenarios: ## Run all live collab scenarios (hub should use make server-r
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(REQUIRE_GEMINI),--require-gemini,)
 
-collab-scenarios-all: collab-scenarios ## Alias: full collab sweep (25 scenarios; PROFILE does not shorten timeouts)
+collab-scenarios-all: collab-scenarios ## Alias: full collab sweep (24 scenarios; PROFILE does not shorten timeouts)
 
 collab-scenarios-core: ## Collab core participation/planning (~8 scenarios; hub restart between)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 NJ_RESTART_HUB_BETWEEN_SCENARIOS=1 \

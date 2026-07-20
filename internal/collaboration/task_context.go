@@ -9,6 +9,7 @@ import (
 
 var collabPathRefPattern = regexp.MustCompile(`(?:^|[\s"'(])([./]?[a-zA-Z0-9][a-zA-Z0-9_./-]*(?:/[a-zA-Z0-9_./-]+)+)`)
 var taskSingleFileRefPattern = regexp.MustCompile(`(?i)(?:^|[\s"'(,\-])([a-zA-Z0-9][a-zA-Z0-9._-]*\.(?:md|go|ts|tsx|js|json|yaml|yml|py|rs|txt))`)
+var shortCollabIDPrefixRE = regexp.MustCompile(`(?i)\b([0-9a-f]{8})\b`)
 
 // InferTaskContextPaths returns repo-relative paths an assignee should read for a task.
 func InferTaskContextPaths(task CollaborationTask, repoRoot string) []string {
@@ -49,6 +50,9 @@ func InferTaskContextPaths(task CollaborationTask, repoRoot string) []string {
 	}
 	repoRoot = strings.TrimSpace(repoRoot)
 	if repoRoot != "" {
+		for _, p := range expandShortCollabPrefixPaths(text, repoRoot) {
+			add(p)
+		}
 		var verified []string
 		for _, p := range paths {
 			abs := filepath.Join(repoRoot, p)
@@ -64,6 +68,68 @@ func InferTaskContextPaths(task CollaborationTask, repoRoot string) []string {
 		paths = paths[:10]
 	}
 	return paths
+}
+
+// expandShortCollabPrefixPaths maps bare 8-hex prefixes (e.g. "reviewing b222bffe HTML/CSS")
+// to concrete files under collabs/<uuid>/ when that directory exists in the workspace.
+func expandShortCollabPrefixPaths(text, repoRoot string) []string {
+	repoRoot = strings.TrimSpace(repoRoot)
+	if repoRoot == "" || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	lower := strings.ToLower(text)
+	wantsReviewAssets := strings.Contains(lower, "html") ||
+		strings.Contains(lower, "css") ||
+		strings.Contains(lower, "xss") ||
+		strings.Contains(lower, "security") ||
+		strings.Contains(lower, "architecture") ||
+		strings.Contains(lower, "review")
+	if !wantsReviewAssets {
+		return nil
+	}
+	collabsRoot := filepath.Join(repoRoot, ProjectCollabsDirName)
+	entries, err := os.ReadDir(collabsRoot)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	seenPrefix := make(map[string]bool)
+	for _, m := range shortCollabIDPrefixRE.FindAllStringSubmatch(text, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		prefix := strings.ToLower(m[1])
+		if seenPrefix[prefix] {
+			continue
+		}
+		seenPrefix[prefix] = true
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			name := strings.ToLower(e.Name())
+			if name != prefix && !strings.HasPrefix(name, prefix+"-") {
+				continue
+			}
+			dirRel := filepath.ToSlash(filepath.Join(ProjectCollabsDirName, e.Name()))
+			dirAbs := filepath.Join(collabsRoot, e.Name())
+			files, err := os.ReadDir(dirAbs)
+			if err != nil {
+				continue
+			}
+			for _, f := range files {
+				if f.IsDir() {
+					continue
+				}
+				ext := strings.ToLower(filepath.Ext(f.Name()))
+				switch ext {
+				case ".html", ".css", ".md", ".markdown":
+					out = append(out, dirRel+"/"+f.Name())
+				}
+			}
+		}
+	}
+	return out
 }
 
 // normalizeInferredPathCandidate trims quotes and trailing prose punctuation from path tokens.

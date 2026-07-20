@@ -4,6 +4,12 @@ import "strings"
 
 const arenaHumanPlayer = "human"
 
+// arenaIsUnassignedModelTag is true for sidecar placeholders that are not real Ollama tags.
+func arenaIsUnassignedModelTag(player string) bool {
+	p := strings.TrimSpace(strings.ToLower(player))
+	return p == "" || p == "model" || p == "ai" || p == "bot"
+}
+
 // arenaActiveSeat maps the sidecar turn indicator to the white/black player slots.
 func arenaActiveSeat(challenge string, state map[string]any) string {
 	if state == nil {
@@ -47,17 +53,17 @@ func arenaModelForSeat(session map[string]any, seat, fallbackModel string) (mode
 	case "black":
 		player = black
 	}
-	if player == "" {
-		player = strings.TrimSpace(fallbackModel)
-	}
 	if strings.EqualFold(player, arenaHumanPlayer) {
 		return "", true
 	}
-	if player != "" {
+	if arenaIsUnassignedModelTag(player) {
+		player = strings.TrimSpace(fallbackModel)
+	}
+	if player != "" && !arenaIsUnassignedModelTag(player) {
 		return player, false
 	}
 	fallback := strings.TrimSpace(fallbackModel)
-	if fallback != "" && !strings.EqualFold(fallback, arenaHumanPlayer) {
+	if fallback != "" && !strings.EqualFold(fallback, arenaHumanPlayer) && !arenaIsUnassignedModelTag(fallback) {
 		return fallback, false
 	}
 	return "", false
@@ -72,10 +78,10 @@ func arenaLogicModel(session map[string]any, fallbackModel string) string {
 		}
 	}
 	white, black := arenaPlayers(session)
-	if white != "" && !strings.EqualFold(white, arenaHumanPlayer) {
+	if !arenaIsUnassignedModelTag(white) && !strings.EqualFold(white, arenaHumanPlayer) {
 		return white
 	}
-	if black != "" && !strings.EqualFold(black, arenaHumanPlayer) {
+	if !arenaIsUnassignedModelTag(black) && !strings.EqualFold(black, arenaHumanPlayer) {
 		return black
 	}
 	return strings.TrimSpace(fallbackModel)
@@ -96,14 +102,19 @@ func arenaLogicSeats(session map[string]any) []string {
 
 func arenaLogicModelForSeat(session map[string]any, seat string) string {
 	white, black := arenaPlayers(session)
+	var tag string
 	switch strings.TrimSpace(strings.ToLower(seat)) {
 	case "white":
-		return white
+		tag = white
 	case "black":
-		return black
+		tag = black
 	default:
 		return ""
 	}
+	if arenaIsUnassignedModelTag(tag) || strings.EqualFold(tag, arenaHumanPlayer) {
+		return ""
+	}
+	return tag
 }
 
 // arenaLogicNextSeat returns the next model seat that has not submitted an answer yet.

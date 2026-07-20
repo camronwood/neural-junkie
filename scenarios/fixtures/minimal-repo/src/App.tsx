@@ -1,46 +1,25 @@
-import React from 'react';
+import "./index.css";
+import { useState, useEffect } from "react";
 
-const App: React.FC = () => {
-  const handleHelloWorld = async () => {
-    try {
-      // Call Go backend through bridge
-      if (typeof window !== 'undefined') {
-        console.log('Calling Go backend...');
-      }
-    } catch (err) {
-      console.error('Error calling Go backend:', err);
-    }
+export default function App() {
+  const [theme, setTheme] = useState("dark");
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prevTheme) => (prevTheme === "dark" ? "light" : "dark"));
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-      <header className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Hello World App</h1>
-        <p className="text-slate-600">React + Tauri + Go Bridge</p>
-      </header>
-
-      <main className="max-w-4xl mx-auto space-y-4">
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <button
-            onClick={handleHelloWorld}
-            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            Say Hello to Go Backend
-          </button>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-slate-800 mb-3">Go Bridge Status</h2>
-          <p className="text-slate-600">Ready to communicate with core/sample/...</p>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-slate-800 mb-3">Current Version</h2>
-          <code className="block bg-slate-100 px-4 py-2 rounded text-sm text-slate-700">v1.0.0</code>
-        </div>
-      </main>
+    <div className="min-h-screen bg-slate-900 text-slate-100 p-4 dark:bg-white dark:text-slate-900">
+      <aside className="w-48 border border-slate-700 rounded p-3 dark:border-slate-300">
+        <p className="text-sm text-slate-400 dark:text-slate-600">Sidebar</p>
+        <button className="mt-4 px-3 py-1 bg-slate-800 text-slate-100 rounded dark:bg-slate-200 dark:text-slate-900" onClick={toggleTheme}>
+          Toggle Theme
+        </button>
+      </aside>
     </div>
   );
-};
-
-export default App;
+}

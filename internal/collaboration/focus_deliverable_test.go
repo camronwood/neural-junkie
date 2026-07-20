@@ -18,6 +18,22 @@ func TestFocusScopedDeliverableInventoryHit(t *testing.T) {
 	}
 }
 
+func TestFocusScopedDeliverableInventoryHit_AllowsRelativeWebLinks(t *testing.T) {
+	allowed := []string{"collabs/x/index.html", "collabs/x/style.css"}
+	html := `<!DOCTYPE html><html><body>
+<a href="about.html">About</a>
+<a href="contact.html">Contact</a>
+<link rel="stylesheet" href="style.css">
+</body></html>`
+	if hit := FocusScopedDeliverableInventoryHit(html, allowed); hit != "" {
+		t.Fatalf("relative web links must not be out-of-scope, hit=%q", hit)
+	}
+	// Path-qualified unrelated assets still blocked.
+	if hit := FocusScopedDeliverableInventoryHit(html+"\nSee core/sample/main.go\n", allowed); hit == "" {
+		t.Fatal("expected hit for path-qualified fixture file")
+	}
+}
+
 func TestDeliverablePolicyWrappers(t *testing.T) {
 	p := NewDeliverablePolicy(
 		CollaborationTask{Title: "Write findings.md", Description: "summarize citing sources"},

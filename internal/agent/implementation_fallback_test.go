@@ -11,14 +11,34 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-func TestExtractCodeFenceForPath_tailwind(t *testing.T) {
+func TestValidateWebAssetProposalContent(t *testing.T) {
 	t.Parallel()
-	resp := "Here:\n```tsx\nexport default function App() {}\n```\n```js\nexport default { darkMode: 'class', content: ['./src/**/*'] }\n```"
-	got := extractCodeFenceForPath(resp, "tailwind.config.js")
-	if !strings.Contains(got, "darkMode") {
-		t.Fatalf("want tailwind fence, got %q", got)
+	cssIntoHTML := "content: /* Reset */\n* { margin: 0; }\nbody { font-family: Arial; }\n"
+	if err := validateProposalContent("collabs/x/about.html", cssIntoHTML); err == nil {
+		t.Fatal("expected CSS-in-HTML rejection")
+	}
+	good := "<!DOCTYPE html><html><body><h1>About Collaboration Station</h1></body></html>\n"
+	if err := validateProposalContent("collabs/x/about.html", good); err != nil {
+		t.Fatalf("valid HTML rejected: %v", err)
+	}
+	htmlIntoCSS := "<!DOCTYPE html><html><body>nope</body></html>\n"
+	if err := validateProposalContent("collabs/x/style.css", htmlIntoCSS); err == nil {
+		t.Fatal("expected HTML-in-CSS rejection")
 	}
 }
+
+func TestValidateProposalContent_RejectsFileChangeDirectivePayload(t *testing.T) {
+	t.Parallel()
+	bad := "[FILE_CHANGE] operation: create path: collabs/x/design-system.md\n"
+	if err := validateProposalContent("collabs/x/design-system.md", bad); err == nil {
+		t.Fatal("expected FILE_CHANGE header rejection")
+	}
+	good := "# Design System\n\n## Color Palette\n\n- black\n- white\n- gray\n- blue\n- red\n"
+	if err := validateProposalContent("collabs/x/design-system.md", good); err != nil {
+		t.Fatalf("valid markdown rejected: %v", err)
+	}
+}
+
 
 func TestSynthesizeGoMainEdit_HelloWorld(t *testing.T) {
 	t.Parallel()

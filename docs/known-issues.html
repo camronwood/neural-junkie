@@ -124,7 +124,7 @@
       <h1>Known issues &amp; limitations</h1>
       <p class="feature-deep-lead">
         Open beta means real gaps — and real progress. This page lists what we know is wrong, flaky, or intentionally scoped for <strong>v1.2.0-beta.6</strong>. We <strong>remove items when they are fixed</strong>; what remains is honest scope, not a backlog we forgot.
-        Last updated <time datetime="2026-07-12">July 12, 2026</time>.
+        Last updated <time datetime="2026-07-17">July 17, 2026</time>.
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
         GitHub tracker: <a href="https://github.com/camronwood/neural-junkie/issues">all issues</a>.
         Stable cut checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>.
@@ -174,22 +174,22 @@
       <p>Gates that must pass before stable cut. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ROADMAP-Q3-2026.md">Q3 roadmap</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md">stable release checklist</a>.</p>
       <ul class="issues-list">
         <li class="issue-item" id="blocker-collab-soak">
-          <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
-          <strong>Collab-full layer gate failing</strong>
+          <span class="issue-badge issue-badge--limitation">Mitigated</span>
+          <strong>Collab-full layer gate</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/16">#16</a>
-          <p><code>make layer-gate LAYER=collab-full</code> failing — agent silence, discussion timeouts, and <code>generation_error</code> loops across multiple scenarios. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-gate-collab-full-2026-07-05-2233-iter2.md">layer-gate-collab-full-2026-07-05</a>.</p>
+          <p><code>LAYER=collab-full</code> <strong>PASS</strong> on the 2026-07-16 climb. Edge/core subsets still flake occasionally; pinned-goal enforcement landed 2026-07-17. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-climb-2026-07-16-2339.md">layer-climb-2026-07-16</a>.</p>
         </li>
         <li class="issue-item" id="blocker-parity-soak">
           <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
           <strong>Parity soak not confirmed</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/17">#17</a>
-          <p><code>make test-parity-stable</code> (3× implement @ 20/20 with hub restart) not yet run. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/reliability-pass-3-2026-06-28.md">reliability-pass-3</a>.</p>
+          <p><code>make test-parity-stable-restart</code> still fails intermittently on <code>selection-scoped-edit</code> (FrontendEngineer timeout). Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-gate-parity-2026-07-17-0335.md">layer-gate-parity-2026-07-17</a>. Harness nudge + 3× flake retry added 2026-07-17.</p>
         </li>
         <li class="issue-item" id="blocker-platform-smoke">
           <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
           <strong>Platform smoke pending sign-off</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/18">#18</a>
-          <p>Gate 5 platform smoke on beta.5+ installer — minimum macOS arm64 + one of Windows x64 or Linux x64. Checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/stable-platform-smoke.md">stable-platform-smoke.md</a>.</p>
+          <p>Gate 5 platform smoke on beta.6+ installer — minimum macOS arm64 + one of Windows x64 or Linux x64. Checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/stable-platform-smoke.md">stable-platform-smoke.md</a>.</p>
         </li>
         <li class="issue-item" id="blocker-d5-deferred">
           <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
@@ -203,10 +203,10 @@
       <p>Promoted from recent <code>layer-gate</code> collab-core/full runs (Jul 2026). These are beyond normal model variance — see <a href="#collab-model-variance">model variance</a> limitation below.</p>
       <ul class="issues-list">
         <li class="issue-item" id="layer-gate-make-verbose-macos">
-          <span class="issue-badge issue-badge--active">Active</span>
-          <strong>layer-gate passes unsupported <code>--verbose</code> to make on macOS</strong>
+          <span class="issue-badge issue-badge--limitation">Fixed</span>
+          <strong>layer-gate macOS <code>--verbose</code> make flag</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/22">#22</a>
-          <p><code>make layer-gate LAYER=collab-core</code> fails immediately on macOS BSD make — gate never runs scenarios. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-gate-collab-core-2026-07-12-1604.md">layer-gate-collab-core-2026-07-12</a>.</p>
+          <p>Harness now passes <code>VERBOSE=1</code> as env (not <code>--verbose</code> to BSD make). Latest collab-core climb ran ~23m. Keep closed unless regression returns.</p>
         </li>
         <li class="issue-item" id="collab-agent-silence">
           <span class="issue-badge issue-badge--investigating">Investigating</span>

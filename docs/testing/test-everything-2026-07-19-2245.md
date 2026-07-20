@@ -1,0 +1,44 @@
+# test-everything — 2026-07-19-2245 UTC
+
+- Hub: `http://127.0.0.1:18765`
+- Full collab sweep (`FULL=1`): `True`
+- Skip live: `False`
+- Overall: **PASS** (12/12 stages)
+
+## Stage summary
+
+| Stage | Status | Duration |
+|-------|--------|----------|
+| `test-all` | OK | 98s |
+| `test-conversation-contract` | OK | 10s |
+| `test-collab-plan` | OK | 2s |
+| `test-scenario-assert` | OK | 1s |
+| `collab-smoke` | OK | 1s |
+| `learning-lora-smoke` | OK | 2s |
+| `collab-preflight` | OK | 13s |
+| `implement-scenarios` | OK | 208s |
+| `chat-scenarios-regression` | OK | 652s |
+| `conversation-scenarios-regression` | OK | 1510s |
+| `collab-scenario-regression` | OK | 5361s |
+| `collab-scenarios-all` | OK | 6842s |
+
+## Artifacts
+
+- Full log: `/Users/camronwood/development/projects/neural-junkie/docs/testing/test-everything-2026-07-19-2245.log`
+- Hub recovery log: `/Users/camronwood/development/projects/neural-junkie/docs/testing/hub-recovery-2026-07-19-2245.log`
+
+## Hub recovery log
+
+```text
+--- hub recovery 2026-06-23-120000 UTC ---
+context: test:stage
+attempts: 2
+recovered: True
+detail: hub healthy after restart attempt 2
+--- hub recovery 2026-06-23-120000 UTC ---
+context: test:stage
+attempts: 2
+recovered: True
+detail: hub healthy after restart attempt 2
+```
+

@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-07-12 · **Current beta:** [v1.2.0-beta.5](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
+**Last updated:** 2026-07-17 · **Current beta:** [v1.2.0-beta.6](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.6) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -16,8 +16,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | GitHub | Summary |
 |----|--------|--------|---------|
-| `blocker-collab-soak` | **Release blocker** | [#16](https://github.com/camronwood/neural-junkie/issues/16) | `make layer-gate LAYER=collab-full` failing — agent silence, timeouts, generation errors across multiple scenarios. Evidence: [layer-gate-collab-full-2026-07-05-2233-iter2.md](testing/layer-gate-collab-full-2026-07-05-2233-iter2.md). |
-| `blocker-parity-soak` | **Release blocker** | [#17](https://github.com/camronwood/neural-junkie/issues/17) | `make test-parity-stable` (3× @ 20/20 with hub restart) not yet confirmed. Evidence: [reliability-pass-3-2026-06-28.md](testing/reliability-pass-3-2026-06-28.md). |
+| `blocker-collab-soak` | **Mitigated** | [#16](https://github.com/camronwood/neural-junkie/issues/16) | `LAYER=collab-full` **PASS** on 2026-07-16 climb ([layer-climb-2026-07-16-2339.md](testing/layer-climb-2026-07-16-2339.md)). Edge/core subsets still flake (`plan-dependency-prose-regression`, `planning-two-agent`) — pinned-goal enforcement landed 2026-07-17. |
+| `blocker-parity-soak` | **Release blocker** | [#17](https://github.com/camronwood/neural-junkie/issues/17) | `make test-parity-stable-restart` still fails intermittently on `selection-scoped-edit` (FrontendEngineer timeout). Evidence: [layer-gate-parity-2026-07-17-0335.md](testing/layer-gate-parity-2026-07-17-0335.md). |
 | `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off. Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md). |
 | `blocker-d5-deferred` | **Release blocker** | [#19](https://github.com/camronwood/neural-junkie/issues/19) | D5 specialist simplification deferred until parity gate is green. See [PHASE_D_BACKLOG.md](PHASE_D_BACKLOG.md). |
 
@@ -27,7 +27,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | GitHub | Summary |
 |----|--------|--------|---------|
-| `layer-gate-make-verbose-macos` | **Active** | [#22](https://github.com/camronwood/neural-junkie/issues/22) | `make layer-gate LAYER=collab-core` fails immediately on macOS — harness passes unsupported `--verbose` to BSD make. Evidence: [layer-gate-collab-core-2026-07-12-1604.md](testing/layer-gate-collab-core-2026-07-12-1604.md). |
+| `layer-gate-make-verbose-macos` | **Fixed** | [#22](https://github.com/camronwood/neural-junkie/issues/22) | Harness now passes `VERBOSE=1` as env (not `--verbose` to BSD make). Latest collab-core climb ran ~23m (scenarios executed). Keep closed unless regression returns. |
 | `collab-agent-silence` | **Investigating** | [#20](https://github.com/camronwood/neural-junkie/issues/20) | Agents silent or `shouldRespond blocked` during planning — discussion timeouts with `msgs=0/3`. Scenarios: `document-findings-execution`, `collab-participation-three-agent`, `planning-two-agent`, and others. |
 | `collab-generation-error` | **Investigating** | [#21](https://github.com/camronwood/neural-junkie/issues/21) | Cloud providers (Claude, Gemini) loop `generation_error` during collab planning — high error counts, partial agent participation. |
 
@@ -87,7 +87,7 @@ _Removed in v4.1 (beta.2+): `ide-v4-remote-lsp`, `ide-v4-remote-collab` — see 
 ## How we track quality
 
 - **Deterministic:** `make test-collab-plan`, `make collab-smoke`, `go test ./...`
-- **Live collab:** `make collab-scenario SCENARIO=…` — matrix in [testing/collab-matrix.tsv](testing/collab-matrix.tsv) (21/21 PASS as of 2026-06-09; recent layer-gate runs show regressions — see Active/Investigating above)
+- **Live collab:** `make collab-scenario SCENARIO=…` — matrix in [testing/collab-matrix.tsv](testing/collab-matrix.tsv) (stale 21/21 from 2026-06-09; prefer latest `docs/testing/layer-climb-*.md` / `layer-gate-collab-*.md` for triage)
 - **Chat regression:** `make chat-scenarios-regression` — workspace visibility, closure, echo (context v2)
 - **Implement parity:** `make implement-scenarios`, `make test-parity-stable` (3× with hub restart)
 - **Release engineering:** `make layer-gate`, `make layer-fix-loop`, `make test-growth-loop` — artifacts in [docs/testing/](testing/)

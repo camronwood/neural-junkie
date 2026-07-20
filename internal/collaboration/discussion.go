@@ -506,10 +506,10 @@ func planningDiscussionTimeoutElapsed(c *Collaboration, d *DiscussionSession) bo
 	if d.TotalMessageCount == 0 {
 		firstReplyGrace := 2 * time.Minute
 		if d.MaxTotalMessages > 0 && d.MaxTotalMessages <= 4 {
-			firstReplyGrace = 45 * time.Second
+			firstReplyGrace = 90 * time.Second
 		}
 		firstReplyGrace *= time.Duration(queueFactor)
-		const maxFirstReplyGrace = 6 * time.Minute
+		const maxFirstReplyGrace = 8 * time.Minute
 		if firstReplyGrace > maxFirstReplyGrace {
 			firstReplyGrace = maxFirstReplyGrace
 		}

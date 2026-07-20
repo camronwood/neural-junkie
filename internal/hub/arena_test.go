@@ -52,6 +52,20 @@ func TestArenaModelForSeat(t *testing.T) {
 	if human || model != "qwen3.5:9b" {
 		t.Fatalf("model black: model=%q human=%v", model, human)
 	}
+
+	placeholder := map[string]any{
+		"players": map[string]any{
+			"white": "human",
+			"black": "model",
+		},
+	}
+	model, human = arenaModelForSeat(placeholder, "black", "gemma3:12b")
+	if human || model != "gemma3:12b" {
+		t.Fatalf("placeholder black: model=%q human=%v want gemma3:12b", model, human)
+	}
+	if got := arenaLogicModelForSeat(placeholder, "black"); got != "" {
+		t.Fatalf("placeholder logic seat should be empty, got %q", got)
+	}
 }
 
 func TestArenaLogicModel(t *testing.T) {

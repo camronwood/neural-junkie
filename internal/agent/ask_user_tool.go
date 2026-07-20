@@ -22,6 +22,11 @@ func shouldOfferAskUserTool(a *Agent, msg *protocol.Message) bool {
 	if explicitCodebaseLookupWithChunks(msg) {
 		return false
 	}
+	content := strings.TrimSpace(msg.Content)
+	// Confused short follow-ups ("What?") need a plain chat clarification, not ask_user.
+	if shortConfusedFollowUp(content) {
+		return false
+	}
 	if a == nil {
 		return true
 	}
@@ -29,7 +34,6 @@ func shouldOfferAskUserTool(a *Agent, msg *protocol.Message) bool {
 	if wsPath == "" && !messageHasWorkspaceContext(msg) {
 		return true
 	}
-	content := strings.TrimSpace(msg.Content)
 	if userRequestsImplementation(content) || userRequestsImplementationForMessage(a, msg) {
 		return false
 	}
@@ -37,6 +41,37 @@ func shouldOfferAskUserTool(a *Agent, msg *protocol.Message) bool {
 		return false
 	}
 	return true
+}
+
+// shortConfusedFollowUp reports ultra-short confusion / "say that again" turns.
+// These must stay conversational so agents do not pivot into ask_user preference menus.
+func shortConfusedFollowUp(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	if lower == "" {
+		return false
+	}
+	// Strip a leading @mention so "@BackendEngineer What?" still matches.
+	if strings.HasPrefix(lower, "@") {
+		if i := strings.IndexAny(lower, " \t\n"); i >= 0 {
+			lower = strings.TrimSpace(lower[i+1:])
+		} else {
+			return false
+		}
+	}
+	switch lower {
+	case "what?", "what", "huh?", "huh", "??", "???", "sorry?", "pardon?",
+		"come again?", "come again", "what do you mean?", "what do you mean",
+		"i don't understand", "i dont understand", "say that again?", "say that again":
+		return true
+	}
+	if len(lower) <= 12 && strings.Count(lower, "?") >= 1 {
+		trimmed := strings.Trim(lower, "?!. ")
+		switch trimmed {
+		case "what", "huh", "sorry", "pardon", "wait", "eh":
+			return true
+		}
+	}
+	return false
 }
 
 func explicitCodebaseLookupWithChunks(msg *protocol.Message) bool {

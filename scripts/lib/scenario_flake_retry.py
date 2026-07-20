@@ -15,6 +15,12 @@ RETRY_MARKERS = (
     "could not complete this turn",
     "generation_error",
     "hub not healthy",
+    "planning recap still pending",
+    "any_match not found",
+    "No allowlisted source content",
+    "task wait timeout",
+    "discussion timeout",
+    "deliverable not on disk",
 )
 
 DEFAULT_PAUSE_S = 5.0

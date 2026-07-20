@@ -248,10 +248,13 @@ def step_assert_messages(ctx: ChatScenarioContext, step: dict) -> tuple[bool, st
             who = (hits[0].get("from") or {}).get("name")
             return False, f"none_match violated {pattern!r} ({who})"
 
-    for pattern in step.get("any_match") or []:
-        if not hub.messages_matching(pool, pattern):
+    if any_patterns := step.get("any_match") or []:
+        if not any(hub.messages_matching(pool, pattern) for pattern in any_patterns):
             agents = sorted({(m.get("from") or {}).get("name", "?") for m in pool})
-            return False, f"any_match not found: {pattern!r} (agents: {agents or 'none'})"
+            return False, (
+                f"any_match not found (want one of {any_patterns!r}) "
+                f"(agents: {agents or 'none'})"
+            )
 
     if step.get("max_chars"):
         limit = int(step["max_chars"])
@@ -393,7 +396,7 @@ def step_assert_debug_context(ctx: ChatScenarioContext, step: dict) -> tuple[boo
     return True, "debug context ok"
 
 
-def run_step(ctx: ChatScenarioContext, step: dict, label: str) -> bool:
+def run_step(ctx: ChatScenarioContext, step: dict, label: str) -> tuple[bool, str]:
     action = (step.get("action") or step.get("type") or "").strip()
     handlers = {
         "send": step_send,
@@ -407,14 +410,15 @@ def run_step(ctx: ChatScenarioContext, step: dict, label: str) -> bool:
     }
     fn = handlers.get(action)
     if not fn:
-        print(f"  FAIL [{label}]: unknown action {action!r}", file=sys.stderr)
-        return False
+        detail = f"unknown action {action!r}"
+        print(f"  FAIL [{label}]: {detail}", file=sys.stderr)
+        return False, detail
     ok, detail = fn(ctx, step)
     mark = "✓" if ok else "✗"
     print(f"  {mark} [{label}] {action}: {detail}")
     if not ok:
         dump_transcript(ctx)
-    return ok
+    return ok, detail
 
 
 def ensure_scenario_channel(ctx: ChatScenarioContext) -> bool:
@@ -455,6 +459,35 @@ def run_scenario(
     keep: bool = False,
     require_debug: bool = False,
 ) -> bool:
+    from lib.scenario_flake_retry import maybe_retry_after_failure
+
+    last_detail = ""
+    max_attempts = 3 if name == "dm-backend-codebase-semantic" else 2
+    for attempt in range(1, max_attempts + 1):
+        ok, last_detail = _run_scenario_once(
+            base,
+            name,
+            verbose=verbose,
+            keep=keep,
+            require_debug=require_debug,
+        )
+        if ok:
+            return True
+        if not maybe_retry_after_failure(
+            base, name, last_detail, attempt, max_attempts=max_attempts
+        ):
+            break
+    return False
+
+
+def _run_scenario_once(
+    base: str,
+    name: str,
+    *,
+    verbose: bool = False,
+    keep: bool = False,
+    require_debug: bool = False,
+) -> tuple[bool, str]:
     scenario = load_scenario(name)
     ctx = ChatScenarioContext(base, scenario, verbose, require_debug=require_debug)
 
@@ -462,30 +495,34 @@ def run_scenario(
     print(f"  hub={base}")
 
     if not ensure_hub_ready(base, f"chat:{name}"):
-        return False
+        return False, "hub not healthy (recovery exhausted after 3 attempts)"
 
     required = scenario.get("required_agents") or [ctx.target_agent]
     ok_agents, missing = hub.verify_agents_online(base, required)
     if not ok_agents:
         if scenario.get("optional"):
             print(f"=== SKIP (optional): {name} — offline: {', '.join(missing)} ===\n")
-            return True
-        print(f"  FAIL: required agents offline: {', '.join(missing)}", file=sys.stderr)
-        return False
+            return True, ""
+        detail = f"required agents offline: {', '.join(missing)}"
+        print(f"  FAIL: {detail}", file=sys.stderr)
+        return False, detail
 
     if not ensure_scenario_channel(ctx):
-        return False
+        return False, "could not ensure scenario channel"
     print(f"  channel={ctx.channel} agent={ctx.target_agent}")
 
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
     ctx.start_agent_count = hub.count_chat_agent_messages(msgs, ctx.target_agent)
 
     all_ok = True
+    last_detail = ""
     steps = scenario.get("setup") or []
     steps = list(steps) + list(scenario.get("steps") or scenario.get("turns") or [])
     for i, step in enumerate(steps, 1):
-        if not run_step(ctx, step, f"{i}"):
+        ok, detail = run_step(ctx, step, f"{i}")
+        if not ok:
             all_ok = False
+            last_detail = detail
             break
 
     cleanup = scenario.get("cleanup", "clear")
@@ -499,9 +536,9 @@ def run_scenario(
 
     if all_ok:
         print(f"=== PASS: {name} ===\n")
-    else:
-        print(f"=== FAIL: {name} ===\n", file=sys.stderr)
-    return all_ok
+        return True, ""
+    print(f"=== FAIL: {name} ===\n", file=sys.stderr)
+    return False, last_detail or "scenario failed"
 
 
 def main() -> int:

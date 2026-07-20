@@ -67,6 +67,9 @@ func TestChatQualityCoverage_agentChannels(t *testing.T) {
 			content: "What?", wantIntent: IntentSubstantive},
 		{name: "short_confusion_backend_dm", agentType: protocol.AgentTypeBackend, channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
 			content: "What?", wantIntent: IntentSubstantive},
+		// dm-backend-echo-followup: chat-mode "What?" stays substantive and must not offer ask_user.
+		{name: "echo_followup_confusion_chat_mode", agentType: protocol.AgentTypeBackend, channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
+			content: "What?", metadata: metaChat(ContextScopeNone), wantIntent: IntentSubstantive, wantMode: ConversationModeChat},
 		{name: "theme_task_dm", agentType: protocol.AgentTypeBackend, channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
 			content: "I want to add theme support to this app", wantIntent: IntentTask},
 		{name: "deep_continuation_dm", agentType: protocol.AgentTypeBackend, channel: "dm-u-be", channelType: protocol.ChannelTypeDM,

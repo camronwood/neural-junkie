@@ -36,6 +36,41 @@ func TestShouldOfferAskUserTool_generalQuestion(t *testing.T) {
 	}
 }
 
+func TestShouldOfferAskUserTool_shortConfusedFollowUp(t *testing.T) {
+	t.Parallel()
+	cases := []string{"What?", "huh?", "??", "@BackendEngineer What?", "what do you mean?"}
+	for _, content := range cases {
+		msg := &protocol.Message{
+			Content: content,
+			Metadata: map[string]interface{}{
+				MetadataConversationMode: ConversationModeChat,
+			},
+		}
+		if shouldOfferAskUserTool(nil, msg) {
+			t.Fatalf("expected ask_user suppressed for confused follow-up %q", content)
+		}
+		if !shortConfusedFollowUp(content) {
+			t.Fatalf("expected shortConfusedFollowUp(%q)", content)
+		}
+	}
+}
+
+func TestShouldOfferAskUserTool_echoFollowupClass(t *testing.T) {
+	t.Parallel()
+	// Layer A companion for scenarios/chat/dm-backend-echo-followup.json:
+	// after a theme turn, "What?" must not expose ask_user (preference menus / timeouts).
+	ag := &Agent{WorkspacePath: "/tmp/minimal-repo"}
+	msg := &protocol.Message{
+		Content: "What?",
+		Metadata: map[string]interface{}{
+			MetadataConversationMode: ConversationModeChat,
+		},
+	}
+	if shouldOfferAskUserTool(ag, msg) {
+		t.Fatal("expected ask_user suppressed for dm-backend-echo-followup class")
+	}
+}
+
 func TestIsAgentChatReply_userQuestion(t *testing.T) {
 	t.Parallel()
 	msg := protocol.NewMessage(

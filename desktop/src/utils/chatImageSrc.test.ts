@@ -58,4 +58,27 @@ describe('resolveEditorImageSrc', () => {
       'assets/dickory-docs-download-ad-1080.png',
     );
   });
+
+  it('loads nested workspace image paths via hub', async () => {
+    vi.resetModules();
+    const { resolveEditorImageSrc } = await import('./chatImageSrc');
+    await resolveEditorImageSrc({
+      workspaceId: 'ws-2',
+      relativePath: 'docs/media/cover.png',
+      absolutePath: '/tmp/ws/docs/media/cover.png',
+    });
+    expect(fetchWorkspaceImageDataUrl).toHaveBeenCalledWith('ws-2', 'docs/media/cover.png');
+  });
+});
+
+describe('resolveChatImageSrc security', () => {
+  afterEach(() => {
+    vi.resetModules();
+  });
+
+  it('rejects javascript URLs and non-image data URLs', async () => {
+    const { resolveChatImageSrc } = await import('./chatImageSrc');
+    expect(resolveChatImageSrc('javascript:alert(1)')).toBe('');
+    expect(resolveChatImageSrc('data:text/html,hi')).toBe('');
+  });
 });

@@ -342,7 +342,8 @@ func (a *Agent) buildWorkspaceGroundedRetryPrompt(msg *protocol.Message) string 
 	var system strings.Builder
 	system.WriteString(fmt.Sprintf("You are %s.\n", a.Info.Name))
 	system.WriteString("The user has shared their project workspace on disk. ")
-	system.WriteString("Do NOT ask them to paste or share file contents — use the loaded files below.\n")
+	system.WriteString("Do NOT claim the context window is empty or ask them to paste files — use the loaded files below.\n")
+	system.WriteString("Stay on the user's topic (e.g. theme/dark/light/CSS if that is the thread) and answer in 3-8 sentences.\n")
 	if a.hasWorkspaceTools() {
 		system.WriteString("You also have read_file / grep / glob_file_search tools for additional paths.\n")
 	}

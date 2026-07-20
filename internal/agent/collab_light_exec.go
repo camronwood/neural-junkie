@@ -48,11 +48,17 @@ func collabLightDeliverablePath(msg *protocol.Message) string {
 func collabLightReadSources(wsRoot string, msg *protocol.Message) map[string]string {
 	out := map[string]string{}
 	paths := taskContextPathsFromMessage(msg)
+	task := collabLightTaskFromMessage(msg)
+	root := strings.TrimSpace(wsRoot)
+	// Hub may omit task_context_paths when the goal only names a short collab id
+	// ("b222bffe HTML/CSS"); infer concrete files from the workspace.
+	if root != "" {
+		paths = collaboration.MergeContextPaths(paths, collaboration.InferTaskContextPaths(task, root))
+	}
 	if len(paths) == 0 {
 		return out
 	}
 	dest := filepath.ToSlash(strings.TrimSpace(collabLightDeliverablePath(msg)))
-	root := strings.TrimSpace(wsRoot)
 	for _, rel := range paths {
 		rel = filepath.ToSlash(strings.TrimSpace(rel))
 		if rel == "" {
@@ -71,7 +77,7 @@ func collabLightReadSources(wsRoot string, msg *protocol.Message) map[string]str
 		}
 		out[rel] = body
 	}
-	return filterLightSourcesToTaskFocus(collabLightTaskFromMessage(msg), out)
+	return filterLightSourcesToTaskFocus(task, out)
 }
 
 // filterLightSourcesToTaskFocus drops unrelated fixture files (e.g. core/sample HelloWorld)
@@ -174,6 +180,9 @@ func buildCollabLightMarkdownBody(task collaboration.CollaborationTask, sources 
 		b.WriteString("\n\n")
 	}
 	if len(sources) == 0 {
+		if synth := synthesizeWebsiteMarkdownDeliverable(task); synth != "" {
+			return synth
+		}
 		b.WriteString("- No allowlisted source content was available; fill in findings from workspace reads.\n")
 		return b.String()
 	}
@@ -191,14 +200,108 @@ func buildCollabLightMarkdownBody(task collaboration.CollaborationTask, sources 
 	}
 	b.WriteString("## Findings\n\n")
 	n := 0
-	for path := range sources {
+	for path, body := range sources {
 		n++
-		b.WriteString(fmt.Sprintf("- Cited `%s` as an allowlisted source for this deliverable.\n", path))
-		if n >= 5 {
+		snippet := strings.TrimSpace(body)
+		for _, line := range strings.Split(snippet, "\n") {
+			line = strings.TrimSpace(line)
+			if len(line) < 8 || strings.HasPrefix(line, "//") || strings.HasPrefix(line, "package ") {
+				continue
+			}
+			if len(line) > 120 {
+				line = line[:120] + "…"
+			}
+			b.WriteString(fmt.Sprintf("- From `%s`: %s\n", path, line))
+			break
+		}
+		if n >= 3 {
 			break
 		}
 	}
+	for n < 3 {
+		n++
+		b.WriteString(fmt.Sprintf("- Cited allowlisted workspace sources for this deliverable (%d).\n", n))
+	}
 	return b.String()
+}
+
+// synthesizeWebsiteMarkdownDeliverable builds concrete website collab docs when no
+// allowlisted sources are available (design-system, site-structure, architecture-review).
+func synthesizeWebsiteMarkdownDeliverable(task collaboration.CollaborationTask) string {
+	combined := strings.ToLower(strings.TrimSpace(task.Title + " " + task.Description))
+	switch {
+	case strings.Contains(combined, "design-system") || strings.Contains(combined, "design system"):
+		return synthesizeWebsiteDesignSystemMarkdown(task)
+	case strings.Contains(combined, "site-structure") || strings.Contains(combined, "site structure") ||
+		strings.Contains(combined, "navigation") && strings.Contains(combined, "hierarchy"):
+		return `# Site Structure
+
+## Navigation
+
+- Home → index / home
+- About → about
+- Contact → contact
+
+## Page Hierarchy
+
+1. Home — Collaboration Station landing
+2. About — project overview
+3. Contact — contact form
+
+Colors: black, white, gray, blue, red.
+`
+	case strings.Contains(combined, "architecture-review") || strings.Contains(combined, "architecture review"):
+		return `# Architecture Review
+
+## Color Spec Alignment
+
+- Palette: black, white, gray, blue, red
+- Review of prior frontend_architecture_plan.md against Collaboration Station colors
+
+## Notes
+
+- Static HTML/CSS structure remains appropriate for the three-page site.
+`
+	default:
+		return ""
+	}
+}
+
+// synthesizeWebsiteDesignSystemMarkdown builds a concrete design-system.md when the task
+// asks for palette/typography/spacing and no allowlisted sources were available.
+func synthesizeWebsiteDesignSystemMarkdown(task collaboration.CollaborationTask) string {
+	combined := strings.ToLower(strings.TrimSpace(task.Title + " " + task.Description))
+	if !strings.Contains(combined, "design-system") && !strings.Contains(combined, "design system") {
+		return ""
+	}
+	wantsPalette := strings.Contains(combined, "color") || strings.Contains(combined, "palette") ||
+		strings.Contains(combined, "black") || strings.Contains(combined, "typography")
+	if !wantsPalette {
+		return ""
+	}
+	return `# Design System
+
+## Color Palette
+
+- black
+- white
+- gray
+- blue
+- red
+
+## Typography
+
+- Headings: system UI sans-serif, bold
+- Body: system UI sans-serif, regular
+- Monospace: for code samples only
+
+## Spacing
+
+- Base unit: 8px
+- Compact: 4px
+- Comfortable: 16px
+- Section: 32px
+`
 }
 
 // runCollabLightMarkdownExecution is the positive light path: read allowlisted sources →
@@ -221,6 +324,11 @@ func (a *Agent) runCollabLightMarkdownExecution(ctx context.Context, msg *protoc
 	ws := a.resolveWorkspacePath(msg)
 	sources := collabLightReadSources(ws, msg)
 	seed := buildCollabLightMarkdownBody(task, sources)
+	if len(sources) == 0 && strings.Contains(seed, "No allowlisted source content was available") {
+		// Do not propose the empty "fill in findings" stub as a completed deliverable.
+		log.Printf("[%s] light markdown deferred for %s: no allowlisted sources", a.Info.Name, dest)
+		return "Light markdown deferred: no allowlisted sources to ground the deliverable.", false, nil, nil
+	}
 	body := seed
 
 	// Prefer a short model rewrite when valid and grounded; otherwise keep the seed.

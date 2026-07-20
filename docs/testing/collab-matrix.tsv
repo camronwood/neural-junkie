@@ -8,11 +8,11 @@ execute-deliverable	PASS	sprint2 sweep	2026-06-07T13:50:00Z
 execution-no-stack-commands	PASS	sprint2 sweep (beta.25 goal bootstrap + execution prompt)	2026-06-07T13:50:00Z
 multi-collab-isolation	PASS	sprint2 sweep	2026-06-07T13:50:00Z
 phoenix-resource-api-e2e	PASS	sprint2 sweep	2026-06-07T13:50:00Z
-plan-dependency-prose-regression	PASS	sprint2 sweep (beta.25 goal bootstrap)	2026-06-07T13:50:00Z
+plan-dependency-prose-regression	PASS	pinned-goal SetTasks/dispatch guard; live PASS 2026-07-17	2026-07-17T17:00:00Z
 plan-distinct-deliverables-same-agent	PASS	sprint2 sweep (beta.25 goal bootstrap)	2026-06-07T13:50:00Z
 plan-findings-task-regression	PASS	sprint2 sweep	2026-06-07T13:50:00Z
 plan-phoenix-combined-regression	PASS	sprint2 sweep (beta.25 goal bootstrap)	2026-06-07T13:50:00Z
-planning-two-agent	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+planning-two-agent	PASS	re-pin on TransitionToReviewing; live PASS 2026-07-17	2026-07-17T17:00:00Z
 reject-collabs-subfolder	PASS	sprint2 sweep	2026-06-07T13:50:00Z
 resource-api-schema-regression	PASS	sprint2 sweep	2026-06-07T13:50:00Z
 resource-api-schema-planning	PASS	sprint2 sweep + collab planning grounding fix	2026-06-07T22:00:00Z

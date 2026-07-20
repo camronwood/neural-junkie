@@ -111,6 +111,8 @@ def warm_tag(tag: str, *, keep_alive: str, timeout_s: float) -> tuple[bool, str]
             "prompt": "ping",
             "stream": False,
             "keep_alive": keep_alive,
+            # Cap tokens so a wedged runner fails fast instead of hanging for the full timeout.
+            "options": {"num_predict": 4},
         }
     ).encode()
     req = urllib.request.Request(
