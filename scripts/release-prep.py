@@ -385,6 +385,23 @@ def main() -> int:
         )
 
     if not args.skip_live and not args.skip_benchmark:
+        print("\n>>> [release-prep] ensure Model Arena pack before benchmark")
+        from lib.arena_pack import ensure_model_arena_pack
+
+        ok_arena, detail_arena = ensure_model_arena_pack(hub_url)
+        print(f"  arena pack: {detail_arena}")
+        if not ok_arena:
+            phase = PhaseResult(
+                name="model-benchmark",
+                status="FAIL",
+                exit_code=1,
+                note=f"Model Arena pack not ready: {detail_arena}",
+            )
+            report.phases.append(phase)
+            write_reports(report, testing_dir)
+            _print_final(report)
+            return 1
+
         bench_cmd = [
             PY,
             str(SCRIPTS_DIR / "model-benchmark-suite.py"),
