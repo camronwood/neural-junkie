@@ -16,10 +16,15 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | GitHub | Summary |
 |----|--------|--------|---------|
-| `blocker-collab-soak` | **Mitigated** | [#16](https://github.com/camronwood/neural-junkie/issues/16) | `LAYER=collab-full` **PASS** on 2026-07-16 climb ([layer-climb-2026-07-16-2339.md](testing/layer-climb-2026-07-16-2339.md)). Edge/core subsets still flake (`plan-dependency-prose-regression`, `planning-two-agent`) — pinned-goal enforcement landed 2026-07-17. |
-| `blocker-parity-soak` | **Release blocker** | [#17](https://github.com/camronwood/neural-junkie/issues/17) | `make test-parity-stable-restart` still fails intermittently on `selection-scoped-edit` (FrontendEngineer timeout). Evidence: [layer-gate-parity-2026-07-17-0335.md](testing/layer-gate-parity-2026-07-17-0335.md). |
-| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off. Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md). |
-| `blocker-d5-deferred` | **Release blocker** | [#19](https://github.com/camronwood/neural-junkie/issues/19) | D5 specialist simplification deferred until parity gate is green. See [PHASE_D_BACKLOG.md](PHASE_D_BACKLOG.md). |
+| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off (macOS arm64 + Windows or Linux). Deferred 2026-07-20 (Mac-only soak day). Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md). |
+
+### Cleared for cut (tracker hygiene 2026-07-20)
+
+| ID | Status | GitHub | Summary |
+|----|--------|--------|---------|
+| `blocker-collab-soak` | **Cleared** | [#16](https://github.com/camronwood/neural-junkie/issues/16) | `LAYER=collab-full` **PASS** on 2026-07-16 and again in [layer-climb-2026-07-19-1809](testing/layer-climb-2026-07-19-1809.md) (8/8 including collab-full). Residual edge flakes tracked under #20/#21, not as a cut blocker. |
+| `blocker-parity-soak` | **Cleared** | [#17](https://github.com/camronwood/neural-junkie/issues/17) | `test-parity-stable-restart` **PASS** on climb 2026-07-19 and [parity-stable-restart-2026-07-20-0255.log](testing/parity-stable-restart-2026-07-20-0255.log); seven consecutive PASSes since Jul 18 after earlier `selection-scoped-edit` flakes. |
+| `blocker-d5-deferred` | **Deferred (post-cut)** | [#19](https://github.com/camronwood/neural-junkie/issues/19) | D5 specialist simplification is Phase D backlog — **not** a v1.2.0 stable cut gate ([PHASE_D_BACKLOG.md](PHASE_D_BACKLOG.md)). |
 
 ---
 

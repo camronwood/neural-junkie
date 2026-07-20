@@ -173,29 +173,34 @@
       <h2 id="release-blockers">Release blockers</h2>
       <p>Gates that must pass before stable cut. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ROADMAP-Q3-2026.md">Q3 roadmap</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md">stable release checklist</a>.</p>
       <ul class="issues-list">
-        <li class="issue-item" id="blocker-collab-soak">
-          <span class="issue-badge issue-badge--limitation">Mitigated</span>
-          <strong>Collab-full layer gate</strong>
-          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/16">#16</a>
-          <p><code>LAYER=collab-full</code> <strong>PASS</strong> on the 2026-07-16 climb. Edge/core subsets still flake occasionally; pinned-goal enforcement landed 2026-07-17. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-climb-2026-07-16-2339.md">layer-climb-2026-07-16</a>.</p>
-        </li>
-        <li class="issue-item" id="blocker-parity-soak">
-          <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
-          <strong>Parity soak not confirmed</strong>
-          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/17">#17</a>
-          <p><code>make test-parity-stable-restart</code> still fails intermittently on <code>selection-scoped-edit</code> (FrontendEngineer timeout). Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-gate-parity-2026-07-17-0335.md">layer-gate-parity-2026-07-17</a>. Harness nudge + 3× flake retry added 2026-07-17.</p>
-        </li>
         <li class="issue-item" id="blocker-platform-smoke">
           <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
           <strong>Platform smoke pending sign-off</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/18">#18</a>
-          <p>Gate 5 platform smoke on beta.7+ installer — minimum macOS arm64 + one of Windows x64 or Linux x64. Checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/stable-platform-smoke.md">stable-platform-smoke.md</a>.</p>
+          <p>Gate 5 platform smoke on beta.7+ installer — minimum macOS arm64 + one of Windows x64 or Linux x64. Deferred 2026-07-20 (Mac-only soak day). Checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/stable-platform-smoke.md">stable-platform-smoke.md</a>.</p>
+        </li>
+      </ul>
+
+      <h2 id="cleared-blockers">Cleared for cut (tracker hygiene)</h2>
+      <p>Former release blockers closed or downgraded 2026-07-20 to match climb evidence.</p>
+      <ul class="issues-list">
+        <li class="issue-item" id="blocker-collab-soak">
+          <span class="issue-badge issue-badge--limitation">Cleared</span>
+          <strong>Collab-full layer gate</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/16">#16</a>
+          <p><code>LAYER=collab-full</code> <strong>PASS</strong> on 2026-07-16 and again in the 2026-07-19 climb (8/8). Residual edge flakes live under <a href="#collab-agent-silence">#20</a> / <a href="#collab-generation-error">#21</a>, not as a cut blocker. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/layer-climb-2026-07-19-1809.md">layer-climb-2026-07-19-1809</a>.</p>
+        </li>
+        <li class="issue-item" id="blocker-parity-soak">
+          <span class="issue-badge issue-badge--limitation">Cleared</span>
+          <strong>Parity soak confirmed</strong>
+          <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/17">#17</a>
+          <p><code>test-parity-stable-restart</code> <strong>PASS</strong> on climb 2026-07-19 and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/parity-stable-restart-2026-07-20-0255.log">parity-stable-restart-2026-07-20-0255</a>; seven consecutive PASSes since Jul 18 after earlier <code>selection-scoped-edit</code> flakes.</p>
         </li>
         <li class="issue-item" id="blocker-d5-deferred">
-          <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
-          <strong>D5 specialist simplification deferred</strong>
+          <span class="issue-badge issue-badge--limitation">Deferred (post-cut)</span>
+          <strong>D5 specialist simplification</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/19">#19</a>
-          <p>Epic blocked until parity gate is green. MCP dedup, QualityReviewer roll-up, fewer redundant specialists. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PHASE_D_BACKLOG.md">PHASE_D_BACKLOG.md</a>.</p>
+          <p>Phase D backlog — <strong>not</strong> a v1.2.0 stable cut gate. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PHASE_D_BACKLOG.md">PHASE_D_BACKLOG.md</a>.</p>
         </li>
       </ul>
 
