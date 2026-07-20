@@ -7,6 +7,13 @@ const agents: ThinkingAgent[] = [
   { id: 'a1', name: 'Cursor', type: 'cli' },
 ];
 
+const manyAgents: ThinkingAgent[] = [
+  { id: 'a1', name: 'BackendEngineer', type: 'backend' },
+  { id: 'a2', name: 'FrontendEngineer', type: 'frontend' },
+  { id: 'a3', name: 'PlatformEngineer', type: 'platform' },
+  { id: 'a4', name: 'SecurityReviewer', type: 'security' },
+];
+
 afterEach(() => cleanup());
 
 describe('TypingIndicator Stop control', () => {
@@ -54,5 +61,17 @@ describe('TypingIndicator Stop control', () => {
     expect(btn.disabled).toBe(true);
     fireEvent.click(btn);
     expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it('collapses many agents into a summary with expand', () => {
+    render(<TypingIndicator agents={manyAgents} />);
+    expect(screen.getByText(/BackendEngineer \+ 3 more responding/)).toBeTruthy();
+    expect(screen.queryByText('FrontendEngineer')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Show all 4 agents responding/ }));
+    expect(screen.getByText('FrontendEngineer')).toBeTruthy();
+    expect(screen.getByText('SecurityReviewer')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse agent activity list' }));
+    expect(screen.queryByText('FrontendEngineer')).toBeNull();
+    expect(screen.getByText(/BackendEngineer \+ 3 more responding/)).toBeTruthy();
   });
 });

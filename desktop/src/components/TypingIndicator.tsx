@@ -21,6 +21,9 @@ const LONG_RUNNING_ACTIVITIES = new Set([
   'verifying',
 ]);
 
+/** Collapse when more than this many agents are thinking at once. */
+const COLLAPSE_THRESHOLD = 2;
+
 function AgentActivityHistory({ steps }: { steps: NonNullable<ThinkingAgent['toolSteps']> }) {
   const recent = steps.slice(-5);
   if (recent.length === 0) return null;
@@ -98,18 +101,103 @@ function AgentTypingRow({ agent }: { agent: ThinkingAgent }) {
   );
 }
 
+function AvatarStack({ agents }: { agents: ThinkingAgent[] }) {
+  const shown = agents.slice(0, 3);
+  return (
+    <div className="flex items-center -space-x-1.5 flex-shrink-0" aria-hidden>
+      {shown.map((agent, i) => (
+        <div
+          key={agent.id}
+          className="flex items-center justify-center w-7 h-7 rounded-full text-white text-xs font-bold shadow-md ring-2 ring-slack-bg"
+          style={{ backgroundColor: getAgentColor(agent.type), zIndex: shown.length - i }}
+        >
+          {agent.name.charAt(0).toUpperCase()}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function collapsedSummary(agents: ThinkingAgent[]): string {
+  const lead = agents[0]?.name ?? 'Agent';
+  const extra = agents.length - 1;
+  if (extra <= 0) return `${lead} responding`;
+  return `${lead} + ${extra} more responding`;
+}
+
 export function TypingIndicator({ agents, showStop, onStop, stopDisabled }: TypingIndicatorProps) {
+  const [expanded, setExpanded] = useState(false);
+  const multi = agents.length >= COLLAPSE_THRESHOLD;
+
+  // Collapse again when the crowd clears so the next @here starts compact.
+  useEffect(() => {
+    if (agents.length < COLLAPSE_THRESHOLD) {
+      setExpanded(false);
+    }
+  }, [agents.length]);
+
   if (agents.length === 0 && !showStop) {
     return null;
   }
 
+  const showDetails = !multi || expanded;
+
   return (
-    <div className="px-6 py-3 bg-gradient-to-r from-slack-bgHover to-slack-bg border-t border-slack-border shadow-sm">
+    <div className="px-6 py-2.5 bg-gradient-to-r from-slack-bgHover to-slack-bg border-t border-slack-border shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-2 min-w-0 flex-1">
-          {agents.map((agent) => (
-            <AgentTypingRow key={agent.id} agent={agent} />
-          ))}
+          {multi && !expanded ? (
+            <div className="flex items-center gap-2 min-w-0 animate-fadeIn">
+              <AvatarStack agents={agents} />
+              <button
+                type="button"
+                onClick={() => setExpanded(true)}
+                className="flex items-center gap-1.5 min-w-0 text-left group"
+                aria-expanded={false}
+                aria-label={`Show all ${agents.length} agents responding`}
+              >
+                <span className="text-sm font-medium text-slack-text truncate">
+                  {collapsedSummary(agents)}
+                </span>
+                <span className="inline-flex" aria-hidden>
+                  <span className="animate-bounce text-slack-accent font-bold" style={{ animationDelay: '0ms' }}>
+                    .
+                  </span>
+                  <span className="animate-bounce text-slack-accent font-bold" style={{ animationDelay: '150ms' }}>
+                    .
+                  </span>
+                  <span className="animate-bounce text-slack-accent font-bold" style={{ animationDelay: '300ms' }}>
+                    .
+                  </span>
+                </span>
+                <span className="text-xs text-slack-accent group-hover:underline shrink-0">Show</span>
+              </button>
+            </div>
+          ) : null}
+
+          {showDetails ? (
+            <div className="flex flex-col gap-2 min-w-0 max-h-36 overflow-y-auto pr-1">
+              {multi && expanded ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-slack-textMuted">
+                    {agents.length} agents responding
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setExpanded(false)}
+                    className="text-xs text-slack-accent hover:underline shrink-0"
+                    aria-expanded={true}
+                    aria-label="Collapse agent activity list"
+                  >
+                    Hide
+                  </button>
+                </div>
+              ) : null}
+              {agents.map((agent) => (
+                <AgentTypingRow key={agent.id} agent={agent} />
+              ))}
+            </div>
+          ) : null}
         </div>
         {showStop && onStop ? (
           <button
