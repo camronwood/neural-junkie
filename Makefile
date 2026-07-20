@@ -1,4 +1,4 @@
-.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads
+.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-preflight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -41,6 +41,7 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  make layer-climb CONTINUE=1             # run all layers; rollup + live status file"
 	@echo "  #   progress: docs/testing/layer-climb-status.txt  (tail -f)"
 	@echo "  make model-benchmark SUITE=standard     # multi-model live benchmark (boots stack)"
+	@echo "  make overnight-preflight                # afternoon check before overnight"
 	@echo "  make overnight                          # walk-away full release-prep (tmux)"
 	@echo "  make layer-overnight LAYER=implement    # walk-away layer fix loop"
 	@echo ""
@@ -369,6 +370,13 @@ test-everything: ## CI smoke + live harness; writes docs/testing/test-everything
 
 test-everything-full: ## test-everything with FULL=1 (includes collab-scenarios-all, ~1-3h)
 	@$(MAKE) test-everything FULL=1 $(if $(VERBOSE),VERBOSE=1,) $(if $(CONTINUE),CONTINUE=1,)
+
+overnight-preflight: ## Afternoon check before overnight (models + hub + Arena + release-prep-ready)
+	@chmod +x scripts/overnight-preflight.sh scripts/ensure-ollama-models-ready.py
+	@BENCHMARK_SUITE='$(or $(BENCHMARK_SUITE),release)' \
+	 NEURAL_JUNKIE_HUB_URL='$(NEURAL_JUNKIE_HUB_URL)' \
+	 NJ_OVERNIGHT_KEEP_ALIVE='$(or $(NJ_OVERNIGHT_KEEP_ALIVE),24h)' \
+	 ./scripts/overnight-preflight.sh
 
 overnight: ## Walk-away clean gate: reset + hub + preflight + release-prep in tmux (see scripts/overnight.sh)
 	@chmod +x scripts/overnight.sh scripts/ensure-ollama-models-ready.py

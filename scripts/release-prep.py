@@ -354,6 +354,23 @@ def main() -> int:
         time.sleep(45.0)
         preflight_regression_run(ROOT, hub_url, label="release-prep post-everything preflight")
 
+        print("\n>>> [release-prep] ensure Model Arena pack after hub restart")
+        from lib.arena_pack import ensure_model_arena_pack
+
+        ok_arena, detail_arena = ensure_model_arena_pack(hub_url)
+        print(f"  arena pack: {detail_arena}")
+        if not ok_arena:
+            phase = PhaseResult(
+                name="hub-restart-after-everything",
+                status="FAIL",
+                exit_code=1,
+                note=f"Model Arena pack not ready after restart: {detail_arena}",
+            )
+            report.phases.append(phase)
+            write_reports(report, testing_dir)
+            _print_final(report)
+            return 1
+
     if not args.skip_live and not args.skip_parity:
         parity_cmd = [
             PY,

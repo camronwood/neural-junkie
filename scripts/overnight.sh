@@ -174,6 +174,16 @@ run_overnight() {
 
     run_regression_boot
     echo ""
+    echo ">>> Ensure Model Arena pack (post-boot)"
+    python3 <<PY
+import sys
+sys.path.insert(0, "scripts")
+from lib.arena_pack import ensure_model_arena_pack
+ok, detail = ensure_model_arena_pack("${HUB_URL}")
+print(detail)
+raise SystemExit(0 if ok else 1)
+PY
+    echo ""
     run_gate
   } 2>&1 | tee "${LOG_FILE}"
   local rc="${PIPESTATUS[0]}"

@@ -324,6 +324,23 @@ def main() -> int:
         )
         return 1
 
+    # Suite roster (e.g. gemma3:12b for release) must also be present even when
+    # NO_PULL=1 — otherwise overnight boots green and fails hours later in benchmark.
+    if not args.skip_benchmark:
+        missing_suite = [
+            t
+            for t in pull_tags
+            if t not in warm_tags
+            and not model_is_installed(installed, t, pull_tag=resolve_pull_target(t, catalog) or "")
+        ]
+        if missing_suite:
+            print(
+                f"FAIL: benchmark suite models not installed: {', '.join(missing_suite)} "
+                f"(overnight NO_PULL=1 will not pull them — run: make ensure-ollama-models-ready SUITE={args.suite})",
+                file=sys.stderr,
+            )
+            return 1
+
     def runtime(tag: str) -> str:
         model = catalog.get(tag)
         if model:
