@@ -5,6 +5,11 @@ export function agentSidebarHideKey(agent: Pick<AgentInfo, 'type' | 'name'>): st
   return `${agent.type}:${agent.name}`;
 }
 
+/** Stable DM channel slug — must match hub CreateDMChannel naming. */
+export function predictedDmChannelName(username: string, agentName: string): string {
+  return `dm-${username.trim().toLowerCase()}-${agentName.trim().toLowerCase()}`;
+}
+
 export function parseDMDisplayName(dmChannel: Channel): string {
   const displayName = dmChannel.display_name?.trim();
   if (displayName) return displayName;

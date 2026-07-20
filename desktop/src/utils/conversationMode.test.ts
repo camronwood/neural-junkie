@@ -18,6 +18,20 @@ describe('conversationMode', () => {
     expect(inferResolvedConversationMode('@Assistant hi')).toBe('chat');
   });
 
+  it('infers code for knowledge-graph relate questions', () => {
+    expect(
+      inferResolvedConversationMode(
+        "How does CISO relate to the rest of the codebase? CISO (repo) in community 'root' — degree 1, 1 neighbors"
+      )
+    ).toBe('code');
+  });
+
+  it('keeps general questions as chat', () => {
+    expect(
+      inferResolvedConversationMode('What is AWS SSO and how do I use it in our dev account?')
+    ).toBe('chat');
+  });
+
   it('infers code for review verbs', () => {
     expect(inferResolvedConversationMode('review cmd/server/main.go')).toBe('code');
   });

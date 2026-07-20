@@ -79,6 +79,30 @@ func TestRetrieve_queryFilter(t *testing.T) {
 	}
 }
 
+func TestValidateContextRef_rejectsPlaceholders(t *testing.T) {
+	cases := []string{"", "ctx-abc123", "ctx-example", "ctx-deadbeef", "not-a-ref", "CTX-ABC123"}
+	for _, ref := range cases {
+		if err := ValidateContextRef(ref); err == nil {
+			t.Fatalf("expected error for %q", ref)
+		}
+	}
+	good := "ctx-0123456789ab"
+	if err := ValidateContextRef(good); err != nil {
+		t.Fatalf("expected ok for %q: %v", good, err)
+	}
+}
+
+func TestRetrieve_placeholderRef(t *testing.T) {
+	store := NewStore(10, 60, "")
+	_, err := Retrieve(store, "ctx-abc123", "")
+	if err == nil {
+		t.Fatal("expected error for placeholder ref")
+	}
+	if !strings.Contains(err.Error(), "documentation example") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestCompressSection(t *testing.T) {
 	raw := strings.Repeat("summary ", 5000)
 	opts := DefaultOptions()

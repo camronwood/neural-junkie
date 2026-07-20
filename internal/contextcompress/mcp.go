@@ -22,9 +22,9 @@ func AttachRetrieveTool(mcpServer *server.MCPServer, store *Store) {
 	s := store
 	mcpServer.AddTool(mcp.CreateTool(
 		retrieveToolName,
-		"Retrieve original uncompressed context cached by Neural Junkie compression (ref from compressed marker)",
+		"Expand a compressed tool result. Only call when this turn already includes a compression marker with a real ctx-… ref. Never invent or guess a ref; if no marker is present, do not call this tool.",
 		mcp.CreateMultiStringInputSchema(map[string]string{
-			"ref":   "Cache ref from compression marker (e.g. ctx-abc123)",
+			"ref":   "Exact ctx-… id copied from a compression marker in this turn (12 hex chars after ctx-). Never use invented or example values.",
 			"query": "Optional: filter to lines containing this substring",
 		}),
 		nil,

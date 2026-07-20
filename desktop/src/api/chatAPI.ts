@@ -1625,7 +1625,29 @@ export class ChatAPI {
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error('Too Many Requests — wait a moment and try again.');
+      }
       throw new Error(`Failed to create channel: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /** Find-or-create DM with an agent (rate-limit exempt on the hub). */
+  async openDM(agentId: string, createdBy: string): Promise<Channel> {
+    const response = await this.hubFetch(`/api/channels/open-dm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: agentId, created_by: createdBy }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error('Too Many Requests — wait a moment and try again.');
+      }
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to open DM: ${response.statusText}`);
     }
 
     return response.json();

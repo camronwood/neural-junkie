@@ -90,6 +90,38 @@ func handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(channel)
 }
 
+// handleOpenDM find-or-creates a DM with an agent. Primary UI path for sidebar agent clicks;
+// rate-limit exempt so rapid switching cannot lock out /api/send.
+func handleOpenDM(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
+
+	var req struct {
+		AgentID   string `json:"agent_id"`
+		CreatedBy string `json:"created_by"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.AgentID) == "" {
+		http.Error(w, "agent_id is required", http.StatusBadRequest)
+		return
+	}
+	ch, err := chatHub.CreateDMChannel(req.CreatedBy, req.AgentID, "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ch)
+}
+
 // handleCreateDMAgent creates a new expert or CLI agent and a dedicated DM channel (agent is not joined to the caller's current channel).
 func handleCreateDMAgent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

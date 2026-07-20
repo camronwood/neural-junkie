@@ -104,8 +104,11 @@ func (w *tools) register(mcpServer *server.MCPServer) {
 	log.Printf("Registered workspace MCP tools on server")
 }
 
-func (w *tools) workspaceRoot() (string, error) {
-	root := strings.TrimSpace(w.root())
+func (w *tools) workspaceRoot(ctx context.Context) (string, error) {
+	root := shared.WorkspaceRootFromContext(ctx)
+	if root == "" {
+		root = strings.TrimSpace(w.root())
+	}
 	if root == "" {
 		return "", fmt.Errorf("workspace root not set")
 	}
@@ -125,7 +128,7 @@ func (w *tools) resolveRel(root, rel string) (string, error) {
 }
 
 func (w *tools) handleReadFile(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	root, err := w.workspaceRoot()
+	root, err := w.workspaceRoot(ctx)
 	if err != nil {
 		return mcp.HandleToolError(err, "read_file"), nil
 	}
@@ -177,7 +180,7 @@ func (w *tools) handleReadFile(ctx context.Context, request mcpgo.CallToolReques
 }
 
 func (w *tools) handleGrep(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	root, err := w.workspaceRoot()
+	root, err := w.workspaceRoot(ctx)
 	if err != nil {
 		return mcp.HandleToolError(err, "grep"), nil
 	}
@@ -274,7 +277,7 @@ func runRipgrep(ctx context.Context, dir, pattern string) (string, error) {
 }
 
 func (w *tools) handleGlob(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	root, err := w.workspaceRoot()
+	root, err := w.workspaceRoot(ctx)
 	if err != nil {
 		return mcp.HandleToolError(err, "glob_file_search"), nil
 	}
@@ -312,7 +315,7 @@ func doublestarMatch(pattern, path string) (bool, error) {
 }
 
 func (w *tools) handleListDir(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	root, err := w.workspaceRoot()
+	root, err := w.workspaceRoot(ctx)
 	if err != nil {
 		return mcp.HandleToolError(err, "list_dir"), nil
 	}
@@ -358,7 +361,7 @@ func (w *tools) handleListDir(ctx context.Context, request mcpgo.CallToolRequest
 }
 
 func (w *tools) handleSemanticSearch(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	root, err := w.workspaceRoot()
+	root, err := w.workspaceRoot(ctx)
 	if err != nil {
 		return mcp.HandleToolError(err, "semantic_search"), nil
 	}
@@ -390,7 +393,7 @@ func (w *tools) handleSemanticSearch(ctx context.Context, request mcpgo.CallTool
 }
 
 func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	root, err := w.workspaceRoot()
+	root, err := w.workspaceRoot(ctx)
 	if err != nil {
 		return mcp.HandleToolError(err, "run_command"), nil
 	}

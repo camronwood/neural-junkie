@@ -11,7 +11,6 @@ import {
   SettingsIcon,
   LogoutIcon,
   TaskManagementIcon,
-  ChatPanelIcon,
 } from './Icons';
 import { conversationModeSettingLabel } from '../utils/conversationMode';
 import { workspaceContextModeLabel } from '../utils/outboundChatMetadata';
@@ -19,20 +18,20 @@ import type { ConversationModeSetting } from '../utils/conversationMode';
 import type { WorkspaceContextMode } from '../constants/promptMetadata';
 import type { SettingsTab } from './SettingsModal';
 import { OllamaRuntimeChip } from './OllamaRuntimeChip';
+import { HubConnectionChip } from './HubConnectionChip';
 import { MemoryMonitorChip } from './MemoryMonitorChip';
 import { CustomPackToolbarChip } from './CustomPackToolbarChip';
 import type { PackToolbarAction } from '../stores/packCapabilityRegistry';
 import { useApprovalStore } from '../stores/approvalStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { formatChord } from '../shortcuts/format';
+import type { ConnectionStatus } from '../hooks/useWebSocket';
 
 export type ChatToolbarActionsLayout = 'horizontal' | 'vertical';
 
 export interface ChatToolbarActionsProps {
   layout: ChatToolbarActionsLayout;
   onOpenCommandPalette: () => void;
-  chatPanelVisible: boolean;
-  onToggleChatPanel: () => void;
   conversationModeSetting: ConversationModeSetting;
   onCycleConversationMode: () => void;
   workspaceContextMode: WorkspaceContextMode;
@@ -65,6 +64,8 @@ export interface ChatToolbarActionsProps {
   onLogout?: () => void;
   username: string;
   serverAddr: string;
+  connectionStatus: ConnectionStatus;
+  onReconnectHub: () => void;
 }
 
 function ToolbarDivider({ layout }: { layout: ChatToolbarActionsLayout }) {
@@ -80,8 +81,6 @@ const iconBtn =
 export function ChatToolbarActions({
   layout,
   onOpenCommandPalette,
-  chatPanelVisible,
-  onToggleChatPanel,
   conversationModeSetting,
   onCycleConversationMode,
   workspaceContextMode,
@@ -113,6 +112,8 @@ export function ChatToolbarActions({
   onLogout,
   username,
   serverAddr,
+  connectionStatus,
+  onReconnectHub,
 }: ChatToolbarActionsProps) {
   const suggestedCount = useTerminalStore((s) => s.suggestedCommands.length);
   const pendingToolCount = useApprovalStore((s) => s.pendingTools.length);
@@ -147,21 +148,6 @@ export function ChatToolbarActions({
       <ToolbarDivider layout={layout} />
 
       <div className={groupClass} aria-label="File workspace tools">
-        <button
-          type="button"
-          onClick={onToggleChatPanel}
-          className={`${iconBtn} focus-visible:outline-slack-accent ${
-            chatPanelVisible
-              ? 'bg-slack-accent text-white'
-              : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
-          }`}
-          title={`${chatPanelVisible ? 'Hide main chat' : 'Show main chat'} (${formatChord('mod+shift+c')})`}
-          aria-label={chatPanelVisible ? 'Hide main chat panel' : 'Show main chat panel'}
-          aria-pressed={chatPanelVisible}
-        >
-          <ChatPanelIcon className="w-3.5 h-3.5" />
-        </button>
-
         <button
           type="button"
           onClick={onCycleConversationMode}
@@ -372,6 +358,14 @@ export function ChatToolbarActions({
       <ToolbarDivider layout={layout} />
 
       <div className={groupClass} aria-label="Models and account">
+        <HubConnectionChip
+          layout={layout}
+          connectionStatus={connectionStatus}
+          serverAddr={serverAddr}
+          onReconnect={onReconnectHub}
+          onOpenSettings={onOpenSettings}
+        />
+
         {memoryMonitorEnabled && (
           <MemoryMonitorChip
             layout={layout}

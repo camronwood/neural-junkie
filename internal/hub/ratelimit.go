@@ -72,16 +72,24 @@ func (rl *RateLimiter) clientKey(r *http.Request) string {
 	return host
 }
 
-// rateLimitExempt reports read-only catalog endpoints that should not consume the global GET budget.
+// rateLimitExempt reports endpoints that should not consume the global rate budget.
 func rateLimitExempt(r *http.Request) bool {
+	path := ""
+	if r.URL != nil {
+		path = r.URL.Path
+	}
+	// Sidebar agent clicks use find-or-create DM; must not starve /api/send.
+	if r.Method == http.MethodPost && path == "/api/channels/open-dm" {
+		return true
+	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return false
 	}
-	switch r.URL.Path {
+	switch path {
 	case "/api/ollama/catalog", "/api/hf/catalog", "/api/ollama/install-status":
 		return true
 	}
-	if strings.HasPrefix(r.URL.Path, "/api/ollama/library/") {
+	if strings.HasPrefix(path, "/api/ollama/library/") {
 		return true
 	}
 	return false

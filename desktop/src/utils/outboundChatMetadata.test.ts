@@ -7,6 +7,7 @@ import {
   trimWorkspaceContext,
 } from './outboundChatMetadata';
 import type { WorkspaceContext } from './workspaceContext';
+import { useFileExplorerStore } from '../stores/fileExplorerStore';
 
 describe('isCollabSandboxPath', () => {
   it('detects collaboration sandboxes under ~/.neural-junkie/collaborations', () => {
@@ -188,6 +189,33 @@ describe('buildHumanOutboundMetadata DM personal questions', () => {
     });
     expect(meta?.editor_mode).toBe('agent');
     expect(meta?.implementation_session).toBe(true);
+  });
+
+  it('attaches workspace for knowledge-graph relate questions even in chat mode', () => {
+    useFileExplorerStore.setState({
+      workspaces: [
+        {
+          id: 'ciso',
+          name: 'CISO',
+          path: '/Users/me/CISO',
+          kind: 'local',
+        },
+      ],
+      activeWorkspaceId: 'ciso',
+      fileTree: { ciso: [] },
+    });
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'auto',
+      conversationMode: 'chat',
+      message:
+        "How does CISO relate to the rest of the codebase? CISO (repo) in community 'root' — degree 1, 1 neighbors",
+      channel: 'dm-camron-softwarearchitect',
+      channelType: 'dm',
+    });
+    expect(meta?.context_scope).not.toBe('none');
+    expect(meta?.workspace_context).toBeDefined();
+    const ws = meta?.workspace_context as { workspace_path?: string } | undefined;
+    expect(ws?.workspace_path).toBe('/Users/me/CISO');
   });
 });
 

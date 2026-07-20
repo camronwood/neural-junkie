@@ -14,6 +14,13 @@ interface UseWebSocketOptions {
   reconnectInterval?: number;
 }
 
+function clearSocketHandlers(ws: WebSocket): void {
+  ws.onopen = null;
+  ws.onmessage = null;
+  ws.onerror = null;
+  ws.onclose = null;
+}
+
 export function useWebSocket({
   url,
   onMessage,
@@ -27,16 +34,15 @@ export function useWebSocket({
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const shouldReconnectRef = useRef(autoReconnect);
-  const isConnectingRef = useRef(false);
-  const isMountedRef = useRef(false);
-  
-  // Use refs for callbacks to avoid recreating connect function
+  /** Bumps on each connect/teardown so stale socket events cannot clobber UI status. */
+  const generationRef = useRef(0);
+
   const onMessageRef = useRef(onMessage);
   const onConnectRef = useRef(onConnect);
   const onDisconnectRef = useRef(onDisconnect);
   const onErrorRef = useRef(onError);
-  
-  // Update refs when callbacks change
+  const urlRef = useRef(url);
+
   useEffect(() => {
     onMessageRef.current = onMessage;
     onConnectRef.current = onConnect;
@@ -44,40 +50,52 @@ export function useWebSocket({
     onErrorRef.current = onError;
   }, [onMessage, onConnect, onDisconnect, onError]);
 
+  useEffect(() => {
+    urlRef.current = url;
+  }, [url]);
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimeoutRef.current != null) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  }, []);
+
+  const tearDownSocket = useCallback((ws: WebSocket | null) => {
+    if (!ws) return;
+    clearSocketHandlers(ws);
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      try {
+        ws.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
   const connect = useCallback(() => {
-    // Prevent duplicate connection attempts
-    if (isConnectingRef.current) {
-      console.log('Connection attempt already in progress, skipping...');
-      return;
-    }
+    clearReconnectTimer();
 
-    // Prevent duplicate connections
-    if (wsRef.current?.readyState === WebSocket.OPEN || 
-        wsRef.current?.readyState === WebSocket.CONNECTING) {
-      console.log('WebSocket already open or connecting, skipping...');
-      return;
-    }
+    const gen = ++generationRef.current;
+    const prev = wsRef.current;
+    wsRef.current = null;
+    tearDownSocket(prev);
 
-    // Close any existing connection first (but not if it's still connecting)
-    if (wsRef.current && wsRef.current.readyState === WebSocket.CLOSED) {
-      wsRef.current = null;
-    }
-
-    isConnectingRef.current = true;
     setStatus('connecting');
-    console.log('Connecting to WebSocket:', url);
+    console.log('Connecting to WebSocket:', urlRef.current);
 
     try {
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(urlRef.current);
 
       ws.onopen = () => {
+        if (gen !== generationRef.current) return;
         console.log('WebSocket connected');
-        isConnectingRef.current = false;
         setStatus('connected');
         onConnectRef.current?.();
       };
 
       ws.onmessage = (event) => {
+        if (gen !== generationRef.current) return;
         perfMarkStart('ws.onmessage');
         try {
           const message: Message = JSON.parse(event.data);
@@ -90,21 +108,24 @@ export function useWebSocket({
       };
 
       ws.onerror = (error) => {
+        if (gen !== generationRef.current) return;
         console.error('WebSocket error:', error);
-        isConnectingRef.current = false;
         setStatus('error');
         onErrorRef.current?.(error);
       };
 
       ws.onclose = () => {
+        if (gen !== generationRef.current) return;
         console.log('WebSocket disconnected');
-        isConnectingRef.current = false;
+        if (wsRef.current === ws) {
+          wsRef.current = null;
+        }
         setStatus('disconnected');
         onDisconnectRef.current?.();
 
-        // Attempt to reconnect if enabled
         if (shouldReconnectRef.current && autoReconnect) {
           reconnectTimeoutRef.current = window.setTimeout(() => {
+            if (gen !== generationRef.current) return;
             console.log('Attempting to reconnect...');
             connect();
           }, reconnectInterval);
@@ -114,80 +135,36 @@ export function useWebSocket({
       wsRef.current = ws;
     } catch (error) {
       console.error('Failed to create WebSocket:', error);
-      isConnectingRef.current = false;
-      setStatus('error');
+      if (gen === generationRef.current) {
+        setStatus('error');
+      }
     }
-  }, [url, autoReconnect, reconnectInterval]);
+  }, [autoReconnect, reconnectInterval, clearReconnectTimer, tearDownSocket]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false;
-    isConnectingRef.current = false;
-    
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
+    clearReconnectTimer();
+    generationRef.current += 1;
+    const prev = wsRef.current;
+    wsRef.current = null;
+    tearDownSocket(prev);
+    setStatus('disconnected');
+  }, [clearReconnectTimer, tearDownSocket]);
 
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-  }, []);
-
-  // Handle URL changes - disconnect from old URL before connecting to new one
-  const urlRef = useRef(url);
+  // Connect on mount and whenever URL / reconnect policy changes.
   useEffect(() => {
-    if (urlRef.current !== url && wsRef.current) {
-      // URL changed, disconnect from old connection
-      disconnect();
-    }
-    urlRef.current = url;
-  }, [url, disconnect]);
-
-  // Auto-connect on mount
-  useEffect(() => {
-    isMountedRef.current = true;
     shouldReconnectRef.current = autoReconnect;
-    
-    // Only connect if we don't already have a connection
-    if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
-      connect();
-    }
+    connect();
 
     return () => {
-      // Mark as unmounted
-      isMountedRef.current = false;
       shouldReconnectRef.current = false;
-      
-      // Clear any pending reconnects
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      
-      // Close WebSocket gracefully, but only if it's not currently connecting
-      // This prevents "closed before connection established" errors in React Strict Mode
-      if (wsRef.current) {
-        const ws = wsRef.current;
-        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CLOSED) {
-          ws.close();
-        } else if (ws.readyState === WebSocket.CONNECTING) {
-          // Wait for connection to open before closing to avoid errors
-          const handleOpen = () => {
-            if (!isMountedRef.current) {
-              ws.close();
-            }
-          };
-          const handleError = () => {
-            // Connection failed, no need to close
-          };
-          ws.addEventListener('open', handleOpen, { once: true });
-          ws.addEventListener('error', handleError, { once: true });
-        }
-        wsRef.current = null;
-      }
+      clearReconnectTimer();
+      generationRef.current += 1;
+      const prev = wsRef.current;
+      wsRef.current = null;
+      tearDownSocket(prev);
     };
-  }, [connect, autoReconnect]);
+  }, [url, connect, autoReconnect, clearReconnectTimer, tearDownSocket]);
 
   return {
     status,
@@ -195,4 +172,3 @@ export function useWebSocket({
     disconnect,
   };
 }
-

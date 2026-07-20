@@ -116,6 +116,11 @@ func main() {
 	*addr = resolveListenAddr(*addr, appConfig)
 	config.SetAppConfig(appConfig)
 	sec := appConfig.ResolvedSecurity()
+	// Rate limiter is constructed at package init (before config load) with defaults.
+	// Reconfigure immediately so disk settings (e.g. rate_limit_enabled=false) take effect.
+	if apiRateLimiter != nil {
+		apiRateLimiter.Reconfigure(sec.RateLimitEnabledOrDefault(), sec.RateReadPerMinute, sec.RateMutatePerMinute)
+	}
 	if sec.ListenAll && !hub.HubTokenConfigured() {
 		if appConfig.ResolvedDebug().Enabled || hub.RelaxedLocal() {
 			log.Printf("⚠️  NEURAL_JUNKIE_LISTEN_ALL=1 without NEURAL_JUNKIE_HUB_TOKEN — hub is exposed on the LAN without network auth")

@@ -6,6 +6,23 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.7] - 2026-07-20
+
+Hotfix release after beta.6 packaged-app soak: chat reliability, workspace grounding for Knowledge Graph asks, and IDE layout panel independence.
+
+### Fixed
+- **WebSocket reconnect race** — stale `onclose` after channel-scoped reconnect no longer flips the hub to a fake disconnect while typing.
+- **DM / channel create 429** — rate limiter now reconfigures after config load (`rate_limit_enabled: false` actually applies); dedicated `POST /api/channels/open-dm` is rate-limit exempt; client open-DM path is serialized.
+- **Pack toolbar chip icons** — hub icon URLs load via fetch→blob so Tauri CSP does not blank chips; CSP `img-src` allows hub + blob.
+- **Hub connection chip** — toolbar status chip mirrors Ollama-style connectivity.
+- **`nj_retrieve_context` placeholders** — schema examples no longer look like real refs; placeholder ids are rejected.
+- **Knowledge Graph “Ask agents”** — relate-to-codebase prefills keep `workspace_path` so `semantic_search` / code_graph tools are not called with an empty root.
+- **IDE layout + hide chat** — hiding the main chat no longer unmounts the editor workspace slot.
+- **Chat header panel toggles** — hide-main-chat control sits with left/right sidebar toggles.
+
+### Changed
+- **`make local-build` / `make local-install`** — packaged local soak builds (sidecar + Tauri) with optional `/Applications` install.
+
 ## [1.2.0-beta.6] - 2026-07-17
 
 The release where the workstation gets a memory of its own code — a native repository knowledge graph, Model Arena, event-driven stream subscriptions, and a wave of collab, packaging, and site hardening.

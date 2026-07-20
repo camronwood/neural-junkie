@@ -34,7 +34,7 @@ describe('toolbarActionsFromRegistry', () => {
     });
   });
 
-  it('prefers icon over label text', () => {
+  it('keeps label as fallback when icon URL is set', () => {
     const registry: ResolvedCapability[] = [
       {
         id: 'pack-toolbar',
@@ -46,7 +46,7 @@ describe('toolbarActionsFromRegistry', () => {
       },
     ];
     const actions = toolbarActionsFromRegistry(registry, [{ id: 'acme-lab', title: 'Acme Lab' }]);
-    expect(actions[0].label).toBe('');
+    expect(actions[0].label).toBe('ACM');
     expect(actions[0].iconUrl).toContain('/api/packs/acme-lab/asset');
     expect(actions[0].iconUrl).toContain('assets%2Ficons%2Fchip.png');
   });

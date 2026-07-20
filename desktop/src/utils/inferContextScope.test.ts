@@ -65,6 +65,16 @@ describe('resolveContextScope', () => {
     expect(r.scope).toBe('outline');
   });
 
+  it('knowledge-graph relate question returns outline', () => {
+    const r = resolveContextScope({
+      message:
+        "How does CISO relate to the rest of the codebase? CISO (repo) in community 'root' — degree 1, 1 neighbors",
+      mode: 'auto',
+      channelKind: 'dm',
+    });
+    expect(r.scope).toBe('outline');
+  });
+
   it('manual override wins', () => {
     expect(
       resolveContextScope({

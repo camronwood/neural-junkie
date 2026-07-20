@@ -275,8 +275,11 @@ func (a *Agent) generateWithMCPTools(
 			}
 			callCtx := ctx
 			if len(history) > 0 {
-				callCtx = a.contextWithWorkspaceBackend(ctx, history[len(history)-1])
 				last := history[len(history)-1]
+				callCtx = a.contextWithWorkspaceBackend(ctx, last)
+				if ws := a.resolveWorkspacePath(last); ws != "" {
+					callCtx = shared.ContextWithWorkspaceRoot(callCtx, ws)
+				}
 				if last.ImplementationSession() || implementationSessionStateFromContext(ctx) != nil {
 					callCtx = shared.ContextWithImplementationSession(callCtx, true)
 				}

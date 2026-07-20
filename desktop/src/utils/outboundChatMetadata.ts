@@ -590,8 +590,17 @@ export function buildHumanOutboundMetadata(options: {
       reason = 'CAD file operation needs workspace path';
     }
   } else if (resolvedConversationMode === 'chat' && contextMode !== 'always') {
-    scope = 'none';
-    reason = 'conversation mode: chat';
+    // Knowledge Graph / codebase questions still need workspace_path for semantic_search
+    // even when the conversation-mode setting is Chat.
+    if (hasCodeTaskSignals(message)) {
+      if (scope === 'none' || scope === 'hint') {
+        scope = 'outline';
+        reason = 'code/graph question needs workspace path';
+      }
+    } else {
+      scope = 'none';
+      reason = 'conversation mode: chat';
+    }
   } else if (resolvedConversationMode === 'collab') {
     // scope follows collab / inferContextScope rules
   } else if (

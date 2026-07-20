@@ -1,5 +1,6 @@
 import type { ChannelKind } from './inferContextScope';
 import {
+  hasCodeGraphSignals,
   messageReferencesOpenEditor,
   messageRequestsScanTool,
 } from './inferContextScope';
@@ -70,6 +71,7 @@ export function hasCodeTaskSignals(message: string): boolean {
   if (hasErrorLogFollowUpSignals(text)) return true;
   if (hasScanOrEditorTaskSignals(text)) return true;
   if (/@codebase\b/i.test(text)) return true;
+  if (hasCodeGraphSignals(text)) return true;
   if (CODE_VERBS_RE.test(text)) return true;
   if (FILE_PATH_RE.test(text)) return true;
   if (/`[^`]+`/.test(text)) return true;

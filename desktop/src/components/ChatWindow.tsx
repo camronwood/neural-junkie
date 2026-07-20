@@ -55,7 +55,7 @@ import {
 } from '../utils/refreshFileExplorer';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useSidebarAutoUnhide } from '../hooks/useSidebarAutoUnhide';
-import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
+import { agentSidebarHideKey, dmChannelNamesForAgent, predictedDmChannelName } from '../utils/dmChannelDisplay';
 import {
   patchRevealForChannel,
   patchRevealSidebarItems,
@@ -113,7 +113,7 @@ import { AIInterviewPrepModal } from './AIInterviewPrepModal';
 import { LearningProposalModal } from './LearningProposalModal';
 import type { LearningProposalAction } from '../api/chatAPI';
 import type { LoraTrainPrefill } from './LoraTrainingPanel';
-import { LeftSidebarIcon, RightSidebarIcon } from './Icons';
+import { LeftSidebarIcon, RightSidebarIcon, ChatPanelIcon } from './Icons';
 import { ChatToolbarActions } from './ChatToolbarActions';
 import { ChatToolbarSidebar } from './ChatToolbarSidebar';
 import type {
@@ -158,6 +158,7 @@ import { useHorizontalPanelResize } from '../hooks/useHorizontalPanelResize';
 import { useChatShortcutHandlers } from '../hooks/useChatShortcutHandlers';
 import { useChatShortcutOverlays } from '../hooks/useChatShortcutOverlays';
 import { useShortcutDispatcher } from '../shortcuts/useShortcutDispatcher';
+import { formatChord } from '../shortcuts/format';
 import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 import type { LayoutPreset } from '../stores/settingsStore';
 import {
@@ -796,15 +797,28 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     () => (serverAddr.startsWith('http') ? serverAddr : `http://${serverAddr}`),
     [serverAddr]
   );
+  const channelNamesKey = useMemo(
+    () =>
+      channels
+        .map((c) => c.name)
+        .slice()
+        .sort()
+        .join('\0'),
+    [channels],
+  );
   const wsURL = useMemo(() => {
-    const slackExtra = channels
-      .filter((c) => isSlackHubChannelName(c.name) && c.name !== channel)
-      .map((c) => c.name);
+    const slackExtra = channelNamesKey
+      .split('\0')
+      .filter((name) => name && isSlackHubChannelName(name) && name !== channel);
     return api.getWebSocketURL(channel, slackExtra);
-  }, [api, channel, channels]);
+  }, [api, channel, channelNamesKey]);
   
   // Debounce timeout ref for agent list refresh
   const agentRefreshTimeoutRef = useRef<number | null>(null);
+  /** Prevents rapid DM sidebar clicks from spamming POST /api/channels/create (HTTP 429). */
+  const dmCreateInFlightRef = useRef<Map<string, Promise<void>>>(new Map());
+  /** Serialize all DM opens so parallel agent clicks cannot burn the mutate budget. */
+  const dmOpenChainRef = useRef<Promise<void>>(Promise.resolve());
   
   // Load layout settings on mount
   useEffect(() => {
@@ -1306,29 +1320,84 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   // Create a DM channel with an agent
   const handleCreateDM = useCallback(async (agentId: string) => {
-    try {
-      const ch = await api.createChannel('', '', 'dm', [agentId], username);
-      const { settings, isLoaded } = useSettingsStore.getState();
-      const agent = useChatStore.getState().agents.find((a) => a.id === agentId);
-      if (isLoaded) {
-        const patch = patchRevealSidebarItems(settings, {
-          agentIds: [agentId],
-          agentSidebarKeys: agent ? [agentSidebarHideKey(agent)] : undefined,
-          dmChannelNames: [ch.name],
-        });
-        if (patch) {
-          void updateSettings(patch);
+    const pending = dmCreateInFlightRef.current.get(agentId);
+    if (pending) {
+      await pending;
+      return;
+    }
+
+    const run = (async () => {
+      const openOne = async () => {
+        try {
+          const st = useChatStore.getState();
+          const agent = st.agents.find((a) => a.id === agentId);
+          if (agent) {
+            const predicted = predictedDmChannelName(username, agent.name);
+            const existingByName = st.channels.find((c) => c.name === predicted);
+            if (existingByName) {
+              await handleSwitchChannel(existingByName.name);
+              return;
+            }
+            const existingName = dmChannelNamesForAgent(st.channels, agent)[0];
+            if (existingName) {
+              await handleSwitchChannel(existingName);
+              return;
+            }
+            const byMembership = st.channels.find(
+              (c) =>
+                c.type === 'dm' &&
+                (c.agents?.some((a) => a.id === agentId) || c.members?.includes(agentId)),
+            );
+            if (byMembership) {
+              await handleSwitchChannel(byMembership.name);
+              return;
+            }
+          }
+
+          const ch = await api.openDM(agentId, username);
+          const prevChannels = useChatStore.getState().channels;
+          if (!prevChannels.some((c) => c.name === ch.name)) {
+            useChatStore.getState().setChannels([...prevChannels, ch]);
+          }
+          const { settings, isLoaded } = useSettingsStore.getState();
+          if (isLoaded) {
+            const patch = patchRevealSidebarItems(settings, {
+              agentIds: [agentId],
+              agentSidebarKeys: agent ? [agentSidebarHideKey(agent)] : undefined,
+              dmChannelNames: [ch.name],
+            });
+            if (patch) {
+              void updateSettings(patch);
+            }
+          }
+          void loadChannels();
+          await handleSwitchChannel(ch.name);
+        } catch (error) {
+          console.error('Failed to create DM channel:', error);
+          const msg = error instanceof Error ? error.message : 'Failed to create DM channel.';
+          addToast({
+            type: 'error',
+            title: 'Could not open direct message',
+            message: /too many requests/i.test(msg)
+              ? 'Too many channel requests — wait a few seconds and try again.'
+              : msg,
+          });
         }
-      }
-      await loadChannels();
-      await handleSwitchChannel(ch.name);
-    } catch (error) {
-      console.error('Failed to create DM channel:', error);
-      addToast({
-        type: 'error',
-        title: 'Could not open direct message',
-        message: error instanceof Error ? error.message : 'Failed to create DM channel.',
-      });
+      };
+
+      const chained = dmOpenChainRef.current.then(openOne, openOne);
+      dmOpenChainRef.current = chained.then(
+        () => undefined,
+        () => undefined,
+      );
+      await chained;
+    })();
+
+    dmCreateInFlightRef.current.set(agentId, run);
+    try {
+      await run;
+    } finally {
+      dmCreateInFlightRef.current.delete(agentId);
     }
   }, [api, username, loadChannels, handleSwitchChannel, updateSettings, addToast]);
 
@@ -1516,7 +1585,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
 
   // WebSocket connection
-  const { status } = useWebSocket({
+  const { status, connect: reconnectHub } = useWebSocket({
     url: wsURL,
     onMessage: async (message: Message) => {
       try {
@@ -2584,8 +2653,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const toolbarActionsProps = useMemo(
     () => ({
       onOpenCommandPalette: openCommandPalette,
-      chatPanelVisible,
-      onToggleChatPanel: () => void updateLayoutSettings({ chatPanelVisible: !chatPanelVisible }),
       conversationModeSetting,
       onCycleConversationMode: () => {
         const next = cycleConversationModeSetting(conversationModeSetting);
@@ -2647,10 +2714,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       onLogout: onLogout ? handleLogout : undefined,
       username,
       serverAddr,
+      connectionStatus: status,
+      onReconnectHub: reconnectHub,
     }),
     [
       openCommandPalette,
-      chatPanelVisible,
       updateLayoutSettings,
       conversationModeSetting,
       workspaceContextMode,
@@ -2669,6 +2737,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       handleLogout,
       username,
       serverAddr,
+      status,
+      reconnectHub,
       activeWorkspaceId,
       explorerWorkspaces,
       openKnowledgeGraphWorkbench,
@@ -2744,6 +2814,20 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             >
               <LeftSidebarIcon className="w-3.5 h-3.5" />
             </button>
+            <button
+              type="button"
+              onClick={() => void updateLayoutSettings({ chatPanelVisible: !chatPanelVisible })}
+              className={`w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 ${
+                chatPanelVisible
+                  ? 'bg-slack-accent text-white'
+                  : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
+              }`}
+              title={`${chatPanelVisible ? 'Hide main chat' : 'Show main chat'} (${formatChord('mod+shift+c')})`}
+              aria-label={chatPanelVisible ? 'Hide main chat panel' : 'Show main chat panel'}
+              aria-pressed={chatPanelVisible}
+            >
+              <ChatPanelIcon className="w-3.5 h-3.5" />
+            </button>
             {useSidebarChips && (
               <button
                 type="button"
@@ -2815,8 +2899,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         )}
 
-        {/* Workspace slot — flex region for editor + space reclaimed when chat is resized */}
-        {chatPanelVisible && (ideLayout || chatResizable) && (
+        {/* Workspace slot — editor stays visible when chat is hidden (IDE layout).
+            Do not gate on chatPanelVisible: that incorrectly unmounted the editor with chat. */}
+        {(ideLayout || chatResizable) && (
           <div
             data-shrinkable-workspace
             className="flex flex-1 min-w-0 min-h-0 flex-col h-full border-r border-slack-border"

@@ -11,7 +11,7 @@ on:
       tag:
         description: Release tag to bump the cask to (e.g. v1.2.0-beta.5)
         required: true
-        default: v1.2.0-beta.6
+        default: v1.2.0-beta.7
 
 permissions:
   contents: read

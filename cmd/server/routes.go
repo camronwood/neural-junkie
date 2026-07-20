@@ -17,6 +17,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/agents/ws", localOnly(handleAgentWebSocket))
 	http.HandleFunc("/api/channels", corsMiddleware(handleChannels))
 	http.HandleFunc("/api/channels/create", corsMiddleware(localOnly(handleCreateChannel)))
+	http.HandleFunc("/api/channels/open-dm", corsMiddleware(localOnly(handleOpenDM)))
 	http.HandleFunc("/api/channels/create-dm-agent", corsMiddleware(localOnly(handleCreateDMAgent)))
 	http.HandleFunc("/api/cli-agent-types", corsMiddleware(handleCLIAgentTypes))
 	http.HandleFunc("/api/cli-agents", corsMiddleware(handleCLIAgents))

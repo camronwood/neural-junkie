@@ -114,7 +114,7 @@ export function toolbarActionsFromRegistry(
     if (modal) titleParts.push(modal);
     out.push({
       id: tb.id,
-      label: iconUrl ? '' : label,
+      label,
       iconUrl,
       modal,
       capabilityId: rc.id,

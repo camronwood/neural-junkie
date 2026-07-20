@@ -38,7 +38,7 @@ Cache files: `~/.neural-junkie/context-cache/` (optional disk spill).
 
 Registered on workspace-enabled MCP servers as **`nj_retrieve_context`**:
 
-- **`ref`** — from compression marker (`ctx-…`)
+- **`ref`** — exact `ctx-` + 12 hex characters from a compression marker in the current turn (never invent or copy documentation examples)
 - **`query`** — optional substring filter on cached lines
 
 Rate limit: **3 retrieves per tool-loop turn**.

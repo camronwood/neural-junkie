@@ -277,6 +277,9 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 		writtenPath = cadWrittenPathFromToolInput(wsRoot, input)
 	}
 	toolCtx := a.contextWithWorkspaceBackend(ctx, msg)
+	if wsRoot != "" {
+		toolCtx = shared.ContextWithWorkspaceRoot(toolCtx, wsRoot)
+	}
 	if msg.ImplementationSession() || implementationSessionStateFromContext(ctx) != nil {
 		toolCtx = shared.ContextWithImplementationSession(toolCtx, true)
 		if st := implementationSessionStateFromContext(ctx); st != nil {

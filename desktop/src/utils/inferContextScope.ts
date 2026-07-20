@@ -29,7 +29,14 @@ const EDITOR_DOCUMENT_RE =
   /\b(new\s+(document|file)|document\s+open|file\s+open|open\s+(document|file|one)|in\s+(my\s+|the\s+)?editor|editor\s+open|active\s+(file|document|tab)|have\s+.{0,16}open|opened\s+.{0,16}(editor|document|file)|review\s+(this|the|it|that|one|doc)|can\s+.{0,24}review|take\s+a\s+look|look\s+at\s+(this|the|it|that|one))\b/i;
 
 const OUTLINE_RE =
-  /\b(architecture|file structure|project structure|codebase structure|repo structure|directory structure|what does this repo|how is (this|the) (repo|project) (organized|structured))\b/i;
+  /\b(architecture|file structure|project structure|codebase structure|repo structure|directory structure|what does this repo|how is (this|the) (repo|project) (organized|structured)|rest of the codebase)\b/i;
+
+/** Mirrors hub knowledge-router code_graph cues (Knowledge Graph "Ask agents" prefills). */
+const CODE_GRAPH_CUES_RE =
+  /\b(relate to|related to|path between|who calls|who imports|what imports|depends on|dependency on|call graph|knowledge graph|connected to|imports from|used by|where is it used|rest of the codebase)\b/i;
+
+const HOW_DOES_GRAPH_RE =
+  /\bhow does\b.{0,100}\b(relate|connect|depend|import|call|used by|connected)\b/i;
 
 const GENERAL_RE =
   /\b(aws|azure|gcp|sso|iam|cloudformation|terraform|kubernetes|explain (the )?concept|what is|who is better|who's better|how do i (use|set up)|best practices for)\b/i;
@@ -93,8 +100,20 @@ function hasCodeSignals(text: string): boolean {
   return false;
 }
 
+/** True when the message asks about repo structure / graph relations (needs workspace_path). */
+export function hasCodeGraphSignals(text: string): boolean {
+  const t = (text ?? '').trim();
+  if (!t) return false;
+  if (CODE_GRAPH_CUES_RE.test(t)) return true;
+  if (HOW_DOES_GRAPH_RE.test(t)) return true;
+  if (/\bcodebase\b/i.test(t) && /\b(how|what|where|relate|related|structure|organized|rest of)\b/i.test(t)) {
+    return true;
+  }
+  return OUTLINE_RE.test(t);
+}
+
 function hasOutlineSignals(text: string): boolean {
-  return OUTLINE_RE.test(text);
+  return hasCodeGraphSignals(text);
 }
 
 function hasGeneralSignals(text: string): boolean {

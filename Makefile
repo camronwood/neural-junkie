@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads
+.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -124,7 +124,8 @@ build: ## Build all binaries
 	@go build -o bin/chat cmd/chat/main.go
 	@echo "✅ Build complete!"
 	@echo ""
-	@echo "💡 For GUI, run: make gui-build"
+	@echo "💡 Packaged desktop app: make local-build"
+	@echo "   (optional install on macOS: make local-build INSTALL=1)"
 
 run-server: ## Start the chat hub server
 	@echo "🚀 Starting chat hub server on http://localhost:18765 $(if $(SERVER_GO_TAGS),[Slack vendor],)"
@@ -603,10 +604,53 @@ gui-install: ensure-lora-deps ## Install GUI dependencies (first time only)
 	@cd desktop && npm install
 	@echo "✅ Desktop dependencies installed!"
 
-gui-build: ## Build production desktop app
+gui-build: ## Build production desktop app (Tauri only; prefer make local-build)
 	@echo "🔨 Building desktop app..."
 	@cd desktop && npm run tauri:build
 	@echo "✅ Desktop app built! Check desktop/src-tauri/target/release/bundle/"
+
+# Fresh sidecar + Tauri package for local soak testing (not a GitHub release).
+# Usage:
+#   make local-build              # write .app/.dmg under desktop/src-tauri/target/release/bundle/
+#   make local-build INSTALL=1    # also install to /Applications on macOS
+#   make local-install            # install an already-built .app
+local-build: ensure-lora-deps ensure-ollama-bundle build-sidecar ## Packaged local desktop app (sidecar + Tauri); INSTALL=1 → /Applications
+	@echo "🔨 Building local packaged desktop app..."
+	@set -e; \
+	KEY="$$HOME/.tauri/neural-junkie.key"; \
+	if [ -f "$$KEY" ]; then \
+		export TAURI_PRIVATE_KEY="$$(cat "$$KEY")"; \
+		export TAURI_KEY_PASSWORD="$${TAURI_KEY_PASSWORD:-}"; \
+		echo "   Updater signing key: $$KEY"; \
+	else \
+		echo "   ⚠️  Missing $$KEY — updater signing may fail (bundles may still be produced)"; \
+	fi; \
+	export CARGO_TARGET_DIR="$(CURDIR)/desktop/src-tauri/target"; \
+	cd desktop && npm run tauri:build; \
+	BUNDLE="$(CURDIR)/desktop/src-tauri/target/release/bundle"; \
+	echo "✅ Local build ready under $$BUNDLE"; \
+	ls -ld "$$BUNDLE/macos/"*.app 2>/dev/null || true; \
+	ls -ld "$$BUNDLE/dmg/"*.dmg 2>/dev/null || true; \
+	ls -ld "$$BUNDLE/deb/"*.deb 2>/dev/null || true; \
+	ls -ld "$$BUNDLE/msi/"* 2>/dev/null || true; \
+	if [ "$(INSTALL)" = "1" ]; then $(MAKE) local-install; fi
+
+local-install: ## Install latest local macOS .app to /Applications (after make local-build)
+	@APP="$(CURDIR)/desktop/src-tauri/target/release/bundle/macos/Neural Junkie.app"; \
+	if [ ! -d "$$APP" ]; then \
+		echo "❌ No app at $$APP"; \
+		echo "   Run: make local-build"; \
+		exit 1; \
+	fi; \
+	echo "📦 Installing to /Applications/Neural Junkie.app ..."; \
+	osascript -e 'quit app "Neural Junkie"' 2>/dev/null || true; \
+	sleep 1; \
+	rm -rf "/Applications/Neural Junkie.app"; \
+	cp -R "$$APP" /Applications/; \
+	xattr -cr "/Applications/Neural Junkie.app" 2>/dev/null || true; \
+	VER=$$(defaults read "/Applications/Neural Junkie.app/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo unknown); \
+	echo "✅ Installed version $$VER"; \
+	echo "   open \"/Applications/Neural Junkie.app\""
 
 # Desktop aliases (for documentation consistency)
 desktop: gui ## Alias for 'make gui'
