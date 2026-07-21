@@ -14,7 +14,14 @@ describe('getUpdateChannelLabel', () => {
   });
 
   it('returns Stable for release semver', () => {
-    expect(getUpdateChannelLabel('1.0.0')).toBe('Stable updates');
+    expect(getUpdateChannelLabel('1.0.0', {
+      schemaVersion: 1,
+      channel: 'stable',
+      severity: 'normal',
+      enforcement: 'optional',
+      rolloutPercentage: 100,
+      rolloutSeed: 'v1.0.0',
+    })).toBe('Stable updates');
   });
 });
 
