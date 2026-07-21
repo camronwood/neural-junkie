@@ -6,7 +6,7 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
-## [1.2.0-beta.9] - 2026-07-21
+## [1.2.0-beta.10] - 2026-07-21
 
 Automatic desktop updates, safer restarts, and more reliable agent questions.
 

@@ -409,7 +409,9 @@ jobs:
         run: |
           npm ci
           npm run build
-          npx tauri build --bundles deb
+          # Linux updates remain manual. A deb is not an updater-capable Tauri
+          # bundle, so override the global macOS/Windows updater artifact policy.
+          npx tauri build --bundles deb --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Upload Linux deb
         env:
