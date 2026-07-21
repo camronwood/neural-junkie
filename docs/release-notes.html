@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.7">v1.2.0-beta.7</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.10">v1.2.0-beta.10</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-2-0-beta-10">1.2.0-beta.10</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-2-0-beta-7">1.2.0-beta.7</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-2-0-beta-6">1.2.0-beta.6</a>
@@ -242,6 +244,24 @@
       <h3>Known limitation</h3>
       <ul>
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
+      </ul>
+
+      <h2 id="v1-2-0-beta-10" class="release-version-heading">1.2.0-beta.10 <span class="release-date">— 2026-07-21</span></h2>
+
+      <p><strong>Automatic updates and safer agent workflows.</strong> Tauri v2 brings signed background downloads and clean-restart installation to macOS and Windows, while agent questions now pause peers, deduplicate prompts, and continue the original task after an answer. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.10">GitHub Releases</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Automatic signed updates</strong> — background checks and downloads on macOS and Windows with safe restart installation.</li>
+        <li><strong>Release policy controls</strong> — staged rollout, critical deadlines, minimum supported versions, and explicit platform availability.</li>
+        <li><strong>Restart safety</strong> — protects unsaved drafts and active streams, collaborations, jobs, and terminal foreground work.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Agent questions</strong> — equivalent questions coalesce, recent answers are reused, and agents resume the original turn.</li>
+        <li><strong>Offline update behavior</strong> — cached metadata can warn offline, but only verified installable bytes can enforce an update.</li>
+        <li><strong>Linux updates</strong> — <code>.deb</code> installation remains manual while package-upgrade behavior is validated.</li>
       </ul>
 
       <h2 id="v1-2-0-beta-7" class="release-version-heading">1.2.0-beta.7 <span class="release-date">— 2026-07-20</span></h2>

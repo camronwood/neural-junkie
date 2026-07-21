@@ -44,7 +44,7 @@ sha_for_dmg() {
 }
 
 sha_for_deb() {
-  local asset="neural-junkie_${VERSION}_amd64.deb"
+  local asset="Neural.Junkie_${VERSION}_amd64.deb"
   local url="https://github.com/${REPO}/releases/download/${TAG}/${asset}"
   echo "Fetching ${asset}..." >&2
   curl -fsSL -o "${tmpdir}/${asset}" "${url}"
@@ -88,7 +88,7 @@ cat >"${FORMULA_FILE}" <<EOF
 class NeuralJunkie < Formula
   desc "Multi-agent orchestration workspace with local-first AI"
   homepage "https://camronwood.github.io/neural-junkie/"
-  url "https://github.com/${REPO}/releases/download/v${VERSION}/neural-junkie_${VERSION}_amd64.deb"
+  url "https://github.com/${REPO}/releases/download/v${VERSION}/Neural.Junkie_${VERSION}_amd64.deb"
   sha256 "${SHA_LINUX}"
   license :cannot_represent
 
