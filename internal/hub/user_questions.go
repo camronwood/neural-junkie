@@ -27,16 +27,19 @@ const (
 
 // UserQuestion represents a pending question an agent needs the user to answer.
 type UserQuestion struct {
-	ID         string             `json:"id"`
-	AgentID    string             `json:"agent_id"`
-	AgentName  string             `json:"agent_name"`
-	Channel    string             `json:"channel"`
-	Question   string             `json:"question"`
-	Options    []string           `json:"options,omitempty"`
-	Status     UserQuestionStatus `json:"status"`
-	Answer     string             `json:"answer,omitempty"`
-	CreatedAt  time.Time          `json:"created_at"`
-	ResolvedAt *time.Time         `json:"resolved_at,omitempty"`
+	ID          string             `json:"id"`
+	MessageID   string             `json:"message_id,omitempty"`
+	AgentID     string             `json:"agent_id"`
+	AgentName   string             `json:"agent_name"`
+	Channel     string             `json:"channel"`
+	GoalID      string             `json:"goal_id,omitempty"`
+	DecisionKey string             `json:"decision_key,omitempty"`
+	Question    string             `json:"question"`
+	Options     []string           `json:"options,omitempty"`
+	Status      UserQuestionStatus `json:"status"`
+	Answer      string             `json:"answer,omitempty"`
+	CreatedAt   time.Time          `json:"created_at"`
+	ResolvedAt  *time.Time         `json:"resolved_at,omitempty"`
 }
 
 // UserQuestionManager manages agent-to-user question prompts.
@@ -66,6 +69,12 @@ func (uqm *UserQuestionManager) Stop() {
 
 // Ask creates a question, broadcasts it to the channel, and blocks until the user answers or timeout.
 func (uqm *UserQuestionManager) Ask(agentID, agentName, channel, question string, options []string, timeout time.Duration) (string, error) {
+	return uqm.AskWithContext(agentID, agentName, channel, question, options, "", "", timeout)
+}
+
+// AskWithContext correlates a question with a stable goal and decision key.
+// The legacy Ask method delegates here with empty context.
+func (uqm *UserQuestionManager) AskWithContext(agentID, agentName, channel, question string, options []string, goalID, decisionKey string, timeout time.Duration) (string, error) {
 	question = strings.TrimSpace(question)
 	if question == "" {
 		return "", fmt.Errorf("question is required")
@@ -76,12 +85,22 @@ func (uqm *UserQuestionManager) Ask(agentID, agentName, channel, question string
 	if timeout <= 0 {
 		timeout = UserQuestionTTL
 	}
+	goalID = strings.TrimSpace(goalID)
+	decisionKey = strings.TrimSpace(decisionKey)
+	if decisionKey != "" && uqm.hub != nil {
+		if state := uqm.hub.GetChannelConversationState(channel); state != nil {
+			if decision, ok := state.AnsweredDecisions[decisionStateKey(goalID, decisionKey)]; ok &&
+				strings.TrimSpace(decision.Answer) != "" {
+				return decision.Answer, nil
+			}
+		}
+	}
 
 	waiter := make(chan string, 1)
 	uqm.mu.Lock()
 
 	// Reuse a recent answer to the same/similar question instead of re-prompting.
-	if answer, ok := uqm.findRecentAnswerLocked(channel, question, time.Now()); ok {
+	if answer, ok := uqm.findAnswerLocked(channel, goalID, decisionKey, question, time.Now()); ok {
 		uqm.mu.Unlock()
 		log.Printf("[UserQuestion] Reusing recent answer on %s for similar question from %s", channel, agentName)
 		return answer, nil
@@ -91,7 +110,7 @@ func (uqm *UserQuestionManager) Ask(agentID, agentName, channel, question string
 	// waiter so one user answer resumes all agents without duplicate cards.
 	for _, pending := range uqm.questions {
 		if pending != nil && pending.Channel == channel && pending.Status == UserQuestionPending &&
-			questionsSimilar(question, pending.Question) {
+			questionsEquivalentForContext(goalID, decisionKey, question, pending) {
 			uqm.waiters[pending.ID] = append(uqm.waiters[pending.ID], waiter)
 			id := pending.ID
 			uqm.mu.Unlock()
@@ -101,14 +120,17 @@ func (uqm *UserQuestionManager) Ask(agentID, agentName, channel, question string
 	}
 
 	q := &UserQuestion{
-		ID:        uuid.New().String()[:8],
-		AgentID:   agentID,
-		AgentName: agentName,
-		Channel:   channel,
-		Question:  question,
-		Options:   cleanQuestionOptions(options),
-		Status:    UserQuestionPending,
-		CreatedAt: time.Now(),
+		ID:          uuid.New().String()[:8],
+		MessageID:   uuid.New().String(),
+		AgentID:     agentID,
+		AgentName:   agentName,
+		Channel:     channel,
+		GoalID:      goalID,
+		DecisionKey: decisionKey,
+		Question:    question,
+		Options:     cleanQuestionOptions(options),
+		Status:      UserQuestionPending,
+		CreatedAt:   time.Now(),
 	}
 	uqm.questions[q.ID] = q
 	uqm.waiters[q.ID] = []chan string{waiter}
@@ -182,6 +204,12 @@ func (uqm *UserQuestionManager) Answer(questionID, answer string) error {
 	delete(uqm.waiters, questionID)
 
 	uqm.mu.Unlock()
+	if uqm.hub != nil && q.DecisionKey != "" {
+		uqm.hub.RecordConversationDecision(q.Channel, ConversationDecision{
+			GoalID: q.GoalID, DecisionKey: q.DecisionKey, QuestionID: q.ID,
+			MessageID: q.MessageID, Answer: answer, AnsweredAt: now,
+		})
+	}
 	for _, ch := range waiters {
 		ch <- answer
 		close(ch)
@@ -197,7 +225,9 @@ func (uqm *UserQuestionManager) ListPending() []*UserQuestion {
 	var pending []*UserQuestion
 	for _, q := range uqm.questions {
 		if q.Status == UserQuestionPending {
-			pending = append(pending, q)
+			copyQ := *q
+			copyQ.Options = append([]string(nil), q.Options...)
+			pending = append(pending, &copyQ)
 		}
 	}
 	return pending
@@ -242,7 +272,7 @@ func (uqm *UserQuestionManager) PendingAgentIDsOnChannel(channel string) []strin
 
 func (uqm *UserQuestionManager) broadcastQuestion(q *UserQuestion) {
 	msg := &protocol.Message{
-		ID:      uuid.New().String(),
+		ID:      q.MessageID,
 		Type:    protocol.MessageTypeUserQuestion,
 		Channel: q.Channel,
 		From: protocol.AgentInfo{
@@ -253,10 +283,12 @@ func (uqm *UserQuestionManager) broadcastQuestion(q *UserQuestion) {
 		Content:   fmt.Sprintf("**%s** has a question:\n\n%s", q.AgentName, q.Question),
 		Timestamp: q.CreatedAt,
 		Metadata: map[string]interface{}{
-			"question_id": q.ID,
-			"question":    q.Question,
-			"options":     q.Options,
-			"status":      string(q.Status),
+			"question_id":  q.ID,
+			"goal_id":      q.GoalID,
+			"decision_key": q.DecisionKey,
+			"question":     q.Question,
+			"options":      q.Options,
+			"status":       string(q.Status),
 		},
 	}
 	if err := uqm.hub.SendMessage(msg); err != nil {
@@ -289,11 +321,13 @@ func (uqm *UserQuestionManager) broadcastQuestionUpdate(questionID string) {
 		Content:   content,
 		Timestamp: time.Now(),
 		Metadata: map[string]interface{}{
-			"question_id": q.ID,
-			"question":    q.Question,
-			"options":     q.Options,
-			"status":      string(q.Status),
-			"answer":      q.Answer,
+			"question_id":  q.ID,
+			"goal_id":      q.GoalID,
+			"decision_key": q.DecisionKey,
+			"question":     q.Question,
+			"options":      q.Options,
+			"status":       string(q.Status),
+			"answer":       q.Answer,
 		},
 	}
 	if uqm.hub != nil && uqm.hub.upsertUserQuestionMessage(msg) {
@@ -319,6 +353,10 @@ func (uqm *UserQuestionManager) findRecentAnswer(channel, question string) (stri
 }
 
 func (uqm *UserQuestionManager) findRecentAnswerLocked(channel, question string, now time.Time) (string, bool) {
+	return uqm.findAnswerLocked(channel, "", "", question, now)
+}
+
+func (uqm *UserQuestionManager) findAnswerLocked(channel, goalID, decisionKey, question string, now time.Time) (string, bool) {
 	var bestAnswer string
 	var bestAt time.Time
 	found := false
@@ -329,14 +367,20 @@ func (uqm *UserQuestionManager) findRecentAnswerLocked(channel, question string,
 		if strings.TrimSpace(q.Answer) == "" || q.Answer == "timed out waiting for user response" {
 			continue
 		}
+		if decisionKey != "" {
+			if q.GoalID != goalID || q.DecisionKey != decisionKey {
+				continue
+			}
+		} else if q.DecisionKey != "" || !questionsSimilar(question, q.Question) {
+			continue
+		}
 		resolved := q.CreatedAt
 		if q.ResolvedAt != nil {
 			resolved = *q.ResolvedAt
 		}
-		if now.Sub(resolved) > UserQuestionDedupWindow {
-			continue
-		}
-		if !questionsSimilar(question, q.Question) {
+		// Stable goal/decision keys remain valid for the life of that goal,
+		// including after restart. Legacy fuzzy matching retains its time bound.
+		if decisionKey == "" && now.Sub(resolved) > UserQuestionDedupWindow {
 			continue
 		}
 		if !found || resolved.After(bestAt) {
@@ -349,6 +393,16 @@ func (uqm *UserQuestionManager) findRecentAnswerLocked(channel, question string,
 		return "", false
 	}
 	return bestAnswer, true
+}
+
+func questionsEquivalentForContext(goalID, decisionKey, question string, pending *UserQuestion) bool {
+	if pending == nil {
+		return false
+	}
+	if decisionKey != "" {
+		return pending.GoalID == goalID && pending.DecisionKey == decisionKey
+	}
+	return pending.DecisionKey == "" && questionsSimilar(question, pending.Question)
 }
 
 func questionsSimilar(a, b string) bool {
@@ -391,6 +445,78 @@ func normalizeUserQuestion(s string) string {
 		}
 	}
 	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// RestoreResolvedFromMessages rebuilds answered-question dedupe state from the
+// persisted user_question cards. Pending waiters cannot safely survive restart.
+func (uqm *UserQuestionManager) RestoreResolvedFromMessages(channels map[string]*ChannelSnapshot) {
+	if uqm == nil {
+		return
+	}
+	var decisions []struct {
+		channel  string
+		decision ConversationDecision
+	}
+	uqm.mu.Lock()
+	for channelName, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		for _, msg := range channel.Messages {
+			if msg == nil || msg.Type != protocol.MessageTypeUserQuestion || msg.Metadata == nil {
+				continue
+			}
+			if metadataString(msg.Metadata, "status") != string(UserQuestionAnswered) {
+				continue
+			}
+			id := metadataString(msg.Metadata, "question_id")
+			answer := metadataString(msg.Metadata, "answer")
+			if id == "" || strings.TrimSpace(answer) == "" {
+				continue
+			}
+			question := metadataString(msg.Metadata, "question")
+			goalID := metadataString(msg.Metadata, "goal_id")
+			decisionKey := metadataString(msg.Metadata, "decision_key")
+			resolvedAt := msg.Timestamp
+			if resolvedAt.IsZero() {
+				resolvedAt = time.Now()
+			}
+			resolvedCopy := resolvedAt
+			restored := &UserQuestion{
+				ID: id, MessageID: msg.ID, AgentID: msg.From.ID, AgentName: msg.From.Name,
+				Channel: channelName, GoalID: goalID, DecisionKey: decisionKey,
+				Question: question, Status: UserQuestionAnswered, Answer: answer,
+				CreatedAt: resolvedAt, ResolvedAt: &resolvedCopy,
+			}
+			if existing := uqm.questions[id]; existing == nil ||
+				existing.ResolvedAt == nil || existing.ResolvedAt.Before(resolvedAt) {
+				uqm.questions[id] = restored
+			}
+			if decisionKey != "" {
+				decisions = append(decisions, struct {
+					channel  string
+					decision ConversationDecision
+				}{
+					channel: channelName,
+					decision: ConversationDecision{
+						GoalID: goalID, DecisionKey: decisionKey, QuestionID: id,
+						MessageID: msg.ID, Answer: answer, AnsweredAt: resolvedAt,
+					},
+				})
+			}
+		}
+	}
+	uqm.mu.Unlock()
+	if uqm.hub != nil {
+		for _, item := range decisions {
+			uqm.hub.RecordConversationDecision(item.channel, item.decision)
+		}
+	}
+}
+
+func metadataString(metadata map[string]interface{}, key string) string {
+	value, _ := metadata[key].(string)
+	return strings.TrimSpace(value)
 }
 
 func (uqm *UserQuestionManager) cleanupLoop() {

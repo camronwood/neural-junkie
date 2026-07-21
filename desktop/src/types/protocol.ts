@@ -22,7 +22,8 @@ export type MessageType =
   | 'collaboration_task'
   | 'collaboration_status'
   | 'collaboration_discussion'
-  | 'collaboration_recap';
+  | 'collaboration_recap'
+  | 'artifact_changed';
 
 export type AgentType =
   | 'frontend'
@@ -80,6 +81,8 @@ export interface AgentInfo {
   tool_count?: number;
   /** Internal consult-only repo index; hidden from user-facing agent lists. */
   consult_only?: boolean;
+  capabilities?: string[];
+  denied_capabilities?: string[];
 }
 
 export interface AgentToolParam {
@@ -110,11 +113,75 @@ export interface AgentToolCapabilities {
   tool_loop_uses_fallback: boolean;
   tool_loop_mode?: 'native' | 'react' | 'fallback';
   notes?: string[];
+  discoverable_capabilities?: string[];
+  available_capabilities?: string[];
+  active_capabilities?: string[];
+  denied_capabilities?: string[];
+  unavailable_capabilities?: string[];
 }
 
 export interface ChannelToolsResponse {
   channel: string;
   agents: AgentToolCapabilities[];
+}
+
+export interface ResolvedCapability {
+  id: string;
+  qualified_id: string;
+  pack_id?: string;
+  label?: string;
+  description?: string;
+  exposure?: 'safe' | 'sensitive' | string;
+  kind?: string;
+  platform?: boolean;
+  routes?: string[];
+  ui?: {
+    toolbar?: { id?: string; label?: string; icon?: string };
+    modal?: string;
+  };
+  match_glob?: string;
+  viewer?: string;
+  settings?: string[];
+  mcp_tools?: string[];
+  mcp_agents?: string[];
+  renderer?: string;
+  media_types?: string[];
+  renderer_api_version?: number;
+  schema_version_min?: number;
+  schema_version_max?: number;
+  fallback?: string;
+}
+
+export interface AgentCapabilityState {
+  discoverable: ResolvedCapability[];
+  available: string[];
+  effective: string[];
+  denied: string[];
+  unavailable: string[];
+  allow: string[];
+  deny: string[];
+}
+
+export interface CapabilityPolicyAgent {
+  agent: AgentInfo;
+  state: AgentCapabilityState;
+}
+
+export interface CapabilityPolicyResponse {
+  allow_sensitive_by_default: boolean;
+  handoffs_enabled: boolean;
+  capability_registry: ResolvedCapability[];
+  agents: CapabilityPolicyAgent[];
+}
+
+export interface CapabilityPolicyUpdate {
+  allow_sensitive_by_default?: boolean;
+  handoffs_enabled?: boolean;
+  agent_key?: string;
+  override?: {
+    allow: string[];
+    deny: string[];
+  };
 }
 
 export interface ImplementationSessionOutcome {
@@ -147,6 +214,72 @@ export interface Message {
   metadata?: Record<string, any>;
   tags?: string[];
   mentions?: string[];
+}
+
+export interface ArtifactReference {
+  id: string;
+  title?: string;
+  renderer_id?: string;
+  renderer_api_version?: number;
+  media_type?: string;
+  revision?: number;
+  workspace_id?: string;
+  action?: 'created' | 'updated' | 'deleted' | string;
+}
+
+export interface StoredArtifactSource {
+  kind: string;
+  uri?: string;
+  artifactId?: string;
+  revision?: number;
+  label?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface StoredArtifact {
+  schemaVersion: number;
+  id: string;
+  revision: number;
+  kind?: string;
+  title?: string;
+  description?: string;
+  provenance?: StoredArtifactSource[];
+  links?: {
+    workspaceId?: string;
+    projectId?: string;
+    channelId?: string;
+    collaborationId?: string;
+  };
+  renderer: {
+    id: string;
+    apiVersion: string;
+    mediaType: string;
+  };
+  payload: unknown;
+  fallback?: {
+    mediaType: string;
+    data: unknown;
+  };
+  capabilities?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoredArtifactRevision {
+  artifactId: string;
+  revision: number;
+  createdAt: string;
+  artifact: StoredArtifact;
+}
+
+export function getArtifactReference(
+  metadata?: Record<string, unknown>,
+): ArtifactReference | null {
+  const raw = metadata?.artifact_ref;
+  if (!raw || typeof raw !== 'object') return null;
+  const ref = raw as Record<string, unknown>;
+  if (typeof ref.id !== 'string' || !ref.id.trim()) return null;
+  return ref as unknown as ArtifactReference;
 }
 
 export interface MessageErrorMetadata {
@@ -199,6 +332,9 @@ export const ROUTING_KNOWLEDGE_EXECUTED_METADATA_KEY = 'routing_knowledge_execut
 export const ROUTING_COMPOSER_MODE_METADATA_KEY = 'routing_composer_mode';
 export const ROUTING_CONTEXT_SCOPE_METADATA_KEY = 'routing_context_scope';
 export const ROUTING_IMPL_SESSION_METADATA_KEY = 'routing_impl_session';
+export const ROUTING_CONVERSATION_TIER_METADATA_KEY = 'routing_conversation_tier';
+export const ROUTING_CONVERSATION_REASONS_METADATA_KEY = 'routing_conversation_reasons';
+export const ROUTING_CONVERSATION_ESCALATED_FROM_METADATA_KEY = 'routing_conversation_escalated_from';
 
 export type RoutingMeta = {
   provider_id?: string;
@@ -215,6 +351,9 @@ export type RoutingMeta = {
   composer_mode?: string;
   context_scope?: string;
   impl_session?: boolean;
+  conversation_tier?: string;
+  conversation_reasons?: string[];
+  conversation_escalated_from?: string;
 };
 
 export type RoutingGovernanceMeta = {
@@ -237,6 +376,9 @@ export type RoutingTelemetryPayload = {
   knowledge_reason?: string;
   knowledge_targets?: string[];
   knowledge_executed?: string[];
+  conversation_tier?: string;
+  conversation_reasons?: string[];
+  conversation_escalated_from?: string;
   governance?: RoutingGovernanceMeta;
 };
 
@@ -344,6 +486,17 @@ export function getRoutingMeta(metadata?: Record<string, unknown>): RoutingMeta 
   if (metadata[ROUTING_IMPL_SESSION_METADATA_KEY] === true) {
     out.impl_session = true;
   }
+  if (typeof metadata[ROUTING_CONVERSATION_TIER_METADATA_KEY] === 'string') {
+    out.conversation_tier = metadata[ROUTING_CONVERSATION_TIER_METADATA_KEY] as string;
+  }
+  if (Array.isArray(metadata[ROUTING_CONVERSATION_REASONS_METADATA_KEY])) {
+    out.conversation_reasons = (metadata[ROUTING_CONVERSATION_REASONS_METADATA_KEY] as unknown[]).filter(
+      (v): v is string => typeof v === 'string'
+    );
+  }
+  if (typeof metadata[ROUTING_CONVERSATION_ESCALATED_FROM_METADATA_KEY] === 'string') {
+    out.conversation_escalated_from = metadata[ROUTING_CONVERSATION_ESCALATED_FROM_METADATA_KEY] as string;
+  }
   return out;
 }
 
@@ -361,6 +514,8 @@ export function parseRoutingTelemetryPayload(raw: unknown): RoutingTelemetryPayl
     'cost_tier',
     'knowledge_route',
     'knowledge_reason',
+    'conversation_tier',
+    'conversation_escalated_from',
   ] as const) {
     if (typeof p[key] === 'string') out[key] = p[key] as string;
   }
@@ -369,6 +524,9 @@ export function parseRoutingTelemetryPayload(raw: unknown): RoutingTelemetryPayl
   }
   if (Array.isArray(p.knowledge_executed)) {
     out.knowledge_executed = p.knowledge_executed.filter((v): v is string => typeof v === 'string');
+  }
+  if (Array.isArray(p.conversation_reasons)) {
+    out.conversation_reasons = p.conversation_reasons.filter((v): v is string => typeof v === 'string');
   }
   if (p.governance && typeof p.governance === 'object' && !Array.isArray(p.governance)) {
     const g = p.governance as Record<string, unknown>;
@@ -408,6 +566,9 @@ export function formatRoutingTooltip(meta: RoutingMeta): string {
   if (meta.composer_mode) lines.push(`Composer mode: ${meta.composer_mode}`);
   if (meta.context_scope) lines.push(`Context scope: ${meta.context_scope}`);
   if (meta.impl_session) lines.push('Implementation session: yes');
+  if (meta.conversation_tier) lines.push(`Conversation tier: ${meta.conversation_tier}`);
+  if (meta.conversation_reasons?.length) lines.push(`Conversation signals: ${meta.conversation_reasons.join(', ')}`);
+  if (meta.conversation_escalated_from) lines.push(`Escalated from: ${meta.conversation_escalated_from}`);
   if (meta.reason) lines.push(`Reason: ${meta.reason}`);
   if (meta.source) lines.push(`Classifier: ${meta.source}`);
   return lines.join('\n');
@@ -471,7 +632,7 @@ export function isToolStepStreamDelta(metadata?: Record<string, unknown>): boole
   return typeof metadata?.tool_step === 'string';
 }
 
-export type ChannelType = 'public' | 'dm' | 'custom' | 'collaboration' | 'room';
+export type ChannelType = 'public' | 'dm' | 'custom' | 'collaboration' | 'room' | 'delegation';
 
 export interface Channel {
   id: string;
@@ -482,6 +643,10 @@ export interface Channel {
   project?: string;
   room_id?: string;
   type: ChannelType;
+  source_channel?: string;
+  source_message_id?: string;
+  archived?: boolean;
+  archived_at?: string;
   created_by?: string;
   created: string; // ISO date string
   agents: AgentInfo[];

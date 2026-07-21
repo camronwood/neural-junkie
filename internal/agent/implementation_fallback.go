@@ -590,6 +590,7 @@ func (a *Agent) tryEarlyScopedFileEdit(ctx context.Context, msg *protocol.Messag
 	if err != nil {
 		return false
 	}
+	state.RecordReadPath(target)
 	body, ok := synthesizeScopedFileEdit(userContent, target, string(existingBytes))
 	if !ok {
 		return false
@@ -719,6 +720,7 @@ func (a *Agent) tryEarlyThemeToggleFix(ctx context.Context, msg *protocol.Messag
 		tailPath := filepath.Join(wsPath, tailRel)
 		existing, err := os.ReadFile(tailPath)
 		if err == nil {
+			state.RecordReadPath(tailRel)
 			body, ok := synthesizeTailwindDarkMode(string(existing))
 			if ok && a.proposeTailwindDarkModeEdit(ctx, msg, wsPath, tailRel, string(existing), body, state, userContent) {
 				applied = true
@@ -729,6 +731,7 @@ func (a *Agent) tryEarlyThemeToggleFix(ctx context.Context, msg *protocol.Messag
 		entryPath := filepath.Join(wsPath, entryRel)
 		existing, err := os.ReadFile(entryPath)
 		if err == nil {
+			state.RecordReadPath(entryRel)
 			body, ok := synthesizeAppThemeToggle(userContent, string(existing))
 			if ok {
 				rel := a.ResolveProposalPath(ctx, msg, entryRel)

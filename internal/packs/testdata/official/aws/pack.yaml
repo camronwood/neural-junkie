@@ -7,7 +7,15 @@ capabilities:
   - aws-api
   - aws-sso
   - aws-sidecar
+  - aws-report-canvas
 capability_defs:
+  aws-api:
+    kind: mcp-tools
+    label: AWS API
+    description: Account-aware AWS inspection and gated infrastructure operations.
+    exposure: sensitive
+    mcp_agents:
+      - aws
   aws-sidecar:
     kind: hub-sidecar
     routes:
@@ -26,6 +34,14 @@ capability_defs:
       - aws_dry_run
       - python_executable
       - aws_venv
+  aws-report-canvas:
+    kind: artifact-renderer
+    renderer: nj.chart
+    media_types: [application/vnd.neural-junkie.aws-report+json]
+    renderer_api_version: 1
+    schema_version_min: 1
+    schema_version_max: 1
+    fallback: nj.table
 settings_overlay:
   aws_default_region: us-east-2
   aws_venv: ~/.neural-junkie/aws/venv

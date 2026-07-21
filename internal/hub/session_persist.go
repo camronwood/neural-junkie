@@ -457,15 +457,16 @@ type SessionSaveHealth struct {
 
 // ChannelSnapshot holds all messages for a single channel.
 type ChannelSnapshot struct {
-	Name             string               `json:"name"`
-	DisplayName      string               `json:"display_name,omitempty"`
-	Description      string               `json:"description"`
-	Type             protocol.ChannelType `json:"type"`
-	CreatedBy        string               `json:"created_by,omitempty"`
-	Members          []string             `json:"members,omitempty"`
-	Messages         []*protocol.Message  `json:"messages"`
-	SessionSummary   string               `json:"session_summary,omitempty"`
-	SessionSummaryAt time.Time            `json:"session_summary_at,omitempty"`
+	Name              string                    `json:"name"`
+	DisplayName       string                    `json:"display_name,omitempty"`
+	Description       string                    `json:"description"`
+	Type              protocol.ChannelType      `json:"type"`
+	CreatedBy         string                    `json:"created_by,omitempty"`
+	Members           []string                  `json:"members,omitempty"`
+	Messages          []*protocol.Message       `json:"messages"`
+	SessionSummary    string                    `json:"session_summary,omitempty"`
+	SessionSummaryAt  time.Time                 `json:"session_summary_at,omitempty"`
+	ConversationState *ChannelConversationState `json:"conversation_state,omitempty"`
 }
 
 // ThreadSnapshot holds all messages and metadata for a single thread.
@@ -499,6 +500,7 @@ func (h *Hub) TakeSessionSnapshot() *SessionSnapshot {
 			Members:     ch.Members,
 			Messages:    make([]*protocol.Message, 0),
 		}
+		cs.ConversationState = cloneConversationState(h.conversationState[name])
 		if h.channelContext != nil {
 			if ctx := h.channelContext[name]; ctx != nil && ctx.Summary != "" {
 				cs.SessionSummary = ctx.Summary
@@ -577,6 +579,7 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 	h.uiSubscribers = make(map[string][]chan *protocol.Message)
 	h.threadSubscribers = make(map[string][]chan *protocol.Message)
 	h.channelContext = make(map[string]*ChannelContextState)
+	h.conversationState = make(map[string]*ChannelConversationState)
 	h.channelSummaryRefreshGen = make(map[string]uint64)
 
 	for name, ch := range snapshot.Channels {
@@ -599,6 +602,11 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		h.messages[name] = append([]*protocol.Message(nil), ch.Messages...)
 		h.subscribers[name] = []chan *protocol.Message{}
 		h.uiSubscribers[name] = []chan *protocol.Message{}
+		if ch.ConversationState != nil {
+			h.conversationState[name] = cloneConversationState(ch.ConversationState)
+		} else {
+			h.conversationStateLocked(name)
+		}
 		if strings.TrimSpace(ch.SessionSummary) != "" {
 			h.channelContext[name] = &ChannelContextState{
 				Summary:   ch.SessionSummary,
@@ -622,6 +630,7 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		h.messages[channel.Name] = []*protocol.Message{}
 		h.subscribers[channel.Name] = []chan *protocol.Message{}
 		h.uiSubscribers[channel.Name] = []chan *protocol.Message{}
+		h.conversationStateLocked(channel.Name)
 	}
 	for threadID, thread := range snapshot.Threads {
 		if thread == nil {
@@ -637,6 +646,10 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 	h.hydrateCollabChannelsFromCollaborationsLocked(snapshot.Collaborations)
 	h.trimAllChannelAndThreadHistoryLocked()
 	h.mu.Unlock()
+
+	if h.userQuestionManager != nil {
+		h.userQuestionManager.RestoreResolvedFromMessages(snapshot.Channels)
+	}
 
 	if h.collabManager != nil && snapshot.Collaborations != nil {
 		h.collabManager.Restore(snapshot.Collaborations)

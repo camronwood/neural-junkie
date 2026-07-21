@@ -17,7 +17,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if designAnalysis, ok := msg.Metadata["design_analysis"].(bool); ok && designAnalysis {
 		return a.generateDesignAnalysisResponse(ctx, msg)
 	}
-	intent := a.classifyTurnIntentForMessage(msg)
+	intent := turnIntentForContext(ctx, a, msg)
 	a.logTurnIntent(intent, msg)
 	if intent == IntentClosure {
 		if resp, ok := tryConversationalClosure(a, msg); ok {
@@ -172,7 +172,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		resp, err := a.generateDesignAnalysisResponse(ctx, msg)
 		return resp, "", "", err
 	}
-	intent := a.classifyTurnIntentForMessage(msg)
+	intent := turnIntentForContext(ctx, a, msg)
 	a.logTurnIntent(intent, msg)
 	if intent == IntentClosure {
 		if resp, ok := tryConversationalClosure(a, msg); ok {
@@ -304,8 +304,13 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 	}
 	if len(a.agentToolDefinitions(msg)) > 0 {
+		outerObserver := ai.ToolStepObserverFromContext(approvalCtx)
 		toolCtx := ai.WithToolStepObserver(approvalCtx, func(ev ai.ToolStepEvent) {
-			a.broadcastToolStep(approvalCtx, msg, streamMsgID, ev)
+			if outerObserver != nil {
+				outerObserver(ev)
+			} else {
+				a.broadcastToolStep(approvalCtx, msg, streamMsgID, ev)
+			}
 		})
 		text, err := a.generateWithAgentTools(toolCtx, msg, prompt, history, eff)
 		if err != nil {
@@ -405,6 +410,10 @@ func (a *Agent) collectStreamTokens(ctx context.Context, msg *protocol.Message, 
 	var fullResponse strings.Builder
 	var fullReasoning strings.Builder
 	var streamErr error
+	bufferForValidation := false
+	if goal, ok := turnGoalFromContext(ctx); ok {
+		bufferForValidation = goal.RequiresActionEvidence()
+	}
 
 	for {
 		select {
@@ -441,7 +450,9 @@ func (a *Agent) collectStreamTokens(ctx context.Context, msg *protocol.Message, 
 					delta.ThreadID = msg.ThreadID
 					delta.IsThreadReply = true
 				}
-				a.Hub.BroadcastDirect(msg.Channel, delta)
+				if !bufferForValidation {
+					a.Hub.BroadcastDirect(msg.Channel, delta)
+				}
 			}
 			if token.Content != "" {
 				fullResponse.WriteString(token.Content)
@@ -457,7 +468,9 @@ func (a *Agent) collectStreamTokens(ctx context.Context, msg *protocol.Message, 
 					delta.ThreadID = msg.ThreadID
 					delta.IsThreadReply = true
 				}
-				a.Hub.BroadcastDirect(msg.Channel, delta)
+				if !bufferForValidation {
+					a.Hub.BroadcastDirect(msg.Channel, delta)
+				}
 			}
 			if token.Done {
 				goto finishStream

@@ -640,19 +640,19 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 	if name == "" {
 		if spec.IsPreset {
 			defaults := map[protocol.AgentType]string{
-				protocol.AgentTypeRust:         "RustExpert",
-				protocol.AgentTypeBackend:      "BackendEngineer",
-				protocol.AgentTypeFrontend:     "FrontendEngineer",
-				protocol.AgentTypeDevOps:       "PlatformEngineer",
-				protocol.AgentTypeDatabase:     "DatabaseSpecialist",
-				protocol.AgentTypeSecurity:     "SecurityReviewer",
-				protocol.AgentTypeArchitecture: "SoftwareArchitect",
-				protocol.AgentTypeCodeReview:   "CodeReviewer",
-				protocol.AgentTypeBiology:            "BiologyExpert",
-				protocol.AgentTypeGenomics:           "GenomicsExpert",
-				protocol.AgentTypeStructuralBiology:  "StructuralBiologyExpert",
-				protocol.AgentTypeCheminformatics:    "ChemInformaticsExpert",
-				protocol.AgentTypeAssistant:    "Assistant",
+				protocol.AgentTypeRust:              "RustExpert",
+				protocol.AgentTypeBackend:           "BackendEngineer",
+				protocol.AgentTypeFrontend:          "FrontendEngineer",
+				protocol.AgentTypeDevOps:            "PlatformEngineer",
+				protocol.AgentTypeDatabase:          "DatabaseSpecialist",
+				protocol.AgentTypeSecurity:          "SecurityReviewer",
+				protocol.AgentTypeArchitecture:      "SoftwareArchitect",
+				protocol.AgentTypeCodeReview:        "CodeReviewer",
+				protocol.AgentTypeBiology:           "BiologyExpert",
+				protocol.AgentTypeGenomics:          "GenomicsExpert",
+				protocol.AgentTypeStructuralBiology: "StructuralBiologyExpert",
+				protocol.AgentTypeCheminformatics:   "ChemInformaticsExpert",
+				protocol.AgentTypeAssistant:         "Assistant",
 			}
 			name = defaults[spec.AgentType]
 		} else {
@@ -682,7 +682,7 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
-	ch.persistExpertAgentRecord(agentInstance, createdBy, expertSlug, "", "", providerName, modelOverride, dmCh)
+	ch.persistExpertAgentRecord(agentInstance, createdBy, expertSlug, "", "", providerName, modelOverride, nil, nil, dmCh)
 	ch.setDMRedirect(dmCh.Name)
 
 	expertiseStr := strings.Join(agentInstance.Info.Expertise, ", ")

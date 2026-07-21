@@ -10,24 +10,27 @@ import (
 
 // RoutingSnapshot records which provider/model ran for the current turn.
 type RoutingSnapshot struct {
-	ProviderID      string
-	ChatModel       string
-	ToolModel       string
-	Reason          string
-	Source          string
-	Domain          string
-	CostTier        string
-	KnowledgeRoute    string
-	KnowledgeReason   string
-	KnowledgeTargets  []string
-	KnowledgeExecuted []string
-	ComposerMode    string
-	ContextScope    string
-	ImplSession     bool
-	ClassifierIntent   string
-	ClassifierToolNeed bool
-	ClassifierConfidence float64
-	ClassifierLoRATag  string
+	ProviderID                string
+	ChatModel                 string
+	ToolModel                 string
+	Reason                    string
+	Source                    string
+	Domain                    string
+	CostTier                  string
+	KnowledgeRoute            string
+	KnowledgeReason           string
+	KnowledgeTargets          []string
+	KnowledgeExecuted         []string
+	ComposerMode              string
+	ContextScope              string
+	ImplSession               bool
+	ClassifierIntent          string
+	ClassifierToolNeed        bool
+	ClassifierConfidence      float64
+	ClassifierLoRATag         string
+	ConversationTier          string
+	ConversationReasons       []string
+	ConversationEscalatedFrom string
 }
 
 type routingSnapshotHolder struct {
@@ -114,6 +117,15 @@ func (a *Agent) RecordRoutingSnapshot(snap RoutingSnapshot) {
 		a.routingSnap.snap.ClassifierConfidence = snap.ClassifierConfidence
 	}
 	a.routingSnap.snap.ClassifierToolNeed = snap.ClassifierToolNeed || a.routingSnap.snap.ClassifierToolNeed
+	if snap.ConversationTier != "" {
+		a.routingSnap.snap.ConversationTier = snap.ConversationTier
+	}
+	if len(snap.ConversationReasons) > 0 {
+		a.routingSnap.snap.ConversationReasons = append([]string(nil), snap.ConversationReasons...)
+	}
+	if snap.ConversationEscalatedFrom != "" {
+		a.routingSnap.snap.ConversationEscalatedFrom = snap.ConversationEscalatedFrom
+	}
 }
 
 // RecordRoutingFromProvider captures provider id and model from an AI provider.
@@ -175,23 +187,26 @@ func (a *Agent) ApplyRoutingMetadataToResponse(msg *protocol.Message) {
 	}
 
 	protocol.ApplyRoutingMeta(msg, protocol.RoutingMeta{
-		ProviderID:         snap.ProviderID,
-		Model:              snap.ChatModel,
-		ToolModel:          snap.ToolModel,
-		Reason:             snap.Reason,
-		Source:             snap.Source,
-		Domain:             snap.Domain,
-		CostTier:           snap.CostTier,
-		KnowledgeRoute:     snap.KnowledgeRoute,
-		KnowledgeReason:    snap.KnowledgeReason,
-		KnowledgeTargets:   snap.KnowledgeTargets,
-		KnowledgeExecuted:  snap.KnowledgeExecuted,
-		ComposerMode:       snap.ComposerMode,
-		ContextScope:       snap.ContextScope,
-		ImplSession:        snap.ImplSession,
-		ClassifierIntent:   snap.ClassifierIntent,
-		ClassifierToolNeed: snap.ClassifierToolNeed,
-		ClassifierConfidence: snap.ClassifierConfidence,
-		ClassifierLoRATag:  snap.ClassifierLoRATag,
+		ProviderID:                snap.ProviderID,
+		Model:                     snap.ChatModel,
+		ToolModel:                 snap.ToolModel,
+		Reason:                    snap.Reason,
+		Source:                    snap.Source,
+		Domain:                    snap.Domain,
+		CostTier:                  snap.CostTier,
+		KnowledgeRoute:            snap.KnowledgeRoute,
+		KnowledgeReason:           snap.KnowledgeReason,
+		KnowledgeTargets:          snap.KnowledgeTargets,
+		KnowledgeExecuted:         snap.KnowledgeExecuted,
+		ComposerMode:              snap.ComposerMode,
+		ContextScope:              snap.ContextScope,
+		ImplSession:               snap.ImplSession,
+		ClassifierIntent:          snap.ClassifierIntent,
+		ClassifierToolNeed:        snap.ClassifierToolNeed,
+		ClassifierConfidence:      snap.ClassifierConfidence,
+		ClassifierLoRATag:         snap.ClassifierLoRATag,
+		ConversationTier:          snap.ConversationTier,
+		ConversationReasons:       snap.ConversationReasons,
+		ConversationEscalatedFrom: snap.ConversationEscalatedFrom,
 	})
 }

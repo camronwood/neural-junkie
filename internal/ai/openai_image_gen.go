@@ -39,10 +39,10 @@ func (p *OpenAICompatProvider) GenerateImage(ctx context.Context, prompt, size s
 		model = "dall-e-3"
 	}
 	body := map[string]interface{}{
-		"model":            model,
-		"prompt":           prompt,
-		"n":                1,
-		"size":             size,
+		"model":           model,
+		"prompt":          prompt,
+		"n":               1,
+		"size":            size,
 		"response_format": "b64_json",
 	}
 	raw, err := json.Marshal(body)
@@ -69,9 +69,15 @@ func (p *OpenAICompatProvider) GenerateImage(ctx context.Context, prompt, size s
 		return "", "", err
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("read images API response: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("images API status %d: %s", resp.StatusCode, string(respBody))
+	}
+	if len(bytes.TrimSpace(respBody)) == 0 {
+		return "", "", fmt.Errorf("images API returned an empty response")
 	}
 	var parsed openAIImageResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {

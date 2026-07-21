@@ -228,6 +228,9 @@ func (a *Agent) readWorkspaceFileForEdit(ctx context.Context, msg *protocol.Mess
 		if err != nil {
 			return "", fmt.Errorf("read file %s: %w", relPath, err)
 		}
+		if st := implementationSessionStateFromContext(ctx); st != nil {
+			st.RecordReadPath(relPath)
+		}
 		return string(data), nil
 	}
 	ws := a.resolveWorkspacePath(msg)
@@ -241,6 +244,9 @@ func (a *Agent) readWorkspaceFileForEdit(ctx context.Context, msg *protocol.Mess
 	data, err := os.ReadFile(abs)
 	if err != nil {
 		return "", fmt.Errorf("read file %s: %w", relPath, err)
+	}
+	if st := implementationSessionStateFromContext(ctx); st != nil {
+		st.RecordReadPath(relPath)
 	}
 	return string(data), nil
 }

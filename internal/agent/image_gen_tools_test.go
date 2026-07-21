@@ -191,6 +191,44 @@ func TestImageGenerationDisabledDuringImplementationSession(t *testing.T) {
 	}
 }
 
+func TestExplicitImageIntentOverridesAmbientIDEMetadata(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "Frontend", Type: protocol.AgentTypeFrontend},
+		Hub:  hub,
+	}
+	msg := &protocol.Message{
+		Channel: "general",
+		Content: "Generate an image of a blue ship.",
+		Metadata: map[string]interface{}{
+			MetadataConversationMode:   ConversationModeCode,
+			protocol.IdeMetaEditorMode: "agent",
+		},
+	}
+	if !a.imageGenerationToolsEnabledForMessage(msg) {
+		t.Fatal("explicit image intent should override ambient code/editor metadata")
+	}
+	if _, ok := a.tryHubImageGenerationShortcut(context.Background(), msg); !ok {
+		t.Fatal("expected explicit image shortcut")
+	}
+	if !hub.posted {
+		t.Fatal("expected image to be posted")
+	}
+}
+
+func TestExplicitImageIntentDoesNotOverrideActiveCollaboration(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "Frontend", Type: protocol.AgentTypeFrontend},
+		Hub:  &imageGenTestHub{enabled: true},
+	}
+	msg := &protocol.Message{Channel: "collab", Content: "Generate an image of the design."}
+	msg.SetCollaborationID("collab-1")
+	msg.SetCollaborationPhase("executing")
+	if a.imageGenerationToolsEnabledForMessage(msg) {
+		t.Fatal("active collaboration must retain control of explicit image requests")
+	}
+}
+
 func TestImageGenerationToolsDisabledDuringCollabPlanning(t *testing.T) {
 	hub := &imageGenTestHub{enabled: true}
 	a := &Agent{

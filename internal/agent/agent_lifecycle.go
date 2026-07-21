@@ -97,6 +97,20 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 	return nil
 }
 
+// RemoveChannel stops this agent's listener for an archived or removed channel.
+func (a *Agent) RemoveChannel(channel string) {
+	if a == nil {
+		return
+	}
+	a.channelMu.Lock()
+	if cancel, ok := a.activeChannels[channel]; ok {
+		cancel()
+		delete(a.activeChannels, channel)
+	}
+	a.channelMu.Unlock()
+	a.AbortChannel(channel)
+}
+
 // shouldAbortInFlightForUserMessage reports whether a new user line should cancel
 // in-flight generations on the same channel. Limited to conversational closure so
 // collab recaps and hub slash commands are not disrupted.

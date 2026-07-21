@@ -6,6 +6,10 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+### Added
+- **Neural Canvas** — app-managed, revisioned agent artifacts with trusted Markdown, Mermaid, code, table, chart, timeline, image, and graph renderers; chat cards, workspace tabs, provenance, history, and approved workspace export.
+- **Declarative artifact renderers for packs** — packs can map media types and file globs to versioned host-owned renderers without executing pack UI code.
+
 ## [1.2.0-beta.10] - 2026-07-21
 
 Automatic desktop updates, safer restarts, and more reliable agent questions.

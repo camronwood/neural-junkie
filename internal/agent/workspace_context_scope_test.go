@@ -93,6 +93,52 @@ func TestAppendWorkspaceContext_ScopeTiers(t *testing.T) {
 	}
 }
 
+func TestAppendWorkspaceContextForChannel_RetrimsFullPayloadToFocus(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-camron-softwarearchitect",
+		protocol.AgentInfo{Name: "u"},
+		"review src/config.go and the active file",
+	)
+	msg.Metadata = map[string]interface{}{
+		MetadataContextScope: ContextScopeFull,
+		"workspace_context": map[string]interface{}{
+			"workspace_name": "Proj",
+			"workspace_path": "/proj",
+			"file_tree":      "src/\n  main.go\n  config.go\n  unrelated.go",
+			"open_files": []interface{}{
+				map[string]interface{}{
+					"path": "src/main.go", "language": "go", "content": "package main\n", "is_active": true,
+				},
+				map[string]interface{}{
+					"path": "src/config.go", "language": "go", "content": "package config\n", "is_active": false,
+				},
+				map[string]interface{}{
+					"path": "src/unrelated.go", "language": "go", "content": "const unrelated = true\n", "is_active": false,
+				},
+			},
+		},
+	}
+
+	if got := ResolveContextScopeForChannel(msg, protocol.ChannelTypeDM); got != ContextScopeFocus {
+		t.Fatalf("effective scope = %q, want focus", got)
+	}
+	var b strings.Builder
+	AppendWorkspaceContextForChannel(&b, msg, protocol.ChannelTypeDM)
+	out := b.String()
+	if !strings.Contains(out, "Open files (2)") {
+		t.Fatalf("expected physically trimmed open-file count, got:\n%s", out)
+	}
+	for _, want := range []string{"### src/main.go", "### src/config.go"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q after focus trimming, got:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "### src/unrelated.go") || strings.Contains(out, "const unrelated") {
+		t.Fatalf("unrelated full-scope file leaked into focused prompt:\n%s", out)
+	}
+}
+
 func TestAppendWorkspaceContext_ScanSummary(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-camron-biologyexpert", protocol.AgentInfo{Name: "u"}, "review the scan")
 	msg.Metadata = map[string]interface{}{

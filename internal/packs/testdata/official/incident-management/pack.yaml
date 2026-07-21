@@ -12,9 +12,17 @@ capabilities:
   - pagerduty-integration
   - sentry-integration
   - incident-sidecar
+  - incident-timeline-canvas
 requires_packs:
   - software-development
 capability_defs:
+  incident-api:
+    kind: mcp-tools
+    label: Incident management
+    description: Ticketing, on-call, triage, and gated incident operations.
+    exposure: sensitive
+    mcp_agents:
+      - incident
   incident-sidecar:
     kind: hub-sidecar
     routes:
@@ -25,6 +33,14 @@ capability_defs:
       - incident_default_provider
       - incident_write_mode
       - incident_require_approval
+  incident-timeline-canvas:
+    kind: artifact-renderer
+    renderer: nj.timeline
+    media_types: [application/vnd.neural-junkie.timeline+json]
+    renderer_api_version: 1
+    schema_version_min: 1
+    schema_version_max: 1
+    fallback: nj.markdown
 agents:
   - type: incident
     name: IncidentManager

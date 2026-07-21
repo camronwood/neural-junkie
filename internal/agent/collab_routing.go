@@ -57,9 +57,11 @@ func (a *Agent) EffectiveAIProvider(ctx context.Context, msg *protocol.Message) 
 		eff = base
 	}
 	if globalChatRouting != nil && msg != nil && msg.Type != protocol.MessageTypeCollabTask {
-		if chatEff := globalChatRouting.EffectiveAI(ctx, eff, a.Info, msg); chatEff != nil {
+		trust := a.ClassifyConversationTrust(msg)
+		if chatEff := globalChatRouting.EffectiveAI(ctx, eff, a.Info, msg, trust); chatEff != nil {
 			eff = chatEff
 		}
+		a.recordConversationTrust(eff, trust)
 	}
 	if msg != nil && msg.Type == protocol.MessageTypeCollabTask && globalCollabRouting != nil {
 		overrides := TaskRoutingOverrides{}

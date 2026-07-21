@@ -1,0 +1,68 @@
+{
+  "name": "dm-bookwriter-conversation-metrics",
+  "description": "BookWriter recovers from code grounding and follows a cover request through to durable generated-image evidence.",
+  "tags": ["dm", "bookwriter", "metrics", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "Books-Stories-BookWriter",
+  "required_agents": ["Books-Stories-BookWriter"],
+  "optional": true,
+  "steps": [
+    {
+      "action": "send",
+      "content": "Sketch a short fantasy story outline with a hero, a lost relic, and three acts.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "Books-Stories-BookWriter", "timeout": "120s"},
+    {
+      "action": "send",
+      "content": "Correction: focus only on the story outline; do not discuss workspace code files.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "Books-Stories-BookWriter", "timeout": "120s"},
+    {
+      "action": "send",
+      "content": "Now generate a cover art image for that fantasy story.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "Books-Stories-BookWriter", "timeout": "180s"},
+    {
+      "action": "assert_transcript_metrics",
+      "cases": [
+        {
+          "metric": "direct_answer",
+          "user_match": "Sketch a short fantasy story outline",
+          "assistant_match": "\\b(hero|relic|act|story|fantasy)\\b"
+        },
+        {
+          "metric": "repeated_question",
+          "assistant_match": "(story|outline|cover|image)"
+        },
+        {
+          "metric": "correction_recovery",
+          "user_match": "Correction:.*story outline",
+          "assistant_match": "\\b(story|outline|hero|relic|act)\\b"
+        },
+        {
+          "metric": "tool_follow_through",
+          "user_match": "generate a cover art image",
+          "evidence_label": "generated_image",
+          "assistant_match": "(generated|cover|image)"
+        },
+        {
+          "metric": "unsupported_claim",
+          "assistant_match": "(generated|created|here.*cover|cover image)",
+          "evidence_label": "generated_image"
+        }
+      ],
+      "thresholds": {
+        "direct_answer_rate": 1.0,
+        "repeated_question_rate": 0.0,
+        "correction_recovery_rate": 1.0,
+        "tool_follow_through_rate": 1.0,
+        "unsupported_claim_rate": 0.0
+      }
+    }
+  ],
+  "cleanup": "clear"
+}

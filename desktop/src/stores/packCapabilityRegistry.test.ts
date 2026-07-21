@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { toolbarActionsFromRegistry, hasPackCapability } from './packCapabilityRegistry';
+import {
+  globMatch,
+  hasPackCapability,
+  matchArtifactRenderer,
+  toolbarActionsFromRegistry,
+} from './packCapabilityRegistry';
 import type { ResolvedCapability } from '../api/chatAPI';
 
 describe('toolbarActionsFromRegistry', () => {
@@ -63,5 +68,26 @@ describe('hasPackCapability', () => {
     ];
     expect(hasPackCapability([], [], packs, 'model-arena-workbench')).toBe(true);
     expect(hasPackCapability([], [{ id: 'model-arena-launcher', qualified_id: 'model-arena/model-arena-launcher' }], packs, 'model-arena-launcher')).toBe(true);
+  });
+});
+
+describe('artifact renderer matching', () => {
+  it('supports recursive brace globs', () => {
+    expect(globMatch('**/*.{pdb,cif,mmcif}', 'data/structure/model.cif')).toBe(true);
+    expect(globMatch('**/*.{pdb,cif,mmcif}', 'data/structure/model.csv')).toBe(false);
+  });
+
+  it('requires compatible media and schema versions', () => {
+    const registry: ResolvedCapability[] = [{
+      id: 'assay-report',
+      qualified_id: 'lab/assay-report',
+      kind: 'artifact-renderer',
+      renderer: 'nj.chart',
+      media_types: ['application/vnd.neural-junkie.chart+json'],
+      schema_version_min: 1,
+      schema_version_max: 2,
+    }];
+    expect(matchArtifactRenderer(registry, 'application/vnd.neural-junkie.chart+json', 2)?.renderer).toBe('nj.chart');
+    expect(matchArtifactRenderer(registry, 'application/vnd.neural-junkie.chart+json', 3)).toBeUndefined();
   });
 });

@@ -5,6 +5,12 @@ import { normalizeToolbarChipLabel, resolvePackToolbarIconUrl } from '../utils/p
 export const NJ_VIEWER = {
   SCAN_SUMMARY: 'nj.scan-summary',
   SCAN_ANALYSIS: 'nj.scan-analysis',
+  CAD: 'nj.cad',
+  STRUCTURE: 'nj.structure',
+  MUSIC: 'nj.music',
+  ARENA: 'nj.arena',
+  MARKDOWN: 'nj.markdown',
+  MERMAID: 'nj.mermaid',
 } as const;
 
 export type PackCapabilityRegistryState = {
@@ -56,7 +62,7 @@ export function hasPackCapability(
   return enabledPackDeclaresCapability(packs, cap);
 }
 
-/** Match file-viewer capabilities by glob (simple ** suffix/prefix rules). */
+/** Match file-viewer capabilities by glob. */
 export function matchFileViewer(
   registry: ResolvedCapability[],
   filePath: string,
@@ -69,19 +75,58 @@ export function matchFileViewer(
   return undefined;
 }
 
-function globMatch(pattern: string, path: string): boolean {
-  const p = pattern.replace(/\\/g, '/');
-  if (p.startsWith('**/')) {
-    const suffix = p.slice(3);
-    return path.endsWith(suffix) || path.includes('/' + suffix);
-  }
-  if (p.includes('*')) {
-    const parts = p.split('*');
-    if (parts.length === 2) {
-      return path.startsWith(parts[0]) && path.endsWith(parts[1]);
+export function globMatch(pattern: string, path: string): boolean {
+  const normalizedPattern = pattern.replace(/\\/g, '/');
+  const normalizedPath = path.replace(/\\/g, '/');
+  let source = '';
+  for (let i = 0; i < normalizedPattern.length; i += 1) {
+    const char = normalizedPattern[i];
+    if (char === '*' && normalizedPattern[i + 1] === '*') {
+      if (normalizedPattern[i + 2] === '/') {
+        source += '(?:.*/)?';
+        i += 2;
+      } else {
+        source += '.*';
+        i += 1;
+      }
+    } else if (char === '*') {
+      source += '[^/]*';
+    } else if (char === '?') {
+      source += '[^/]';
+    } else if (char === '{') {
+      const close = normalizedPattern.indexOf('}', i + 1);
+      if (close > i) {
+        source += `(?:${normalizedPattern.slice(i + 1, close).split(',').map(escapeRegex).join('|')})`;
+        i = close;
+      } else {
+        source += '\\{';
+      }
+    } else {
+      source += escapeRegex(char);
     }
   }
-  return path === p || path.endsWith('/' + p);
+  return new RegExp(`^(?:${source}|.*/${source})$`).test(normalizedPath);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function matchArtifactRenderer(
+  registry: ResolvedCapability[],
+  mediaType: string,
+  schemaVersion: number,
+  path = '',
+): ResolvedCapability | undefined {
+  return registry.find((rc) => {
+    if (rc.kind !== 'artifact-renderer' || !rc.renderer) return false;
+    const mediaMatch = (rc.media_types ?? []).includes(mediaType);
+    const pathMatch = !!rc.match_glob && !!path && globMatch(rc.match_glob, path);
+    if (!mediaMatch && !pathMatch) return false;
+    const min = rc.schema_version_min ?? 0;
+    const max = rc.schema_version_max ?? Number.MAX_SAFE_INTEGER;
+    return schemaVersion >= min && schemaVersion <= max;
+  });
 }
 
 export type PackToolbarAction = {

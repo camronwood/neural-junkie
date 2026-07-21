@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -24,6 +25,18 @@ func (a *Agent) DescribeToolCapabilities() protocol.AgentToolCapabilities {
 		out.Notes = append(out.Notes, "CLI agent — uses external CLI tools (filesystem, shell, etc.), not hub MCP tools.")
 		return out
 	}
+	capabilityState := a.capabilityState()
+	for _, cap := range capabilityState.Discoverable {
+		id := cap.QualifiedID
+		if id == "" {
+			id = cap.ID
+		}
+		out.DiscoverableCapabilities = append(out.DiscoverableCapabilities, id)
+	}
+	out.AvailableCapabilities = capabilityState.Available
+	out.ActiveCapabilities = a.activeCapabilityIDs(nil)
+	out.DeniedCapabilities = capabilityState.Denied
+	out.UnavailableCapabilities = capabilityState.Unavailable
 
 	mcpCfg := mcp.GetMCPServerConfig(string(a.Info.Type))
 	out.MCPEnabled = mcpCfg.Enabled
@@ -40,7 +53,7 @@ func (a *Agent) DescribeToolCapabilities() protocol.AgentToolCapabilities {
 
 	for _, td := range a.agentToolDefinitions(nil) {
 		source := "mcp"
-		if td.Name == generateImageToolName || td.Name == generateMusicToolName || td.Name == extractStemsToolName {
+		if td.Name == generateImageToolName || td.Name == generateMusicToolName || td.Name == extractStemsToolName || td.Name == createArtifactToolName || td.Name == updateArtifactToolName {
 			source = "builtin"
 		}
 		out.Tools = append(out.Tools, protocol.AgentToolDefinition{
@@ -85,6 +98,17 @@ func CapabilitiesFromAgentInfo(info *protocol.AgentInfo) protocol.AgentToolCapab
 		out.Notes = append(out.Notes, "CLI agent — uses external CLI tools, not hub MCP.")
 		return out
 	}
+	state := config.AppConfig().ResolveAgentCapabilities(info.ID, string(info.Type), info.Name)
+	for _, cap := range state.Discoverable {
+		id := cap.QualifiedID
+		if id == "" {
+			id = cap.ID
+		}
+		out.DiscoverableCapabilities = append(out.DiscoverableCapabilities, id)
+	}
+	out.AvailableCapabilities = state.Available
+	out.DeniedCapabilities = state.Denied
+	out.UnavailableCapabilities = state.Unavailable
 	mcpCfg := mcp.GetMCPServerConfig(string(info.Type))
 	out.MCPEnabled = mcpCfg.Enabled
 	out.MCPPort = mcpCfg.Port

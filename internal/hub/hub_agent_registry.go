@@ -345,6 +345,9 @@ func (h *Hub) IsAgentInAnyChannel(agentID string) bool {
 	defer h.mu.RUnlock()
 
 	for _, channel := range h.channels {
+		if channel == nil || channel.Archived {
+			continue
+		}
 		for _, agent := range channel.Agents {
 			if agent.ID == agentID {
 				return true
@@ -378,6 +381,9 @@ func (h *Hub) GetAgentChannels(agentID string) []string {
 
 	var channels []string
 	for name, channel := range h.channels {
+		if channel == nil || channel.Archived {
+			continue
+		}
 		for _, a := range channel.Agents {
 			if a.ID == agentID {
 				channels = append(channels, name)

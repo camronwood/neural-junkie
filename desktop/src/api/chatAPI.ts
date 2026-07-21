@@ -1,4 +1,5 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, ResolvedCapability, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
+export type { ResolvedCapability } from '../types/protocol';
 import {
   getHubBaseURL,
   hubAuthHeaders,
@@ -369,23 +370,6 @@ export interface LoraTrainDatasetPreview {
   min_rows: number;
 }
 
-export interface ResolvedCapability {
-  id: string;
-  qualified_id: string;
-  pack_id?: string;
-  kind?: string;
-  platform?: boolean;
-  routes?: string[];
-  ui?: {
-    toolbar?: { id?: string; label?: string; icon?: string };
-    modal?: string;
-  };
-  match_glob?: string;
-  viewer?: string;
-  settings?: string[];
-  mcp_tools?: string[];
-}
-
 export interface PacksAPIResponse {
   packs: PackStatus[];
   pack_id?: string;
@@ -678,6 +662,92 @@ export class ChatAPI {
       throw new Error(`Failed to fetch collaborations: ${response.statusText}`);
     }
 
+    return response.json();
+  }
+
+  async fetchArtifacts(filters: {
+    workspace_id?: string;
+    project_id?: string;
+    channel_id?: string;
+    collaboration_id?: string;
+    renderer_id?: string;
+    kind?: string;
+  } = {}): Promise<StoredArtifact[]> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    const response = await this.hubFetch(`/api/artifacts${params.size ? `?${params}` : ''}`);
+    if (!response.ok) throw new Error(await response.text() || response.statusText);
+    return response.json();
+  }
+
+  async fetchArtifact(id: string): Promise<StoredArtifact> {
+    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}`);
+    if (!response.ok) throw new Error(await response.text() || response.statusText);
+    return response.json();
+  }
+
+  async createArtifact(artifact: Partial<StoredArtifact>): Promise<StoredArtifact> {
+    const response = await this.hubFetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(artifact),
+    });
+    if (!response.ok) throw new Error(await response.text() || response.statusText);
+    return response.json();
+  }
+
+  async updateArtifact(artifact: StoredArtifact): Promise<StoredArtifact> {
+    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(artifact.id)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'If-Match': String(artifact.revision),
+      },
+      body: JSON.stringify(artifact),
+    });
+    if (!response.ok) throw new Error(await response.text() || response.statusText);
+    return response.json();
+  }
+
+  async deleteArtifact(id: string, revision: number): Promise<void> {
+    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'If-Match': String(revision) },
+    });
+    if (!response.ok) throw new Error(await response.text() || response.statusText);
+  }
+
+  async fetchArtifactRevisions(id: string): Promise<StoredArtifactRevision[]> {
+    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}/revisions`);
+    if (!response.ok) throw new Error(await response.text() || response.statusText);
+    return response.json();
+  }
+
+  async fetchArtifactRevision(id: string, revision: number): Promise<StoredArtifactRevision> {
+    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}/revisions/${revision}`);
+    if (!response.ok) throw new Error(await response.text() || response.statusText);
+    return response.json();
+  }
+
+  async duplicateArtifact(id: string, newId = ''): Promise<StoredArtifact> {
+    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}/duplicate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: newId }),
+    });
+    if (!response.ok) throw new Error(await response.text() || response.statusText);
+    return response.json();
+  }
+
+  async exportArtifact(id: string, workspaceId: string, path: string, channel = ''): Promise<FileChange> {
+    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: workspaceId, path, channel }),
+    });
+    if (!response.ok) throw new Error(await response.text() || response.statusText);
     return response.json();
   }
 
@@ -1217,6 +1287,28 @@ export class ChatAPI {
     return response.json();
   }
 
+  async fetchCapabilityPolicy(): Promise<CapabilityPolicyResponse> {
+    const response = await this.hubFetch('/api/capability-policy');
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(detail.trim() || `Failed to fetch capability policy: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async updateCapabilityPolicy(update: CapabilityPolicyUpdate): Promise<CapabilityPolicyResponse> {
+    const response = await this.hubFetch('/api/capability-policy', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(update),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(detail.trim() || `Failed to update capability policy: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
   // Fetch list of channels
   async fetchChannels(): Promise<Channel[]> {
     const response = await this.hubFetch(`/api/channels`);
@@ -1664,6 +1756,8 @@ export class ChatAPI {
     provider_id?: string;
     provider?: string;
     model?: string;
+    capability_allow?: string[];
+    capability_deny?: string[];
     cli_type?: string;
     work_dir?: string;
   }): Promise<Channel> {
@@ -1678,6 +1772,8 @@ export class ChatAPI {
       body.provider_id = payload.provider_id ?? '';
       body.provider = payload.provider ?? '';
       body.model = payload.model ?? '';
+      body.capability_allow = payload.capability_allow ?? [];
+      body.capability_deny = payload.capability_deny ?? [];
     } else {
       body.cli_type = payload.cli_type ?? '';
       body.work_dir = payload.work_dir ?? '';
@@ -1776,6 +1872,18 @@ export class ChatAPI {
 
     if (!response.ok) {
       throw new Error(`Failed to delete channel: ${response.statusText}`);
+    }
+  }
+
+  async archiveChannel(name: string): Promise<void> {
+    const response = await this.hubFetch('/api/channels/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(detail.trim() || `Failed to archive channel: ${response.statusText}`);
     }
   }
 

@@ -12,6 +12,8 @@ type DelegationClient interface {
 	DelegationEnabled() bool
 	ResolveConsultants(from protocol.AgentInfo, question string) []delegation.Candidate
 	Consult(ctx context.Context, req delegation.ConsultRequest) (delegation.ConsultResult, error)
+	RequestCapabilityHelp(ctx context.Context, req delegation.CapabilityHelpRequest) (delegation.CapabilityHelpResult, error)
+	CapabilityDirectory(fromAgentID string) []delegation.CapabilityProvider
 }
 
 // delegationHub exposes optional delegation on HubClient implementations.

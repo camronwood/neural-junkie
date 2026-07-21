@@ -1742,12 +1742,25 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		}
 	}
 
-	// Bind executor to the resolved workspace root from the message context.
-	h.fileChangeManager.GetExecutor().SetWorkspaceRoot(wsRoot)
-	h.bindFileChangeBackend(wsRoot)
+	var workspaceIO filechange.WorkspaceIO
+	if h.fileChangeBackendFn != nil {
+		workspaceIO = h.fileChangeBackendFn(wsRoot)
+	}
+	proposalExecutor := filechange.NewFileChangeExecutor(wsRoot)
+	proposalExecutor.SetWorkspaceIO(workspaceIO)
 
 	manifest := agent.DetectStackManifest(wsRoot)
 	proposal.FilePath = agent.RedirectProposalPath(proposal.FilePath, manifest)
+	filePath, err = h.resolveWorkspacePath(proposal.FilePath, wsRoot)
+	if err != nil {
+		return fmt.Errorf("resolve redirected file path %q: %w", proposal.FilePath, err)
+	}
+	if operation == filechange.FileOperationCreate {
+		if _, readErr := proposalExecutor.GetFileContent(filePath); readErr == nil {
+			operation = filechange.FileOperationEdit
+			proposal.Operation = "edit"
+		}
+	}
 	propOp := agent.ProposalOpCreate
 	if operation == filechange.FileOperationEdit {
 		propOp = agent.ProposalOpEdit
@@ -1761,6 +1774,17 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		log.Printf("[FileChange] Rejected placeholder deliverable content for %q from %s",
 			proposal.FilePath, msg.From.Name)
 		return fmt.Errorf("placeholder deliverable content for %q", proposal.FilePath)
+	}
+	if operation == filechange.FileOperationEdit {
+		current, readErr := proposalExecutor.GetFileContent(filePath)
+		if readErr != nil {
+			return fmt.Errorf("read current edit target %q: %w", proposal.FilePath, readErr)
+		}
+		proposal.OldContent = current
+		if filechange.SanitizeFileChangeContent(proposal.NewContent) ==
+			filechange.SanitizeFileChangeContent(proposal.OldContent) {
+			return fmt.Errorf("no-op edit rejected for %q: resulting content is unchanged", proposal.FilePath)
+		}
 	}
 
 	// Register with FileChangeManager
@@ -1777,6 +1801,9 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	if err != nil {
 		log.Printf("[FileChange] Failed to register proposal: %v", err)
 		return fmt.Errorf("register proposal: %w", err)
+	}
+	if err := h.fileChangeManager.BindExecutionContext(change.ID, wsRoot, workspaceIO); err != nil {
+		return fmt.Errorf("bind proposal execution context: %w", err)
 	}
 
 	// Update the message metadata with the registered change ID so the UI can link them

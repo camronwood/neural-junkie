@@ -13,9 +13,11 @@ func isImplementScenariosChannel(msg *protocol.Message) bool {
 }
 
 const (
-	agentRuntimeMaxToolIterations = 100
-	agentRuntimeMaxRepairRounds     = 5
-	agentRuntimeMaxFilesPerCycle    = 50
+	agentRuntimeMaxToolIterations  = 24
+	agentRuntimeMaxRepairRounds    = 3
+	agentRuntimeMaxFilesPerCycle   = 8
+	agentRuntimeMaxSessionTimeout  = 10 * time.Minute
+	agentRuntimeMaxFrontendTimeout = 12 * time.Minute
 
 	// Live implement-scenarios use shorter caps than generic impl sessions so agents
 	// finish and post a reply before the shortest scenario wait_reply (420s).
@@ -47,10 +49,10 @@ func implSessionLimits(msg *protocol.Message) (maxToolIter, maxEditRounds, maxFi
 	if agentRuntimeV2ForMessage(msg) {
 		perf := performanceFromHub()
 		maxToolIter = perf.AgentMaxStepsOrDefault()
-		if maxToolIter < agentRuntimeMaxToolIterations {
+		if maxToolIter <= 0 || maxToolIter > agentRuntimeMaxToolIterations {
 			maxToolIter = agentRuntimeMaxToolIterations
 		}
-		return maxToolIter, agentRuntimeMaxRepairRounds * 3, agentRuntimeMaxFilesPerCycle
+		return maxToolIter, agentRuntimeMaxRepairRounds, agentRuntimeMaxFilesPerCycle
 	}
 	return implSessionMaxToolIterations, implSessionMaxEditRounds, implSessionMaxFiles
 }
@@ -65,7 +67,15 @@ func implSessionTimeoutForMessage(msg *protocol.Message, frontend bool) time.Dur
 		return implScenarioSessionTimeout
 	}
 	if agentRuntimeV2ForMessage(msg) {
-		return performanceFromHub().AgentTimeout()
+		timeout := performanceFromHub().AgentTimeout()
+		cap := agentRuntimeMaxSessionTimeout
+		if frontend {
+			cap = agentRuntimeMaxFrontendTimeout
+		}
+		if timeout > cap {
+			return cap
+		}
+		return timeout
 	}
 	if frontend {
 		return implSessionFrontendTimeout

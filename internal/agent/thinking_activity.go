@@ -123,6 +123,15 @@ func routingTelemetryPayload(snap RoutingSnapshot, originalMsg *protocol.Message
 	if len(snap.KnowledgeExecuted) > 0 {
 		payload["knowledge_executed"] = snap.KnowledgeExecuted
 	}
+	if snap.ConversationTier != "" {
+		payload["conversation_tier"] = snap.ConversationTier
+	}
+	if len(snap.ConversationReasons) > 0 {
+		payload["conversation_reasons"] = snap.ConversationReasons
+	}
+	if snap.ConversationEscalatedFrom != "" {
+		payload["conversation_escalated_from"] = snap.ConversationEscalatedFrom
+	}
 	if gov := governanceTelemetryFromMessage(originalMsg); len(gov) > 0 {
 		payload["governance"] = gov
 	}

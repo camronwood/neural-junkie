@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
-import type { AgentInfo, AgentToolCapabilities } from '../types/protocol';
+import type {
+  AgentInfo,
+  AgentToolCapabilities,
+  CapabilityPolicyAgent,
+} from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 import { useChatStore } from '../stores/chatStore';
 import { usePacksStore } from '../stores/packsStore';
@@ -8,6 +12,7 @@ import { PACK_CAP } from '../stores/packCapabilities';
 import { ChatAPI, type UserLearning } from '../api/chatAPI';
 import { LearningProposalModal } from './LearningProposalModal';
 import { formatModelDisplayName, formatModelWithRole } from '../utils/modelDisplayNames';
+import { CapabilityPolicyEditor } from './CapabilityPolicyEditor';
 
 const TOOL_EXAMPLE_PROMPTS: Record<string, string> = {
   analyze_sequence: 'Analyze this peptide: MKTAYIAKQRQISFVK',
@@ -72,6 +77,10 @@ export function AgentInfoModal({
   const [toolCaps, setToolCaps] = useState<AgentToolCapabilities | null>(null);
   const [toolsLoading, setToolsLoading] = useState(false);
   const [toolsError, setToolsError] = useState<string | null>(null);
+  const [capabilityPolicy, setCapabilityPolicy] = useState<CapabilityPolicyAgent | null>(null);
+  const [capabilityPolicyLoading, setCapabilityPolicyLoading] = useState(false);
+  const [capabilityPolicySaving, setCapabilityPolicySaving] = useState(false);
+  const [capabilityPolicyError, setCapabilityPolicyError] = useState<string | null>(null);
   const [fetchedOllamaModels, setFetchedOllamaModels] = useState<string[]>([]);
   const [fetchedLMStudioModels, setFetchedLMStudioModels] = useState<string[]>([]);
   const [learnings, setLearnings] = useState<UserLearning[]>([]);
@@ -142,6 +151,36 @@ export function AgentInfoModal({
       cancelled = true;
     };
   }, [isOpen, agent?.id, agent?.type, isCLIAgent, serverAddr]);
+
+  useEffect(() => {
+    if (!isOpen || !agent || agent.type === 'loading' || isCLIAgent || offlineMode) {
+      setCapabilityPolicy(null);
+      setCapabilityPolicyError(null);
+      return;
+    }
+    let cancelled = false;
+    setCapabilityPolicyLoading(true);
+    setCapabilityPolicyError(null);
+    void new ChatAPI(serverAddr).fetchCapabilityPolicy()
+      .then((policy) => {
+        if (!cancelled) {
+          setCapabilityPolicy(policy.agents.find((row) => row.agent.id === agent.id) ?? null);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setCapabilityPolicyError(
+            error instanceof Error ? error.message : 'Failed to load capability policy',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCapabilityPolicyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, agent?.id, agent?.type, isCLIAgent, offlineMode, serverAddr]);
 
   useEffect(() => {
     if (!isOpen || !agent || !hasPersonalLearning || !isExpertAgent) {
@@ -507,6 +546,49 @@ export function AgentInfoModal({
               </div>
             )}
 
+            {!isCLIAgent && !offlineMode && (
+              <div>
+                <h3 className="text-sm font-medium text-slack-textMuted mb-2">Capability policy</h3>
+                <p className="mb-2 text-xs text-slack-textMuted">
+                  Safe access is inherited. Sensitive access is granted explicitly for this agent.
+                </p>
+                {capabilityPolicyLoading ? (
+                  <p className="text-sm text-slack-textMuted">Loading capabilities…</p>
+                ) : capabilityPolicy ? (
+                  <CapabilityPolicyEditor
+                    compact
+                    capabilities={capabilityPolicy.state.discoverable}
+                    state={capabilityPolicy.state}
+                    disabled={capabilityPolicySaving}
+                    onChange={async (override) => {
+                      setCapabilityPolicySaving(true);
+                      setCapabilityPolicyError(null);
+                      try {
+                        const api = new ChatAPI(serverAddr);
+                        await api.updateCapabilityPolicy({ agent_key: agent.id, override });
+                        const refreshed = await api.fetchCapabilityPolicy();
+                        setCapabilityPolicy(
+                          refreshed.agents.find((row) => row.agent.id === agent.id) ?? null,
+                        );
+                        setToolCaps(await api.fetchAgentTools(agent.id));
+                      } catch (error) {
+                        setCapabilityPolicyError(
+                          error instanceof Error ? error.message : 'Failed to save capability policy',
+                        );
+                      } finally {
+                        setCapabilityPolicySaving(false);
+                      }
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-slack-textMuted">No capability policy is available for this agent.</p>
+                )}
+                {capabilityPolicyError && (
+                  <p className="mt-1 text-xs text-red-400">{capabilityPolicyError}</p>
+                )}
+              </div>
+            )}
+
             {/* Tools & models */}
             <div>
               <h3 className="text-sm font-medium text-slack-textMuted mb-2">Tools &amp; models</h3>
@@ -558,6 +640,19 @@ export function AgentInfoModal({
                         MCP server: localhost:{toolCaps.mcp_port}
                       </div>
                     ) : null}
+                    {(toolCaps.active_capabilities?.length ?? 0) > 0 && (
+                      <div className="pt-1 text-xs text-slack-textMuted">
+                        Effective capabilities:{' '}
+                        <span className="text-slack-text">
+                          {toolCaps.active_capabilities?.join(', ')}
+                        </span>
+                      </div>
+                    )}
+                    {(toolCaps.denied_capabilities?.length ?? 0) > 0 && (
+                      <div className="text-xs text-slack-textMuted">
+                        Denied: {toolCaps.denied_capabilities?.join(', ')}
+                      </div>
+                    )}
                   </div>
                   {(toolCaps.tools ?? []).length === 0 ? (
                     <p className="text-slack-textMuted">

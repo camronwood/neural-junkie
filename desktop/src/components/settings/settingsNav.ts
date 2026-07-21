@@ -9,6 +9,7 @@ export type SettingsTab =
   | 'inference-usage'
   | 'collab-routing'
   | 'memory-learning'
+  | 'capabilities'
   | 'api-credentials'
   | 'integrations'
   | 'assistant-tools'
@@ -55,6 +56,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       { id: 'inference-usage', label: 'Usage & cost' },
       { id: 'collab-routing', label: 'Routing & collab' },
       { id: 'memory-learning', label: 'Memory & learning' },
+      { id: 'capabilities', label: 'Capabilities' },
     ],
   },
   {

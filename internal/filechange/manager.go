@@ -20,6 +20,7 @@ type FileChangeManager struct {
 	changes       map[string]*FileChange        // changeID -> change
 	requests      map[string]*FileChangeRequest // requestID -> request
 	executor      *FileChangeExecutor
+	executors     map[string]*FileChangeExecutor // immutable execution context per change
 	cleanupTicker *time.Ticker
 	stopCleanup   chan bool
 }
@@ -30,6 +31,7 @@ func NewFileChangeManager(executor *FileChangeExecutor) *FileChangeManager {
 		changes:       make(map[string]*FileChange),
 		requests:      make(map[string]*FileChangeRequest),
 		executor:      executor,
+		executors:     make(map[string]*FileChangeExecutor),
 		cleanupTicker: time.NewTicker(1 * time.Minute),
 		stopCleanup:   make(chan bool),
 	}
@@ -153,8 +155,25 @@ func (fcm *FileChangeManager) ApproveFileChange(changeID, requestingUserID strin
 		return nil, fmt.Errorf("file change already processed")
 	}
 
-	// Execute the file change
-	if err := fcm.executor.ExecuteFileChange(change); err != nil {
+	executor := fcm.executor
+	if bound := fcm.executors[changeID]; bound != nil {
+		executor = bound
+	}
+	if change.Operation == FileOperationEdit {
+		current, err := executor.GetFileContent(change.FilePath)
+		if err != nil {
+			return nil, fmt.Errorf("read current file before approval: %w", err)
+		}
+		if SanitizeFileChangeContent(current) != SanitizeFileChangeContent(change.OldContent) {
+			return nil, fmt.Errorf("stale edit rejected: %s changed after proposal", change.FilePath)
+		}
+		if SanitizeFileChangeContent(current) == SanitizeFileChangeContent(change.NewContent) {
+			return nil, fmt.Errorf("no-op edit rejected: %s already has proposed content", change.FilePath)
+		}
+	}
+
+	// Execute the file change with the workspace/backend captured at registration.
+	if err := executor.ExecuteFileChange(change); err != nil {
 		return nil, fmt.Errorf("failed to execute file change: %w", err)
 	}
 
@@ -254,6 +273,20 @@ func (fcm *FileChangeManager) GetExecutor() *FileChangeExecutor {
 	return fcm.executor
 }
 
+// BindExecutionContext stores an immutable workspace/backend executor for a change.
+// This prevents proposals from different workspaces retargeting a shared executor.
+func (fcm *FileChangeManager) BindExecutionContext(changeID, workspaceRoot string, workspaceIO WorkspaceIO) error {
+	fcm.mu.Lock()
+	defer fcm.mu.Unlock()
+	if _, ok := fcm.changes[changeID]; !ok {
+		return fmt.Errorf("file change not found: %s", changeID)
+	}
+	executor := NewFileChangeExecutor(workspaceRoot)
+	executor.SetWorkspaceIO(workspaceIO)
+	fcm.executors[changeID] = executor
+	return nil
+}
+
 // GetPendingCount returns the number of pending file changes
 func (fcm *FileChangeManager) GetPendingCount() int {
 	fcm.mu.RLock()
@@ -341,6 +374,7 @@ func (fcm *FileChangeManager) doCleanup() {
 	// Remove expired changes
 	for _, id := range expiredChanges {
 		delete(fcm.changes, id)
+		delete(fcm.executors, id)
 	}
 
 	// Remove expired requests

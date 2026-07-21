@@ -43,6 +43,7 @@ func (h *Hub) CreateChannelWithType(name, description, project string, channelTy
 	h.messages[name] = []*protocol.Message{}
 	h.subscribers[name] = []chan *protocol.Message{}
 	h.uiSubscribers[name] = []chan *protocol.Message{}
+	h.conversationStateLocked(name)
 
 	return channel
 }
@@ -99,6 +100,9 @@ func inferChannelTypeForName(name string, t protocol.ChannelType) protocol.Chann
 	if strings.HasPrefix(n, "collab-") {
 		return protocol.ChannelTypeCollaboration
 	}
+	if strings.HasPrefix(n, "handoff-") {
+		return protocol.ChannelTypeDelegation
+	}
 	if t == "" {
 		return protocol.ChannelTypePublic
 	}
@@ -123,6 +127,9 @@ func (h *Hub) channelListedInSidebarLocked(ch *protocol.Channel) bool {
 	if ch == nil {
 		return false
 	}
+	if ch.Archived {
+		return false
+	}
 	if inferChannelTypeForName(ch.Name, ch.Type) != protocol.ChannelTypeDM {
 		return true
 	}
@@ -142,11 +149,20 @@ func (h *Hub) channelListedInSidebarLocked(ch *protocol.Channel) bool {
 // ListChannels returns all available channels in a stable order:
 // public first, then custom, then collaboration, then DM, alphabetical within each group.
 func (h *Hub) ListChannels() []*protocol.Channel {
+	return h.listChannels(false)
+}
+
+// ListChannelsIncludingArchived returns retained temporary rooms as well as active channels.
+func (h *Hub) ListChannelsIncludingArchived() []*protocol.Channel {
+	return h.listChannels(true)
+}
+
+func (h *Hub) listChannels(includeArchived bool) []*protocol.Channel {
 	h.mu.Lock()
 	h.repairChannelTypesLocked()
 	channels := make([]*protocol.Channel, 0, len(h.channels))
 	for _, ch := range h.channels {
-		if h.channelListedInSidebarLocked(ch) {
+		if (includeArchived && ch != nil) || h.channelListedInSidebarLocked(ch) {
 			channels = append(channels, ch)
 		}
 	}
@@ -156,7 +172,8 @@ func (h *Hub) ListChannels() []*protocol.Channel {
 		protocol.ChannelTypePublic:        0,
 		protocol.ChannelTypeCustom:        1,
 		protocol.ChannelTypeCollaboration: 2,
-		protocol.ChannelTypeDM:            3,
+		protocol.ChannelTypeDelegation:    3,
+		protocol.ChannelTypeDM:            4,
 	}
 	sort.Slice(channels, func(i, j int) bool {
 		oi, oj := typeOrder[channels[i].Type], typeOrder[channels[j].Type]
@@ -167,6 +184,27 @@ func (h *Hub) ListChannels() []*protocol.Channel {
 	})
 
 	return channels
+}
+
+// ArchiveChannel hides a retained channel from normal listings without deleting history.
+func (h *Hub) ArchiveChannel(channelName string) error {
+	if strings.TrimSpace(channelName) == "" || channelName == "general" {
+		return fmt.Errorf("cannot archive channel %q", channelName)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	ch, ok := h.channels[channelName]
+	if !ok {
+		return fmt.Errorf("channel %s not found", channelName)
+	}
+	switch inferChannelTypeForName(ch.Name, ch.Type) {
+	case protocol.ChannelTypePublic, protocol.ChannelTypeDM:
+		return fmt.Errorf("cannot archive channel %q (type %s)", channelName, ch.Type)
+	}
+	now := time.Now()
+	ch.Archived = true
+	ch.ArchivedAt = &now
+	return nil
 }
 
 func (h *Hub) CreateDMChannel(username, agentID, channelDisplayName string) (*protocol.Channel, error) {
@@ -250,6 +288,7 @@ func (h *Hub) DeleteChannel(channelName string) error {
 	delete(h.messages, channelName)
 	delete(h.subscribers, channelName)
 	delete(h.uiSubscribers, channelName)
+	delete(h.conversationState, channelName)
 	store := h.persistentStore
 
 	if store != nil {
@@ -291,6 +330,7 @@ func (h *Hub) removeChannelUnlocked(channelName string) bool {
 	delete(h.messages, channelName)
 	delete(h.subscribers, channelName)
 	delete(h.uiSubscribers, channelName)
+	delete(h.conversationState, channelName)
 	h.clearChannelContextLocked(channelName)
 	return true
 }

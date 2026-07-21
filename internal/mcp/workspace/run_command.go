@@ -52,6 +52,15 @@ var deniedCommandPatterns = []string{
 	"mkfs",
 }
 
+var readOnlyGitSubcommands = map[string]bool{
+	"status":    true,
+	"diff":      true,
+	"show":      true,
+	"log":       true,
+	"rev-parse": true,
+	"ls-files":  true,
+}
+
 func normalizeCommand(cmd string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(cmd)), " ")
 }
@@ -76,13 +85,33 @@ func commandHasAllowedPrefix(cmd string, prefixes []string) bool {
 	return false
 }
 
+func readOnlyGitCommandAllowed(cmd string) bool {
+	cmd = normalizeCommand(cmd)
+	if cmd == "" || commandDenied(cmd) || strings.ContainsAny(cmd, "\n;&|`$><") {
+		return false
+	}
+	fields := strings.Fields(cmd)
+	if len(fields) < 2 || strings.ToLower(fields[0]) != "git" ||
+		!readOnlyGitSubcommands[strings.ToLower(fields[1])] {
+		return false
+	}
+	for _, field := range fields[2:] {
+		lower := strings.ToLower(strings.Trim(field, `"'`))
+		if strings.HasPrefix(lower, "--output") || lower == "--ext-diff" ||
+			lower == "--textconv" || strings.HasPrefix(lower, "--exec") {
+			return false
+		}
+	}
+	return true
+}
+
 // CommandAllowed reports whether cmd is permitted in run_command sandbox.
 func CommandAllowed(cmd string) bool {
 	cmd = normalizeCommand(cmd)
 	if cmd == "" || commandDenied(cmd) {
 		return false
 	}
-	return commandHasAllowedPrefix(cmd, allowedCommandPrefixes)
+	return readOnlyGitCommandAllowed(cmd) || commandHasAllowedPrefix(cmd, allowedCommandPrefixes)
 }
 
 func implementationSessionCommandAllowed(cmd string) bool {

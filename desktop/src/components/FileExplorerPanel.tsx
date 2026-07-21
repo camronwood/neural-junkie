@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useEditorStore } from '../stores/editorStore';
 import { usePacksStore } from '../stores/packsStore';
+import { NJ_VIEWER } from '../stores/packCapabilityRegistry';
 import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
@@ -562,6 +563,36 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     } else {
       const activeWorkspace = getActiveWorkspace();
       if (activeWorkspace) {
+        const declaredViewer = usePacksStore.getState().getFileViewerForPath(file.path)?.viewer;
+        if (declaredViewer === NJ_VIEWER.STRUCTURE) {
+          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
+          openStructureWorkbench(activeWorkspace.id, file.path, content);
+          if (onFileOpen) onFileOpen();
+          setSelectedPath(file.path);
+          return;
+        }
+        if (declaredViewer === NJ_VIEWER.CAD) {
+          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
+          openCadWorkbench(activeWorkspace.id, file.path, content);
+          if (onFileOpen) onFileOpen();
+          setSelectedPath(file.path);
+          return;
+        }
+        if (declaredViewer === NJ_VIEWER.MUSIC) {
+          const content = /\.json$/i.test(file.path)
+            ? await api.fetchFileContent(activeWorkspace.id, file.path)
+            : '';
+          openMusicWorkbench(activeWorkspace.id, file.path, content);
+          if (onFileOpen) onFileOpen();
+          setSelectedPath(file.path);
+          return;
+        }
+        if (declaredViewer === NJ_VIEWER.ARENA) {
+          openArenaWorkbench(activeWorkspace.id, file.path);
+          if (onFileOpen) onFileOpen();
+          setSelectedPath(file.path);
+          return;
+        }
         const openedAnalysis = await tryOpenScanAnalysisFile(activeWorkspace.id, file.path);
         if (openedAnalysis) {
           setSelectedPath(file.path);

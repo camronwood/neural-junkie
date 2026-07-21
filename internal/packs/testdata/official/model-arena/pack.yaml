@@ -8,7 +8,15 @@ capabilities:
   - model-arena-sidecar
   - model-arena-workbench
   - model-arena-launcher
+  - arena-canvas
 capability_defs:
+  model-arena:
+    kind: mcp-tools
+    label: Model Arena
+    description: Run and score verifiable model challenges.
+    exposure: safe
+    mcp_agents:
+      - arena
   model-arena-sidecar:
     kind: hub-sidecar
     routes:
@@ -24,6 +32,15 @@ capability_defs:
     ui:
       toolbar: { id: arena, label: Arena, icon: assets/icons/arena.svg }
       modal: model-arena
+  arena-canvas:
+    kind: artifact-renderer
+    renderer: nj.arena
+    media_types: [application/vnd.neural-junkie.arena+json]
+    match_glob: "**/*.nj-arena.json"
+    renderer_api_version: 1
+    schema_version_min: 1
+    schema_version_max: 1
+    fallback: nj.code
 agents:
   - type: arena
     name: ArenaExpert

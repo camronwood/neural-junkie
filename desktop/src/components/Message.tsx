@@ -13,6 +13,7 @@ import {
   isSystemMessage,
   isCollaborationMessage,
   isSlashCommandMessage,
+  getArtifactReference,
 } from '../types/protocol';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MessageContent } from './MessageContent';
@@ -35,6 +36,7 @@ import { slackThreadOpenId } from '../utils/slackThread';
 import { generatedAudioSrc, generatedImageSrc } from '../utils/chatImageSrc';
 import { formatToolStepLabel } from '../utils/thinkingActivityLabel';
 import { ChatClickableImage } from './ImageLightboxModal';
+import { ArtifactCard } from './neural-canvas';
 
 function MessageUserImages({ metadata }: { metadata?: Record<string, unknown> }) {
   const raw = metadata?.[USER_IMAGES_METADATA_KEY];
@@ -333,6 +335,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const canShowProposeButton = suggestsFileChange && !isStreaming;
   const reasoningText = getReasoningText(message.metadata as Record<string, unknown> | undefined);
   const toolSteps = getToolSteps(message.metadata as Record<string, unknown> | undefined);
+  const artifactRef = getArtifactReference(message.metadata as Record<string, unknown> | undefined);
   const senderName = slackSenderDisplayName(message);
   const sharedContextBadge = workspaceContextBadge(message.metadata as Record<string, unknown> | undefined);
   const imageAttached = hasUserImages(message.metadata as Record<string, unknown> | undefined);
@@ -574,6 +577,29 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
               routingLabel={routingBadgeLabel || undefined}
             />
             <MessageContent content={slackMessageBody(message)} isStreaming={isStreaming} />
+            {artifactRef && !isStreaming && (
+              <ArtifactCard
+                className="mt-3"
+                artifact={{
+                  id: artifactRef.id,
+                  title: artifactRef.title || 'Neural Canvas artifact',
+                  renderer_id: 'nj.markdown',
+                  api_version: String(artifactRef.renderer_api_version || 1),
+                  media_type: 'text/markdown',
+                  data: `Open this ${artifactRef.media_type || 'artifact'} in Neural Canvas.`,
+                  revision: artifactRef.revision,
+                }}
+                onOpen={() => {
+                  const explorer = useFileExplorerStore.getState();
+                  useEditorStore.getState().openArtifact(
+                    artifactRef.workspace_id || explorer.activeWorkspaceId || '',
+                    artifactRef.id,
+                    artifactRef.title,
+                  );
+                  void useSettingsStore.getState().updateLayoutSettings({ editorPanelVisible: true });
+                }}
+              />
+            )}
             {implOutcome && !isStreaming && (
               <ImplementationSessionOutcomeCard outcome={implOutcome} />
             )}

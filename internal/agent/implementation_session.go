@@ -65,50 +65,59 @@ type implSessionRoundKey struct{}
 
 // ImplementationSessionState tracks progress during a multi-step implementation run.
 type ImplementationSessionState struct {
-	EditRound                  int
-	FilesChanged               []string
-	ProposedCount              int
-	VerifyOutput               string
-	VerifyFailed               bool
-	VerifySkipped              bool
-	RepairUsed                 bool
-	RepairAttempts             int
-	Phase                      string
-	StackManifest              *StackManifest
-	SeedsLoaded                int
-	DiscoverTools              []string
-	PreflightErrors            []string
-	TrustMode                  string
-	BootFixIntent              bool
-	FixLikeIntent              bool
-	ReproCommand               string
-	ReproExitCode              int
-	ReproOutput                string
-	ClarifyQuestionsAsked      int
-	ReproBootstrapActive       bool
-	DiagnosticBootstrapDone    bool
-	CommandHistory             []CommandRunRecord
-	LastReadPaths              []string
-	BootReadPaths              []string
-	SinceLastCommandReadOrEdit bool
-	CommandOnlyRounds          int
-	CommandFailuresSinceEdit   map[string]int
-	LastCommandOutputText      string
-	LastFailedCommand          string
-	CircuitBreakerFired        bool
-	PlaybookUsedName           string
-	RegisteredFiles            []string
-	RegistrationErrors         []string
-	DiagnosePhaseRequired      bool
-	DiagnosePhaseComplete      bool
-	LastRepairFailureKind      RepairFailureKind
-	LastVerifyFailureKind      RepairFailureKind
-	LastProposalError          string
-	ConsecutiveProposalErrors  int
-	PrematureStopAttempts      int
-	ToolStepCount              int
-	DialogueSummary            string
-	DeterministicFallbackUsed  bool
+	EditRound                   int
+	FilesChanged                []string
+	ProposedCount               int
+	VerifyOutput                string
+	VerifyFailed                bool
+	VerifySkipped               bool
+	RepairUsed                  bool
+	RepairAttempts              int
+	Phase                       string
+	StackManifest               *StackManifest
+	SeedsLoaded                 int
+	DiscoverTools               []string
+	PreflightErrors             []string
+	TrustMode                   string
+	BootFixIntent               bool
+	FixLikeIntent               bool
+	ReproCommand                string
+	ReproExitCode               int
+	ReproOutput                 string
+	ClarifyQuestionsAsked       int
+	ReproBootstrapActive        bool
+	DiagnosticBootstrapDone     bool
+	CommandHistory              []CommandRunRecord
+	LastReadPaths               []string
+	BootReadPaths               []string
+	SinceLastCommandReadOrEdit  bool
+	CommandOnlyRounds           int
+	CommandFailuresSinceEdit    map[string]int
+	LastCommandOutputText       string
+	LastFailedCommand           string
+	CircuitBreakerFired         bool
+	PlaybookUsedName            string
+	RegisteredFiles             []string
+	RegistrationErrors          []string
+	DiagnosePhaseRequired       bool
+	DiagnosePhaseComplete       bool
+	LastRepairFailureKind       RepairFailureKind
+	LastVerifyFailureKind       RepairFailureKind
+	LastProposalError           string
+	ConsecutiveProposalErrors   int
+	PrematureStopAttempts       int
+	ToolStepCount               int
+	DialogueSummary             string
+	DeterministicFallbackUsed   bool
+	ProposalContentHashes       map[[32]byte]struct{}
+	FileSnapshots               map[string]*implementationFileSnapshot
+	VerificationRuns            int
+	LastVerifySignature         [32]byte
+	LastVerifyFailureScore      int
+	LastVerifyFailed            bool
+	ConsecutiveNoVerifyProgress int
+	RolledBackFiles             []string
+	RollbackErrors              []string
 }
 
 func withImplementationSessionState(ctx context.Context, s *ImplementationSessionState) context.Context {
@@ -339,6 +348,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	})
 	restoreImplSessionFromCheckpoint(msg, state)
 	defer a.finalizeImplementationSessionRepairs(sessionCtx, msg, state)
+	defer state.rollbackFailedAutoApplySession(wsPath)
 
 	if question, ask := maybeAskFixClarification(msg, state, wsPath); ask {
 		outcome := a.buildImplementationSessionOutcome(msg, state, false)
@@ -802,6 +812,7 @@ fileCycles:
 	} // fileCycle
 
 	persistImplSessionCheckpoint(msg, state, -1)
+	state.rollbackFailedAutoApplySession(wsPath)
 
 	proposedAny = state.hasRegisteredProposals()
 	summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
@@ -861,6 +872,9 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 	attempted := state.ProposedCount > 0 || len(state.FilesChanged) > 0
 	registered := len(state.RegisteredFiles) > 0
 	switch {
+	case len(state.RolledBackFiles) > 0:
+		outcome["outcome"] = "failed_and_rolled_back"
+		outcome["rolled_back_files"] = append([]string(nil), state.RolledBackFiles...)
 	case attempted && !registered && len(state.RegistrationErrors) > 0:
 		outcome["outcome"] = "proposal_registration_failed"
 		outcome["registration_errors"] = append([]string(nil), state.RegistrationErrors...)
@@ -898,6 +912,9 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 		outcome["playbook_used"] = state.PlaybookUsedName
 	}
 	outcome["circuit_breaker_triggered"] = state.CircuitBreakerFired
+	if len(state.RollbackErrors) > 0 {
+		outcome["rollback_errors"] = append([]string(nil), state.RollbackErrors...)
+	}
 	if ft := state.failureTypeForOutcome(); ft != "" {
 		outcome["failure_type"] = ft
 	}
@@ -935,7 +952,7 @@ func repairNoteFromContext(ctx context.Context) string {
 }
 
 func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, error) {
-	intent := a.classifyTurnIntentForMessage(msg)
+	intent := turnIntentForContext(ctx, a, msg)
 	prompt := a.buildPromptForIntent(msg, intent)
 	prompt = a.appendDelegationContext(ctx, msg, prompt)
 	prompt = a.appendRepoConsultContext(ctx, msg, prompt, intent)
@@ -949,6 +966,11 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 			prompt += "\n=== DIAGNOSE BEFORE EDIT ===\nProvide Analysis and Planned edits before any file proposals.\n"
 		}
 	}
+	prompt += "\n=== PRESERVATION POLICY ===\n" +
+		"Fix the reported failure with the smallest grounded edit. Read the exact target file and project manifest before editing. " +
+		"For existing Git files, inspect `git status --short` and `git diff -- <path>` before editing; if the working file appears truncated or structurally damaged, inspect `git show HEAD:<path>` and preserve user changes. " +
+		"Preserve the existing architecture, behavior, components, and styling. Never replace an established file with a scaffold, placeholder, or generic starter. " +
+		"Use search_replace or apply_patch for existing files; a large rewrite requires explicit review and approval.\n"
 	var sessionGuidance strings.Builder
 	appendImplementationSessionToolGuidance(&sessionGuidance, a, msg)
 	prompt += sessionGuidance.String()
@@ -1563,7 +1585,7 @@ func appendImplementationSessionToolGuidance(prompt *strings.Builder, a *Agent, 
 	if a != nil && msg != nil {
 		history := a.channelHistorySafe(msg.Channel)
 		if messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content) {
-			prompt.WriteString("Boot-fix: read Makefile, package.json, and scripts/start-all.sh with read_file before running make start-all or npm run dev.\n")
+			prompt.WriteString("Boot-fix: read Makefile, package.json, and scripts/start-all.sh, then inspect read-only Git status/diff for pre-existing damage before running make start-all or npm run dev.\n")
 		}
 	}
 }

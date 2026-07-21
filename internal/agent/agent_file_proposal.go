@@ -703,13 +703,29 @@ func (a *Agent) proposeFileEditInChannel(ctx context.Context, channel, path, old
 	if err := validateProposalContent(path, newContent); err != nil {
 		return err
 	}
+	wsPath := ""
+	if sourceMsg != nil {
+		wsPath = a.resolveWorkspacePath(sourceMsg)
+	}
+	if wsPath != "" {
+		if current, err := os.ReadFile(filepath.Join(wsPath, path)); err == nil {
+			oldContent = string(current)
+		}
+	}
+	oldContent = stripEditorLineNumberPrefixes(oldContent)
+	state := implementationSessionStateFromContext(ctx)
+	if err := state.prepareEditSnapshot(wsPath, path, oldContent, newContent); err != nil {
+		return err
+	}
+	destructive, rewriteRatio := IsDestructiveFileRewrite(oldContent, newContent)
+	gitDestructive, gitRewriteRatio, gitBaselineLines := gitBaselineRewriteRisk(ctx, wsPath, path, newContent)
 	// Create file change proposal
 	proposal := &protocol.FileChangeProposal{
 		ChangeID:    uuid.New().String()[:8],
 		Operation:   "edit",
 		FilePath:    path,
-		OldContent:  stripEditorLineNumberPrefixes(oldContent),
-		NewContent:  stripEditorLineNumberPrefixes(newContent),
+		OldContent:  oldContent,
+		NewContent:  newContent,
 		Agent:       a.Info,
 		Channel:     channel,
 		RequestedAt: time.Now(),
@@ -722,10 +738,23 @@ func (a *Agent) proposeFileEditInChannel(ctx context.Context, channel, path, old
 	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
 		fmt.Sprintf("📝 Proposing to edit file: %s", path))
 	msg.Metadata["file_change_proposal"] = proposal
+	if destructive {
+		msg.Metadata["destructive_rewrite"] = true
+		msg.Metadata["destructive_rewrite_ratio"] = rewriteRatio
+	}
+	if gitDestructive {
+		msg.Metadata["git_baseline_destructive"] = true
+		msg.Metadata["git_baseline_rewrite_ratio"] = gitRewriteRatio
+		msg.Metadata["git_baseline_lines"] = gitBaselineLines
+	}
 	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal, sourceMsg)
 	attachIdeSessionMetadataToProposal(msg, sourceMsg)
+	a.ApplyRoutingMetadataToResponse(msg)
 
 	err := a.Hub.SendMessage(msg)
+	if err == nil {
+		state.recordEditResult(path, newContent)
+	}
 	a.noteProposalResult(ctx, path, err)
 	return err
 }
@@ -875,6 +904,7 @@ func (a *Agent) proposeFileCreateInChannel(ctx context.Context, channel, path, c
 	msg.Metadata["file_change_proposal"] = proposal
 	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal, sourceMsg)
 	attachIdeSessionMetadataToProposal(msg, sourceMsg)
+	a.ApplyRoutingMetadataToResponse(msg)
 
 	err := a.Hub.SendMessage(msg)
 	a.noteProposalResult(ctx, path, err)
@@ -909,6 +939,7 @@ func (a *Agent) proposeFileDeleteInChannel(ctx context.Context, channel, path st
 	msg.Metadata["file_change_proposal"] = proposal
 	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal, sourceMsg)
 	attachIdeSessionMetadataToProposal(msg, sourceMsg)
+	a.ApplyRoutingMetadataToResponse(msg)
 
 	err := a.Hub.SendMessage(msg)
 	a.noteProposalResult(ctx, path, err)
@@ -944,6 +975,7 @@ func (a *Agent) proposeFileMoveInChannel(channel, oldPath, newPath string) error
 		fmt.Sprintf("📁 Proposing to move file: %s → %s", oldPath, newPath))
 	msg.Metadata["file_change_proposal"] = proposal
 	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal, nil)
+	a.ApplyRoutingMetadataToResponse(msg)
 
 	return a.Hub.SendMessage(msg)
 }

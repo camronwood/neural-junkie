@@ -51,6 +51,7 @@ graph TB
 ## What's In the Box
 
 - **Multi-agent workspace** — Specialist agents, bounded `/collaborate` sessions, threads, file-change approval, and Slack Connect
+- **Neural Canvas** — Durable, revisioned agent reports, charts, timelines, diagrams, tables, and workbench artifacts that open beside chat
 - **IDE v4 + implementation sessions** — Full Monaco LSP, remote SSH via `nj-remote`, Ask/Agent composer, and the NJ Fix Loop for boot/build repair ([IDE pack](docs/IDE_PACK.md), [guide](docs/features/fix-loop.html))
 - **Domain packs** — IDE, software development, life sciences, CAD, specialist tuning, AWS, incident management, web browser, and more — plus Pack Dev Studio for custom packs ([PACKS.md](docs/PACKS.md))
 - **Local-first AI** — Bundled Ollama, Agent Runtime v2, model library, and optional cloud providers (Claude, OpenAI-compatible APIs, LM Studio)

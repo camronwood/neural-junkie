@@ -27,11 +27,8 @@ func applyChatLoRATag(ctx context.Context, base *ai.OllamaProvider, info protoco
 
 type chatRoutingRuntime struct{}
 
-func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, info protocol.AgentInfo, msg *protocol.Message) ai.AIProvider {
+func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, info protocol.AgentInfo, msg *protocol.Message, trust agent.ConversationTrustDecision) ai.AIProvider {
 	if msg == nil || base == nil || appConfig == nil {
-		return base
-	}
-	if !appConfig.Routing.ModelCapabilityRoutingEnabled || !capabilityProfilesLoaded() {
 		return base
 	}
 	if msg.Type == protocol.MessageTypeCollabTask {
@@ -40,12 +37,28 @@ func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, i
 	if shouldSkipChatCapabilityRouting(msg) {
 		return base
 	}
+	if trust.Tier == agent.ConversationTierReliable {
+		if reliable := configuredReliableChatProvider(info); reliable != nil {
+			log.Printf("[chat-routing] %s: tier=reliable provider=%s reasons=%s", info.Name, providerIDForLog(reliable), strings.Join(trust.Reasons, ","))
+			return reliable
+		}
+		// A missing or invalid reliable provider must degrade safely. Prefer the
+		// capability-ranked elevated route before falling back to the base.
+		trust.Tier = agent.ConversationTierElevated
+	}
+	if trust.Tier == "" || trust.Tier == agent.ConversationTierStandard {
+		if ollamaBase, ok := base.(*ai.OllamaProvider); ok {
+			return applyChatLoRATag(ctx, ollamaBase, info, msg)
+		}
+		return base
+	}
+	if trust.Tier != agent.ConversationTierElevated ||
+		!appConfig.Routing.ModelCapabilityRoutingEnabled || !capabilityProfilesLoaded() {
+		return base
+	}
 	ollamaBase, ok := base.(*ai.OllamaProvider)
 	if !ok {
 		return base
-	}
-	if routed := applyChatLoRATag(ctx, ollamaBase, info, msg); routed != ollamaBase {
-		return routed
 	}
 
 	caps := protocol.ResolveTurnCapabilities(msg)
@@ -62,9 +75,9 @@ func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, i
 		agent.UserRequestsGeneratedMusic(msg.Content)
 	var sel capabilities.SelectResult
 	if needsTools {
-		sel = capabilities.SelectOllamaTagRespectingAgent(capabilities.Global(), class, installed, ollamaBase.GetModel(), tagFilter)
+		sel = capabilities.SelectOllamaTagWithFilter(capabilities.Global(), class, installed, ollamaBase.GetModel(), tagFilter)
 	} else {
-		sel = capabilities.SelectOllamaTagRespectingAgent(capabilities.Global(), class, installed, ollamaBase.GetModel(), nil)
+		sel = capabilities.SelectOllamaTag(capabilities.Global(), class, installed, ollamaBase.GetModel())
 	}
 	tag := strings.TrimSpace(sel.Tag)
 	if tag == "" || tag == strings.TrimSpace(ollamaBase.GetModel()) {
@@ -72,6 +85,29 @@ func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, i
 	}
 	log.Printf("[chat-routing] %s: model=%s reason=%s", info.Name, tag, sel.Reason)
 	return ai.OllamaWithModel(ollamaBase, tag)
+}
+
+func configuredReliableChatProvider(info protocol.AgentInfo) ai.AIProvider {
+	if appConfig == nil || globalProviderCache == nil {
+		return nil
+	}
+	id := strings.TrimSpace(appConfig.Implementation.ReliableProviderID)
+	if id == "" {
+		return nil
+	}
+	provider, err := globalProviderCache.Get(appConfig, id)
+	if err != nil {
+		log.Printf("[chat-routing] %s: reliable provider %s unavailable: %v", info.Name, id, err)
+		return nil
+	}
+	return provider
+}
+
+func providerIDForLog(provider ai.AIProvider) string {
+	if identified, ok := provider.(interface{ ProviderID() string }); ok {
+		return identified.ProviderID()
+	}
+	return provider.GetModel()
 }
 
 func shouldSkipChatCapabilityRouting(msg *protocol.Message) bool {

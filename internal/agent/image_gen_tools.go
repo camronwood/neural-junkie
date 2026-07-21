@@ -66,21 +66,25 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 	if msg == nil {
 		return false
 	}
+	explicitImageIntent := UserRequestsGeneratedImage(msg.Content)
 	if msg.ImplementationSession() {
 		return true
+	}
+	// Active collaboration owns the turn even when ambient IDE metadata also
+	// happens to describe a code editor.
+	phase := strings.ToLower(strings.TrimSpace(msg.GetCollaborationPhase()))
+	if phase != "" || msg.GetCollaborationID() != "" || msg.Type == protocol.MessageTypeCollabDiscussion {
+		return true
+	}
+	// An explicit image request outranks passive IDE layout metadata. It does
+	// not outrank an actual implementation session or collaboration phase.
+	if explicitImageIntent {
+		return false
 	}
 	if ConversationModeFromMessage(msg) == ConversationModeCode {
 		return true
 	}
 	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
-		return true
-	}
-	// Any planning/reviewing wake (collab_discussion, question nudges, chat) must not image-gen.
-	phase := strings.ToLower(strings.TrimSpace(msg.GetCollaborationPhase()))
-	if phase == "planning" || phase == "reviewing" {
-		return true
-	}
-	if msg.Type == protocol.MessageTypeCollabDiscussion {
 		return true
 	}
 	return false
@@ -97,7 +101,11 @@ func agentTypeSupportsHubImageGen(t protocol.AgentType) bool {
 
 // tryHubImageGenerationShortcut posts a hub-generated image when the user asked for one.
 func (a *Agent) tryHubImageGenerationShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
-	if msg == nil || a.Hub == nil || protocol.IsGeneratedImageDelivery(msg) || !UserRequestsGeneratedImage(msg.Content) {
+	explicitImageIntent := msg != nil && UserRequestsGeneratedImage(msg.Content)
+	if goal, ok := turnGoalFromContext(ctx); ok {
+		explicitImageIntent = goal.Action == ActionImage
+	}
+	if msg == nil || a.Hub == nil || protocol.IsGeneratedImageDelivery(msg) || !explicitImageIntent {
 		return "", false
 	}
 	if !a.imageGenerationToolsEnabledForMessage(msg) {
@@ -128,6 +136,18 @@ func (a *Agent) generateAndPostImageWithProgress(
 	}
 
 	err := a.Hub.GenerateAndPostImage(ctx, msg.Channel, a.Info, prompt, size)
+	if ledger := actionEvidenceFromContext(ctx); ledger != nil {
+		status := "succeeded"
+		if err != nil {
+			status = "failed"
+		}
+		ledger.Record(ActionEvidence{
+			Kind:   EvidenceImagePosted,
+			Tool:   generateImageToolName,
+			Status: status,
+			Detail: prompt,
+		})
+	}
 
 	if broadcastToolStart && streamMsgID != "" {
 		ev := ai.ToolStepEvent{Kind: "done", Name: generateImageToolName, Preview: "Image ready"}
@@ -166,6 +186,9 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 	if a.imageGenerationToolsEnabledForMessage(msg) {
 		tools = append(tools, generateImageToolDefinition())
 	}
+	if artifactToolsEnabledForMessage(msg) {
+		tools = append(tools, artifactToolDefinitions()...)
+	}
 	if a.musicGenerationToolsEnabledForMessage(msg) {
 		tools = append(tools, generateMusicToolDefinition(), extractStemsToolDefinition())
 	}
@@ -178,8 +201,15 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 			arenaSubmitAnswerToolDefinition(),
 		)
 	}
+	if activationTool, ok := a.activationToolDefinition(msg); ok {
+		tools = append(tools, activationTool)
+	}
+	if helpTool, ok := a.capabilityHelpToolDefinition(msg); ok {
+		tools = append(tools, helpTool)
+	}
 	if a.MCPServer != nil {
-		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), effectiveMCPToolAllowlist(a, msg))...)
+		mcpTools := claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), effectiveMCPToolAllowlist(a, msg))
+		tools = append(tools, a.filterToolsForActiveCapabilities(msg, mcpTools)...)
 	}
 	if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
 		tools = append(tools, fileEditToolDefinitions()...)
@@ -220,8 +250,17 @@ func (a *Agent) executeGenerateImageTool(ctx context.Context, msg *protocol.Mess
 }
 
 func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, name string, input json.RawMessage) (string, error) {
+	if name == activateCapabilityToolName {
+		return a.executeActivateCapabilityTool(msg, input)
+	}
+	if name == requestCapabilityHelpToolName {
+		return a.executeRequestCapabilityHelpTool(ctx, msg, input)
+	}
 	if name == generateImageToolName {
 		return a.executeGenerateImageTool(ctx, msg, input)
+	}
+	if name == createArtifactToolName || name == updateArtifactToolName {
+		return a.executeArtifactTool(ctx, msg, name, input)
 	}
 	if name == generateMusicToolName {
 		return a.executeGenerateMusicTool(ctx, msg, input)
@@ -295,6 +334,17 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	}
 	result, err := executeMCPTool(toolCtx, mcpServer, name, input)
 	if name == "run_command" {
+		if ledger := actionEvidenceFromContext(ctx); ledger != nil {
+			code, _, _ := parseRunCommandMCPResult(result)
+			status := "succeeded"
+			if err != nil {
+				status = "failed"
+			}
+			ledger.Record(ActionEvidence{Kind: EvidenceCommandRun, Tool: name, Status: status, ExitCode: &code})
+			if err == nil && code == 0 {
+				ledger.Record(ActionEvidence{Kind: EvidenceCommandPass, Tool: name, Status: "succeeded", ExitCode: &code})
+			}
+		}
 		if policy != nil {
 			cmd := parseRunCommandToolInput(input)
 			exitCode, _, _ := parseRunCommandMCPResult(result)
@@ -588,9 +638,28 @@ func (a *Agent) generateWithAgentTools(
 
 	toolEff := a.toolCapableProvider(ctx, eff)
 	a.broadcastRoutingTelemetry(msg)
+	activeBefore := strings.Join(a.activeCapabilityIDs(msg), "\x00")
 	text, err := a.runAgentToolLoop(ctx, msg, prompt, histMsgs, tools, toolEff, eff)
 	if err != nil {
 		return "", err
+	}
+	activeAfter := strings.Join(a.activeCapabilityIDs(msg), "\x00")
+	if activeAfter != activeBefore {
+		expanded := a.agentToolDefinitions(msg)
+		if len(expanded) > len(tools) {
+			text, err = a.runAgentToolLoop(
+				ctx,
+				msg,
+				prompt+"\n\nA requested capability was activated for this turn. Continue the original task using its newly available tools.",
+				histMsgs,
+				expanded,
+				toolEff,
+				eff,
+			)
+			if err != nil {
+				return "", err
+			}
+		}
 	}
 	return a.chainPlaintextToolResponse(ctx, msg, eff, prompt, histMsgs, text)
 }

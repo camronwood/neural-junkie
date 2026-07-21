@@ -21,6 +21,7 @@ var KnownExtensionKinds = []string{
 	"toolbar-chip",
 	"mcp-tools",
 	"settings-schema",
+	"artifact-renderer",
 }
 
 // KnownCapabilityTokens is the union of thin platform + official domain tokens (for catalog packs).
@@ -29,6 +30,33 @@ var KnownCapabilityTokens = append(
 	append([]string{}, PlatformCapabilityTokens...),
 	OfficialDomainCapabilityTokens...,
 )
+
+const (
+	CapabilityExposureSafe      = "safe"
+	CapabilityExposureSensitive = "sensitive"
+)
+
+// KnownArtifactRenderers are trusted, host-owned Neural Canvas renderers.
+// Packs may map data to these IDs but cannot ship executable UI code.
+var KnownArtifactRenderers = []string{
+	"nj.markdown",
+	"nj.mermaid",
+	"nj.code",
+	"nj.table",
+	"nj.chart",
+	"nj.timeline",
+	"nj.image",
+	"nj.graph",
+	"nj.knowledge-graph",
+	"nj.runbook",
+	"nj.cad",
+	"nj.structure",
+	"nj.music",
+	"nj.arena",
+	"nj.scan-summary",
+	"nj.scan-analysis",
+	"nj.comparator-analysis",
+}
 
 // CapabilityToolbarUI declares a toolbar chip for a pack-local capability.
 // Label is shown when Icon is empty (max 3 characters recommended). Icon is a pack-relative
@@ -54,16 +82,25 @@ type CapabilitySidecarSpec struct {
 
 // CapabilityDef declares what a pack-local capability does.
 type CapabilityDef struct {
-	Kind        string                 `yaml:"kind" json:"kind"`
-	Routes      []string               `yaml:"routes,omitempty" json:"routes,omitempty"`
-	Sidecar     *CapabilitySidecarSpec `yaml:"sidecar,omitempty" json:"sidecar,omitempty"`
-	UI          *CapabilityUI          `yaml:"ui,omitempty" json:"ui,omitempty"`
-	MatchGlob   string                 `yaml:"match_glob,omitempty" json:"match_glob,omitempty"`
-	Viewer      string                 `yaml:"viewer,omitempty" json:"viewer,omitempty"`
-	Settings    []string               `yaml:"settings,omitempty" json:"settings,omitempty"`
+	Label        string                 `yaml:"label,omitempty" json:"label,omitempty"`
+	Description  string                 `yaml:"description,omitempty" json:"description,omitempty"`
+	Exposure     string                 `yaml:"exposure,omitempty" json:"exposure,omitempty"`
+	Kind         string                 `yaml:"kind" json:"kind"`
+	Routes       []string               `yaml:"routes,omitempty" json:"routes,omitempty"`
+	Sidecar      *CapabilitySidecarSpec `yaml:"sidecar,omitempty" json:"sidecar,omitempty"`
+	UI           *CapabilityUI          `yaml:"ui,omitempty" json:"ui,omitempty"`
+	MatchGlob    string                 `yaml:"match_glob,omitempty" json:"match_glob,omitempty"`
+	Viewer       string                 `yaml:"viewer,omitempty" json:"viewer,omitempty"`
+	Settings     []string               `yaml:"settings,omitempty" json:"settings,omitempty"`
 	MCPTools     []string               `yaml:"mcp_tools,omitempty" json:"mcp_tools,omitempty"`
 	MCPToolsPath string                 `yaml:"mcp_tools_path,omitempty" json:"mcp_tools_path,omitempty"`
 	MCPAgents    []string               `yaml:"mcp_agents,omitempty" json:"mcp_agents,omitempty"`
+	Renderer     string                 `yaml:"renderer,omitempty" json:"renderer,omitempty"`
+	MediaTypes   []string               `yaml:"media_types,omitempty" json:"media_types,omitempty"`
+	RendererAPI  int                    `yaml:"renderer_api_version,omitempty" json:"renderer_api_version,omitempty"`
+	SchemaMin    int                    `yaml:"schema_version_min,omitempty" json:"schema_version_min,omitempty"`
+	SchemaMax    int                    `yaml:"schema_version_max,omitempty" json:"schema_version_max,omitempty"`
+	Fallback     string                 `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 }
 
 // ResolvedCapability is a runtime capability entry from platform or pack-local defs.
@@ -71,6 +108,9 @@ type ResolvedCapability struct {
 	ID          string        `json:"id"`
 	QualifiedID string        `json:"qualified_id"`
 	PackID      string        `json:"pack_id,omitempty"`
+	Label       string        `json:"label,omitempty"`
+	Description string        `json:"description,omitempty"`
+	Exposure    string        `json:"exposure,omitempty"`
 	Kind        string        `json:"kind,omitempty"`
 	Platform    bool          `json:"platform,omitempty"`
 	Routes      []string      `json:"routes,omitempty"`
@@ -80,6 +120,12 @@ type ResolvedCapability struct {
 	Settings    []string      `json:"settings,omitempty"`
 	MCPTools    []string      `json:"mcp_tools,omitempty"`
 	MCPAgents   []string      `json:"mcp_agents,omitempty"`
+	Renderer    string        `json:"renderer,omitempty"`
+	MediaTypes  []string      `json:"media_types,omitempty"`
+	RendererAPI int           `json:"renderer_api_version,omitempty"`
+	SchemaMin   int           `json:"schema_version_min,omitempty"`
+	SchemaMax   int           `json:"schema_version_max,omitempty"`
+	Fallback    string        `json:"fallback,omitempty"`
 }
 
 // QualifiedCapabilityID returns packID/capID.
@@ -161,7 +207,7 @@ func (m *Manifest) ValidateCapabilityDefs(packDir string) (warnings, errors []st
 			errors = append(errors, "capability_defs contains empty key")
 			continue
 		}
-		if IsPlatformCapability(capID) {
+		if IsThinPlatformCapability(capID) {
 			if def.Kind == SidecarKindHub || def.Kind == SidecarKindMCP {
 				warnings = append(warnings, validateCapabilityDefPaths(capID, def, packDir, &errors)...)
 				continue
@@ -175,6 +221,23 @@ func (m *Manifest) ValidateCapabilityDefs(packDir string) (warnings, errors []st
 		}
 		if !IsKnownExtensionKind(def.Kind) {
 			errors = append(errors, fmt.Sprintf("capability_defs[%q]: unknown kind %q", capID, def.Kind))
+		}
+		if def.Kind == "artifact-renderer" {
+			if !isKnownArtifactRenderer(def.Renderer) {
+				errors = append(errors, fmt.Sprintf("capability_defs[%q]: unknown trusted artifact renderer %q", capID, def.Renderer))
+			}
+			if len(def.MediaTypes) == 0 && strings.TrimSpace(def.MatchGlob) == "" {
+				errors = append(errors, fmt.Sprintf("capability_defs[%q]: artifact renderer requires media_types or match_glob", capID))
+			}
+			if def.RendererAPI < 0 || def.SchemaMin < 0 || def.SchemaMax < 0 || (def.SchemaMax > 0 && def.SchemaMin > def.SchemaMax) {
+				errors = append(errors, fmt.Sprintf("capability_defs[%q]: invalid renderer/schema version range", capID))
+			}
+		}
+		exposure := strings.ToLower(strings.TrimSpace(def.Exposure))
+		if exposure != "" && exposure != CapabilityExposureSafe && exposure != CapabilityExposureSensitive {
+			errors = append(errors, fmt.Sprintf("capability_defs[%q]: exposure must be %q or %q", capID, CapabilityExposureSafe, CapabilityExposureSensitive))
+		} else if exposure == "" && (len(def.MCPTools) > 0 || len(def.MCPAgents) > 0 || def.Kind == "mcp-tools") {
+			warnings = append(warnings, fmt.Sprintf("capability_defs[%q]: executable capability has no exposure classification; using pack default", capID))
 		}
 		warnings = append(warnings, validateCapabilityDefPaths(capID, def, packDir, &errors)...)
 	}
@@ -260,8 +323,12 @@ func BuildResolvedCapabilities(m *Manifest) []ResolvedCapability {
 				ID:          shortID,
 				QualifiedID: shortID,
 				PackID:      m.ID,
+				Label:       strings.ReplaceAll(shortID, "-", " "),
+				Description: strings.TrimSpace(m.Description),
+				Exposure:    defaultCapabilityExposure(m.ID),
 				Kind:        "platform",
 				Platform:    true,
+				MCPAgents:   append([]string(nil), m.MCPAgents...),
 			})
 			continue
 		}
@@ -270,10 +337,17 @@ func BuildResolvedCapabilities(m *Manifest) []ResolvedCapability {
 }
 
 func resolvedCapabilityFromDef(packID, shortID string, def CapabilityDef) ResolvedCapability {
+	exposure := strings.ToLower(strings.TrimSpace(def.Exposure))
+	if exposure != CapabilityExposureSafe && exposure != CapabilityExposureSensitive {
+		exposure = defaultCapabilityExposure(packID)
+	}
 	return ResolvedCapability{
 		ID:          shortID,
 		QualifiedID: QualifiedCapabilityID(packID, shortID),
 		PackID:      packID,
+		Label:       strings.TrimSpace(def.Label),
+		Description: strings.TrimSpace(def.Description),
+		Exposure:    exposure,
 		Kind:        def.Kind,
 		Routes:      append([]string(nil), def.Routes...),
 		UI:          def.UI,
@@ -282,6 +356,32 @@ func resolvedCapabilityFromDef(packID, shortID string, def CapabilityDef) Resolv
 		Settings:    append([]string(nil), def.Settings...),
 		MCPTools:    append([]string(nil), def.MCPTools...),
 		MCPAgents:   append([]string(nil), def.MCPAgents...),
+		Renderer:    strings.TrimSpace(def.Renderer),
+		MediaTypes:  append([]string(nil), def.MediaTypes...),
+		RendererAPI: def.RendererAPI,
+		SchemaMin:   def.SchemaMin,
+		SchemaMax:   def.SchemaMax,
+		Fallback:    strings.TrimSpace(def.Fallback),
+	}
+}
+
+func isKnownArtifactRenderer(id string) bool {
+	id = strings.TrimSpace(id)
+	for _, known := range KnownArtifactRenderers {
+		if id == known {
+			return true
+		}
+	}
+	return false
+}
+
+func defaultCapabilityExposure(packID string) string {
+	switch strings.ToLower(strings.TrimSpace(packID)) {
+	case "cad", "life-sciences", "model-arena", "music-creation", "software-development", "web-browser":
+		return CapabilityExposureSafe
+	default:
+		// AWS, incident-management, and unclassified third-party packs require a grant.
+		return CapabilityExposureSensitive
 	}
 }
 

@@ -181,6 +181,7 @@ import {
   pendingUserQuestionIds,
   pendingUserQuestionMessages,
 } from '../utils/pendingUserQuestions';
+import { handoffNavigationTarget } from '../utils/capabilityPolicy';
 
 const EMPTY_THINKING_AGENTS: ThinkingAgent[] = [];
 
@@ -935,8 +936,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     try {
       const channelList = await new ChatAPI(getHubBaseURL()).fetchChannels();
       useChatStore.getState().setChannels(channelList);
+      return channelList;
     } catch (error) {
       console.error('Failed to load channels:', error);
+      return null;
     }
   }, []);
 
@@ -1642,6 +1645,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [addToast, scrollToApproval],
   );
 
+  const handledHandoffMessagesRef = useRef(new Set<string>());
+
   // WebSocket connection
   const { status, connect: reconnectHub } = useWebSocket({
     url: wsURL,
@@ -1649,6 +1654,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       try {
         const st = useChatStore.getState();
         const activeChannel = st.channel;
+
+      if (
+        message.type === 'system_info' &&
+        !handledHandoffMessagesRef.current.has(message.id)
+      ) {
+        const target = handoffNavigationTarget(message.metadata);
+        if (target) {
+          handledHandoffMessagesRef.current.add(message.id);
+          const channels = await loadChannels();
+          if (
+            channels?.some((candidate) => candidate.name === target) &&
+            useChatStore.getState().channel !== target
+          ) {
+            await handleSwitchChannel(target);
+            return;
+          }
+        }
+      }
 
       // Handle all agent_status messages - never add them to chat
       if (message.type === 'agent_status') {
@@ -2518,6 +2541,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           message: 'Open a workspace in the Files panel first.',
         });
       }
+      (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
+      return;
+    }
+    if (trimmed === '/nj-open-neural-canvas') {
+      appendLocalSlashCommand(trimmed);
+      const fe = useFileExplorerStore.getState();
+      useEditorStore.getState().openArtifact(
+        fe.activeWorkspaceId ?? '',
+        '__library__',
+        'Neural Canvas',
+      );
+      setCodeEditorOpen(true);
+      void updateLayoutSettings({ editorPanelVisible: true });
       (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
       return;
     }

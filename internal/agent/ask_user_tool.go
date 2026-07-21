@@ -111,6 +111,7 @@ func workspaceGuidanceWithoutUserDecision(content string) bool {
 func appendAskUserToolPrompt(system *strings.Builder) {
 	system.WriteString("USER QUESTIONS:\n")
 	system.WriteString("When you need a decision, preference, or missing detail from the user, call the ask_user tool ONCE.\n")
+	system.WriteString("Give the question a stable decision_key (for example \"target_platform\") so the same goal never asks it twice.\n")
 	system.WriteString("After the user answers: continue the original task immediately. Do NOT ask the same (or nearly same) question again.\n")
 	system.WriteString("Do NOT ask the user for directory listings or file contents you can obtain with list_dir / read_file / glob tools.\n")
 	system.WriteString("If the user pasted an error log, diagnose and fix that error before asking new preference questions.\n\n")
@@ -128,6 +129,14 @@ func askUserToolDefinition() ai.ClaudeToolDefinition {
 				"type": "array",
 				"items": { "type": "string" },
 				"description": "Optional multiple-choice options. Omit for free-text answers."
+			},
+			"goal_id": {
+				"type": "string",
+				"description": "Optional stable ID of the original user goal. Usually supplied by the host."
+			},
+			"decision_key": {
+				"type": "string",
+				"description": "Stable snake_case key for the decision within this goal, such as target_platform."
 			}
 		},
 		"required": ["question"]
@@ -141,8 +150,10 @@ func askUserToolDefinition() ai.ClaudeToolDefinition {
 
 func (a *Agent) executeAskUserTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
 	args, err := schema.ParseInto[struct {
-		Question string   `json:"question"`
-		Options  []string `json:"options"`
+		Question    string   `json:"question"`
+		Options     []string `json:"options"`
+		GoalID      string   `json:"goal_id"`
+		DecisionKey string   `json:"decision_key"`
 	}](input, schema.ObjectSpec{Required: []string{"question"}})
 	if err != nil {
 		return "", fmt.Errorf("ask_user schema: %w", err)
@@ -172,9 +183,42 @@ func (a *Agent) executeAskUserTool(ctx context.Context, msg *protocol.Message, i
 	// Drop the "responding / using ask_user" indicator while we wait on the user.
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
 
-	answer, err := a.Hub.AskUserQuestion(a.Info.ID, a.Info.Name, channel, args.Question, args.Options)
+	goalID := strings.TrimSpace(args.GoalID)
+	if goalID == "" && msg.Metadata != nil {
+		goalID = firstStringMetadata(msg.Metadata, "original_goal_id", "goal_id")
+	}
+	if resolver, ok := a.Hub.(interface {
+		ResolveConversationGoalID(channel, explicitGoalID string) string
+	}); ok {
+		goalID = resolver.ResolveConversationGoalID(channel, goalID)
+	}
+	if goalID == "" {
+		if goal, ok := turnGoalFromContext(ctx); ok {
+			goalID = goal.ID
+		}
+		if goalID == "" {
+			goalID = msg.ID
+		}
+	}
+	var answer string
+	contextualHub, supportsContext := a.Hub.(interface {
+		AskUserQuestionWithContext(agentID, agentName, channel, question string, options []string, goalID, decisionKey string) (string, error)
+	})
+	if supportsContext {
+		answer, err = contextualHub.AskUserQuestionWithContext(
+			a.Info.ID, a.Info.Name, channel, args.Question, args.Options, goalID, strings.TrimSpace(args.DecisionKey),
+		)
+	} else {
+		answer, err = a.Hub.AskUserQuestion(a.Info.ID, a.Info.Name, channel, args.Question, args.Options)
+	}
 	if err != nil {
+		if ledger := actionEvidenceFromContext(ctx); ledger != nil {
+			ledger.Record(ActionEvidence{Kind: EvidenceUserAnswer, Tool: askUserToolName, Status: "failed", Detail: err.Error()})
+		}
 		return fmt.Sprintf("User did not answer: %v", err), nil
+	}
+	if ledger := actionEvidenceFromContext(ctx); ledger != nil {
+		ledger.Record(ActionEvidence{Kind: EvidenceUserAnswer, Tool: askUserToolName, Status: "succeeded"})
 	}
 	if turn != nil {
 		turn.count++
@@ -189,4 +233,13 @@ func (a *Agent) executeAskUserTool(ctx context.Context, msg *protocol.Message, i
 		"User answered: %s\n\nContinue the original task now with this answer. Do not re-ask ask_user for the same information. Use workspace tools instead of asking for directory structure.",
 		answer,
 	), nil
+}
+
+func firstStringMetadata(metadata map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := metadata[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }

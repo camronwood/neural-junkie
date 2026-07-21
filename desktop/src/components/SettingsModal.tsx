@@ -16,6 +16,7 @@ import { ModelsPerformanceSettingsTab } from './settings/ModelsPerformanceSettin
 import { InferenceUsageSettingsTab } from './settings/InferenceUsageSettingsTab';
 import { CollabRoutingSettingsTab } from './settings/CollabRoutingSettingsTab';
 import { MemoryLearningSettingsTab } from './settings/MemoryLearningSettingsTab';
+import { CapabilitiesSettingsTab } from './settings/CapabilitiesSettingsTab';
 import { ApiCredentialsSettingsTab } from './settings/ApiCredentialsSettingsTab';
 import { IntegrationsSettingsTab } from './settings/IntegrationsSettingsTab';
 import { AssistantToolsSettingsTab } from './settings/AssistantToolsSettingsTab';
@@ -125,6 +126,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <InferenceUsageSettingsTab hubHttp={hubHttp} isActive={activeTab === 'inference-usage'} />
             <CollabRoutingSettingsTab hubHttp={hubHttp} isActive={activeTab === 'collab-routing'} />
             <MemoryLearningSettingsTab hubHttp={hubHttp} isActive={activeTab === 'memory-learning'} />
+            <CapabilitiesSettingsTab hubHttp={hubHttp} isActive={activeTab === 'capabilities'} />
             <ApiCredentialsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'api-credentials'} />
             <IntegrationsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'integrations'} />
             <AssistantToolsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'assistant-tools'} />

@@ -1,10 +1,31 @@
 package agent
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func TestAskUserToolDefinition_IncludesConversationCorrelation(t *testing.T) {
+	definition := askUserToolDefinition()
+	schema := string(definition.InputSchema)
+	for _, property := range []string{`"goal_id"`, `"decision_key"`} {
+		if !strings.Contains(schema, property) {
+			t.Fatalf("ask_user schema missing %s", property)
+		}
+	}
+}
+
+func TestFirstStringMetadata_PrefersOriginalGoal(t *testing.T) {
+	metadata := map[string]interface{}{
+		"goal_id":          "approval-message",
+		"original_goal_id": "original-goal",
+	}
+	if got := firstStringMetadata(metadata, "original_goal_id", "goal_id"); got != "original-goal" {
+		t.Fatalf("goal=%q want original-goal", got)
+	}
+}
 
 func TestShouldOfferAskUserTool_codebaseInjected(t *testing.T) {
 	t.Parallel()

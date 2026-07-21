@@ -25,7 +25,7 @@ func (s *ImplementationSessionState) groundingSatisfied() bool {
 	if s.SeedsLoaded >= 1 {
 		return true
 	}
-	if len(s.DiscoverTools) >= 1 {
+	if len(s.LastReadPaths) >= 1 {
 		return true
 	}
 	if s.BootFixIntent {
@@ -34,10 +34,22 @@ func (s *ImplementationSessionState) groundingSatisfied() bool {
 		}
 		return false
 	}
-	if s.StackManifest != nil && s.StackManifest.HasEntryPoint() {
+	return false
+}
+
+func (s *ImplementationSessionState) targetGrounded(path string) bool {
+	if s == nil {
 		return true
 	}
-	return false
+	path = normalizeFileChangeRelPath(path)
+	for _, readPath := range s.LastReadPaths {
+		if normalizeFileChangeRelPath(readPath) == path {
+			return true
+		}
+	}
+	// Seed files are injected verbatim into the implementation prompt. The seed
+	// collector chooses requested/open/manifest target files, so they count as reads.
+	return s.SeedsLoaded > 0
 }
 
 func (s *ImplementationSessionState) recordDiscoverTool(name string) {
@@ -160,8 +172,11 @@ func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *proto
 				channelHasRecentImplementationActivity(a.channelHistory(sourceMsg.Channel), sourceMsg.ID, a.Info.ID)) {
 			// continuation turn: prior user ask already grounded the session
 		} else {
-			return fmt.Errorf("grounding required: read the stack manifest and use read_file or glob_file_search before proposing edits")
+			return fmt.Errorf("grounding required: read the stack manifest and exact target file before proposing edits")
 		}
+	}
+	if st != nil && !st.targetGrounded(path) {
+		return fmt.Errorf("grounding required: read target file %s before proposing edits", path)
 	}
 
 	manifest := a.manifestForProposal(ctx, sourceMsg)

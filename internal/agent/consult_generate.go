@@ -35,6 +35,7 @@ func (a *Agent) GenerateConsultResponse(ctx context.Context, subQuestion string,
 			Name: "Delegation",
 			Type: protocol.AgentTypeGeneral,
 		},
+		Metadata: map[string]interface{}{"handoff_depth": 1},
 	}
 	if channel == "" {
 		msg.Channel = "delegation-internal"

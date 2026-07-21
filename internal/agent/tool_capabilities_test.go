@@ -101,6 +101,7 @@ func TestEffectiveToolLoopModelCADUsesConfiguredToolModel(t *testing.T) {
 }
 
 func TestDescribeToolCapabilitiesBiologyMCP(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	config.SetupTestOfficialPackCatalog(t)
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true
@@ -133,8 +134,11 @@ func TestDescribeToolCapabilitiesBiologyMCP(t *testing.T) {
 	names := make(map[string]bool)
 	for _, tool := range cap.Tools {
 		names[tool.Name] = true
-		if tool.Source != "mcp" {
+		if tool.Name != createArtifactToolName && tool.Name != updateArtifactToolName && tool.Source != "mcp" {
 			t.Fatalf("expected mcp source for %s", tool.Name)
+		}
+		if (tool.Name == createArtifactToolName || tool.Name == updateArtifactToolName) && tool.Source != "builtin" {
+			t.Fatalf("expected builtin source for %s", tool.Name)
 		}
 	}
 	if !names["analyze_sequence"] || !names["fold_protein"] {

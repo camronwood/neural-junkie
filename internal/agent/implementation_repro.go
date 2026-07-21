@@ -342,9 +342,12 @@ func (a *Agent) sendInterimFixUpdate(msg *protocol.Message, text string) {
 
 func (a *Agent) runVerifyForState(ctx context.Context, msg *protocol.Message, state *ImplementationSessionState) (output string, failed bool, skipped bool) {
 	if state != nil && state.FixLikeIntent && strings.TrimSpace(state.ReproCommand) != "" {
-		return a.runReproVerify(ctx, msg, state)
+		output, failed, skipped = a.runReproVerify(ctx, msg, state)
+	} else {
+		output, failed, skipped = a.runImplementationVerify(ctx, msg, state)
 	}
-	return a.runImplementationVerify(ctx, msg, state)
+	state.recordVerificationProgress(output, failed, skipped)
+	return output, failed, skipped
 }
 
 func fixLikeSessionSucceeded(state *ImplementationSessionState) bool {

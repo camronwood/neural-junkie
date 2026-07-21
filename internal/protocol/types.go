@@ -33,41 +33,42 @@ const (
 	MessageTypeCollabStatus      MessageType = "collaboration_status"
 	MessageTypeCollabDiscussion  MessageType = "collaboration_discussion"
 	MessageTypeCollabRecap       MessageType = "collaboration_recap"
+	MessageTypeArtifactChanged   MessageType = "artifact_changed"
 )
 
 // AgentType defines the specialty of an agent
 type AgentType string
 
 const (
-	AgentTypeFrontend     AgentType = "frontend"
-	AgentTypeBackend      AgentType = "backend"
-	AgentTypeDevOps       AgentType = "devops"
-	AgentTypeDatabase     AgentType = "database"
-	AgentTypeSecurity     AgentType = "security"
-	AgentTypeRust         AgentType = "rust"
-	AgentTypeArchitecture AgentType = "architecture"
-	AgentTypeCodeReview   AgentType = "code-review"
-	AgentTypeSRE          AgentType = "sre"
-	AgentTypeMobile       AgentType = "mobile"
-	AgentTypeDataML       AgentType = "data-ml"
-	AgentTypeBiology            AgentType = "biology"
-	AgentTypeGenomics           AgentType = "genomics"
-	AgentTypeStructuralBiology  AgentType = "structural-biology"
-	AgentTypeCheminformatics    AgentType = "cheminformatics"
-	AgentTypeCAD                AgentType = "cad"
-	AgentTypeManufacturing      AgentType = "manufacturing"
-	AgentTypeAWS          AgentType = "aws"
-	AgentTypeIncident     AgentType = "incident"
-	AgentTypeBrowser      AgentType = "browser"
-	AgentTypeMusic        AgentType = "music"
-	AgentTypeArena        AgentType = "arena"
-	AgentTypeGeneral      AgentType = "general"
-	AgentTypeRepo         AgentType = "repo"
-	AgentTypeExpert       AgentType = "expert"     // Custom domain experts (/create-expert)
-	AgentTypeModerator    AgentType = "moderator"  // System moderator agent
-	AgentTypeAssistant    AgentType = "assistant"  // Personal assistant agent
-	AgentTypeConfluence   AgentType = "confluence" // Confluence documentation agents
-	AgentTypeCLI          AgentType = "cli"        // CLI-backed agents (Cursor, Claude CLI, etc.)
+	AgentTypeFrontend          AgentType = "frontend"
+	AgentTypeBackend           AgentType = "backend"
+	AgentTypeDevOps            AgentType = "devops"
+	AgentTypeDatabase          AgentType = "database"
+	AgentTypeSecurity          AgentType = "security"
+	AgentTypeRust              AgentType = "rust"
+	AgentTypeArchitecture      AgentType = "architecture"
+	AgentTypeCodeReview        AgentType = "code-review"
+	AgentTypeSRE               AgentType = "sre"
+	AgentTypeMobile            AgentType = "mobile"
+	AgentTypeDataML            AgentType = "data-ml"
+	AgentTypeBiology           AgentType = "biology"
+	AgentTypeGenomics          AgentType = "genomics"
+	AgentTypeStructuralBiology AgentType = "structural-biology"
+	AgentTypeCheminformatics   AgentType = "cheminformatics"
+	AgentTypeCAD               AgentType = "cad"
+	AgentTypeManufacturing     AgentType = "manufacturing"
+	AgentTypeAWS               AgentType = "aws"
+	AgentTypeIncident          AgentType = "incident"
+	AgentTypeBrowser           AgentType = "browser"
+	AgentTypeMusic             AgentType = "music"
+	AgentTypeArena             AgentType = "arena"
+	AgentTypeGeneral           AgentType = "general"
+	AgentTypeRepo              AgentType = "repo"
+	AgentTypeExpert            AgentType = "expert"     // Custom domain experts (/create-expert)
+	AgentTypeModerator         AgentType = "moderator"  // System moderator agent
+	AgentTypeAssistant         AgentType = "assistant"  // Personal assistant agent
+	AgentTypeConfluence        AgentType = "confluence" // Confluence documentation agents
+	AgentTypeCLI               AgentType = "cli"        // CLI-backed agents (Cursor, Claude CLI, etc.)
 )
 
 // IsLifeSciencesAgentType reports whether t is a life-sciences pack specialist.
@@ -186,8 +187,10 @@ type AgentInfo struct {
 	RemovedFrom             []string  `json:"removed_from"`              // List of channels agent was removed from
 	ApprovalMode            string    `json:"approval_mode,omitempty"`   // Tool approval mode for CLI agents: "interactive", "auto_edit", "yolo"
 	CustomRulesMarkdown     string    `json:"custom_rules_markdown,omitempty"`
-	ToolCount               int       `json:"tool_count,omitempty"` // Populated when GET /api/agents?include_tool_counts=true
+	ToolCount               int       `json:"tool_count,omitempty"`   // Populated when GET /api/agents?include_tool_counts=true
 	ConsultOnly             bool      `json:"consult_only,omitempty"` // Internal consult target; hidden from user-facing lists
+	Capabilities            []string  `json:"capabilities,omitempty"` // Effective executable capability bundle IDs
+	DeniedCapabilities      []string  `json:"denied_capabilities,omitempty"`
 }
 
 // AgentToolParam describes one tool input field.
@@ -207,20 +210,25 @@ type AgentToolDefinition struct {
 
 // AgentToolCapabilities reports tools and model routing for one agent.
 type AgentToolCapabilities struct {
-	AgentID              string                `json:"agent_id"`
-	AgentName            string                `json:"agent_name"`
-	AgentType            string                `json:"agent_type"`
-	Tools                []AgentToolDefinition `json:"tools"`
-	ToolCount            int                   `json:"tool_count"`
-	MCPEnabled           bool                  `json:"mcp_enabled"`
-	MCPPort              int                   `json:"mcp_port,omitempty"`
-	ChatModel            string                `json:"chat_model"`
-	ChatProvider         string                `json:"chat_provider"`
-	ChatNativeTools      bool                  `json:"chat_native_tools"`
-	ToolLoopModel        string                `json:"tool_loop_model"`
-	ToolLoopUsesFallback bool                  `json:"tool_loop_uses_fallback"`
-	ToolLoopMode         string                `json:"tool_loop_mode,omitempty"` // native | react | fallback
-	Notes                []string              `json:"notes,omitempty"`
+	AgentID                  string                `json:"agent_id"`
+	AgentName                string                `json:"agent_name"`
+	AgentType                string                `json:"agent_type"`
+	Tools                    []AgentToolDefinition `json:"tools"`
+	ToolCount                int                   `json:"tool_count"`
+	MCPEnabled               bool                  `json:"mcp_enabled"`
+	MCPPort                  int                   `json:"mcp_port,omitempty"`
+	ChatModel                string                `json:"chat_model"`
+	ChatProvider             string                `json:"chat_provider"`
+	ChatNativeTools          bool                  `json:"chat_native_tools"`
+	ToolLoopModel            string                `json:"tool_loop_model"`
+	ToolLoopUsesFallback     bool                  `json:"tool_loop_uses_fallback"`
+	ToolLoopMode             string                `json:"tool_loop_mode,omitempty"` // native | react | fallback
+	Notes                    []string              `json:"notes,omitempty"`
+	DiscoverableCapabilities []string              `json:"discoverable_capabilities,omitempty"`
+	AvailableCapabilities    []string              `json:"available_capabilities,omitempty"`
+	ActiveCapabilities       []string              `json:"active_capabilities,omitempty"`
+	DeniedCapabilities       []string              `json:"denied_capabilities,omitempty"`
+	UnavailableCapabilities  []string              `json:"unavailable_capabilities,omitempty"`
 }
 
 // ChannelToolsResponse lists tool capabilities for agents in a channel.
@@ -237,25 +245,30 @@ const (
 	ChannelTypeDM            ChannelType = "dm"            // 1:1 user-to-agent direct message
 	ChannelTypeCustom        ChannelType = "custom"        // User-created channel with curated agents
 	ChannelTypeCollaboration ChannelType = "collaboration" // Auto-created room for one /collaborate session
+	ChannelTypeDelegation    ChannelType = "delegation"    // Temporary room for one capability handoff
 	ChannelTypeRoom          ChannelType = "room"          // Ephemeral human room (LAN sessions)
 )
 
 // Channel represents a chat channel/room
 type Channel struct {
-	ID           string      `json:"id"`
-	Name         string      `json:"name"`
-	DisplayName  string      `json:"display_name,omitempty"` // Human label (e.g. Slack #cursor-test); Name stays the hub id
-	Description  string      `json:"description"`
-	Project      string      `json:"project,omitempty"`
-	RoomID       string      `json:"room_id,omitempty"` // Links channels to a room session (ChannelTypeRoom)
-	Type         ChannelType `json:"type"`
-	CreatedBy    string      `json:"created_by,omitempty"`
-	Created      time.Time   `json:"created"`
-	Agents       []AgentInfo `json:"agents"`
-	Members      []string    `json:"members,omitempty"`       // Explicitly added agent IDs
-	HumanMembers []string    `json:"human_members,omitempty"` // Usernames allowed on private custom channels
-	AgentsMuted  bool        `json:"agents_muted,omitempty"`  // When true, agents should not respond in this channel unless explicitly addressed
-	Tags         []string    `json:"tags,omitempty"`
+	ID              string      `json:"id"`
+	Name            string      `json:"name"`
+	DisplayName     string      `json:"display_name,omitempty"` // Human label (e.g. Slack #cursor-test); Name stays the hub id
+	Description     string      `json:"description"`
+	Project         string      `json:"project,omitempty"`
+	RoomID          string      `json:"room_id,omitempty"` // Links channels to a room session (ChannelTypeRoom)
+	Type            ChannelType `json:"type"`
+	CreatedBy       string      `json:"created_by,omitempty"`
+	Created         time.Time   `json:"created"`
+	Agents          []AgentInfo `json:"agents"`
+	Members         []string    `json:"members,omitempty"`       // Explicitly added agent IDs
+	HumanMembers    []string    `json:"human_members,omitempty"` // Usernames allowed on private custom channels
+	AgentsMuted     bool        `json:"agents_muted,omitempty"`  // When true, agents should not respond in this channel unless explicitly addressed
+	Tags            []string    `json:"tags,omitempty"`
+	SourceChannel   string      `json:"source_channel,omitempty"`
+	SourceMessageID string      `json:"source_message_id,omitempty"`
+	Archived        bool        `json:"archived,omitempty"`
+	ArchivedAt      *time.Time  `json:"archived_at,omitempty"`
 }
 
 // ThreadMetadata contains metadata about a message thread
@@ -500,6 +513,28 @@ func (m *Message) SetArtifactAction(action string) {
 		m.Metadata = make(map[string]interface{})
 	}
 	m.Metadata["artifact_action"] = action
+}
+
+// ArtifactReference is the compact, transport-safe pointer attached to chat
+// messages and invalidation events. Artifact content remains authoritative in
+// the artifact store and is fetched by clients.
+type ArtifactReference struct {
+	ID                 string `json:"id"`
+	Title              string `json:"title,omitempty"`
+	RendererID         string `json:"renderer_id,omitempty"`
+	RendererAPIVersion int    `json:"renderer_api_version,omitempty"`
+	MediaType          string `json:"media_type,omitempty"`
+	Revision           int64  `json:"revision,omitempty"`
+	WorkspaceID        string `json:"workspace_id,omitempty"`
+	Action             string `json:"action,omitempty"`
+}
+
+// SetArtifactReference attaches a typed artifact pointer to message metadata.
+func (m *Message) SetArtifactReference(ref ArtifactReference) {
+	if m.Metadata == nil {
+		m.Metadata = make(map[string]interface{})
+	}
+	m.Metadata["artifact_ref"] = ref
 }
 
 // GetTaskID returns the task ID from metadata.

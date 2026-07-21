@@ -1,7 +1,9 @@
 package filechange
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,5 +101,56 @@ func TestListPendingFileChanges(t *testing.T) {
 	}
 	if len(mgr.ListPendingFileChanges("user")) != 2 {
 		t.Fatalf("expected 2 pending, got %d", len(mgr.ListPendingFileChanges("user")))
+	}
+}
+
+func TestApproveEditRejectsStaleBase(t *testing.T) {
+	mgr, root := newTestManager(t)
+	target := filepath.Join(root, "app.txt")
+	if err := os.WriteFile(target, []byte("version one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	change, err := mgr.ProposeFileChange(
+		FileOperationEdit, target, "", "", "version one", "agent version", testAgent(), "general",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("user version"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mgr.ApproveFileChange(change.ID, "user-1"); err == nil || !strings.Contains(err.Error(), "stale edit") {
+		t.Fatalf("expected stale edit rejection, got %v", err)
+	}
+	got, _ := os.ReadFile(target)
+	if string(got) != "user version" {
+		t.Fatalf("stale approval clobbered user content: %q", got)
+	}
+}
+
+func TestBoundExecutionContextCannotBeRetargeted(t *testing.T) {
+	mgr, rootOne := newTestManager(t)
+	rootTwo := t.TempDir()
+	target := filepath.Join(rootOne, "app.txt")
+	if err := os.WriteFile(target, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	change, err := mgr.ProposeFileChange(
+		FileOperationEdit, target, "", "", "old", "new", testAgent(), "general",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.BindExecutionContext(change.ID, rootOne, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate another workspace registration mutating the legacy shared executor.
+	mgr.GetExecutor().SetWorkspaceRoot(rootTwo)
+	if _, err := mgr.ApproveFileChange(change.ID, "user-1"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(target)
+	if string(got) != "new" {
+		t.Fatalf("bound executor wrote wrong workspace: %q", got)
 	}
 }

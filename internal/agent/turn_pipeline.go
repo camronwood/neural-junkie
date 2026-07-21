@@ -34,6 +34,8 @@ type turnState struct {
 
 	traceRecorder *trace.Recorder
 	intent        TurnIntent
+	goal          TurnGoal
+	evidence      *ActionEvidenceLedger
 	knowledgePlan routing.KnowledgePlan
 
 	outcome turnOutcome
@@ -53,6 +55,8 @@ type turnState struct {
 	collabPhase         string
 	responseHasImage    bool
 	toolSteps           []map[string]interface{}
+	validationRetried   bool
+	actionValidated     bool
 }
 
 func (a *Agent) runTurnPipeline(ctx context.Context, msg *protocol.Message, clearResponded func()) {
@@ -62,6 +66,7 @@ func (a *Agent) runTurnPipeline(ctx context.Context, msg *protocol.Message, clea
 		clearResponded: clearResponded,
 		outcome:        turnContinue,
 		toolSteps:      make([]map[string]interface{}, 0),
+		evidence:       &ActionEvidenceLedger{},
 	}
 	st.traceRecorder = trace.NewRecorder(msg.ID, msg.Channel, a.Info.ID)
 	st.ctx = trace.WithRecorder(ctx, st.traceRecorder)
@@ -89,6 +94,7 @@ func (a *Agent) defaultTurnPipeline(st *turnState) []pipeline.Step {
 		pipeline.FuncStep{StepName: "provider_route", Fn: st.stepProviderRoute},
 		pipeline.FuncStep{StepName: "generate", Fn: st.stepGenerate},
 		pipeline.FuncStep{StepName: "post_process", Fn: st.stepPostProcess},
+		pipeline.FuncStep{StepName: "validate_response", Fn: st.stepValidateResponse},
 		pipeline.FuncStep{StepName: "stamp_metadata", Fn: st.stepStampMetadata},
 		pipeline.FuncStep{StepName: "deliver_response", Fn: st.stepDeliverResponse},
 	}
@@ -141,7 +147,11 @@ func (st *turnState) stepIntentClassify(ctx context.Context) error {
 	}
 	span := trace.StartSpan(ctx, "intent_classify", nil)
 	st.intent = st.agent.classifyTurnIntentForMessage(st.msg)
-	span.End(map[string]any{"intent": st.intent.String()})
+	st.goal = deriveTurnGoal(st.agent, st.msg, st.intent)
+	st.goal = persistTurnConversationState(st.agent, st.msg, st.goal)
+	st.ctx = contextWithTurnGoal(st.ctx, st.goal)
+	st.ctx = contextWithActionEvidence(st.ctx, st.evidence)
+	span.End(map[string]any{"intent": st.intent.String(), "action": string(st.goal.Action), "goal_id": st.goal.ID})
 
 	if st.intent == IntentClosure {
 		if resp, ok := tryConversationalClosure(st.agent, st.msg); ok {
@@ -219,7 +229,7 @@ func (st *turnState) stepProviderRoute(ctx context.Context) error {
 	}
 	reason := "default_agent_provider"
 	source := "rules"
-	if msg.Type != protocol.MessageTypeCollabTask && !shouldRunImplementationSession(a, msg) {
+	if msg.Type != protocol.MessageTypeCollabTask && !turnGoalRunsImplementationSession(st.goal) {
 		if base := a.GetAIProvider(); base != nil && eff != nil {
 			if bm, em := strings.TrimSpace(base.GetModel()), strings.TrimSpace(eff.GetModel()); em != "" && bm != em {
 				reason = "capability_routing"
@@ -237,7 +247,7 @@ func (st *turnState) stepProviderRoute(ctx context.Context) error {
 			source = snap.Source
 		}
 		a.RecordRoutingFromProvider(eff, reason, source)
-	} else if shouldRunImplementationSession(a, msg) {
+	} else if turnGoalRunsImplementationSession(st.goal) {
 		a.recordClassifierRouting(msg)
 	}
 	a.broadcastRoutingTelemetry(msg)
@@ -306,7 +316,7 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 				}
 			}
 		}
-	} else if shouldRunImplementationSession(a, msg) {
+	} else if turnGoalRunsImplementationSession(st.goal) {
 		log.Printf("[%s] 🔧 Implementation session...", a.Info.Name)
 		genCtx := a.withToolObserver(st.ctx, toolObserver)
 		if implementationBestOfK(msg) > 1 {
@@ -472,7 +482,7 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 		}
 		responseMsg.Metadata["delegation_consulted"] = consulted
 	}
-	if st.implSessionOutcome != nil || (shouldRunImplementationSession(a, msg) && st.implSessionProposed) {
+	if st.implSessionOutcome != nil || (turnGoalRunsImplementationSession(st.goal) && st.implSessionProposed) {
 		if responseMsg.Metadata == nil {
 			responseMsg.Metadata = make(map[string]interface{})
 		}
@@ -519,6 +529,69 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 		st.responseHasImage = AttachGeneratedImageFromResponse(responseMsg, workDir)
 	}
 	st.responseMsg = responseMsg
+	return nil
+}
+
+func (st *turnState) stepValidateResponse(ctx context.Context) error {
+	if err := st.skipIfDone(); err != nil {
+		return err
+	}
+	span := trace.StartSpan(ctx, "validate_response", nil)
+	defer span.End(nil)
+
+	st.buildActionEvidence()
+	history := st.agent.conversationHistoryForIntent(st.msg, st.intent)
+	issues := validateResponseAgainstEvidence(st.goal, st.evidence, st.msg, st.response, history)
+	st.actionValidated = len(issues) == 0 && goalHasExpectedEvidence(st.goal, st.evidence)
+	if len(issues) > 0 {
+		if st.goal.RequiresActionEvidence() {
+			st.response = safeActionFailure(st.goal, st.evidence)
+		} else if !st.validationRetried {
+			st.validationRetried = true
+			retryProvider := st.eff
+			if reliable, ok := st.agent.EscalateConversationProvider(st.ctx, st.msg); ok && reliable != nil {
+				retryProvider = reliable
+				st.eff = reliable
+			}
+			var retry string
+			var err error
+			if retryProvider != nil {
+				retry, err = retryProvider.GenerateResponse(
+					ai.WithToolApprovalChannel(st.ctx, st.msg.Channel),
+					buildResponseValidationRetryPrompt(st.goal, st.evidence, st.msg),
+					nil,
+				)
+			}
+			retry = sanitizeInternalToolNames(retry)
+			retry = sanitizeAbsolutePathFileChangeFromResponse(retry)
+			if err == nil && strings.TrimSpace(retry) != "" &&
+				len(validateResponseAgainstEvidence(st.goal, st.evidence, st.msg, retry, history)) == 0 {
+				st.response = retry
+			} else if literal, ok := tryCodebaseReturnLiteralAnswer(st.msg); ok {
+				st.response = literal
+			} else {
+				st.response = "I couldn't produce a sufficiently grounded answer from the available context."
+			}
+		}
+	}
+	if st.responseMsg != nil {
+		st.responseMsg.Content = st.response
+		if st.responseMsg.Metadata == nil {
+			st.responseMsg.Metadata = make(map[string]interface{})
+		}
+		st.responseMsg.Metadata["turn_goal"] = st.goal
+		st.responseMsg.Metadata["action_intent"] = string(st.goal.Action)
+		st.responseMsg.Metadata["action_evidence"] = st.evidence.Entries()
+		st.responseMsg.Metadata["response_validation_retry"] = st.validationRetried
+		if len(issues) > 0 {
+			names := make([]string, 0, len(issues))
+			for _, issue := range issues {
+				names = append(names, string(issue))
+			}
+			st.responseMsg.Metadata["response_validation_issues"] = names
+			delete(st.responseMsg.Metadata, "suggested_commands")
+		}
+	}
 	return nil
 }
 
@@ -642,6 +715,9 @@ func (st *turnState) stepDeliverResponse(ctx context.Context) error {
 			a.Collab.AnalyzeConsensus(collabID, responseMsg)
 		}
 	}
+	if st.actionValidated {
+		st.completePersistedAction()
+	}
 
 	learning.MaybeSuggestAfterAgentReply(msg.Channel, a.Info.ID, a.Info.Name, string(a.Info.Type), msg.Content, st.response)
 	a.addToHistory(responseMsg)
@@ -669,12 +745,15 @@ func (a *Agent) makeToolStepObserver(ctx context.Context, msg *protocol.Message,
 		}
 		streamMsgID := StreamMessageIDFromContext(ctx)
 		a.broadcastToolStep(ctx, msg, streamMsgID, ev)
+		if ledger := actionEvidenceFromContext(ctx); ledger != nil {
+			ledger.recordToolEvent(ev)
+		}
 		if ev.Kind == "start" || ev.Kind == "result" || ev.Kind == "error" {
 			*steps = append(*steps, map[string]interface{}{
-				"name":       ev.Name,
-				"kind":       ev.Kind,
-				"iteration":  ev.Iteration,
-				"preview":    ev.Preview,
+				"name":           ev.Name,
+				"kind":           ev.Kind,
+				"iteration":      ev.Iteration,
+				"preview":        ev.Preview,
 				"max_iterations": ev.MaxIterations,
 			})
 		}

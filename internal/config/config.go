@@ -44,13 +44,26 @@ type AgentModelProfile struct {
 }
 
 type AgentConfig struct {
-	Type           string             `json:"type"`
-	Name           string             `json:"name"`
-	Enabled        bool               `json:"enabled"`
-	ProviderID     string             `json:"provider_id,omitempty"`
-	Model          string             `json:"model,omitempty"` // overrides provider row model for this agent
-	ModelProfile   *AgentModelProfile `json:"model_profile,omitempty"`
-	Implementation string             `json:"implementation,omitempty"` // pack AgentSpec implementation (e.g. builtin/music)
+	Type            string             `json:"type"`
+	Name            string             `json:"name"`
+	Enabled         bool               `json:"enabled"`
+	ProviderID      string             `json:"provider_id,omitempty"`
+	Model           string             `json:"model,omitempty"` // overrides provider row model for this agent
+	ModelProfile    *AgentModelProfile `json:"model_profile,omitempty"`
+	Implementation  string             `json:"implementation,omitempty"` // pack AgentSpec implementation (e.g. builtin/music)
+	CapabilityAllow []string           `json:"capability_allow,omitempty"`
+	CapabilityDeny  []string           `json:"capability_deny,omitempty"`
+}
+
+type AgentCapabilityOverride struct {
+	Allow []string `json:"allow,omitempty"`
+	Deny  []string `json:"deny,omitempty"`
+}
+
+type CapabilityPolicyConfig struct {
+	AllowSensitiveByDefault bool                               `json:"allow_sensitive_by_default"`
+	HandoffsEnabled         *bool                              `json:"handoffs_enabled,omitempty"`
+	AgentOverrides          map[string]AgentCapabilityOverride `json:"agent_overrides,omitempty"`
 }
 
 type AIConfig struct {
@@ -164,6 +177,7 @@ type Config struct {
 	Collaboration     CollaborationConfig               `json:"collaboration"`
 	Implementation    ImplementationConfig              `json:"implementation"`
 	Delegation        DelegationConfig                  `json:"delegation"`
+	CapabilityPolicy  CapabilityPolicyConfig            `json:"capability_policy"`
 	WorkspaceIndex    WorkspaceIndexConfig              `json:"workspace_index"`
 	Routing           RoutingConfig                     `json:"routing"`
 	SpecialistCompose map[string]SpecialistComposeEntry `json:"specialist_compose,omitempty"`
@@ -229,7 +243,11 @@ func DefaultConfig() *Config {
 			RoutingEnabled: true,
 			LocalToolModel: "qwen2.5-coder:14b",
 		},
-		Delegation:     DefaultDelegationConfig(),
+		Delegation: DefaultDelegationConfig(),
+		CapabilityPolicy: CapabilityPolicyConfig{
+			HandoffsEnabled: boolPtr(true),
+			AgentOverrides:  map[string]AgentCapabilityOverride{},
+		},
 		WorkspaceIndex: DefaultWorkspaceIndexConfig(),
 		Routing:        DefaultRoutingConfig(),
 		Features:       FeaturesConfig{PersonalLearningEnabled: false, AgentRuntimeV2: boolPtr(true)},
@@ -299,6 +317,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
+	cfg.migrateCapabilityPolicy(data)
 	cfg.migrateIfNeeded(data)
 	cfg.MigrateBiologyMCPModels()
 	cfg.migrateSoftwareDevelopmentPackIfNeeded()

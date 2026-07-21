@@ -11,16 +11,18 @@ import (
 
 // ExpertAgentRecord is a persisted user-created expert (/create-expert or DM spawn).
 type ExpertAgentRecord struct {
-	AgentID      string `json:"agent_id"`
-	Name         string `json:"name"`
-	ExpertSlug   string `json:"expert_slug"`
-	Persona      string `json:"persona,omitempty"`
-	ProviderID   string `json:"provider_id,omitempty"`
-	ProviderName string `json:"provider_name,omitempty"`
-	Model        string `json:"model,omitempty"`
-	CreatedBy    string `json:"created_by"`
-	DMChannel    string `json:"dm_channel,omitempty"`
-	Created      string `json:"created"`
+	AgentID         string   `json:"agent_id"`
+	Name            string   `json:"name"`
+	ExpertSlug      string   `json:"expert_slug"`
+	Persona         string   `json:"persona,omitempty"`
+	ProviderID      string   `json:"provider_id,omitempty"`
+	ProviderName    string   `json:"provider_name,omitempty"`
+	Model           string   `json:"model,omitempty"`
+	CreatedBy       string   `json:"created_by"`
+	DMChannel       string   `json:"dm_channel,omitempty"`
+	Created         string   `json:"created"`
+	CapabilityAllow []string `json:"capability_allow,omitempty"`
+	CapabilityDeny  []string `json:"capability_deny,omitempty"`
 }
 
 // ExpertAgentStorage manages persistence of custom expert agents.

@@ -10,6 +10,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/collaboration/actions"
+	"github.com/camronwood/neural-junkie/internal/delegation"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/hub/gitchange"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -77,12 +78,14 @@ type Hub struct {
 	channelSummaryRefreshGen map[string]uint64
 	channelSummaryGen        ChannelSummaryGenerator
 	channelSummaryModel      string
+	conversationState        map[string]*ChannelConversationState
 
 	// channelHolds: user interject (Stop) — agents defer new turns until a human message.
 	channelHolds map[string]ChannelHold
 
 	persistentStore PersistentMessageStore
 	durableChannels map[string]bool
+	handoffs        map[string]delegation.HandoffRecord
 
 	// Collaboration idle watchdog (in-memory, not persisted).
 	collabWatchdogMu              sync.Mutex
@@ -113,12 +116,15 @@ func NewHub() *Hub {
 		threadSubscribers:             make(map[string][]chan *protocol.Message),
 		removedAgents:                 make(map[string]*protocol.AgentInfo),
 		channelContext:                make(map[string]*ChannelContextState),
+		conversationState:             make(map[string]*ChannelConversationState),
 		channelHolds:                  make(map[string]ChannelHold),
 		collabWatchdogRedispatch:      make(map[string]int),
 		collabWatchdogAutoAckTried:    make(map[string]bool),
 		collabWatchdogPlanningHandoff: make(map[string]time.Time),
 		channelSummaryRefreshGen:      make(map[string]uint64),
+		handoffs:                      make(map[string]delegation.HandoffRecord),
 	}
+	hub.loadHandoffs()
 
 	// Create default channel
 	hub.CreateChannelWithType("general", "General discussion", "", protocol.ChannelTypePublic, "system")
@@ -480,6 +486,18 @@ func (h *Hub) AskUserQuestion(agentID, agentName, channel, question string, opti
 		return "", fmt.Errorf("user question manager unavailable")
 	}
 	return h.userQuestionManager.Ask(agentID, agentName, channel, question, options, UserQuestionTTL)
+}
+
+// AskUserQuestionWithContext is the structured variant used by newer agents.
+// AskUserQuestion remains available for backward-compatible HubClient implementations.
+func (h *Hub) AskUserQuestionWithContext(agentID, agentName, channel, question string, options []string, goalID, decisionKey string) (string, error) {
+	if h == nil || h.userQuestionManager == nil {
+		return "", fmt.Errorf("user question manager unavailable")
+	}
+	goalID = h.ResolveConversationGoalID(channel, goalID)
+	return h.userQuestionManager.AskWithContext(
+		agentID, agentName, channel, question, options, goalID, decisionKey, UserQuestionTTL,
+	)
 }
 
 // HasPendingUserQuestion reports whether agents should defer because ask_user is waiting.

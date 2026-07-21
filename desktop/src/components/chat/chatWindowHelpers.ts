@@ -18,6 +18,12 @@ const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
     category: 'Neural Junkie',
     arguments: [],
   },
+  {
+    name: '/nj-open-neural-canvas',
+    description: 'Open the Neural Canvas artifact library for the active workspace',
+    category: 'Neural Junkie',
+    arguments: [],
+  },
 ];
 
 export function withClientPaletteCommands(defs: CommandDefinition[]): CommandDefinition[] {

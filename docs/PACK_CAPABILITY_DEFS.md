@@ -26,6 +26,7 @@ capability_defs:
 | `toolbar-chip` | Toolbar button (often combined with `ui` on hub-sidecar) | `ui.toolbar`, `ui.modal` |
 | `mcp-tools` | Biology MCP tools gated to this pack | `mcp_tools`, `mcp_tools_path` |
 | `settings-schema` | Settings overlay keys surfaced in Domain packs UI | `settings` |
+| `artifact-renderer` | Maps pack artifacts to a trusted Neural Canvas renderer | `renderer`, `media_types`, `match_glob`, version fields, `fallback` |
 
 ### Example (Brightest Bio Lab)
 
@@ -47,6 +48,16 @@ capability_defs:
     kind: file-viewer
     match_glob: "**/scan-export/imageMetadata.json"
     viewer: nj.scan-summary
+
+  assay-report-canvas:
+    kind: artifact-renderer
+    renderer: nj.chart
+    media_types:
+      - application/vnd.neural-junkie.chart+json
+    renderer_api_version: 1
+    schema_version_min: 1
+    schema_version_max: 1
+    fallback: nj.table
 ```
 
 ## Naming: short vs qualified IDs
@@ -80,6 +91,18 @@ Pack `viewer` values reference desktop components (not pack code):
 |-----------|-----------|
 | `nj.scan-summary` | Scan summary plate viewer |
 | `nj.scan-analysis` | Scan analysis plate-map viewer |
+
+## Neural Canvas renderers
+
+`artifact-renderer` capabilities are declarative mappings to components shipped
+by Neural Junkie. Packs provide data, never React, JavaScript, or arbitrary HTML.
+The host rejects unknown renderer IDs and uses `fallback` when a client cannot
+support the requested renderer or schema version.
+
+Trusted renderer IDs include `nj.markdown`, `nj.mermaid`, `nj.code`, `nj.table`,
+`nj.chart`, `nj.timeline`, `nj.image`, `nj.graph`, and the host-owned specialized
+workbench adapters. Renderer IDs should be qualified by the host (`nj.*`);
+capability IDs remain qualified by the pack as described above.
 
 ## Validation
 

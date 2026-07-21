@@ -8,7 +8,15 @@ capabilities:
   - web-preview
   - web-browser-workbench
   - browser-sidecar
+  - browser-evidence-canvas
 capability_defs:
+  web-browser:
+    kind: mcp-tools
+    label: Web browser
+    description: Fetch, inspect, preview, and verify web experiences.
+    exposure: safe
+    mcp_agents:
+      - browser
   browser-sidecar:
     kind: hub-sidecar
     routes:
@@ -20,6 +28,15 @@ capability_defs:
       - browser_headless
       - browser_baseline_dir
       - python_executable
+  browser-evidence-canvas:
+    kind: artifact-renderer
+    renderer: nj.image
+    media_types: [image/png, image/jpeg]
+    match_glob: "**/*.{png,jpg,jpeg}"
+    renderer_api_version: 1
+    schema_version_min: 1
+    schema_version_max: 1
+    fallback: nj.code
 requires_packs:
   - software-development
 agents:

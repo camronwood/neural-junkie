@@ -102,6 +102,9 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if a.imageGenerationToolsEnabledForMessage(msg) {
 		appendImageGenerationPrompt(&system)
 	}
+	if artifactToolsEnabledForMessage(msg) {
+		appendArtifactPrompt(&system)
+	}
 	if a.musicGenerationToolsEnabledForMessage(msg) {
 		appendMusicGenerationPrompt(&system)
 	}
@@ -638,8 +641,14 @@ func (a *Agent) channelHistorySafe(channel string) []*protocol.Message {
 }
 
 func (a *Agent) replaceChannelHistory(channel string, hist []*protocol.Message) {
+	if a == nil {
+		return
+	}
 	a.contextMu.Lock()
 	defer a.contextMu.Unlock()
+	if a.Context == nil {
+		a.Context = &ConversationContext{MaxHistory: 20}
+	}
 	if a.Context.History == nil {
 		a.Context.History = make(map[string][]*protocol.Message)
 	}
@@ -653,6 +662,9 @@ func (a *Agent) replaceChannelHistory(channel string, hist []*protocol.Message) 
 }
 
 func (a *Agent) historyChannelNames() []string {
+	if a == nil || a.Context == nil {
+		return nil
+	}
 	a.contextMu.RLock()
 	defer a.contextMu.RUnlock()
 	names := make([]string, 0, len(a.Context.History))

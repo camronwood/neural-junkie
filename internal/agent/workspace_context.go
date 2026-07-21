@@ -15,9 +15,9 @@ import (
 
 // File size limits for auto-loaded files
 const (
-	maxFileSize         = 512 * 1024 // prompt injection cap per referenced file
-	maxTotalFileSize    = 2 * 1024 * 1024
-	legacyMaxFileSize   = 50 * 1024
+	maxFileSize       = 512 * 1024 // prompt injection cap per referenced file
+	maxTotalFileSize  = 2 * 1024 * 1024
+	legacyMaxFileSize = 50 * 1024
 )
 
 // binaryExtensions are file types we skip (non-text)
@@ -347,6 +347,65 @@ func ResolveContextScope(msg *protocol.Message) string {
 	return ContextScopeNone
 }
 
+func workspaceOpenFileMatchesReference(filePath, reference string) bool {
+	filePath = filepath.ToSlash(strings.TrimSpace(filePath))
+	reference = filepath.ToSlash(strings.TrimSpace(reference))
+	if filePath == "" || reference == "" {
+		return false
+	}
+	if filePath == reference || strings.HasSuffix(filePath, "/"+strings.TrimPrefix(reference, "./")) {
+		return true
+	}
+	return filepath.Base(filePath) == filepath.Base(reference)
+}
+
+// retrimWorkspaceOpenFiles enforces the effective scope on the actual context map
+// consumed by prompt construction. This is a server-side defense against clients
+// sending a full open_files payload with a narrower resolved scope.
+func retrimWorkspaceOpenFiles(ctxMap map[string]interface{}, scope string, msg *protocol.Message) map[string]interface{} {
+	trimmed := make(map[string]interface{}, len(ctxMap))
+	for key, value := range ctxMap {
+		trimmed[key] = value
+	}
+
+	rawFiles, ok := ctxMap["open_files"].([]interface{})
+	if !ok {
+		return trimmed
+	}
+	switch scope {
+	case ContextScopeFull:
+		return trimmed
+	case ContextScopeFocus:
+		references := []string(nil)
+		if msg != nil {
+			references = DetectFilePaths(msg.Content)
+		}
+		focused := make([]interface{}, 0, len(rawFiles))
+		for _, rawFile := range rawFiles {
+			fileMap, ok := rawFile.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			isActive, _ := fileMap["is_active"].(bool)
+			filePath, _ := fileMap["path"].(string)
+			matchesReference := false
+			for _, reference := range references {
+				if workspaceOpenFileMatchesReference(filePath, reference) {
+					matchesReference = true
+					break
+				}
+			}
+			if isActive || matchesReference {
+				focused = append(focused, rawFile)
+			}
+		}
+		trimmed["open_files"] = focused
+	default:
+		trimmed["open_files"] = []interface{}{}
+	}
+	return trimmed
+}
+
 // AppendWorkspaceContext checks for workspace_context in message metadata
 // and appends a scope-appropriate section to the prompt builder.
 func AppendWorkspaceContext(prompt *strings.Builder, msg *protocol.Message) {
@@ -370,6 +429,7 @@ func AppendWorkspaceContextForChannel(prompt *strings.Builder, msg *protocol.Mes
 	if channelType != "" {
 		scope = ResolveContextScopeForChannel(msg, channelType)
 	}
+	ctxMap = retrimWorkspaceOpenFiles(ctxMap, scope, msg)
 	if scope == ContextScopeNone {
 		return
 	}

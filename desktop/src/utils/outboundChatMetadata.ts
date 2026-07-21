@@ -13,6 +13,7 @@ import {
   CONVERSATION_MODE_METADATA_KEY,
   EDITOR_MODE_KEY,
   EDITOR_AGENT_TRUST_KEY,
+  IDE_ROUTE_AGENT_TYPE_KEY,
   IMPLEMENTATION_SESSION_METADATA_KEY,
   type ContextScope,
   type ConversationModeSetting,
@@ -405,6 +406,37 @@ export function isPersonalAssistantDmChannel(channel: string): boolean {
   return name.endsWith('-assistant') && name.startsWith('dm-');
 }
 
+const EXPLICIT_WORKSPACE_PATH_RE =
+  /(?:^|[\s"'`(])(?:[./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+|[a-zA-Z0-9_-]+\.(?:go|rs|py|js|jsx|ts|tsx|java|c|cpp|h|hpp|cs|rb|php|swift|kt|kts|scala|sh|sql|html|css|scss|json|ya?ml|toml|md))\b/i;
+
+/** Custom experts are non-engineering; preset engineering specialists have concrete agent types. */
+function isCustomExpertDm(
+  specialistDm: boolean,
+  composerMetadata?: Record<string, unknown>
+): boolean {
+  return (
+    specialistDm &&
+    String(composerMetadata?.[IDE_ROUTE_AGENT_TYPE_KEY] ?? '').trim().toLowerCase() === 'expert'
+  );
+}
+
+/** High-confidence requests where a custom expert intentionally needs editor/file context. */
+function hasExplicitWorkspaceRequest(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  return (
+    EXPLICIT_WORKSPACE_PATH_RE.test(text) ||
+    /@codebase\b/i.test(text) ||
+    messageReferencesOpenEditor(text) ||
+    messageRequestsScanTool(text) ||
+    messageAsksWorkspaceVisibility(text) ||
+    hasCodeReviewSignals(text) ||
+    hasFileExportSignals(text) ||
+    hasPriorReferenceExportSignals(text) ||
+    hasImplementationRequestSignals(text)
+  );
+}
+
 /**
  * Builds metadata sent with human messages so agents receive user rules, scoped workspace, and attachments.
  */
@@ -456,10 +488,12 @@ export function buildHumanOutboundMetadata(options: {
   const hasOpenTab = Boolean(activeTabPath);
   const hasScanViewerTab =
     activeTab?.viewMode === 'scan-analysis' || activeTab?.viewMode === 'scan-summary';
+  const customExpertDm = isCustomExpertDm(specialistDm, composerMetadata);
+  const explicitWorkspaceRequest = hasExplicitWorkspaceRequest(message);
 
   const conversationModeSetting = options.conversationMode ?? 'auto';
   const resolvedConversationMode = resolveConversationMode(conversationModeSetting, message, {
-    ideCoding,
+    ideCoding: customExpertDm ? false : ideCoding,
     channelKind,
     hasOpenTab,
   });
@@ -647,6 +681,43 @@ export function buildHumanOutboundMetadata(options: {
     meta[CONTEXT_SCOPE_REASON_KEY] = reason;
     meta[CONVERSATION_MODE_METADATA_KEY] = 'chat';
     delete meta.workspace_context;
+  }
+
+  // Custom non-engineering experts (for example Writing) are chat-first only
+  // while conversation mode is Auto. Explicit Chat/Code selections remain
+  // authoritative; Code receives focused context rather than every open file.
+  if (customExpertDm) {
+    if (conversationModeSetting === 'code') {
+      meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+      if (contextMode === 'off') {
+        scope = 'none';
+        reason = 'explicit code mode with workspace off';
+        delete meta.workspace_context;
+      } else {
+        scope = 'focus';
+        reason = 'explicit code mode for custom expert';
+      }
+    } else if (
+      conversationModeSetting === 'auto' &&
+      explicitWorkspaceRequest &&
+      contextMode !== 'off'
+    ) {
+      scope = 'focus';
+      reason = 'custom expert explicit file/editor request';
+      meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+    } else {
+      scope = 'none';
+      reason =
+        conversationModeSetting === 'chat'
+          ? 'explicit chat mode for custom expert'
+          : 'custom non-engineering expert DM';
+      meta[CONVERSATION_MODE_METADATA_KEY] = 'chat';
+      meta[EDITOR_MODE_KEY] = 'ask';
+      delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
+      delete meta.workspace_context;
+    }
+    meta[CONTEXT_SCOPE_KEY] = scope;
+    meta[CONTEXT_SCOPE_REASON_KEY] = reason;
   }
 
   const collabMode = composerMetadata?.[COLLAB_SOURCE_MODE_KEY];

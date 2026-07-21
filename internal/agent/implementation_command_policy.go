@@ -86,10 +86,6 @@ func (s *ImplementationSessionState) RecordEdit(path string) {
 	if s == nil {
 		return
 	}
-	path = shared.NormalizeCommandPath(path)
-	if path != "" {
-		s.LastReadPaths = appendUnique(s.LastReadPaths, []string{path})
-	}
 	s.SinceLastCommandReadOrEdit = true
 	s.CommandOnlyRounds = 0
 	s.clearCommandFailuresSinceEdit()
@@ -292,6 +288,9 @@ func (a *Agent) observeImplementationSessionToolStep(
 ) {
 	if state == nil {
 		return
+	}
+	if ledger := actionEvidenceFromContext(roundCtx); ledger != nil {
+		ledger.recordToolEvent(ev)
 	}
 	if ev.Kind == "result" {
 		state.noteToolStep()

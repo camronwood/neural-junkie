@@ -8,7 +8,17 @@ capabilities:
   - cad-viewer
   - cad-workbench
   - cad-sidecar
+  - manufacturing-tools
+  - cad-canvas
 capability_defs:
+  cad-api:
+    kind: mcp-tools
+    label: CAD design
+    description: Parametric CAD design and manufacturing analysis.
+    exposure: safe
+    mcp_agents:
+      - cad
+      - manufacturing
   cad-sidecar:
     kind: hub-sidecar
     routes:
@@ -24,6 +34,9 @@ capability_defs:
       - cad_venv
   manufacturing-tools:
     kind: mcp-tools
+    label: Manufacturing tools
+    description: Printability, mesh repair, slicing, G-code, STEP, and drawing tools.
+    exposure: safe
     mcp_tools:
       - check_printability
       - repair_mesh
@@ -31,6 +44,15 @@ capability_defs:
       - sanity_check_gcode
       - export_step
       - export_drawing
+  cad-canvas:
+    kind: artifact-renderer
+    renderer: nj.cad
+    media_types: [application/vnd.neural-junkie.cad+json, model/stl]
+    match_glob: "**/*.{scad,stl,step}"
+    renderer_api_version: 1
+    schema_version_min: 1
+    schema_version_max: 1
+    fallback: nj.code
 settings_overlay:
   cad_artifacts_dir: ~/.neural-junkie/cad
   cad_venv: ~/.neural-junkie/cad/venv

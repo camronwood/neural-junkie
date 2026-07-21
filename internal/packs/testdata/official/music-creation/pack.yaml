@@ -7,7 +7,15 @@ capabilities:
   - music-generation
   - music-workbench
   - music-sidecar
+  - music-canvas
 capability_defs:
+  music-generation:
+    kind: mcp-tools
+    label: Music generation
+    description: Generate music, lyrics, stems, and project artifacts.
+    exposure: safe
+    mcp_agents:
+      - music
   music-sidecar:
     kind: hub-sidecar
     routes:
@@ -28,6 +36,15 @@ capability_defs:
       - bundled_turbo_checkpoint
       - enable_midi_export
       - python_executable
+  music-canvas:
+    kind: artifact-renderer
+    renderer: nj.music
+    media_types: [application/vnd.neural-junkie.music+json, audio/wav, audio/mpeg]
+    match_glob: "**/*.{nj-music.json,wav,mp3}"
+    renderer_api_version: 1
+    schema_version_min: 1
+    schema_version_max: 1
+    fallback: nj.code
 agents:
   - type: music
     name: MusicExpert

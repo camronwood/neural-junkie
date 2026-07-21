@@ -1,6 +1,9 @@
 package packs
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestValidateCapabilityDefs_requiresDefsForPackLocal(t *testing.T) {
 	m := &Manifest{
@@ -143,5 +146,102 @@ func TestBuildResolvedCapabilities_roomChatToolbar(t *testing.T) {
 	}
 	if rc.UI.Modal != "room-chat" {
 		t.Fatalf("modal=%q", rc.UI.Modal)
+	}
+}
+
+func TestBuildResolvedCapabilities_officialAgentCapabilitiesAreClassified(t *testing.T) {
+	m := &Manifest{
+		ID:           "web-browser",
+		Title:        "Browser",
+		Description:  "Browser tools",
+		Capabilities: []string{"web-browser"},
+		MCPAgents:    []string{"browser"},
+	}
+	resolved := BuildResolvedCapabilities(m)
+	if len(resolved) != 1 {
+		t.Fatalf("resolved=%+v", resolved)
+	}
+	if resolved[0].Exposure != CapabilityExposureSafe {
+		t.Fatalf("exposure=%q", resolved[0].Exposure)
+	}
+	if len(resolved[0].MCPAgents) != 1 || resolved[0].MCPAgents[0] != "browser" {
+		t.Fatalf("mcp_agents=%v", resolved[0].MCPAgents)
+	}
+}
+
+func TestBuildResolvedCapabilities_sensitiveOfficialPack(t *testing.T) {
+	m := &Manifest{
+		ID:           "aws",
+		Title:        "AWS",
+		Capabilities: []string{"aws-api"},
+		MCPAgents:    []string{"aws"},
+	}
+	resolved := BuildResolvedCapabilities(m)
+	if len(resolved) != 1 || resolved[0].Exposure != CapabilityExposureSensitive {
+		t.Fatalf("resolved=%+v", resolved)
+	}
+}
+
+func TestArtifactRendererCapabilityUsesTrustedHostRenderer(t *testing.T) {
+	m := &Manifest{
+		ID:           "lab",
+		Capabilities: []string{"assay-report"},
+		CapabilityDefs: map[string]CapabilityDef{
+			"assay-report": {
+				Kind:        "artifact-renderer",
+				Renderer:    "nj.chart",
+				MediaTypes:  []string{"application/vnd.neural-junkie.chart+json"},
+				RendererAPI: 1,
+				SchemaMin:   1,
+				SchemaMax:   2,
+				Fallback:    "nj.table",
+			},
+		},
+	}
+	warnings, errs := m.ValidateCapabilityDefs("")
+	if len(errs) != 0 {
+		t.Fatalf("errors=%v warnings=%v", errs, warnings)
+	}
+	resolved := BuildResolvedCapabilities(m)
+	if len(resolved) != 1 || resolved[0].Renderer != "nj.chart" || resolved[0].RendererAPI != 1 {
+		t.Fatalf("resolved=%+v", resolved)
+	}
+}
+
+func TestArtifactRendererCapabilityRejectsPackCode(t *testing.T) {
+	m := &Manifest{
+		ID:           "unsafe-pack",
+		Capabilities: []string{"custom-ui"},
+		CapabilityDefs: map[string]CapabilityDef{
+			"custom-ui": {
+				Kind:       "artifact-renderer",
+				Renderer:   "unsafe-pack/react-component",
+				MediaTypes: []string{"application/json"},
+			},
+		},
+	}
+	_, errs := m.ValidateCapabilityDefs("")
+	if len(errs) == 0 {
+		t.Fatal("expected unknown renderer validation error")
+	}
+}
+
+func TestOfficialCapabilityFixturesValidate(t *testing.T) {
+	files, err := filepath.Glob("testdata/official/*/pack.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files {
+		dir := filepath.Dir(file)
+		t.Run(filepath.Base(dir), func(t *testing.T) {
+			manifest, err := LoadManifest(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			warnings, validationErrors := manifest.ValidateCapabilityDefs(dir)
+			if len(validationErrors) > 0 {
+				t.Fatalf("errors=%v warnings=%v", validationErrors, warnings)
+			}
+		})
 	}
 }

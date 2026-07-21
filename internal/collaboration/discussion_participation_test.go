@@ -137,7 +137,13 @@ func TestPlanningDiscussionTimeoutElapsed_graceBeforeFirstRecordedMessage(t *tes
 	}
 	d.StartedAt = time.Now().Add(-6 * time.Minute)
 	if !planningDiscussionTimeoutElapsed(c, d) {
-		t.Fatal("expected timeout after first-reply grace")
+		t.Fatalf(
+			"expected timeout after first-reply grace (elapsed=%v timeout=%v queue_factor=%d silent=%d)",
+			time.Since(d.StartedAt),
+			d.Timeout,
+			planningOllamaQueueFactor(len(d.Participants)),
+			len(silentParticipantIDsLocked(d)),
+		)
 	}
 }
 

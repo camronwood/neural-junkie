@@ -12,7 +12,7 @@ import { logActivity } from './activityLogStore';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench' | 'structure-workbench' | 'html-preview' | 'music-workbench' | 'arena-workbench' | 'knowledge-graph-workbench';
+export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench' | 'structure-workbench' | 'html-preview' | 'music-workbench' | 'arena-workbench' | 'knowledge-graph-workbench' | 'neural-canvas';
 
 export interface EditorTab {
   id: string;
@@ -62,6 +62,8 @@ export interface EditorTab {
   arenaPath?: string;
   /** Knowledge graph workbench: absolute repo path for graph APIs. */
   knowledgeGraphRepoPath?: string;
+  /** App-managed Neural Canvas artifact identifier. */
+  artifactId?: string;
 }
 
 export interface OpenFileOptions {
@@ -150,6 +152,7 @@ interface EditorState {
   ) => void;
   openArenaWorkbench: (workspaceId: string, filePath: string) => void;
   openKnowledgeGraphWorkbench: (workspaceId: string, repoPath: string) => void;
+  openArtifact: (workspaceId: string, artifactId: string, title?: string) => void;
   linkScanToAnalysisTab: (tabId: string, scanDir: string) => void;
   linkAnalysisToScanTab: (tabId: string, analysisDir: string) => void;
   findLinkedAnalysisTab: (workspaceId: string, scanDir: string) => EditorTab | undefined;
@@ -223,7 +226,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isDirty: false,
       isPreview: asPreview || undefined,
       contentSyncKey: 0,
-      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'structure-workbench' || viewMode === 'html-preview' || viewMode === 'music-workbench' || viewMode === 'arena-workbench' || viewMode === 'knowledge-graph-workbench' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'structure-workbench' || viewMode === 'html-preview' || viewMode === 'music-workbench' || viewMode === 'arena-workbench' || viewMode === 'knowledge-graph-workbench' || viewMode === 'neural-canvas' ? undefined : language,
       viewMode,
       imageSrc,
       scanSummaryDir: options?.scanSummaryDir,
@@ -655,6 +658,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     };
     set({
       tabs: [...state.tabs, newTab],
+      activeTabId: tabId,
+    });
+  },
+
+  openArtifact: (workspaceId, artifactId, title = 'Neural Canvas') => {
+    const state = get();
+    const existingTab = state.tabs.find(
+      (t) => t.viewMode === 'neural-canvas' && t.artifactId === artifactId,
+    );
+    if (existingTab) {
+      set({ activeTabId: existingTab.id });
+      return;
+    }
+    const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    set({
+      tabs: [...state.tabs, {
+        id: tabId,
+        workspaceId,
+        path: title,
+        content: '',
+        isDirty: false,
+        viewMode: 'neural-canvas',
+        artifactId,
+      }],
       activeTabId: tabId,
     });
   },

@@ -44,9 +44,9 @@ func (w *tools) register(mcpServer *server.MCPServer) {
 		"read_file",
 		"Read a file relative to the workspace root (optional line range)",
 		mcp.CreateMultiStringInputSchema(map[string]string{
-			"path":        "Relative file path",
-			"start_line":  "Optional 1-based start line",
-			"end_line":    "Optional 1-based end line (inclusive)",
+			"path":       "Relative file path",
+			"start_line": "Optional 1-based start line",
+			"end_line":   "Optional 1-based end line (inclusive)",
 		}),
 		nil,
 	), w.handleReadFile)
@@ -91,11 +91,11 @@ func (w *tools) register(mcpServer *server.MCPServer) {
 
 	mcpServer.AddTool(mcp.CreateTool(
 		"run_command",
-		"Run an allowlisted command in the workspace (npm run build, npm test, go test, make start-all, etc.). "+
+		"Run an allowlisted command in the workspace (read-only git status/diff/show/log, npm run build, npm test, go test, make start-all, etc.). "+
 			"During implementation sessions you may also run npm install, npm ci, or npx for missing deps and verification. "+
 			"Output is posted to the channel and mirrored in the desktop terminal panel.",
 		mcp.CreateMultiStringInputSchema(map[string]string{
-			"command": "Shell command (verify: npm run build/test/lint, go test; impl session: npm install/ci, npx)",
+			"command": "Command (inspect: git status/diff/show/log; verify: npm run build/test/lint, go test; impl session: npm install/ci, npx)",
 			"cwd":     "Optional relative subdirectory",
 		}),
 		nil,

@@ -3,10 +3,13 @@ package ai
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 )
+
+const ollamaImageGenerationTimeout = 10 * time.Minute
 
 // OllamaImageGenerator generates images via Ollama's OpenAI-compatible API and
 // unloads the model from memory after each use by default (frees VRAM for chat models).
@@ -28,8 +31,12 @@ func NewOllamaImageGenerator(endpoint, model string) ImageGenerator {
 		model = DefaultOllamaImageModel
 	}
 	base := strings.TrimRight(endpoint, "/")
+	inner := NewOpenAICompatProvider(base+"/v1", "", model, nil)
+	// A cold image-model load can take substantially longer than the shared
+	// OpenAI-compatible chat timeout.
+	inner.SetHTTPClient(&http.Client{Timeout: ollamaImageGenerationTimeout})
 	return &OllamaImageGenerator{
-		inner:        NewOpenAICompatProvider(base+"/v1", "", model, nil),
+		inner:        inner,
 		baseEndpoint: base,
 		model:        model,
 		unloadAfter:  ollamaImageUnloadAfterUse(),

@@ -10,29 +10,30 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 // Preset expert slugs for engineering specialists (used by /create-expert and DM spawn).
 var presetExpertTypes = map[string]protocol.AgentType{
-	"rust":         protocol.AgentTypeRust,
-	"biology":      protocol.AgentTypeBiology,
-	"genomics":     protocol.AgentTypeGenomics,
+	"rust":               protocol.AgentTypeRust,
+	"biology":            protocol.AgentTypeBiology,
+	"genomics":           protocol.AgentTypeGenomics,
 	"structural-biology": protocol.AgentTypeStructuralBiology,
 	"cheminformatics":    protocol.AgentTypeCheminformatics,
-	"cad":          protocol.AgentTypeCAD,
-	"backend":      protocol.AgentTypeBackend,
-	"frontend":     protocol.AgentTypeFrontend,
-	"devops":       protocol.AgentTypeDevOps,
-	"database":     protocol.AgentTypeDatabase,
-	"security":     protocol.AgentTypeSecurity,
-	"architecture": protocol.AgentTypeArchitecture,
-	"code-review":  protocol.AgentTypeCodeReview,
-	"sre":          protocol.AgentTypeSRE,
-	"mobile":       protocol.AgentTypeMobile,
-	"data-ml":      protocol.AgentTypeDataML,
-	"assistant":    protocol.AgentTypeAssistant,
-	"music":        protocol.AgentTypeMusic,
+	"cad":                protocol.AgentTypeCAD,
+	"backend":            protocol.AgentTypeBackend,
+	"frontend":           protocol.AgentTypeFrontend,
+	"devops":             protocol.AgentTypeDevOps,
+	"database":           protocol.AgentTypeDatabase,
+	"security":           protocol.AgentTypeSecurity,
+	"architecture":       protocol.AgentTypeArchitecture,
+	"code-review":        protocol.AgentTypeCodeReview,
+	"sre":                protocol.AgentTypeSRE,
+	"mobile":             protocol.AgentTypeMobile,
+	"data-ml":            protocol.AgentTypeDataML,
+	"assistant":          protocol.AgentTypeAssistant,
+	"music":              protocol.AgentTypeMusic,
 }
 
 // ExpertResolveResult describes how to instantiate an expert from a user slug.
@@ -360,7 +361,7 @@ func (ch *CommandHandler) startExpertInDMOnly(agentInstance *agent.Agent, create
 }
 
 // SpawnExpertAgentForDM creates an expert (or assistant) agent and a DM with createdBy; agent only joins the DM.
-func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, expertSlug, displayName, providerID, providerName, modelOverride, persona string) (*protocol.Channel, error) {
+func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, expertSlug, displayName, providerID, providerName, modelOverride, persona string, capabilityAllow, capabilityDeny []string) (*protocol.Channel, error) {
 	createdBy = strings.TrimSpace(createdBy)
 	if createdBy == "" {
 		return nil, fmt.Errorf("created_by is required")
@@ -389,7 +390,15 @@ func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, ex
 	if err != nil {
 		return nil, err
 	}
-	ch.persistExpertAgentRecord(agentInstance, createdBy, expertSlug, persona, providerID, providerName, modelOverride, dmCh)
+	if ch.appConfig != nil && (len(capabilityAllow) > 0 || len(capabilityDeny) > 0) {
+		agentKey := strings.ToLower(string(agentInstance.Info.Type)) + ":" + strings.ToLower(agentInstance.Info.Name)
+		_ = ch.appConfig.SetAgentCapabilityOverride(agentKey, config.AgentCapabilityOverride{
+			Allow: capabilityAllow,
+			Deny:  capabilityDeny,
+		})
+		_ = ch.appConfig.Save()
+	}
+	ch.persistExpertAgentRecord(agentInstance, createdBy, expertSlug, persona, providerID, providerName, modelOverride, capabilityAllow, capabilityDeny, dmCh)
 	return dmCh, nil
 }
 
@@ -492,20 +501,23 @@ func (ch *CommandHandler) SpawnCLIAgentForDM(_ context.Context, createdBy, cliTy
 func (ch *CommandHandler) persistExpertAgentRecord(
 	agentInstance *agent.Agent,
 	createdBy, expertSlug, persona, providerID, providerName, modelOverride string,
+	capabilityAllow, capabilityDeny []string,
 	dmCh *protocol.Channel,
 ) {
 	if agentInstance == nil || dmCh == nil {
 		return
 	}
 	agent.SaveExpertAgent(agent.ExpertAgentRecord{
-		AgentID:      agentInstance.Info.ID,
-		Name:         agentInstance.Info.Name,
-		ExpertSlug:   strings.TrimSpace(expertSlug),
-		Persona:      strings.TrimSpace(persona),
-		ProviderID:   strings.TrimSpace(providerID),
-		ProviderName: strings.TrimSpace(providerName),
-		Model:        strings.TrimSpace(modelOverride),
-		CreatedBy:    strings.TrimSpace(createdBy),
-		DMChannel:    dmCh.Name,
+		AgentID:         agentInstance.Info.ID,
+		Name:            agentInstance.Info.Name,
+		ExpertSlug:      strings.TrimSpace(expertSlug),
+		Persona:         strings.TrimSpace(persona),
+		ProviderID:      strings.TrimSpace(providerID),
+		ProviderName:    strings.TrimSpace(providerName),
+		Model:           strings.TrimSpace(modelOverride),
+		CreatedBy:       strings.TrimSpace(createdBy),
+		DMChannel:       dmCh.Name,
+		CapabilityAllow: append([]string(nil), capabilityAllow...),
+		CapabilityDeny:  append([]string(nil), capabilityDeny...),
 	})
 }

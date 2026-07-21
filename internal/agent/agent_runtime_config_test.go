@@ -20,17 +20,17 @@ func TestAgentRuntimeV2ForMessage_metadataOverride(t *testing.T) {
 	}
 }
 
-func TestImplSessionLimits_v2RaisesCaps(t *testing.T) {
+func TestImplSessionLimits_v2UsesBoundedCaps(t *testing.T) {
 	msg := &protocol.Message{Metadata: map[string]interface{}{"agent_runtime_v2": true}}
 	maxTool, maxRounds, maxFiles := implSessionLimits(msg)
-	if maxTool < agentRuntimeMaxToolIterations {
-		t.Fatalf("tool iter %d want >= %d", maxTool, agentRuntimeMaxToolIterations)
+	if maxTool > agentRuntimeMaxToolIterations {
+		t.Fatalf("tool iter %d exceeds cap %d", maxTool, agentRuntimeMaxToolIterations)
 	}
-	if maxFiles < agentRuntimeMaxFilesPerCycle {
-		t.Fatalf("max files %d want >= %d", maxFiles, agentRuntimeMaxFilesPerCycle)
+	if maxFiles > agentRuntimeMaxFilesPerCycle {
+		t.Fatalf("max files %d exceeds cap %d", maxFiles, agentRuntimeMaxFilesPerCycle)
 	}
-	if maxRounds < implSessionMaxEditRounds {
-		t.Fatalf("edit rounds %d should exceed legacy %d", maxRounds, implSessionMaxEditRounds)
+	if maxRounds > agentRuntimeMaxRepairRounds {
+		t.Fatalf("edit rounds %d exceeds cap %d", maxRounds, agentRuntimeMaxRepairRounds)
 	}
 }
 

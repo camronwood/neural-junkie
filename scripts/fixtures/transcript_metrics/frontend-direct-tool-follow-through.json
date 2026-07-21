@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "source": "sanitized FrontendEngineer regression",
+  "turns": [
+    {
+      "role": "user",
+      "speaker": "User",
+      "event": "chat",
+      "content": "Where should the theme toggle live?"
+    },
+    {
+      "role": "assistant",
+      "speaker": "FrontendEngineer",
+      "event": "chat",
+      "content": "Put it in Settings under Appearance, beside the active theme controls."
+    },
+    {
+      "role": "assistant",
+      "speaker": "FrontendEngineer",
+      "event": "chat",
+      "content": "Should I update the component?"
+    },
+    {
+      "role": "user",
+      "speaker": "User",
+      "event": "chat",
+      "content": "No, correction: update ThemeSettings.tsx, not Settings.tsx."
+    },
+    {
+      "role": "assistant",
+      "speaker": "FrontendEngineer",
+      "event": "chat",
+      "content": "Got it; I will update ThemeSettings.tsx and leave Settings.tsx unchanged."
+    },
+    {
+      "role": "user",
+      "speaker": "User",
+      "event": "chat",
+      "content": "Please make that edit."
+    },
+    {
+      "role": "tool",
+      "speaker": "Workspace",
+      "event": "tool_result",
+      "content": "Applied change to ThemeSettings.tsx."
+    },
+    {
+      "role": "assistant",
+      "speaker": "FrontendEngineer",
+      "event": "chat",
+      "content": "Updated ThemeSettings.tsx; Settings.tsx was not changed."
+    }
+  ],
+  "cases": [
+    {
+      "metric": "direct_answer",
+      "user_match": "Where should",
+      "assistant_match": "Settings under Appearance"
+    },
+    {
+      "metric": "repeated_question",
+      "assistant_match": "Should I update"
+    },
+    {
+      "metric": "correction_recovery",
+      "user_match": "correction: update ThemeSettings",
+      "assistant_match": "ThemeSettings\\.tsx.*Settings\\.tsx unchanged"
+    },
+    {
+      "metric": "tool_follow_through",
+      "user_match": "make that edit",
+      "evidence_role": "tool",
+      "evidence_match": "Applied change to ThemeSettings\\.tsx",
+      "assistant_match": "Updated ThemeSettings\\.tsx"
+    },
+    {
+      "metric": "unsupported_claim",
+      "assistant_match": "Updated ThemeSettings\\.tsx",
+      "evidence_match": "Applied change to ThemeSettings\\.tsx"
+    }
+  ],
+  "thresholds": {
+    "direct_answer_rate": 1.0,
+    "repeated_question_rate": 0.0,
+    "correction_recovery_rate": 1.0,
+    "tool_follow_through_rate": 1.0,
+    "unsupported_claim_rate": 0.0
+  },
+  "expected_metrics": {
+    "direct_answer_rate": 1.0,
+    "repeated_question_rate": 0.0,
+    "correction_recovery_rate": 1.0,
+    "tool_follow_through_rate": 1.0,
+    "unsupported_claim_rate": 0.0
+  }
+}

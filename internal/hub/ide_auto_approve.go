@@ -11,7 +11,7 @@ import (
 
 const (
 	editorTrustAutoApply = "auto_apply_edits"
-	editorTrustYolo       = "yolo"
+	editorTrustYolo      = "yolo"
 )
 
 func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filechange.FileChange, operation filechange.FileOperation, wsRoot string) {
@@ -48,6 +48,22 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 	}
 	if !agent.ShouldAutoApproveFileChange(change.FilePath, wsRoot) {
 		log.Printf("[IDE] Skipping auto-approve for path: %s", change.FilePath)
+		return
+	}
+	routedProvider := msg.From.AIProvider
+	if provider, _ := msg.Metadata[protocol.MetadataRoutingProviderID].(string); strings.TrimSpace(provider) != "" {
+		routedProvider = provider
+	}
+	destructive, ratio := agent.IsDestructiveFileRewrite(change.OldContent, change.NewContent)
+	gitDestructive, _ := msg.Metadata["git_baseline_destructive"].(bool)
+	if gitDestructive && !destructive {
+		if gitRatio, ok := msg.Metadata["git_baseline_rewrite_ratio"].(float64); ok {
+			ratio = gitRatio
+		}
+	}
+	if (destructive || gitDestructive) && !agent.CanAutoApproveDestructiveRewrite(routedProvider, msg.Metadata) {
+		log.Printf("[IDE] Holding destructive rewrite for approval: %s (replacement=%.0f%% provider=%s)",
+			change.FilePath, ratio*100, routedProvider)
 		return
 	}
 	approvedBy := "system"

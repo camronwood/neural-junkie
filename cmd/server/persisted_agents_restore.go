@@ -102,6 +102,8 @@ func restorePersistedExpertAgents(ch *hub.CommandHandler) {
 			record.ProviderName,
 			record.Model,
 			record.Persona,
+			record.CapabilityAllow,
+			record.CapabilityDeny,
 		); err != nil {
 			log.Printf("⚠️  Failed to restore expert agent %q: %v", record.Name, err)
 			continue

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
@@ -43,6 +44,15 @@ func handleGetAgents(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+	}
+	cfg := config.AppConfig()
+	for i := range agents {
+		if agents[i] == nil {
+			continue
+		}
+		state := cfg.ResolveAgentCapabilities(agents[i].ID, string(agents[i].Type), agents[i].Name)
+		agents[i].Capabilities = state.Effective
+		agents[i].DeniedCapabilities = state.Denied
 	}
 
 	json.NewEncoder(w).Encode(agents)

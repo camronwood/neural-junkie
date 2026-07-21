@@ -27,6 +27,26 @@ func workspaceMCPServer(t *testing.T) *server.MCPServer {
 	return srv
 }
 
+func TestReadWorkspaceFileForEditRecordsTargetGrounding(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &Agent{}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "test", protocol.AgentInfo{}, "edit main.go")
+	msg.Metadata = map[string]interface{}{
+		"workspace_context": map[string]interface{}{"workspace_path": root},
+	}
+	state := &ImplementationSessionState{}
+	ctx := withImplementationSessionState(context.Background(), state)
+	if _, err := a.readWorkspaceFileForEdit(ctx, msg, "main.go"); err != nil {
+		t.Fatal(err)
+	}
+	if !state.targetGrounded("main.go") {
+		t.Fatalf("internal edit read did not ground target: %v", state.LastReadPaths)
+	}
+}
+
 func TestAgentToolDefinitions_editModeIncludesPatchTools(t *testing.T) {
 	t.Parallel()
 	a := &Agent{

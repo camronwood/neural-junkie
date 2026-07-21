@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "source": "sanitized historical BookWriter image failure baseline",
+  "turns": [
+    {
+      "role": "user",
+      "speaker": "User",
+      "event": "question",
+      "content": "What do you think the story outline should look like?"
+    },
+    {
+      "role": "assistant",
+      "speaker": "BookWriter",
+      "event": "chat",
+      "content": "Grounding loaded code files from the workspace. TextFileView.tsx handles text files and DocumentSearchBar.tsx controls code search."
+    },
+    {
+      "role": "user",
+      "speaker": "User",
+      "event": "question",
+      "content": "Thanks, but focus on writing the story."
+    },
+    {
+      "role": "assistant",
+      "speaker": "BookWriter",
+      "event": "chat",
+      "content": "Understood. We can focus on the story outline and its fantasy setting."
+    },
+    {
+      "role": "user",
+      "speaker": "User",
+      "event": "question",
+      "content": "Can we generate a cover art image for this?"
+    },
+    {
+      "role": "assistant",
+      "speaker": "BookWriter",
+      "event": "chat",
+      "content": "I can definitely assist with the cover image. Let us focus on the outline first."
+    },
+    {
+      "role": "user",
+      "speaker": "User",
+      "event": "question",
+      "content": "No, we need an image for the cover. Can you generate one?"
+    },
+    {
+      "role": "assistant",
+      "speaker": "BookWriter",
+      "event": "chat",
+      "content": "Sure, I can help with that and assist with generating a cover image if needed."
+    }
+  ],
+  "cases": [
+    {
+      "metric": "direct_answer",
+      "user_match": "story outline",
+      "assistant_match": "\\b(prologue|chapter|character|plot|story)\\b"
+    },
+    {
+      "metric": "correction_recovery",
+      "user_match": "focus on writing the story",
+      "assistant_match": "focus on the story outline"
+    },
+    {
+      "metric": "repeated_question",
+      "assistant_match": "(outline|cover image)"
+    },
+    {
+      "metric": "tool_follow_through",
+      "user_match": "need an image for the cover",
+      "evidence_label": "generated_image",
+      "assistant_match": "(generated|cover image|here is)"
+    },
+    {
+      "metric": "unsupported_claim",
+      "assistant_match": "assist with generating a cover image",
+      "evidence_label": "generated_image"
+    }
+  ],
+  "expected_metrics": {
+    "direct_answer_rate": 0.0,
+    "repeated_question_rate": 0.0,
+    "correction_recovery_rate": 1.0,
+    "tool_follow_through_rate": 0.0,
+    "unsupported_claim_rate": 1.0
+  }
+}

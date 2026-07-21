@@ -37,9 +37,9 @@ func TestShouldRunImplementationSession_continuationAfterFileChange(t *testing.T
 			History: map[string][]*protocol.Message{
 				"dm-u-fe": {
 					{
-						ID:   "fc1",
-						Type: protocol.MessageTypeFileChange,
-						From: protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+						ID:      "fc1",
+						Type:    protocol.MessageTypeFileChange,
+						From:    protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
 						Content: "edit src/App.tsx",
 					},
 				},
@@ -59,9 +59,9 @@ func TestShouldRunImplementationSession_vagueContinuationWithoutThread(t *testin
 			History: map[string][]*protocol.Message{
 				"dm-u-fe": {
 					{
-						ID:   "join",
-						Type: protocol.MessageTypeAgentJoin,
-						From: protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+						ID:      "join",
+						Type:    protocol.MessageTypeAgentJoin,
+						From:    protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
 						Content: "FrontendEngineer has joined the channel",
 					},
 				},
@@ -103,7 +103,7 @@ func TestShouldRunImplementationSession_weakAffirmAfterFailedSession(t *testing.
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-fe", protocol.AgentInfo{ID: "u2", Name: "User"}, "looks good")
 	msg.Metadata = map[string]interface{}{
 		"editor_mode":            "agent",
-		"implementation_session":   true,
+		"implementation_session": true,
 		"ide_route_agent_type":   "frontend",
 	}
 	if shouldRunImplementationSession(a, msg) {
@@ -149,7 +149,7 @@ func TestShouldRunImplementationSession_respectsChatMode(t *testing.T) {
 	)
 	msg.Metadata = map[string]interface{}{
 		MetadataConversationMode: ConversationModeChat,
-		MetadataContextScope:   ContextScopeNone,
+		MetadataContextScope:     ContextScopeNone,
 	}
 	if shouldRunImplementationSession(a, msg) {
 		t.Fatal("chat-mode theme advice should not run implementation session")
@@ -333,8 +333,8 @@ func TestShouldSkipVerifyRepairAfterAutoApply(t *testing.T) {
 func TestGroundingSatisfied(t *testing.T) {
 	t.Parallel()
 	st := &ImplementationSessionState{StackManifest: &StackManifest{EntryPoint: "src/App.tsx"}}
-	if !st.groundingSatisfied() {
-		t.Fatal("entry point should satisfy grounding")
+	if st.groundingSatisfied() {
+		t.Fatal("manifest detection alone must not satisfy grounding")
 	}
 	st2 := &ImplementationSessionState{}
 	if st2.groundingSatisfied() {

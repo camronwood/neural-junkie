@@ -24,6 +24,9 @@ func TestImageGeneratorFromEnvDefaultsToOllama(t *testing.T) {
 	if p.model != "z-image" {
 		t.Fatalf("model = %q", p.model)
 	}
+	if p.inner.httpClient.Timeout != ollamaImageGenerationTimeout {
+		t.Fatalf("image timeout = %s, want %s", p.inner.httpClient.Timeout, ollamaImageGenerationTimeout)
+	}
 }
 
 func TestImageGeneratorFromEnvOpenAIProvider(t *testing.T) {

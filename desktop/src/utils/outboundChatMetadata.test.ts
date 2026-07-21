@@ -8,6 +8,7 @@ import {
 } from './outboundChatMetadata';
 import type { WorkspaceContext } from './workspaceContext';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { useEditorStore } from '../stores/editorStore';
 
 describe('isCollabSandboxPath', () => {
   it('detects collaboration sandboxes under ~/.neural-junkie/collaborations', () => {
@@ -216,6 +217,157 @@ describe('buildHumanOutboundMetadata DM personal questions', () => {
     expect(meta?.workspace_context).toBeDefined();
     const ws = meta?.workspace_context as { workspace_path?: string } | undefined;
     expect(ws?.workspace_path).toBe('/Users/me/CISO');
+  });
+});
+
+describe('buildHumanOutboundMetadata custom expert turn context', () => {
+  const writingRoute = {
+    ide_route_agent_type: 'expert',
+    editor_mode: 'agent',
+    implementation_session: true,
+  };
+
+  it.each(['auto', 'always'] as const)(
+    'keeps a Writing expert in Chat with no workspace when sharing is %s',
+    (contextMode) => {
+      const meta = buildHumanOutboundMetadata({
+        contextMode,
+        conversationMode: 'auto',
+        message: 'Write a warm introduction for this quarterly update.',
+        channel: 'dm-camron-writing',
+        channelType: 'dm',
+        composerMetadata: writingRoute,
+        ideCoding: true,
+      });
+
+      expect(meta?.conversation_mode).toBe('chat');
+      expect(meta?.context_scope).toBe('none');
+      expect(meta?.workspace_context).toBeUndefined();
+      expect(meta?.editor_mode).toBe('ask');
+      expect(meta?.implementation_session).toBeUndefined();
+    }
+  );
+
+  it('gives a Writing expert focused context for an explicit open-file request', () => {
+    useFileExplorerStore.setState({
+      workspaces: [{ id: 'proj', name: 'Project', path: '/proj', kind: 'local' }],
+      activeWorkspaceId: 'proj',
+      fileTree: { proj: [] },
+    });
+    useEditorStore.setState({
+      tabs: [
+        {
+          id: 'draft',
+          workspaceId: 'proj',
+          path: '/proj/draft.md',
+          content: '# Draft\n',
+          language: 'markdown',
+          isDirty: false,
+        },
+        {
+          id: 'notes',
+          workspaceId: 'proj',
+          path: '/proj/notes.md',
+          content: '# Notes\n',
+          language: 'markdown',
+          isDirty: false,
+        },
+      ],
+      activeTabId: 'draft',
+    });
+
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'always',
+      conversationMode: 'auto',
+      message: 'Please proofread the file open in my editor.',
+      channel: 'dm-camron-writing',
+      channelType: 'dm',
+      composerMetadata: writingRoute,
+      ideCoding: true,
+    });
+
+    expect(meta?.conversation_mode).toBe('code');
+    expect(meta?.context_scope).toBe('focus');
+    const workspace = meta?.workspace_context as WorkspaceContext;
+    expect(workspace.open_files.map((file) => file.path)).toEqual(['/proj/draft.md']);
+  });
+
+  it('honors explicit Code for Writing while focusing context, including workspace Off', () => {
+    useFileExplorerStore.setState({
+      workspaces: [{ id: 'proj', name: 'Project', path: '/proj', kind: 'local' }],
+      activeWorkspaceId: 'proj',
+      fileTree: { proj: [] },
+    });
+    useEditorStore.setState({
+      tabs: [
+        {
+          id: 'draft',
+          workspaceId: 'proj',
+          path: '/proj/draft.md',
+          content: '# Draft\n',
+          language: 'markdown',
+          isDirty: false,
+        },
+        {
+          id: 'notes',
+          workspaceId: 'proj',
+          path: '/proj/notes.md',
+          content: '# Notes\n',
+          language: 'markdown',
+          isDirty: false,
+        },
+      ],
+      activeTabId: 'draft',
+    });
+
+    const codeMeta = buildHumanOutboundMetadata({
+      contextMode: 'always',
+      conversationMode: 'code',
+      message: 'Help me improve this.',
+      channel: 'dm-camron-writing',
+      channelType: 'dm',
+      composerMetadata: writingRoute,
+      ideCoding: true,
+    });
+
+    expect(codeMeta?.conversation_mode).toBe('code');
+    expect(codeMeta?.context_scope).toBe('focus');
+    expect(codeMeta?.editor_mode).toBe('agent');
+    const workspace = codeMeta?.workspace_context as WorkspaceContext;
+    expect(workspace.open_files.map((file) => file.path)).toEqual(['/proj/draft.md']);
+
+    const offMeta = buildHumanOutboundMetadata({
+      contextMode: 'off',
+      conversationMode: 'code',
+      message: 'Help me improve this.',
+      channel: 'dm-camron-writing',
+      channelType: 'dm',
+      composerMetadata: writingRoute,
+      ideCoding: true,
+    });
+
+    expect(offMeta?.conversation_mode).toBe('code');
+    expect(offMeta?.context_scope).toBe('none');
+    expect(offMeta?.workspace_context).toBeUndefined();
+    expect(offMeta?.editor_mode).toBe('agent');
+  });
+
+  it('preserves IDE code behavior for engineering specialists', () => {
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'auto',
+      conversationMode: 'auto',
+      message: 'Investigate the current implementation.',
+      channel: 'dm-camron-softwarearchitect',
+      channelType: 'dm',
+      composerMetadata: {
+        ide_route_agent_type: 'architecture',
+        editor_mode: 'agent',
+      },
+      ideCoding: true,
+    });
+
+    expect(meta?.conversation_mode).toBe('code');
+    expect(meta?.context_scope).not.toBe('none');
   });
 });
 

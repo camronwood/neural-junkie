@@ -513,7 +513,7 @@ func planningDiscussionTimeoutElapsed(c *Collaboration, d *DiscussionSession) bo
 		if firstReplyGrace > maxFirstReplyGrace {
 			firstReplyGrace = maxFirstReplyGrace
 		}
-		if elapsed <= d.Timeout+firstReplyGrace {
+		if elapsed < d.Timeout+firstReplyGrace {
 			return false
 		}
 	}

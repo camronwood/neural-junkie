@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Channel } from '../types/protocol';
 import { ChatAPI, type ExpertPresetOption } from '../api/chatAPI';
+import type { ResolvedCapability } from '../types/protocol';
+import { capabilityKey, isSensitiveCapability } from '../utils/capabilityPolicy';
 
 const FALLBACK_EXPERT_PRESETS: ExpertPresetOption[] = [{ slug: 'assistant', label: 'Assistant' }];
 
@@ -56,6 +58,11 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [expertPresets, setExpertPresets] = useState<ExpertPresetOption[]>(FALLBACK_EXPERT_PRESETS);
+  const [sensitiveCapabilities, setSensitiveCapabilities] = useState<ResolvedCapability[]>([]);
+  const [capabilityGrants, setCapabilityGrants] = useState<string[]>([]);
+  const [sensitiveDefaultEnabled, setSensitiveDefaultEnabled] = useState(false);
+  const [capabilitiesLoading, setCapabilitiesLoading] = useState(false);
+  const [capabilitiesWarning, setCapabilitiesWarning] = useState<string | null>(null);
 
   const reset = useCallback(() => {
     setTab('expert');
@@ -77,6 +84,10 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
     setWorkDir('');
     setFormError(null);
     setSubmitting(false);
+    setSensitiveCapabilities([]);
+    setCapabilityGrants([]);
+    setSensitiveDefaultEnabled(false);
+    setCapabilitiesWarning(null);
   }, []);
 
   useEffect(() => {
@@ -100,6 +111,41 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
       cancelled = true;
     };
   }, [isOpen, api]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setCapabilitiesLoading(true);
+    setCapabilitiesWarning(null);
+    void api.fetchCapabilityPolicy()
+      .then((policy) => {
+        if (cancelled) return;
+        setSensitiveDefaultEnabled(policy.allow_sensitive_by_default);
+        setSensitiveCapabilities(
+          policy.capability_registry.filter(
+            (capability) =>
+              isSensitiveCapability(capability) &&
+              ((capability.mcp_tools?.length ?? 0) > 0 ||
+                (capability.mcp_agents?.length ?? 0) > 0 ||
+                capability.kind === 'mcp-tools'),
+          ),
+        );
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setSensitiveCapabilities([]);
+          setCapabilitiesWarning(
+            error instanceof Error ? error.message : 'Sensitive capabilities are unavailable.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCapabilitiesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, isOpen]);
 
   useEffect(() => {
     if (!isOpen || tab !== 'expert') return;
@@ -203,6 +249,8 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
           expert_type: domain,
           persona: isCustom ? customPersona.trim() : undefined,
           model: model.trim(),
+          capability_allow: capabilityGrants,
+          capability_deny: [],
         };
         if (provider === 'registry') {
           if (!providerId) {
@@ -426,6 +474,62 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
                 {provider === 'claude' && (
                   <p className="text-xs text-slack-textMuted">Uses the Claude model configured on the server.</p>
                 )}
+                <div>
+                  <label className="block text-xs font-medium text-slack-textMuted mb-1">
+                    Sensitive capabilities (optional)
+                  </label>
+                  <p className="mb-2 text-xs text-slack-textMuted">
+                    Safe capabilities are inherited. Grant only the sensitive access this agent needs.
+                  </p>
+                  {sensitiveDefaultEnabled && (
+                    <p className="mb-2 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-300">
+                      The global policy currently grants sensitive capabilities by default.
+                    </p>
+                  )}
+                  {capabilitiesLoading ? (
+                    <p className="text-xs text-slack-textMuted">Loading capabilities…</p>
+                  ) : sensitiveCapabilities.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {sensitiveCapabilities.map((capability) => {
+                        const key = capabilityKey(capability);
+                        return (
+                          <label
+                            key={key}
+                            className="flex items-start gap-2 rounded border border-slack-border bg-slack-bgHover px-3 py-2"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={capabilityGrants.includes(key)}
+                              onChange={(event) =>
+                                setCapabilityGrants((current) =>
+                                  event.target.checked
+                                    ? [...new Set([...current, key])]
+                                    : current.filter((item) => item !== key),
+                                )
+                              }
+                              className="mt-0.5 h-4 w-4 accent-slack-accent"
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-xs font-medium text-slack-text">
+                                {capability.label || capability.id}
+                              </span>
+                              {capability.description && (
+                                <span className="block text-xs text-slack-textMuted">
+                                  {capability.description}
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slack-textMuted">No sensitive capabilities are currently available.</p>
+                  )}
+                  {capabilitiesWarning && (
+                    <p className="mt-1 text-xs text-amber-400">{capabilitiesWarning}</p>
+                  )}
+                </div>
               </>
             )}
 

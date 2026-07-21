@@ -91,3 +91,23 @@ describe('editorStore openScanSummary', () => {
     expect(tab?.viewMode).toBe('scan-summary');
   });
 });
+
+describe('editorStore openArtifact', () => {
+  beforeEach(() => {
+    resetEditorStore();
+  });
+
+  it('opens and reuses a Neural Canvas tab by artifact id', () => {
+    useEditorStore.getState().openArtifact('ws-1', 'artifact-1', 'Latency report');
+    const first = useEditorStore.getState().getActiveTab();
+    expect(first).toMatchObject({
+      workspaceId: 'ws-1',
+      path: 'Latency report',
+      viewMode: 'neural-canvas',
+      artifactId: 'artifact-1',
+    });
+    useEditorStore.getState().openArtifact('ws-2', 'artifact-1', 'Renamed');
+    expect(useEditorStore.getState().tabs).toHaveLength(1);
+    expect(useEditorStore.getState().activeTabId).toBe(first?.id);
+  });
+});

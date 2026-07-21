@@ -96,6 +96,9 @@ func shouldContinueImplementationSession(a *Agent, msg *protocol.Message, state 
 	if a == nil || msg == nil || state == nil {
 		return false, ""
 	}
+	if state.CircuitBreakerFired || state.ConsecutiveNoVerifyProgress > 0 {
+		return false, ""
+	}
 	if msg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(msg) {
 		return false, ""
 	}

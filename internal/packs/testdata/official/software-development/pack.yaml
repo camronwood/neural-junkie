@@ -4,9 +4,13 @@ title: Software development
 description: Engineering specialists with pack-owned MCP sidecar and Qwen 3.5 models.
 capabilities:
   - sd-mcp-sidecar
+  - architecture-canvas
 capability_defs:
   sd-mcp-sidecar:
     kind: mcp-sidecar
+    label: Software development
+    description: Workspace inspection, coding, testing, and engineering tools.
+    exposure: safe
     sidecar:
       binary: assets/mcp/bin/sd-mcp-server
     mcp_agents:
@@ -21,6 +25,15 @@ capability_defs:
       - sre
       - mobile
       - data-ml
+  architecture-canvas:
+    kind: artifact-renderer
+    renderer: nj.mermaid
+    media_types: [text/vnd.mermaid]
+    match_glob: "**/*.mmd"
+    renderer_api_version: 1
+    schema_version_min: 1
+    schema_version_max: 1
+    fallback: nj.code
 agents:
   - type: backend
     name: BackendEngineer

@@ -13,6 +13,9 @@ import (
 
 func handleChannels(w http.ResponseWriter, r *http.Request) {
 	channels := chatHub.ListChannels()
+	if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("include_archived")), "true") {
+		channels = chatHub.ListChannelsIncludingArchived()
+	}
 	if store, err := slackint.NewBindingStore(); err == nil {
 		slackint.EnrichChannelsFromBindings(channels, store)
 	}
@@ -31,6 +34,28 @@ func handleChannels(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(channels)
+}
+
+func handleArchiveChannel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if err := chatHub.ArchiveChannel(strings.TrimSpace(req.Name)); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func handleCreateChannel(w http.ResponseWriter, r *http.Request) {
@@ -130,16 +155,18 @@ func handleCreateDMAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		CreatedBy   string `json:"created_by"`
-		Mode        string `json:"mode"` // "expert" | "cli"
-		DisplayName string `json:"display_name"`
-		ExpertType  string `json:"expert_type"`
-		Persona     string `json:"persona"` // optional extra instructions for custom experts
-		ProviderID  string `json:"provider_id"`
-		Provider    string `json:"provider"`
-		Model       string `json:"model"`
-		CLIType     string `json:"cli_type"`
-		WorkDir     string `json:"work_dir"`
+		CreatedBy       string   `json:"created_by"`
+		Mode            string   `json:"mode"` // "expert" | "cli"
+		DisplayName     string   `json:"display_name"`
+		ExpertType      string   `json:"expert_type"`
+		Persona         string   `json:"persona"` // optional extra instructions for custom experts
+		ProviderID      string   `json:"provider_id"`
+		Provider        string   `json:"provider"`
+		Model           string   `json:"model"`
+		CLIType         string   `json:"cli_type"`
+		WorkDir         string   `json:"work_dir"`
+		CapabilityAllow []string `json:"capability_allow"`
+		CapabilityDeny  []string `json:"capability_deny"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -174,7 +201,7 @@ func handleCreateDMAgent(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "expert_type is required for mode expert", http.StatusBadRequest)
 			return
 		}
-		dmCh, err = ch.SpawnExpertAgentForDM(ctx, req.CreatedBy, req.ExpertType, req.DisplayName, req.ProviderID, req.Provider, req.Model, req.Persona)
+		dmCh, err = ch.SpawnExpertAgentForDM(ctx, req.CreatedBy, req.ExpertType, req.DisplayName, req.ProviderID, req.Provider, req.Model, req.Persona, req.CapabilityAllow, req.CapabilityDeny)
 	case "cli":
 		if strings.TrimSpace(req.CLIType) == "" {
 			http.Error(w, "cli_type is required for mode cli", http.StatusBadRequest)

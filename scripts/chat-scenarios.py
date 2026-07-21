@@ -25,6 +25,7 @@ from lib import collab_hub as hub  # noqa: E402
 from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
 from lib.scenario_assert import check_text_patterns, looks_like_read_only_inspection_command  # noqa: E402
+from lib.transcript_contract import check_thresholds, evaluate_contract, extract_transcript  # noqa: E402
 from lib.workspace_context import enrich_send_metadata  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "chat"
@@ -60,6 +61,7 @@ class ChatScenarioContext:
         self.mention = (scenario.get("mention") or "").strip()
         self.baseline_agent_count = 0
         self.start_agent_count = 0
+        self.start_message_count = 0
 
     def log(self, msg: str) -> None:
         if self.verbose:
@@ -396,6 +398,23 @@ def step_assert_debug_context(ctx: ChatScenarioContext, step: dict) -> tuple[boo
     return True, "debug context ok"
 
 
+def step_assert_transcript_metrics(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
+    """Apply deterministic metrics to messages produced by this scenario run."""
+    messages = hub.list_messages(ctx.base, ctx.channel, 200)
+    messages = messages[ctx.start_message_count :]
+    contract = extract_transcript(
+        messages,
+        source=f"live:{ctx.scenario.get('name') or ctx.channel}",
+        cases=step.get("cases") or [],
+    )
+    result = evaluate_contract(contract)
+    failures = check_thresholds(result, step.get("thresholds") or {})
+    rendered = ", ".join(f"{key}={value:.3f}" for key, value in sorted(result["metrics"].items()))
+    if failures:
+        return False, f"{rendered}; {'; '.join(failures)}"
+    return True, rendered
+
+
 def run_step(ctx: ChatScenarioContext, step: dict, label: str) -> tuple[bool, str]:
     action = (step.get("action") or step.get("type") or "").strip()
     handlers = {
@@ -407,6 +426,7 @@ def run_step(ctx: ChatScenarioContext, step: dict, label: str) -> tuple[bool, st
         "assert_reply_count": step_assert_reply_count,
         "assert_suggested_commands": step_assert_suggested_commands,
         "assert_debug_context": step_assert_debug_context,
+        "assert_transcript_metrics": step_assert_transcript_metrics,
     }
     fn = handlers.get(action)
     if not fn:
@@ -462,7 +482,8 @@ def run_scenario(
     from lib.scenario_flake_retry import maybe_retry_after_failure
 
     last_detail = ""
-    max_attempts = 3 if name == "dm-backend-codebase-semantic" else 2
+    metric_run = "metrics" in scenario_tags(load_scenario(name))
+    max_attempts = 1 if metric_run else (3 if name == "dm-backend-codebase-semantic" else 2)
     for attempt in range(1, max_attempts + 1):
         ok, last_detail = _run_scenario_once(
             base,
@@ -512,6 +533,7 @@ def _run_scenario_once(
     print(f"  channel={ctx.channel} agent={ctx.target_agent}")
 
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
+    ctx.start_message_count = len(msgs)
     ctx.start_agent_count = hub.count_chat_agent_messages(msgs, ctx.target_agent)
 
     all_ok = True
