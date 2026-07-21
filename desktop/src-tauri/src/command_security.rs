@@ -7,24 +7,8 @@ pub fn command_allowed(command: &str) -> bool {
     let lower = cmd.to_lowercase();
 
     let denied = [
-        "rm -rf",
-        "rm -r ",
-        "sudo ",
-        "curl ",
-        "wget ",
-        "| sh",
-        "| bash",
-        ">/dev/",
-        "chmod ",
-        "mkfs",
-        "rm ",
-        "rmdir",
-        "del ",
-        "kill",
-        "killall",
-        "shutdown",
-        "reboot",
-        "dd if=",
+        "rm -rf", "rm -r ", "sudo ", "curl ", "wget ", "| sh", "| bash", ">/dev/", "chmod ",
+        "mkfs", "rm ", "rmdir", "del ", "kill", "killall", "shutdown", "reboot", "dd if=",
         "dd of=",
     ];
     for d in denied {

@@ -14,6 +14,7 @@ import {
   sourceKindLabel,
   truncateTrainingText,
 } from '../utils/loraTrainImport';
+import { registerRestartBlocker } from '../utils/restartSafety';
 
 interface SelectOption {
   id: string;
@@ -180,8 +181,27 @@ export function LoraTrainingPanel({
   const [job, setJob] = useState<LoraTrainJob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const trainingActive =
+    busy ||
+    (job !== null &&
+      job.status !== 'done' &&
+      job.status !== 'failed' &&
+      job.status !== 'cancelled');
   const evalMinScore = prefill?.eval_min_score ?? 0.35;
   const requireEvalToAssign = prefill?.require_eval_to_assign ?? false;
+
+  useEffect(
+    () =>
+      registerRestartBlocker('lora-training-job', () =>
+        trainingActive
+          ? {
+              id: 'lora-training-job',
+              message: 'A LoRA training job is still running.',
+            }
+          : null
+      ),
+    [trainingActive]
+  );
 
   useEffect(() => {
     if (!prefill) return;

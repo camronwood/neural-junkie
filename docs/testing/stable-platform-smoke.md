@@ -18,7 +18,10 @@ Use installers from [GitHub Releases — v1.2.0-beta.7](https://github.com/camro
 6. Complete setup wizard — bundled Ollama should start; pull default model if prompted.
 7. DM smoke: message **Assistant** in DM — confirm a reply within ~2 min.
 8. Optional soak of beta.7 hotfixes: open a workspace → Knowledge Graph → Ask agents on a node (no `workspace root not set`); hide main chat with IDE layout on (editor stays); confirm hub chip stays connected while typing.
-9. Optional: Settings → About → **Check for updates** (beta channel should report current or no newer).
+9. Launch N with N+1 available; confirm the check does not block startup and download begins automatically.
+10. Edit a file and start an agent response; confirm **Restart to update** refuses to interrupt active work.
+11. Save/finish work, restart, and confirm N+1 launches with settings preserved and the Hub healthy.
+12. Repeat with network unavailable (launch must continue), an invalid signature (installation must fail), and a partial/interrupted download (N remains runnable).
 
 Record in checklist Gate 5 matrix: **PASS** / **FAIL** + notes.
 
@@ -31,6 +34,8 @@ Record in checklist Gate 5 matrix: **PASS** / **FAIL** + notes.
 3. Wizard should offer **Install Ollama** (internet required).
 4. Confirm version **1.2.0-beta.7** (Windows WiX shows **1.2.0.7**).
 5. DM smoke: message **Assistant** — confirm reply.
+6. Validate N → N+1 using the MSI updater artifact, including automatic download and updater-driven process exit.
+7. Validate one installed Tauri v1 build → the first Tauri v2 build while `v1Compatible` artifacts are enabled.
 
 ---
 
@@ -41,6 +46,18 @@ Record in checklist Gate 5 matrix: **PASS** / **FAIL** + notes.
 3. Launch from app menu or `neural-junkie`.
 4. Wizard **Install Ollama** if not on PATH.
 5. DM smoke: message **Assistant** — confirm reply.
+6. Confirm Settings → About identifies Linux as a manual-update platform and does not attempt automatic installation.
+
+## Policy cases
+
+For one macOS or Windows candidate, publish manifests against a test channel and verify:
+
+1. `rollout.percentage: 0` does not download for an optional update.
+2. A critical update before `mandatory_after` remains deferrable.
+3. The same update after the deadline blocks normal use only after its signed bundle is verified and ready; it still permits retry, diagnostics, and quit.
+4. Offline launch during the grace period remains usable.
+5. Verify a mandatory update, quit before installation, then relaunch offline: the app must warn that the update is required without blocking normal use.
+6. Relaunch online after the previous case: the bundle downloads again and blocking begins only when it is ready to install.
 
 **Homebrew (optional):** `brew upgrade --cask neural-junkie` (macOS) or `brew upgrade neural-junkie` (Linux) after `brew tap camronwood/tap`.
 

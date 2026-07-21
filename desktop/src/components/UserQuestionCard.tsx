@@ -70,9 +70,11 @@ export function UserQuestionCard({ message }: UserQuestionCardProps) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void submitAnswer(freeText);
               }}
-              placeholder="Type your answer…"
+              placeholder="Or use the composer below…"
               className="flex-1 px-2 py-1.5 rounded-md border border-slack-border bg-slack-bg text-slack-text text-sm"
               disabled={loading}
+              // Keep focus on the main chat composer by default.
+              tabIndex={-1}
             />
             <button
               type="button"

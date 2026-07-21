@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
 import { APP_INFO, TECH_STACK, getAppVersion } from '../../utils/appInfo';
 import {
-  checkForAppUpdate,
   getUpdateChannelLabel,
-  installAppUpdate,
 } from '../../utils/appUpdater';
+import { useAppUpdaterStore } from '../../stores/appUpdaterStore';
 import { getHubBaseURL, getHubWebSocketURL } from '../../config/hubUrl';
 import { openExternalLink, type SettingsTabProps } from './settingsShared';
 
 export function AboutSettingsTab({ isActive }: SettingsTabProps) {
   const [appVersion, setAppVersion] = useState<string>('1.0.0');
-  const [updateCheckStatus, setUpdateCheckStatus] = useState<string | null>(null);
-  const [updateChecking, setUpdateChecking] = useState(false);
-  const [updateInstalling, setUpdateInstalling] = useState(false);
-  const [updateProgress, setUpdateProgress] = useState(0);
-  const [pendingUpdateVersion, setPendingUpdateVersion] = useState<string | null>(null);
+  const updaterStatus = useAppUpdaterStore((state) => state.status);
+  const update = useAppUpdaterStore((state) => state.update);
+  const updateProgress = useAppUpdaterStore((state) => state.progress);
+  const updateError = useAppUpdaterStore((state) => state.error);
+  const checkForUpdates = useAppUpdaterStore((state) => state.check);
+  const restartToUpdate = useAppUpdaterStore((state) => state.restartToUpdate);
 
   useEffect(() => {
     if (!isActive) return;
@@ -40,59 +40,41 @@ export function AboutSettingsTab({ isActive }: SettingsTabProps) {
         </div>
         <div className="col-span-2">
           <span className="text-slack-textMuted">Update channel:</span>
-          <span className="ml-2 text-slack-text">{getUpdateChannelLabel(appVersion)}</span>
+          <span className="ml-2 text-slack-text">
+            {getUpdateChannelLabel(appVersion, update?.policy)}
+          </span>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={updateChecking || updateInstalling}
-          onClick={async () => {
-            setUpdateChecking(true);
-            setUpdateCheckStatus(null);
-            setPendingUpdateVersion(null);
-            try {
-              const result = await checkForAppUpdate();
-              if (result.status === 'available') {
-                setPendingUpdateVersion(result.update.version ?? 'new version');
-                setUpdateCheckStatus(`Update available: ${result.update.version ?? 'new version'}`);
-              } else if (result.status === 'current') {
-                setUpdateCheckStatus('You are on the latest version.');
-              } else {
-                setUpdateCheckStatus(result.reason);
-              }
-            } catch (e) {
-              setUpdateCheckStatus(e instanceof Error ? e.message : 'Update check failed');
-            } finally {
-              setUpdateChecking(false);
-            }
-          }}
+          disabled={updaterStatus === 'checking' || updaterStatus === 'downloading' || updaterStatus === 'installing'}
+          onClick={() => void checkForUpdates(true)}
           className="px-3 py-1.5 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors disabled:opacity-50"
         >
-          {updateChecking ? 'Checking…' : 'Check for updates'}
+          {updaterStatus === 'checking' ? 'Checking…' : 'Check for updates'}
         </button>
-        {pendingUpdateVersion && (
+        {updaterStatus === 'ready' && update && (
           <button
             type="button"
-            disabled={updateInstalling}
-            onClick={async () => {
-              setUpdateInstalling(true);
-              setUpdateCheckStatus(null);
-              try {
-                await installAppUpdate(setUpdateProgress);
-              } catch (e) {
-                setUpdateCheckStatus(e instanceof Error ? e.message : 'Update install failed');
-                setUpdateInstalling(false);
-              }
-            }}
+            onClick={() => void restartToUpdate()}
             className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {updateInstalling ? `Installing… ${updateProgress}%` : `Install ${pendingUpdateVersion}`}
+            Restart to install {update.version}
           </button>
         )}
-        {updateCheckStatus && (
-          <span className="text-sm text-slack-textMuted">{updateCheckStatus}</span>
+        {updaterStatus === 'current' && (
+          <span className="text-sm text-slack-textMuted">You are on the latest eligible version.</span>
         )}
+        {updaterStatus === 'downloading' && (
+          <span className="text-sm text-slack-textMuted">
+            Downloading {update?.version}… {updateProgress === null ? '' : `${updateProgress}%`}
+          </span>
+        )}
+        {updaterStatus === 'unsupported' && (
+          <span className="text-sm text-slack-textMuted">Linux packages currently update manually.</span>
+        )}
+        {updateError && <span className="text-sm text-red-400">{updateError}</span>}
       </div>
     </div>
 

@@ -1,14 +1,11 @@
-import { convertFileSrc } from '@tauri-apps/api/tauri';
+import { convertFileSrc, isTauri } from '@tauri-apps/api/core';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import { workspaceAbsolutePath } from './editorFileKind';
 import { resolveEditorImageSrc } from './chatImageSrc';
 
 function isTauriShell(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    Object.prototype.hasOwnProperty.call(window, '__TAURI__')
-  );
+  return typeof window !== 'undefined' && isTauri();
 }
 
 /** Resolve a plot JPG or process report path to a loadable image/src URL. */

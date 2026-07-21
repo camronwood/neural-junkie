@@ -11,6 +11,7 @@ import { useToastStore } from '../stores/toastStore';
 import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
 import type { SecondaryAnalysisJob, SecondaryAnalysisWorkflow } from '../utils/secondaryAnalysis';
+import { registerRestartBlocker } from '../utils/restartSafety';
 
 const api = new ChatAPI(getHubBaseURL());
 
@@ -63,6 +64,25 @@ export function SecondaryAnalysisPanel({ onClose }: SecondaryAnalysisPanelProps)
   const [includePerSample, setIncludePerSample] = useState(false);
   const [excludePlates, setExcludePlates] = useState('');
   const [spcPreviewImages, setSpcPreviewImages] = useState<string[]>([]);
+  const jobActive =
+    running ||
+    (job !== null &&
+      job.status !== 'done' &&
+      job.status !== 'failed' &&
+      job.status !== 'cancelled');
+
+  useEffect(
+    () =>
+      registerRestartBlocker('secondary-analysis-job', () =>
+        jobActive
+          ? {
+              id: 'secondary-analysis-job',
+              message: 'A secondary analysis job is still running.',
+            }
+          : null
+      ),
+    [jobActive]
+  );
 
   const persistHistory = useCallback(
     async (entries: SecondaryAnalysisHistoryEntry[]) => {
@@ -126,6 +146,7 @@ export function SecondaryAnalysisPanel({ onClose }: SecondaryAnalysisPanelProps)
           }
           return;
         }
+        setRunning(true);
         setTimeout(poll, 2000);
       } catch (err) {
         if (!cancelled) {

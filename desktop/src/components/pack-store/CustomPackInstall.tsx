@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { open } from '@tauri-apps/api/dialog';
-import { invoke } from '@tauri-apps/api/tauri';
+import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import { usePacksStore } from '../../stores/packsStore';
 import { isTauriRuntime } from '../../utils/promptAttachments';
 import { ipcWorkspaceRoots, registerPackPickerPath } from '../../utils/ipcWorkspaceRoots';

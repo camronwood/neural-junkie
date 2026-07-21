@@ -4,16 +4,23 @@
 mod command_security;
 mod path_security;
 
+use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use serde::{Deserialize, Serialize};
-use std::process::{Command, Stdio};
-use std::time::Instant;
-use std::sync::{Arc, Mutex};
 use std::collections::{HashMap, HashSet};
-use std::io::{Read, Write};
-use tauri::Manager;
-use std::path::PathBuf;
 use std::hash::{Hash, Hasher};
-use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+use std::io::{Read, Write};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use tauri::path::BaseDirectory;
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_shell::{
+    process::{CommandChild as ShellCommandChild, CommandEvent},
+    ShellExt,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CommandResult {
@@ -32,9 +39,15 @@ struct PtySession {
     writer: Box<dyn Write + Send>,
     _child: Box<dyn portable_pty::Child + Send>,
     pair: portable_pty::PtyPair,
+    process_id: Option<u32>,
 }
 
 type PtySessions = Arc<Mutex<HashMap<String, PtySession>>>;
+
+#[derive(Debug, Serialize)]
+struct PtySessionStatus {
+    foreground_work: bool,
+}
 
 /// Paths returned by native pack directory / zip pickers (outside Tauri fs allowlist).
 type PackPathAllowlist = Arc<Mutex<HashSet<String>>>;
@@ -90,6 +103,9 @@ async fn create_pty_session(
     rows: Option<u16>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    if SHUTTING_DOWN.load(Ordering::SeqCst) {
+        return Err("application is shutting down".into());
+    }
     let pty_system = native_pty_system();
 
     let size = PtySize {
@@ -125,6 +141,7 @@ async fn create_pty_session(
         .slave
         .spawn_command(cmd)
         .map_err(|e| format!("Failed to spawn shell: {}", e))?;
+    let process_id = child.process_id();
 
     let writer = pair
         .master
@@ -150,7 +167,7 @@ async fn create_pty_session(
                         "id": session_id,
                         "data": text,
                     });
-                    let _ = handle.emit_all("pty-output", payload);
+                    let _ = handle.emit("pty-output", payload);
                 }
                 Err(_) => break,
             }
@@ -159,9 +176,57 @@ async fn create_pty_session(
 
     let sessions = app_handle.state::<PtySessions>();
     let mut guard = sessions.lock().unwrap();
-    guard.insert(id, PtySession { writer, _child: child, pair });
+    guard.insert(
+        id,
+        PtySession {
+            writer,
+            _child: child,
+            pair,
+            process_id,
+        },
+    );
 
     Ok(())
+}
+
+#[cfg(unix)]
+fn pty_has_foreground_work(process_id: Option<u32>) -> bool {
+    let Some(process_id) = process_id else {
+        return false;
+    };
+    let output = Command::new("ps")
+        .args(["-o", "pgid=", "-o", "tpgid=", "-p", &process_id.to_string()])
+        .output();
+    let Ok(output) = output else {
+        return false;
+    };
+    let fields: Vec<_> = String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .filter_map(|field| field.parse::<i64>().ok())
+        .collect();
+    matches!(fields.as_slice(), [shell_group, foreground_group] if *foreground_group > 0 && shell_group != foreground_group)
+}
+
+#[cfg(not(unix))]
+fn pty_has_foreground_work(_process_id: Option<u32>) -> bool {
+    // ConPTY does not expose a portable foreground process-group query.
+    // Conservatively protect every connected Windows terminal session.
+    true
+}
+
+#[tauri::command]
+async fn get_pty_session_status(
+    id: String,
+    app_handle: tauri::AppHandle,
+) -> Result<PtySessionStatus, String> {
+    let sessions = app_handle.state::<PtySessions>();
+    let guard = sessions.lock().unwrap();
+    let session = guard
+        .get(&id)
+        .ok_or_else(|| format!("PTY session '{}' not found", id))?;
+    Ok(PtySessionStatus {
+        foreground_work: pty_has_foreground_work(session.process_id),
+    })
 }
 
 #[tauri::command]
@@ -212,10 +277,7 @@ async fn resize_pty_session(
 }
 
 #[tauri::command]
-async fn close_pty_session(
-    id: String,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
+async fn close_pty_session(id: String, app_handle: tauri::AppHandle) -> Result<(), String> {
     let sessions = app_handle.state::<PtySessions>();
     let mut guard = sessions.lock().unwrap();
     guard.remove(&id);
@@ -260,7 +322,9 @@ async fn execute_command(
         cmd.current_dir(dir);
     }
 
-    let output = cmd.output().map_err(|e| format!("Failed to execute command: {}", e))?;
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to execute command: {}", e))?;
 
     let duration = start_time.elapsed();
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -277,17 +341,14 @@ async fn execute_command(
     };
 
     app_handle
-        .emit_all("command-executed", &result)
+        .emit("command-executed", &result)
         .map_err(|e| format!("Failed to emit event: {}", e))?;
 
     Ok(result)
 }
 
 #[tauri::command]
-async fn open_browser_window(
-    url: String,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
+async fn open_browser_window(url: String, app_handle: tauri::AppHandle) -> Result<(), String> {
     // Never render arbitrary http(s) pages inside Neural Junkie.
     // In-app HTML preview belongs to the web-browser pack workbench only.
     // Always hand off to the OS default browser.
@@ -295,29 +356,29 @@ async fn open_browser_window(
     if trimmed.is_empty() {
         return Err("empty URL".to_string());
     }
-    tauri::api::shell::open(&app_handle.shell_scope(), trimmed, None)
+    app_handle
+        .opener()
+        .open_url(trimmed, None::<&str>)
         .map_err(|e| format!("Failed to open URL in system browser: {}", e))?;
     Ok(())
 }
 
 #[tauri::command]
-async fn close_browser_window(
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    if let Some(window) = app_handle.get_window("browser-popout") {
-        window.close().map_err(|e| format!("Failed to close browser window: {}", e))?;
+async fn close_browser_window(app_handle: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app_handle.get_webview_window("browser-popout") {
+        window
+            .close()
+            .map_err(|e| format!("Failed to close browser window: {}", e))?;
     }
     Ok(())
 }
 
 #[tauri::command]
-async fn capture_browser_screenshot(
-    app_handle: tauri::AppHandle,
-) -> Result<String, String> {
-    // Note: Tauri 1.x doesn't have built-in screenshot API
+async fn capture_browser_screenshot(app_handle: tauri::AppHandle) -> Result<String, String> {
+    // Tauri does not expose a built-in cross-platform screenshot API here.
     // We'll use JavaScript to capture the page content as an image
-    
-    if let Some(window) = app_handle.get_window("embedded-browser") {
+
+    if let Some(window) = app_handle.get_webview_window("embedded-browser") {
         // Use JavaScript to capture the page
         let js_code = r#"
             (async function() {
@@ -339,16 +400,16 @@ async fn capture_browser_screenshot(
                 }
             })();
         "#;
-        
+
         match window.eval(js_code) {
             Ok(_) => {
                 // For now, return a simple data URL indicating screenshot functionality
                 // In production, you'd need to integrate a proper screenshot library
                 Ok("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==".to_string())
             }
-            Err(e) => Err(format!("Failed to execute screenshot script: {}", e))
+            Err(e) => Err(format!("Failed to execute screenshot script: {}", e)),
         }
-    } else if let Some(_popout_window) = app_handle.get_window("browser-popout") {
+    } else if let Some(_popout_window) = app_handle.get_webview_window("browser-popout") {
         // Same approach for pop-out window
         Ok("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==".to_string())
     } else {
@@ -357,14 +418,11 @@ async fn capture_browser_screenshot(
 }
 
 #[tauri::command]
-async fn navigate_browser(
-    url: String,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
+async fn navigate_browser(url: String, app_handle: tauri::AppHandle) -> Result<(), String> {
     // This would communicate with the browser window to navigate to the URL
     // For now, just emit an event that the frontend can listen to
     app_handle
-        .emit_all("browser-navigate", &url)
+        .emit("browser-navigate", &url)
         .map_err(|e| format!("Failed to emit navigation event: {}", e))?;
     Ok(())
 }
@@ -380,22 +438,22 @@ async fn create_embedded_browser(
 ) -> Result<(), String> {
     // Destroy existing embedded browser if it exists and wait for it to close
     // This prevents duplicate windows
-    if let Some(window) = app_handle.get_window("embedded-browser") {
+    if let Some(window) = app_handle.get_webview_window("embedded-browser") {
         let _ = window.close();
         // Give a small delay to ensure the window is fully destroyed
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     }
-    
+
     // Double-check that window doesn't exist
-    if app_handle.get_window("embedded-browser").is_some() {
+    if app_handle.get_webview_window("embedded-browser").is_some() {
         return Err("Previous browser window still exists".to_string());
     }
-    
+
     // Create new browser window positioned over the panel
-    let _window = tauri::WindowBuilder::new(
+    let _window = WebviewWindowBuilder::new(
         &app_handle,
         "embedded-browser",
-        tauri::WindowUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?)
+        WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?),
     )
     .title("Embedded Browser")
     .inner_size(width, height)
@@ -404,34 +462,35 @@ async fn create_embedded_browser(
     .decorations(false)
     .always_on_top(false)
     .skip_taskbar(true)
-    .focused(false)  // Don't automatically focus the window
+    .focused(false) // Don't automatically focus the window
     .build()
     .map_err(|e| format!("Failed to create embedded browser: {}", e))?;
-    
+
     // Explicitly ensure window doesn't have focus
     // On macOS, we need to handle focus more carefully
     #[cfg(target_os = "macos")]
     {
         // Try to keep main window in front - this is best effort on macOS
         // Get all windows and find the primary one (not embedded-browser)
-        let windows = app_handle.windows();
+        let windows = app_handle.webview_windows();
         for (label, _) in windows {
             if label != "embedded-browser" {
-                if let Some(main_window) = app_handle.get_window(label.as_str()) {
+                if let Some(main_window) = app_handle.get_webview_window(label.as_str()) {
                     let _ = main_window.set_focus();
                     break;
                 }
             }
         }
     }
-    
+
     // Emit event that browser is ready
-    app_handle.emit_all("browser-ready", &url)
+    app_handle
+        .emit("browser-ready", &url)
         .map_err(|e| format!("Failed to emit browser ready event: {}", e))?;
-    
-    // Note: Tauri 1.x doesn't have on_page_load events
+
+    // The frontend owns page-load state for this secondary webview.
     // The frontend will handle page load state management
-    
+
     Ok(())
 }
 
@@ -443,10 +502,12 @@ async fn update_browser_position(
     height: f64,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    if let Some(window) = app_handle.get_window("embedded-browser") {
-        window.set_position(tauri::LogicalPosition::new(x, y))
+    if let Some(window) = app_handle.get_webview_window("embedded-browser") {
+        window
+            .set_position(tauri::LogicalPosition::new(x, y))
             .map_err(|e| format!("Failed to update browser position: {}", e))?;
-        window.set_size(tauri::LogicalSize::new(width, height))
+        window
+            .set_size(tauri::LogicalSize::new(width, height))
             .map_err(|e| format!("Failed to update browser size: {}", e))?;
     }
     Ok(())
@@ -457,15 +518,16 @@ async fn navigate_embedded_browser(
     url: String,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    if let Some(_window) = app_handle.get_window("embedded-browser") {
+    if let Some(_window) = app_handle.get_webview_window("embedded-browser") {
         // Destroy the existing browser and create a new one with the new URL
         // This is more reliable than using eval() and provides proper navigation state
         let _ = destroy_embedded_browser(app_handle.clone()).await;
-        
+
         // Emit navigation start event
-        app_handle.emit_all("browser-navigation-start", &url)
+        app_handle
+            .emit("browser-navigation-start", &url)
             .map_err(|e| format!("Failed to emit navigation event: {}", e))?;
-        
+
         // Note: The frontend will need to call create_embedded_browser with the new URL
         // This approach gives us better control over the navigation lifecycle
         Ok(())
@@ -475,17 +537,16 @@ async fn navigate_embedded_browser(
 }
 
 #[tauri::command]
-async fn destroy_embedded_browser(
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    if let Some(window) = app_handle.get_window("embedded-browser") {
-        window.close().map_err(|e| format!("Failed to close embedded browser: {}", e))?;
+async fn destroy_embedded_browser(app_handle: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app_handle.get_webview_window("embedded-browser") {
+        window
+            .close()
+            .map_err(|e| format!("Failed to close embedded browser: {}", e))?;
         // Wait a moment to ensure window is fully closed
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     }
     Ok(())
 }
-
 
 const MAX_ATTACH_BYTES: usize = 80_000;
 const MAX_ATTACH_COUNT: usize = 12;
@@ -499,9 +560,31 @@ fn is_binary_attachment_path(path: &str) -> bool {
         .to_ascii_lowercase();
     matches!(
         ext.as_str(),
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "ico" | "svg" | "bmp" | "zip" | "tar" | "gz"
-            | "pdf" | "mp4" | "mp3" | "wav" | "exe" | "dll" | "so" | "dylib" | "woff" | "woff2"
-            | "ttf" | "eot" | "gguf" | "bin"
+        "png"
+            | "jpg"
+            | "jpeg"
+            | "gif"
+            | "webp"
+            | "ico"
+            | "svg"
+            | "bmp"
+            | "zip"
+            | "tar"
+            | "gz"
+            | "pdf"
+            | "mp4"
+            | "mp3"
+            | "wav"
+            | "exe"
+            | "dll"
+            | "so"
+            | "dylib"
+            | "woff"
+            | "woff2"
+            | "ttf"
+            | "eot"
+            | "gguf"
+            | "bin"
     )
 }
 
@@ -588,12 +671,14 @@ fn pick_pack_directory(
     title: Option<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<Option<String>, String> {
-    use tauri::api::dialog::blocking::FileDialogBuilder;
-    let mut builder = FileDialogBuilder::new();
+    let mut builder = app_handle.dialog().file();
     if let Some(t) = title {
         builder = builder.set_title(&t);
     }
-    let picked = builder.pick_folder().map(|p| p.to_string_lossy().into_owned());
+    let picked = builder
+        .blocking_pick_folder()
+        .and_then(|p| p.into_path().ok())
+        .map(|p| p.to_string_lossy().into_owned());
     if let Some(ref path) = picked {
         let allowlist = app_handle.state::<PackPathAllowlist>();
         allowlist_insert(allowlist.inner(), path);
@@ -641,7 +726,8 @@ fn write_pack_scaffold(
             "# {}\n\nWorkspace guide for the **{}** custom pack.\n\n## Layout\n\nDescribe expected folders and data layout here.\n",
             title, id
         );
-        std::fs::write(&guide_path, guide_body).map_err(|e| format!("write workspace guide: {}", e))?;
+        std::fs::write(&guide_path, guide_body)
+            .map_err(|e| format!("write workspace guide: {}", e))?;
     }
 
     let mut caps: Vec<String> = req.capabilities;
@@ -796,7 +882,8 @@ fn zip_pack_directory(
         zip.start_file(rel, options)
             .map_err(|e| format!("zip start file: {}", e))?;
         let data = std::fs::read(&entry).map_err(|e| format!("read {}: {}", entry.display(), e))?;
-        zip.write_all(&data).map_err(|e| format!("zip write: {}", e))?;
+        zip.write_all(&data)
+            .map_err(|e| format!("zip write: {}", e))?;
     }
     zip.finish().map_err(|e| format!("zip finish: {}", e))?;
     let data = std::fs::read(&tmp).map_err(|e| format!("read zip: {}", e))?;
@@ -814,7 +901,8 @@ fn walkdir_for_pack(root: &std::path::Path) -> Result<Vec<std::path::PathBuf>, S
     let mut out = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let entries = std::fs::read_dir(&dir).map_err(|e| format!("read dir {}: {}", dir.display(), e))?;
+        let entries =
+            std::fs::read_dir(&dir).map_err(|e| format!("read dir {}: {}", dir.display(), e))?;
         for entry in entries {
             let entry = entry.map_err(|e| e.to_string())?;
             let path = entry.path();
@@ -846,10 +934,7 @@ fn read_pack_zip_base64(
         return Err(format!("not a file: {}", path));
     }
     if meta.len() as usize > MAX_PACK_ZIP_BYTES {
-        return Err(format!(
-            "pack zip exceeds {} bytes",
-            MAX_PACK_ZIP_BYTES
-        ));
+        return Err(format!("pack zip exceeds {} bytes", MAX_PACK_ZIP_BYTES));
     }
     let data = std::fs::read(path).map_err(|e| format!("read {}: {}", path, e))?;
     Ok(base64::Engine::encode(
@@ -915,14 +1000,14 @@ fn decoding_result_to_samples(result: tiff::decoder::DecodingResult) -> Vec<f64>
             let denom = if max > 0.0 { max } else { 1.0 };
             v.into_iter().map(|x| x as f64 / denom).collect()
         }
-        tiff::decoder::DecodingResult::I8(v) => {
-            v.into_iter().map(|x| (x as i32 - i8::MIN as i32) as f64 / 255.0).collect()
-        }
-        tiff::decoder::DecodingResult::I16(v) => {
-            v.into_iter()
-                .map(|x| (x as i32 - i16::MIN as i32) as f64 / 65535.0)
-                .collect()
-        }
+        tiff::decoder::DecodingResult::I8(v) => v
+            .into_iter()
+            .map(|x| (x as i32 - i8::MIN as i32) as f64 / 255.0)
+            .collect(),
+        tiff::decoder::DecodingResult::I16(v) => v
+            .into_iter()
+            .map(|x| (x as i32 - i16::MIN as i32) as f64 / 65535.0)
+            .collect(),
         tiff::decoder::DecodingResult::I32(v) => {
             let max = v.iter().map(|&x| x as i64).max().unwrap_or(1) as f64;
             let denom = if max > 0.0 { max } else { 1.0 };
@@ -944,13 +1029,16 @@ fn decoding_result_to_samples(result: tiff::decoder::DecodingResult) -> Vec<f64>
 }
 
 #[tauri::command]
-fn decode_scan_well_tiff(absolute_path: String, allowed_roots: Vec<String>) -> Result<DecodedWellImage, String> {
+fn decode_scan_well_tiff(
+    absolute_path: String,
+    allowed_roots: Vec<String>,
+) -> Result<DecodedWellImage, String> {
     use image::ImageEncoder;
 
     path_security::within_any_root(&allowed_roots, &absolute_path)?;
 
-    let data = std::fs::read(&absolute_path)
-        .map_err(|e| format!("read {}: {}", absolute_path, e))?;
+    let data =
+        std::fs::read(&absolute_path).map_err(|e| format!("read {}: {}", absolute_path, e))?;
     let mut decoder = tiff::decoder::Decoder::new(std::io::Cursor::new(&data))
         .map_err(|e| format!("TIFF decoder: {}", e))?;
     let (w, h) = decoder
@@ -962,12 +1050,7 @@ fn decode_scan_well_tiff(absolute_path: String, allowed_roots: Vec<String>) -> R
     let samples = decoding_result_to_samples(decoded);
     let expected = (w as usize) * (h as usize);
     if samples.len() < expected {
-        return Err(format!(
-            "TIFF sample count {} < {}x{}",
-            samples.len(),
-            w,
-            h
-        ));
+        return Err(format!("TIFF sample count {} < {}x{}", samples.len(), w, h));
     }
     let mut min_v = f64::MAX;
     let mut max_v = f64::MIN;
@@ -1015,31 +1098,34 @@ async fn open_markdown_preview(
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     file_path.hash(&mut hasher);
     let window_id = format!("md-preview-{:x}", hasher.finish());
-    
+
     // Extract filename for window title
     let filename = std::path::Path::new(&file_path)
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("Markdown Preview");
-    
+
     // Check if window already exists
-    if app_handle.get_window(window_id.as_str()).is_some() {
+    if app_handle.get_webview_window(window_id.as_str()).is_some() {
         // Focus existing window
-        if let Some(window) = app_handle.get_window(window_id.as_str()) {
+        if let Some(window) = app_handle.get_webview_window(window_id.as_str()) {
             let _ = window.set_focus();
         }
         return Ok(());
     }
-    
+
     // Create new window
-    let window = tauri::WindowBuilder::new(
+    let window = WebviewWindowBuilder::new(
         &app_handle,
         window_id.as_str(),
-        tauri::WindowUrl::App(format!(
-            "?preview=true&workspace={}&path={}",
-            urlencoding::encode(&workspace_id),
-            urlencoding::encode(&file_path)
-        ).into())
+        WebviewUrl::App(
+            format!(
+                "?preview=true&workspace={}&path={}",
+                urlencoding::encode(&workspace_id),
+                urlencoding::encode(&file_path)
+            )
+            .into(),
+        ),
     )
     .title(format!("{} - Markdown Preview", filename))
     .inner_size(800.0, 600.0)
@@ -1048,7 +1134,7 @@ async fn open_markdown_preview(
     .center()
     .build()
     .map_err(|e| format!("Failed to create window: {}", e))?;
-    
+
     let _ = window.set_focus();
     Ok(())
 }
@@ -1057,10 +1143,11 @@ async fn open_markdown_preview(
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-type SidecarChild = Arc<Mutex<Option<tauri::api::process::CommandChild>>>;
+type SidecarChild = Arc<Mutex<Option<ShellCommandChild>>>;
 type OllamaChild = Arc<Mutex<Option<std::process::Child>>>;
 
 static SIDECAR_READY: AtomicBool = AtomicBool::new(false);
+static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 
 fn target_triple() -> &'static str {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -1087,7 +1174,7 @@ fn bundled_ollama_runtime_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
     }
 
     let rel = format!("ollama/{}", triple);
-    if let Some(p) = app.path_resolver().resolve_resource(&rel) {
+    if let Ok(p) = app.path().resolve(&rel, BaseDirectory::Resource) {
         if bundled_ollama_binary(&p).exists() {
             return Some(p);
         }
@@ -1126,8 +1213,9 @@ fn system_ollama_on_path() -> bool {
 }
 
 fn isolated_ollama_models_dir(app: &tauri::AppHandle) -> PathBuf {
-    app.path_resolver()
+    app.path()
         .app_data_dir()
+        .ok()
         .map(|p| p.join("ollama-models"))
         .unwrap_or_else(|| default_home().join(".neural-junkie").join("ollama-models"))
 }
@@ -1221,10 +1309,7 @@ fn stop_bundled_ollama_child(ollama_state: &OllamaChild) {
     }
 }
 
-fn spawn_bundled_ollama(
-    app: &tauri::AppHandle,
-    ollama_state: &OllamaChild,
-) -> Option<PathBuf> {
+fn spawn_bundled_ollama(app: &tauri::AppHandle, ollama_state: &OllamaChild) -> Option<PathBuf> {
     let runtime_dir = bundled_ollama_runtime_dir(app)?;
     let binary = bundled_ollama_binary(&runtime_dir);
     if !binary.exists() {
@@ -1314,10 +1399,8 @@ fn wait_for_server_health(timeout: std::time::Duration) -> bool {
 fn spawn_sidecar(
     app: &tauri::AppHandle,
     bundled_ollama: Option<&PathBuf>,
-) -> Result<tauri::api::process::CommandChild, String> {
-    let mut envs = HashMap::from([
-        ("OLLAMA_HOST".to_string(), "127.0.0.1:11434".to_string()),
-    ]);
+) -> Result<ShellCommandChild, String> {
+    let mut envs = HashMap::from([("OLLAMA_HOST".to_string(), "127.0.0.1:11434".to_string())]);
     if let Some(models_dir) = ollama_models_dir(app).to_str() {
         envs.insert("OLLAMA_MODELS".to_string(), models_dir.to_string());
     }
@@ -1327,7 +1410,9 @@ fn spawn_sidecar(
         }
     }
 
-    let (mut rx, child) = tauri::api::process::Command::new_sidecar("nj-server")
+    let (mut rx, child) = app
+        .shell()
+        .sidecar("nj-server")
         .map_err(|e| format!("Failed to create sidecar command: {}", e))?
         .envs(envs)
         .spawn()
@@ -1335,11 +1420,14 @@ fn spawn_sidecar(
 
     // Drain sidecar stdout/stderr in background so pipe buffers don't fill
     std::thread::spawn(move || {
-        use tauri::api::process::CommandEvent;
         while let Some(event) = rx.blocking_recv() {
             match event {
-                CommandEvent::Stdout(line) => eprintln!("[nj-server] {}", line),
-                CommandEvent::Stderr(line) => eprintln!("[nj-server err] {}", line),
+                CommandEvent::Stdout(line) => {
+                    eprintln!("[nj-server] {}", String::from_utf8_lossy(&line))
+                }
+                CommandEvent::Stderr(line) => {
+                    eprintln!("[nj-server err] {}", String::from_utf8_lossy(&line))
+                }
                 CommandEvent::Terminated(_) => break,
                 _ => {}
             }
@@ -1373,16 +1461,14 @@ fn get_ollama_runtime_status(
         .as_ref()
         .map(|dir| bundled_ollama_binary(dir).exists())
         .unwrap_or(false);
-    let version = runtime_dir
-        .as_ref()
-        .and_then(|dir| {
-            let binary = bundled_ollama_binary(dir);
-            if binary.exists() {
-                bundled_ollama_version(&binary)
-            } else {
-                None
-            }
-        });
+    let version = runtime_dir.as_ref().and_then(|dir| {
+        let binary = bundled_ollama_binary(dir);
+        if binary.exists() {
+            bundled_ollama_version(&binary)
+        } else {
+            None
+        }
+    });
     let managed = {
         let mut guard = ollama_state.lock().unwrap();
         if let Some(child) = guard.as_mut() {
@@ -1462,6 +1548,47 @@ fn restart_bundled_ollama(
     Ok(())
 }
 
+fn shutdown_managed_processes(
+    pty_sessions: &PtySessions,
+    sidecar_state: &SidecarChild,
+    ollama_state: &OllamaChild,
+) {
+    if !begin_shutdown(&SHUTTING_DOWN) {
+        return;
+    }
+
+    let sessions = {
+        let mut guard = pty_sessions.lock().unwrap();
+        guard
+            .drain()
+            .map(|(_, session)| session)
+            .collect::<Vec<_>>()
+    };
+    for mut session in sessions {
+        let _ = session._child.kill();
+        let _ = session._child.wait();
+    }
+
+    if let Some(child) = sidecar_state.lock().unwrap().take() {
+        let _ = child.kill();
+    }
+    stop_bundled_ollama_child(ollama_state);
+    SIDECAR_READY.store(false, Ordering::SeqCst);
+}
+
+fn begin_shutdown(flag: &AtomicBool) -> bool {
+    !flag.swap(true, Ordering::SeqCst)
+}
+
+#[tauri::command]
+fn prepare_for_update(app: tauri::AppHandle) -> Result<(), String> {
+    let pty_sessions = app.state::<PtySessions>().inner().clone();
+    let sidecar_state = app.state::<SidecarChild>().inner().clone();
+    let ollama_state = app.state::<OllamaChild>().inner().clone();
+    shutdown_managed_processes(&pty_sessions, &sidecar_state, &ollama_state);
+    Ok(())
+}
+
 /// Read ~/.neural-junkie/bootstrap.token for local admin unlock (loopback dev only).
 #[tauri::command]
 fn read_hub_bootstrap_token() -> Result<String, String> {
@@ -1505,7 +1632,10 @@ fn encrypt_credential_blob(plaintext: String) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
     let mut out = nonce_bytes.to_vec();
     out.extend(ciphertext);
-    Ok(base64::Engine::encode(&base64::engine::general_purpose::STANDARD, out))
+    Ok(base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        out,
+    ))
 }
 
 /// Decrypt a blob produced by encrypt_credential_blob.
@@ -1528,16 +1658,30 @@ fn decrypt_credential_blob(blob: String) -> Result<String, String> {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let pty_sessions: PtySessions = Arc::new(Mutex::new(HashMap::new()));
+    let sidecar_state: SidecarChild = Arc::new(Mutex::new(None));
+    let ollama_state: OllamaChild = Arc::new(Mutex::new(None));
+    let cleanup_ptys = pty_sessions.clone();
+    let cleanup_sidecar = sidecar_state.clone();
+    let cleanup_ollama = ollama_state.clone();
+
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .manage(Arc::new(Mutex::new(HashMap::<String, PtySession>::new())) as PtySessions)
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(pty_sessions)
         .manage(Arc::new(Mutex::new(HashSet::<String>::new())) as PackPathAllowlist)
-        .manage(Arc::new(Mutex::new(None::<tauri::api::process::CommandChild>)) as SidecarChild)
-        .manage(Arc::new(Mutex::new(None::<std::process::Child>)) as OllamaChild)
+        .manage(sidecar_state)
+        .manage(ollama_state)
         .setup(|app| {
             let sidecar_state = app.state::<SidecarChild>().inner().clone();
             let ollama_state = app.state::<OllamaChild>().inner().clone();
-            let app_handle = app.handle();
+            let app_handle = app.handle().clone();
 
             std::thread::spawn(move || {
                 // Only spawn sidecar in production builds; in dev the server
@@ -1557,13 +1701,13 @@ fn main() {
                     // Poll for an already-running hub (longer window: first Rust build + hub start).
                     if wait_for_server_health(std::time::Duration::from_secs(120)) {
                         SIDECAR_READY.store(true, Ordering::Relaxed);
-                        let _ = app_handle.emit_all("server-ready", true);
+                        let _ = app_handle.emit("server-ready", true);
                     } else {
                         let msg = format!(
                             "Neural Junkie hub not healthy at {}. From neural-junkie run: make server. If port 18765 is in use, set NEURAL_JUNKIE_HUB_URL and VITE_NJ_HUB_URL to match (e.g. http://127.0.0.1:18766) and start the hub with -addr :18766.",
                             dev_hub_health_url()
                         );
-                        let _ = app_handle.emit_all("server-error", msg);
+                        let _ = app_handle.emit("server-error", msg);
                     }
                     return;
                 }
@@ -1582,33 +1726,19 @@ fn main() {
 
                         if wait_for_server_health(std::time::Duration::from_secs(30)) {
                             SIDECAR_READY.store(true, Ordering::Relaxed);
-                            let _ = app_handle.emit_all("server-ready", true);
+                            let _ = app_handle.emit("server-ready", true);
                         } else {
-                            let _ = app_handle.emit_all("server-error", "Server started but health check timed out");
+                            let _ = app_handle.emit("server-error", "Server started but health check timed out");
                         }
                     }
                     Err(e) => {
                         eprintln!("Failed to start sidecar: {}", e);
-                        let _ = app_handle.emit_all("server-error", e);
+                        let _ = app_handle.emit("server-error", e);
                     }
                 }
             });
 
             Ok(())
-        })
-        .on_window_event(|event| {
-            if let tauri::WindowEvent::Destroyed = event.event() {
-                let app = event.window().app_handle();
-                let sidecar_state = app.state::<SidecarChild>().inner().clone();
-                if let Some(child) = sidecar_state.lock().unwrap().take() {
-                    let _ = child.kill();
-                }
-                let ollama_state = app.state::<OllamaChild>().inner().clone();
-                let ollama_child = ollama_state.lock().unwrap().take();
-                if let Some(mut child) = ollama_child {
-                    let _ = child.kill();
-                };
-            }
         })
         .invoke_handler(tauri::generate_handler![
             register_pack_path,
@@ -1621,6 +1751,7 @@ fn main() {
             read_prompt_attachment_paths,
             execute_command,
             create_pty_session,
+            get_pty_session_status,
             write_pty_session,
             resize_pty_session,
             close_pty_session,
@@ -1639,11 +1770,30 @@ fn main() {
             start_bundled_ollama,
             stop_bundled_ollama,
             restart_bundled_ollama,
+            prepare_for_update,
             encrypt_credential_blob,
             decrypt_credential_blob,
             read_hub_bootstrap_token
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    app.run(move |_app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            shutdown_managed_processes(&cleanup_ptys, &cleanup_sidecar, &cleanup_ollama);
+        }
+    });
 }
 
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::begin_shutdown;
+    use std::sync::atomic::AtomicBool;
+
+    #[test]
+    fn shutdown_is_idempotent() {
+        let flag = AtomicBool::new(false);
+        assert!(begin_shutdown(&flag));
+        assert!(!begin_shutdown(&flag));
+    }
+}

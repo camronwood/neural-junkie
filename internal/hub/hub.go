@@ -482,6 +482,88 @@ func (h *Hub) AskUserQuestion(agentID, agentName, channel, question string, opti
 	return h.userQuestionManager.Ask(agentID, agentName, channel, question, options, UserQuestionTTL)
 }
 
+// HasPendingUserQuestion reports whether agents should defer because ask_user is waiting.
+func (h *Hub) HasPendingUserQuestion(channel string) bool {
+	if h == nil || h.userQuestionManager == nil {
+		return false
+	}
+	return h.userQuestionManager.HasPendingOnChannel(channel)
+}
+
+// ShouldDeferAgents is true for user Stop/hold or a pending ask_user on the channel.
+func (h *Hub) ShouldDeferAgents(channel string) bool {
+	return h.IsChannelHeld(channel) || h.HasPendingUserQuestion(channel)
+}
+
+// pauseAgentsForUserQuestion aborts peer in-flight generations when ask_user fires,
+// but leaves agents that already have a pending question on this channel alone
+// (they are blocked inside Ask and must not be cancelled).
+func (h *Hub) pauseAgentsForUserQuestion(channel, askingAgentID string) {
+	if h == nil || channel == "" {
+		return
+	}
+	except := make(map[string]bool)
+	if askingAgentID != "" {
+		except[askingAgentID] = true
+	}
+	if h.userQuestionManager != nil {
+		for _, id := range h.userQuestionManager.PendingAgentIDsOnChannel(channel) {
+			except[id] = true
+		}
+	}
+	if h.commandHandler != nil {
+		h.commandHandler.AbortRuntimeAgentsOnChannelExcept(channel, except)
+	}
+}
+
+// upsertUserQuestionMessage updates an existing pending user_question row in
+// channel history (and notifies UI subscribers) so answered cards don't duplicate.
+func (h *Hub) upsertUserQuestionMessage(msg *protocol.Message) bool {
+	if h == nil || msg == nil || msg.Channel == "" || msg.Metadata == nil {
+		return false
+	}
+	qid, _ := msg.Metadata["question_id"].(string)
+	if qid == "" {
+		return false
+	}
+
+	h.mu.Lock()
+	msgs := h.messages[msg.Channel]
+	idx := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
+		if m == nil || m.Type != protocol.MessageTypeUserQuestion || m.Metadata == nil {
+			continue
+		}
+		if id, _ := m.Metadata["question_id"].(string); id == qid {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		h.mu.Unlock()
+		return false
+	}
+	existing := msgs[idx]
+	updated := *existing
+	updated.Content = msg.Content
+	updated.Timestamp = msg.Timestamp
+	meta := make(map[string]interface{}, len(existing.Metadata)+len(msg.Metadata))
+	for k, v := range existing.Metadata {
+		meta[k] = v
+	}
+	for k, v := range msg.Metadata {
+		meta[k] = v
+	}
+	updated.Metadata = meta
+	msgs[idx] = &updated
+	h.messages[msg.Channel] = msgs
+	h.mu.Unlock()
+
+	h.BroadcastDirect(msg.Channel, &updated)
+	return true
+}
+
 // GetCollaborationManager returns the collaboration manager
 func (h *Hub) GetCollaborationManager() *collaboration.CollaborationManager {
 	return h.collabManager

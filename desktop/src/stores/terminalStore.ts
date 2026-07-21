@@ -40,6 +40,8 @@ interface TerminalStore {
   renameTab: (id: string, label: string) => void;
   setTabCwd: (id: string, cwd: string) => void;
   alignActiveTabCwd: (cwd: string) => void;
+  foregroundSessionIds: Set<string>;
+  setSessionForegroundWork: (id: string, active: boolean) => void;
 
   // Command suggestions (shown as inline banner)
   suggestedCommands: CommandSuggestion[];
@@ -80,6 +82,8 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
   removeTab: (id) =>
     set((state) => {
       const remaining = state.tabs.filter((t) => t.id !== id);
+      const foregroundSessionIds = new Set(state.foregroundSessionIds);
+      foregroundSessionIds.delete(id);
       if (remaining.length === 0) {
         const newTab: TerminalTab = {
           id: `tab-${++tabCounter}`,
@@ -87,12 +91,13 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
           type: 'user',
           cwd: '~',
         };
-        return { tabs: [newTab], activeTabId: newTab.id };
+        return { tabs: [newTab], activeTabId: newTab.id, foregroundSessionIds };
       }
       const activeGone = state.activeTabId === id;
       return {
         tabs: remaining,
         activeTabId: activeGone ? remaining[remaining.length - 1].id : state.activeTabId,
+        foregroundSessionIds,
       };
     }),
 
@@ -114,6 +119,15 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
         t.id === state.activeTabId ? { ...t, cwd } : t
       ),
     })),
+
+  foregroundSessionIds: new Set(),
+  setSessionForegroundWork: (id, active) =>
+    set((state) => {
+      const foregroundSessionIds = new Set(state.foregroundSessionIds);
+      if (active) foregroundSessionIds.add(id);
+      else foregroundSessionIds.delete(id);
+      return { foregroundSessionIds };
+    }),
 
   // Command suggestions
   suggestedCommands: [],

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -50,6 +51,44 @@ func TestImplementationBestOfKMetadata(t *testing.T) {
 	msg2 := protocolNewImplMsg(t, map[string]interface{}{"implementation_best_of_k_boot_fix": true})
 	if k := implementationBestOfK(msg2); k != defaultBootFixBestOfK {
 		t.Fatalf("boot fix k=%d", k)
+	}
+}
+
+func TestProposalErrorCircuitBreaker_repeatedIdenticalFailure(t *testing.T) {
+	state := &ImplementationSessionState{}
+	err := errors.New("grounding required: read the stack manifest and use read_file or glob_file_search before proposing edits")
+
+	if state.recordProposalError(err) {
+		t.Fatal("first failure should allow one repair attempt")
+	}
+	if !state.recordProposalError(err) {
+		t.Fatal("second identical failure should trip the circuit breaker")
+	}
+	if state.ConsecutiveProposalErrors != identicalProposalErrorLimit {
+		t.Fatalf("consecutive=%d want %d", state.ConsecutiveProposalErrors, identicalProposalErrorLimit)
+	}
+	if !state.CircuitBreakerFired {
+		t.Fatal("expected circuit breaker state to be recorded in the outcome")
+	}
+	if len(state.PreflightErrors) != 1 {
+		t.Fatalf("expected deduplicated preflight error, got %v", state.PreflightErrors)
+	}
+}
+
+func TestProposalErrorCircuitBreaker_progressResetsFailure(t *testing.T) {
+	state := &ImplementationSessionState{}
+	first := errors.New("grounding required")
+	second := errors.New("protected file")
+
+	if state.recordProposalError(first) || state.recordProposalError(second) {
+		t.Fatal("different failures must not trip the identical-error breaker")
+	}
+	state.clearProposalError()
+	if state.LastProposalError != "" || state.ConsecutiveProposalErrors != 0 {
+		t.Fatalf("clear did not reset proposal failure state: %+v", state)
+	}
+	if state.recordProposalError(first) {
+		t.Fatal("first failure after progress should allow another repair attempt")
 	}
 }
 

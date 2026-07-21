@@ -1,4 +1,5 @@
 import type { PromptAttachmentPayload } from '../constants/promptMetadata';
+import { isTauri } from '@tauri-apps/api/core';
 import type { WorkspaceFileDragPayload } from './workspaceFileDrag';
 import { isImagePreviewPath } from './editorFileKind';
 import { isScanSummaryWellPath } from './scanSummary';
@@ -47,7 +48,7 @@ const LANG_BY_EXT: Record<string, string> = {
 };
 
 export function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+  return typeof window !== 'undefined' && isTauri();
 }
 
 export function isImageMime(mime: string): boolean {
@@ -165,7 +166,7 @@ export async function attachmentsFromAbsolutePaths(
     return existing;
   }
   try {
-    const { invoke } = await import('@tauri-apps/api/tauri');
+    const { invoke } = await import('@tauri-apps/api/core');
     const read = await invoke<PromptAttachmentPayload[]>('read_prompt_attachment_paths', {
       paths,
       allowedRoots: getWorkspaceRoots(),

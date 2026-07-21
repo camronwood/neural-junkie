@@ -11,7 +11,7 @@ PLATFORM="${2:-}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 cd "${ROOT}"
-chmod +x scripts/ci-set-release-version.sh scripts/configure-updater-channel.sh
+chmod +x scripts/ci-set-release-version.sh scripts/configure-updater-channel.sh scripts/verify-desktop-version-consistency.sh
 
 ./scripts/ci-set-release-version.sh "${TAG}" "${PLATFORM}"
 
@@ -20,3 +20,5 @@ if [[ "${TAG}" == *beta* ]]; then
 else
   ./scripts/configure-updater-channel.sh stable
 fi
+
+./scripts/verify-desktop-version-consistency.sh

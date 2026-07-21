@@ -187,7 +187,7 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
 
   const openBrowser = () => {
     if (!verificationURL) return;
-    void import('@tauri-apps/api/shell').then(({ open }) => open(verificationURL));
+    void import('@tauri-apps/plugin-opener').then(({ openUrl }) => openUrl(verificationURL));
   };
 
   const handleLogout = async () => {

@@ -85,7 +85,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		a.unansweredTracker.observe(msg)
 	}
 
-	if a.Hub != nil && a.Hub.IsChannelHeld(msg.Channel) {
+	if a.Hub != nil && agentsDeferred(a.Hub, msg.Channel) {
 		return
 	}
 
@@ -203,7 +203,11 @@ func isSlashCommandMessage(msg *protocol.Message) bool {
 }
 
 func (a *Agent) shouldRespond(msg *protocol.Message) bool {
-	if a.Hub != nil && a.Hub.IsChannelHeld(msg.Channel) {
+	if a.Hub != nil && agentsDeferred(a.Hub, msg.Channel) {
+		return false
+	}
+	// User-question cards are for the human; never auto-reply to them.
+	if msg.Type == protocol.MessageTypeUserQuestion {
 		return false
 	}
 	// Repopulate Mentions before collab turn-prompt routing (history replay may drop them).
@@ -624,13 +628,19 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		}
 	}
 
-	// Custom- and collaboration-channel behavior: prefer expertise-relevant replies, and only fall
-	// back to broad prompts with a responder cap to reduce noise.
+	// Custom- and collaboration-channel behavior: prefer expertise-relevant replies.
+	// If nothing matches keywords, still let a capped subset of channel agents reply so
+	// human follow-ups without @mentions are never silently dropped.
 	if (channelType == protocol.ChannelTypeCustom || channelType == protocol.ChannelTypeCollaboration) && msg.From.Type == "human" && !msg.HasMentions() {
 		if relevanceScore >= customChannelRelevanceMinScore {
 			return true
 		}
-		if isCustomChannelPrompt(content) && a.allowCustomChannelBroadPromptReply(msg) {
+		if a.allowCustomChannelBroadPromptReply(msg) {
+			if isCustomChannelPrompt(content) {
+				log.Printf("[%s] ✅ CUSTOM CHANNEL roll-call / team prompt — will respond", a.Info.Name)
+			} else {
+				log.Printf("[%s] ✅ CUSTOM CHANNEL fallback responder — will respond", a.Info.Name)
+			}
 			return true
 		}
 		return false

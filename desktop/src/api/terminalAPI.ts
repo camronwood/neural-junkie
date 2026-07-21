@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getHubBaseURL, hubAuthHeaders, hubSessionHeaders } from '../config/hubUrl';
 import { getWorkspaceRoots } from '../utils/workspaceRoots';
@@ -17,6 +17,10 @@ export interface CommandResult {
 export interface PtyOutputPayload {
   id: string;
   data: string;
+}
+
+export interface PtySessionStatus {
+  foreground_work: boolean;
 }
 
 function isRemoteWorkspace(kind?: string): boolean {
@@ -83,6 +87,14 @@ export class TerminalAPI {
       return;
     }
     await invoke('write_pty_session', { id, data });
+  }
+
+  async getPtySessionStatus(id: string): Promise<PtySessionStatus> {
+    if (this.remoteSockets.has(id)) {
+      // The remote PTY protocol does not expose process groups yet.
+      return { foreground_work: true };
+    }
+    return invoke<PtySessionStatus>('get_pty_session_status', { id });
   }
 
   async resizePtySession(id: string, cols: number, rows: number): Promise<void> {

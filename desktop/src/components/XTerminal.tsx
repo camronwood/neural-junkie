@@ -63,8 +63,30 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
     const cols = term.cols;
     const rows = term.rows;
 
+    let disposed = false;
+    let statusTimer: number | undefined;
+    const refreshForegroundStatus = async () => {
+      try {
+        const status = await terminalAPI.getPtySessionStatus(sessionId);
+        if (!disposed) {
+          useTerminalStore
+            .getState()
+            .setSessionForegroundWork(sessionId, status.foreground_work);
+        }
+      } catch {
+        if (!disposed) {
+          useTerminalStore.getState().setSessionForegroundWork(sessionId, false);
+        }
+      }
+    };
+
     terminalAPI
       .createPtySession(sessionId, cwd, cols, rows)
+      .then(() => {
+        if (disposed) return;
+        void refreshForegroundStatus();
+        statusTimer = window.setInterval(() => void refreshForegroundStatus(), 2000);
+      })
       .catch((err) => {
         term.writeln(`\r\n\x1b[31mFailed to create PTY session: ${err}\x1b[0m`);
       });
@@ -130,6 +152,9 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
 
     const el = containerRef.current;
     return () => {
+      disposed = true;
+      if (statusTimer !== undefined) window.clearInterval(statusTimer);
+      useTerminalStore.getState().setSessionForegroundWork(sessionId, false);
       resizeObserver.disconnect();
       onDataDispose.dispose();
       onKeyDispose.dispose();

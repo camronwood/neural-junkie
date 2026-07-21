@@ -10,6 +10,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 interface ChatInputAreaProps {
   channel: string;
   channelHeld: boolean;
+  hasPendingUserQuestion?: boolean;
   thinkingAgentsForChannel: ThinkingAgent[];
   showAgentStop: boolean;
   onChannelInterject: () => void;
@@ -23,6 +24,7 @@ interface ChatInputAreaProps {
   inputRef: RefObject<HTMLTextAreaElement>;
   composerDraft: string;
   onDraftChange: (draft: string) => void;
+  onAttachmentStateChange?: (hasAttachments: boolean) => void;
   showContextIndicator: boolean;
   contextIndicatorLabel: string;
   contextScopeReason?: string;
@@ -32,6 +34,7 @@ interface ChatInputAreaProps {
 export function ChatInputArea({
   channel,
   channelHeld,
+  hasPendingUserQuestion = false,
   thinkingAgentsForChannel,
   showAgentStop,
   onChannelInterject,
@@ -45,6 +48,7 @@ export function ChatInputArea({
   inputRef,
   composerDraft,
   onDraftChange,
+  onAttachmentStateChange,
   showContextIndicator,
   contextIndicatorLabel,
   contextScopeReason,
@@ -66,7 +70,16 @@ export function ChatInputArea({
         />
       </div>
 
-      {channelHeld && (
+      {hasPendingUserQuestion && (
+        <div
+          className="mx-3 mb-1 px-3 py-2 rounded-md text-sm border border-sky-700/50 bg-sky-950/40 text-sky-100"
+          role="status"
+        >
+          Agent question pending — type your answer in the composer (or use the card options) to continue.
+        </div>
+      )}
+
+      {channelHeld && !hasPendingUserQuestion && (
         <div
           className="mx-3 mb-1 px-3 py-2 rounded-md text-sm border border-amber-700/50 bg-amber-950/40 text-amber-100"
           role="status"
@@ -88,6 +101,7 @@ export function ChatInputArea({
         agents={agents}
         ref={inputRef}
         onDraftChange={onDraftChange}
+        onAttachmentStateChange={onAttachmentStateChange}
       />
 
       {showContextIndicator && composerDraft.trim() && (

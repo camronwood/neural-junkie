@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import { workspaceAbsolutePath } from './editorFileKind';
@@ -6,10 +6,7 @@ import { wellImageRelativePath } from './scanSummary';
 import { ipcWorkspaceRoots } from './ipcWorkspaceRoots';
 
 function isTauriShell(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    Object.prototype.hasOwnProperty.call(window, '__TAURI__')
-  );
+  return typeof window !== 'undefined' && isTauri();
 }
 
 function toDataUrl(mime: string, contentBase64: string): string {

@@ -293,7 +293,7 @@ export function ScanAnalysisViewer({
     }
     setBrowsingScan(true);
     try {
-      const { open } = await import('@tauri-apps/api/dialog');
+      const { open } = await import('@tauri-apps/plugin-dialog');
       const scanHint = analysisDir ? `${analysisDir.replace(/[/\\]+$/, '')}/scan-export` : 'scan-export';
       const defaultPath = workspaceAbsolutePath(workspacePath, scanHint);
       const selected = await open({

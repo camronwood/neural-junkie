@@ -20,7 +20,8 @@ const fs = require('fs');
 const confPath = process.argv[1];
 const identity = process.argv[2];
 const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
-conf.tauri.bundle.macOS = conf.tauri.bundle.macOS || {};
-conf.tauri.bundle.macOS.signingIdentity = identity;
+conf.bundle ??= {};
+conf.bundle.macOS ??= {};
+conf.bundle.macOS.signingIdentity = identity;
 fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
 " "${CONF}" "${IDENTITY}"

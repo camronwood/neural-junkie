@@ -1,5 +1,5 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
-import { Store } from '@tauri-apps/plugin-store';
+import { LazyStore as Store } from '@tauri-apps/plugin-store';
 import { ChatAPI } from '../api/chatAPI';
 
 export type FontSizeScope = 'messages' | 'input' | 'global';

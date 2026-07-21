@@ -16,15 +16,19 @@ export function isExternalHttpUrl(url: string): boolean {
 export function openExternalLink(url: string): void {
   const trimmed = (url ?? '').trim();
   if (!trimmed || !isExternalHttpUrl(trimmed)) return;
-  try {
-    if (typeof window !== 'undefined' && (window as { __TAURI__?: unknown }).__TAURI__) {
-      void import('@tauri-apps/api/shell').then(({ open }) => open(trimmed));
-      return;
+  void (async () => {
+    try {
+      const { isTauri } = await import('@tauri-apps/api/core');
+      if (isTauri()) {
+        const { openUrl } = await import('@tauri-apps/plugin-opener');
+        await openUrl(trimmed);
+        return;
+      }
+    } catch {
+      /* fall through */
     }
-  } catch {
-    /* fall through */
-  }
-  window.open(trimmed, '_blank', 'noopener,noreferrer');
+    window.open(trimmed, '_blank', 'noopener,noreferrer');
+  })();
 }
 
 /** Capture-phase click handler: keep http(s) navigation out of the Tauri webview. */

@@ -18,6 +18,8 @@ const (
 	RepairFailureAdvisory       RepairFailureKind = "advisory"
 	RepairFailureGrounding      RepairFailureKind = "grounding"
 	RepairFailureVerify         RepairFailureKind = "verify"
+
+	identicalProposalErrorLimit = 2
 )
 
 var (
@@ -246,6 +248,39 @@ func (s *ImplementationSessionState) recordRepairFailureKind(kind RepairFailureK
 		return
 	}
 	s.LastRepairFailureKind = kind
+}
+
+// recordProposalError returns true after the same proposal failure occurs twice
+// consecutively. One retry is useful because the next round receives repair
+// feedback; repeating the exact failure again indicates a non-progressing loop.
+func (s *ImplementationSessionState) recordProposalError(err error) bool {
+	if s == nil || err == nil {
+		return false
+	}
+	signature := strings.TrimSpace(err.Error())
+	if signature == "" {
+		return false
+	}
+	s.PreflightErrors = appendUnique(s.PreflightErrors, []string{signature})
+	if signature == s.LastProposalError {
+		s.ConsecutiveProposalErrors++
+	} else {
+		s.LastProposalError = signature
+		s.ConsecutiveProposalErrors = 1
+	}
+	repeated := s.ConsecutiveProposalErrors >= identicalProposalErrorLimit
+	if repeated {
+		s.CircuitBreakerFired = true
+	}
+	return repeated
+}
+
+func (s *ImplementationSessionState) clearProposalError() {
+	if s == nil {
+		return
+	}
+	s.LastProposalError = ""
+	s.ConsecutiveProposalErrors = 0
 }
 
 func repairFailureKindLabel(kind RepairFailureKind) string {

@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Least-privilege permissions for the Neural Junkie main window.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "fs:allow-read-text-file",
+    "opener:allow-open-url",
+    "opener:allow-open-path",
+    "os:default",
+    "store:default",
+    "updater:default",
+    "process:allow-restart"
+  ]
+}

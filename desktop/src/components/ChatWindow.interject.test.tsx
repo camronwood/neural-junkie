@@ -11,6 +11,7 @@ const { apiHarness, wsHarness, addToastMock } = vi.hoisted(() => {
     fetchMessages: vi.fn().mockResolvedValue([]),
     fetchCollaborations: vi.fn().mockResolvedValue([]),
     sendMessage: vi.fn().mockResolvedValue({}),
+    answerUserQuestion: vi.fn().mockResolvedValue({}),
     channelInterject: vi.fn().mockResolvedValue({ channel: 'general', held: true }),
     fetchCommands: vi.fn().mockResolvedValue([]),
     fetchAgents: vi.fn().mockResolvedValue([]),
@@ -48,6 +49,7 @@ vi.mock('../api/chatAPI', () => ({
     fetchMessages = apiHarness.fetchMessages;
     fetchCollaborations = apiHarness.fetchCollaborations;
     sendMessage = apiHarness.sendMessage;
+    answerUserQuestion = apiHarness.answerUserQuestion;
     channelInterject = apiHarness.channelInterject;
     fetchCommands = apiHarness.fetchCommands;
     fetchAgents = apiHarness.fetchAgents;
@@ -232,8 +234,10 @@ afterEach(() => cleanup());
 describe('ChatWindow channel interject', () => {
   beforeEach(() => {
     seedStore();
+    apiHarness.fetchMessages.mockReset().mockResolvedValue([]);
     apiHarness.channelInterject.mockClear();
     apiHarness.sendMessage.mockClear();
+    apiHarness.answerUserQuestion.mockClear();
     apiHarness.fetchCommands.mockClear();
     addToastMock.mockClear();
   });
@@ -296,6 +300,41 @@ describe('ChatWindow channel interject', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Stop agents' })).toBeNull();
     });
+  });
+
+  it('pauses visible activity and routes composer text to pending ask_user cards', async () => {
+    const question: Message = {
+      id: 'question-card',
+      type: 'user_question',
+      channel: 'general',
+      from: {
+        id: 'a1',
+        name: 'FrontendEngineer',
+        type: 'frontend',
+        expertise: [],
+        status: 'active',
+        model: '',
+        is_paused: false,
+      },
+      content: 'Which genre?',
+      timestamp: new Date().toISOString(),
+      metadata: { question_id: 'q1', status: 'pending', question: 'Which genre?' },
+    };
+    apiHarness.fetchMessages.mockResolvedValueOnce([question]);
+    useChatStore.getState().setMessages([question]);
+    useChatStore.getState().addThinkingAgent('general', 'a1', 'Agent', 'backend');
+    render(<ChatWindow />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Agent question pending/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Stop agents' })).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'send-test' }));
+    await waitFor(() => {
+      expect(apiHarness.answerUserQuestion).toHaveBeenCalledWith('q1', 'user resume');
+    });
+    expect(apiHarness.sendMessage).not.toHaveBeenCalled();
   });
 
   it('opens the command palette with Cmd/Ctrl+Shift+P', async () => {

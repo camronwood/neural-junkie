@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react';
-import { invoke } from '@tauri-apps/api/tauri';
-import { open } from '@tauri-apps/api/dialog';
+import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { usePacksStore } from '../../../stores/packsStore';
 import { isTauriRuntime } from '../../../utils/promptAttachments';
 import { ipcWorkspaceRoots, registerPackPickerPath } from '../../../utils/ipcWorkspaceRoots';
@@ -10,6 +10,7 @@ import { getMonacoThemeId, registerMonacoThemes } from '../../../utils/editorThe
 import { MANIFEST_FIELD_HINTS } from './packDevConstants';
 import { PackValidatePreview } from './PackValidatePreview';
 import type { PackValidationReport } from '../../../api/chatAPI';
+import { registerRestartBlocker } from '../../../utils/restartSafety';
 
 function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -103,7 +104,7 @@ export function PackManifestEditor({ packDir, initialYaml, onPackDirChange }: Pa
   const saveYaml = useCallback(async () => {
     if (!packDir) {
       setError('Open or scaffold a pack folder first.');
-      return;
+      return false;
     }
     setBusy(true);
     setError(null);
@@ -117,12 +118,28 @@ export function PackManifestEditor({ packDir, initialYaml, onPackDirChange }: Pa
       setDirty(false);
       setMessage('Saved pack.yaml');
       await runValidate(yaml, packDir);
+      return true;
     } catch (e) {
       setError(errorMessage(e));
+      return false;
     } finally {
       setBusy(false);
     }
   }, [packDir, yaml, runValidate]);
+
+  useEffect(
+    () =>
+      registerRestartBlocker('pack-manifest-editor', () =>
+        dirty
+          ? {
+              id: 'pack-manifest-editor',
+              message: 'Unsaved pack manifest changes must be saved before restarting.',
+              ...(packDir ? { save: saveYaml } : {}),
+            }
+          : null
+      ),
+    [dirty, packDir, saveYaml]
+  );
 
   const linkAndSync = useCallback(async () => {
     if (!packDir) {

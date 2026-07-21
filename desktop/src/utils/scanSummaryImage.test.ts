@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchScanSummaryWellImage, invokeMock } = vi.hoisted(() => ({
+const { fetchScanSummaryWellImage, invokeMock, isTauriMock } = vi.hoisted(() => ({
   fetchScanSummaryWellImage: vi.fn(),
   invokeMock: vi.fn(),
+  isTauriMock: vi.fn(),
 }));
 
 vi.mock('../api/chatAPI', () => ({
@@ -15,27 +16,18 @@ vi.mock('../config/hubUrl', () => ({
   getHubBaseURL: () => 'http://127.0.0.1:18765',
 }));
 
-vi.mock('@tauri-apps/api/tauri', () => ({
+vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
+  isTauri: isTauriMock,
 }));
 
 import { resolveScanSummaryWellImageSrc } from './scanSummaryImage';
 
 describe('resolveScanSummaryWellImageSrc', () => {
-  const originalTauri = (window as Window & { __TAURI__?: unknown }).__TAURI__;
-
   beforeEach(() => {
     fetchScanSummaryWellImage.mockReset();
     invokeMock.mockReset();
-    delete (window as Window & { __TAURI__?: unknown }).__TAURI__;
-  });
-
-  afterEach(() => {
-    if (originalTauri !== undefined) {
-      (window as Window & { __TAURI__?: unknown }).__TAURI__ = originalTauri;
-    } else {
-      delete (window as Window & { __TAURI__?: unknown }).__TAURI__;
-    }
+    isTauriMock.mockReturnValue(false);
   });
 
   it('uses hub API when not in Tauri shell', async () => {
@@ -51,7 +43,7 @@ describe('resolveScanSummaryWellImageSrc', () => {
   });
 
   it('passes allowedRoots to Tauri decode_scan_well_tiff', async () => {
-    (window as Window & { __TAURI__?: unknown }).__TAURI__ = {};
+    isTauriMock.mockReturnValue(true);
     invokeMock.mockResolvedValue({ mime: 'image/png', content_base64: 'abc' });
     await resolveScanSummaryWellImageSrc({
       workspaceId: 'ws-1',

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke } from '@tauri-apps/api/core';
 import { usePacksStore } from '../../../stores/packsStore';
 import { isTauriRuntime } from '../../../utils/promptAttachments';
 

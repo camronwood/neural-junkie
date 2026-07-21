@@ -99,7 +99,7 @@ func shouldContinueImplementationSession(a *Agent, msg *protocol.Message, state 
 	if msg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(msg) {
 		return false, ""
 	}
-	if a.Hub != nil && a.Hub.IsChannelHeld(msg.Channel) {
+	if a.Hub != nil && agentsDeferred(a.Hub, msg.Channel) {
 		return false, ""
 	}
 	if msg.EditorAgentTrust() != editorTrustAutoApply && state.TrustMode != editorTrustAutoApply {

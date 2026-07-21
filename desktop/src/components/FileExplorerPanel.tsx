@@ -6,8 +6,8 @@ import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import type { FileNode } from '../stores/fileExplorerStore';
-import { invoke } from '@tauri-apps/api/tauri';
-import { open } from '@tauri-apps/api/dialog';
+import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { isImagePreviewPath, workspaceAbsolutePath } from '../utils/editorFileKind';
 import {
   dispatchWorkspaceFileDropEventAtPoint,
@@ -791,8 +791,8 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     if (!activeWorkspace) return;
     try {
       const absolutePath = workspaceAbsolutePath(activeWorkspace.path, contextMenu.path);
-      const { open: openShell } = await import('@tauri-apps/api/shell');
-      await openShell(absolutePath);
+      const { openPath } = await import('@tauri-apps/plugin-opener');
+      await openPath(absolutePath);
       closeContextMenu();
     } catch (error) {
       addToast({

@@ -110,8 +110,10 @@ func workspaceGuidanceWithoutUserDecision(content string) bool {
 
 func appendAskUserToolPrompt(system *strings.Builder) {
 	system.WriteString("USER QUESTIONS:\n")
-	system.WriteString("When you need a decision, preference, or missing detail from the user, call the ask_user tool.\n")
-	system.WriteString("Wait for the user's answer before proceeding — especially during collaborations.\n\n")
+	system.WriteString("When you need a decision, preference, or missing detail from the user, call the ask_user tool ONCE.\n")
+	system.WriteString("After the user answers: continue the original task immediately. Do NOT ask the same (or nearly same) question again.\n")
+	system.WriteString("Do NOT ask the user for directory listings or file contents you can obtain with list_dir / read_file / glob tools.\n")
+	system.WriteString("If the user pasted an error log, diagnose and fix that error before asking new preference questions.\n\n")
 }
 
 func askUserToolDefinition() ai.ClaudeToolDefinition {
@@ -151,10 +153,40 @@ func (a *Agent) executeAskUserTool(ctx context.Context, msg *protocol.Message, i
 	}
 
 	channel := msg.Channel
+	turn := askUserTurnStateFromContext(ctx)
+	if turn != nil && turn.count >= 1 {
+		prior := strings.Join(turn.answered, "\n")
+		if prior == "" {
+			prior = "(prior answer recorded)"
+		}
+		return fmt.Sprintf(
+			"ask_user was already used this turn. Prior answers:\n%s\n\nProceed with the user's original request now. Do not call ask_user again.",
+			prior,
+		), nil
+	}
+
+	// Keep this generation alive while blocked on the user (peer pause must not cancel us).
+	a.pinGenerationForUserWait(channel)
+	defer a.unpinGenerationForUserWait(channel)
+
+	// Drop the "responding / using ask_user" indicator while we wait on the user.
+	a.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
 
 	answer, err := a.Hub.AskUserQuestion(a.Info.ID, a.Info.Name, channel, args.Question, args.Options)
 	if err != nil {
 		return fmt.Sprintf("User did not answer: %v", err), nil
 	}
-	return fmt.Sprintf("User answered: %s", answer), nil
+	if turn != nil {
+		turn.count++
+		turn.answered = append(turn.answered, fmt.Sprintf("- %s → %s", args.Question, answer))
+	}
+
+	// Resume thinking for the remainder of the turn after the user answers.
+	if ctx.Err() == nil {
+		a.sendThinkingStatus(msg, protocol.ThinkingStatusStarted)
+	}
+	return fmt.Sprintf(
+		"User answered: %s\n\nContinue the original task now with this answer. Do not re-ask ask_user for the same information. Use workspace tools instead of asking for directory structure.",
+		answer,
+	), nil
 }

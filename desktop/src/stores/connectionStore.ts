@@ -1,4 +1,4 @@
-import { Store } from '@tauri-apps/plugin-store';
+import { LazyStore as Store } from '@tauri-apps/plugin-store';
 import { DEFAULT_HUB_HTTP, normalizeHubBaseURL, setHubConnectionOverride } from '../config/hubUrl';
 
 export type ConnectionSettings = {

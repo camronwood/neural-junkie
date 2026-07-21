@@ -53,8 +53,8 @@ export function RunbookImportModal({ isOpen, busy = false, onClose, onImport }: 
 
   const handleChooseFileTauri = async () => {
     try {
-      const { open } = await import('@tauri-apps/api/dialog');
-      const { readTextFile } = await import('@tauri-apps/api/fs');
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const { readTextFile } = await import('@tauri-apps/plugin-fs');
       const selected = await open({
         multiple: false,
         title: 'Import runbook plan',

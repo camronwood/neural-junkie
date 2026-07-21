@@ -46,7 +46,7 @@ func (h *Hub) tickCollaborationIdleWatchdogOne(c *collaboration.Collaboration, n
 		return
 	}
 	channel := c.Channel
-	if channel != "" && h.IsChannelHeld(channel) {
+	if channel != "" && h.ShouldDeferAgents(channel) {
 		return
 	}
 	if c.DispatchPaused {

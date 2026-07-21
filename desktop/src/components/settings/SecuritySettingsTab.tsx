@@ -28,10 +28,10 @@ function isForbiddenError(message: string | null): boolean {
 }
 
 async function readLocalBootstrapToken(): Promise<string> {
-  if (typeof window === 'undefined' || !(window as { __TAURI__?: unknown }).__TAURI__) {
+  const { invoke, isTauri } = await import('@tauri-apps/api/core');
+  if (typeof window === 'undefined' || !isTauri()) {
     throw new Error('Local bootstrap read is only available in the desktop app');
   }
-  const { invoke } = await import('@tauri-apps/api/tauri');
   const token = await invoke<string>('read_hub_bootstrap_token');
   if (!token.trim()) {
     throw new Error('Bootstrap token file is empty');

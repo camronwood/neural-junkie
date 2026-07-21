@@ -54,6 +54,12 @@ Fix merged: [scripts/publish-updater-manifests.sh](../scripts/publish-updater-ma
 
 Verify on the tag you cut — beta.33 publish failed before the upload-only fix.
 
+- [ ] Manifest version exactly matches the tagged bundle version on each platform
+- [ ] `policy.channel`, rollout percentage, and enforcement deadline are correct
+- [ ] Artifact URLs reference the immutable tag
+- [ ] Release is public before `updater/beta/` advances
+- [ ] `./scripts/verify-desktop-version-consistency.sh` passes
+
 ---
 
 ## Gate 4 — macOS notarization (deferred for v1.2.0 stable)
@@ -75,16 +81,18 @@ Record PASS/FAIL and notes. Use existing release installers until you cut a new 
 
 | Platform | Install artifact | Wizard Ollama | DM + reply | Updater check | PASS |
 |----------|------------------|---------------|------------|---------------|------|
-| macOS arm64 | `.dmg` aarch64 (ad-hoc) | bundled | Right-click → Open if blocked | Settings → About | **PENDING** operator |
+| macOS arm64 | `.dmg` aarch64 (ad-hoc) | bundled | Right-click → Open if blocked | Auto-download + safe restart | **PENDING** operator |
 | macOS x64 | `.dmg` x64 (ad-hoc) | bundled | same | | optional |
 | Windows x64 | `.msi` | wizard winget/silent | | | **PENDING** operator |
-| Linux x64 | `.deb` | wizard apt/curl | | | **PENDING** operator |
+| Linux x64 | `.deb` | wizard apt/curl | | Manual-update notice | **PENDING** operator |
 
 **Minimum before stable cut:** macOS arm64 (your machine) + **one of** Windows or Linux.
 
 **Smoke steps:** See [testing/stable-platform-smoke.md](testing/stable-platform-smoke.md).
 
 **Linux AppImage:** CI builds `.deb` only for stable releases. AppImage is not promised on the download page.
+
+Updater smoke must cover optional, rollout-ineligible, critical grace, mandatory-after-deadline, offline fail-open, interrupted download, signature rejection, and active-work restart blocking.
 
 ---
 

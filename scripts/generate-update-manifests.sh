@@ -16,6 +16,29 @@ source "${ROOT}/scripts/release-bundle-version.sh"
 REPO="${2:-camronwood/neural-junkie}"
 RELEASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+CHANNEL="${UPDATE_CHANNEL:-$([[ "${VERSION}" == *beta* ]] && echo beta || echo stable)}"
+SEVERITY="${UPDATE_SEVERITY:-normal}"
+ENFORCEMENT="${UPDATE_ENFORCEMENT:-optional}"
+MANDATORY_AFTER="${UPDATE_MANDATORY_AFTER:-}"
+MINIMUM_SUPPORTED_VERSION="${UPDATE_MINIMUM_SUPPORTED_VERSION:-}"
+ROLLOUT_PERCENTAGE="${UPDATE_ROLLOUT_PERCENTAGE:-100}"
+ROLLOUT_SEED="${UPDATE_ROLLOUT_SEED:-${VERSION}}"
+
+if [[ "${SEVERITY}" != "normal" && "${SEVERITY}" != "critical" ]]; then
+  echo "UPDATE_SEVERITY must be normal or critical" >&2
+  exit 1
+fi
+if [[ "${ENFORCEMENT}" != "optional" && "${ENFORCEMENT}" != "mandatory" ]]; then
+  echo "UPDATE_ENFORCEMENT must be optional or mandatory" >&2
+  exit 1
+fi
+node -e "
+const value = Number(process.argv[1]);
+if (!Number.isFinite(value) || value < 0 || value > 100) process.exit(1);
+" "${ROLLOUT_PERCENTAGE}" || {
+  echo "UPDATE_ROLLOUT_PERCENTAGE must be between 0 and 100" >&2
+  exit 1
+}
 
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh CLI is required" >&2
@@ -56,9 +79,27 @@ const payload = {
       url: process.argv[6],
     },
   },
+  policy: {
+    schema_version: 1,
+    channel: process.argv[8],
+    severity: process.argv[9],
+    enforcement: process.argv[10],
+    mandatory_after: process.argv[11] || undefined,
+    minimum_supported_version: process.argv[12] || undefined,
+    rollout: {
+      percentage: Number(process.argv[13]),
+      seed: process.argv[14],
+    },
+    availability: {
+      'darwin-aarch64': 'available',
+      'darwin-x86_64': 'available',
+      'windows-x86_64': 'available',
+      'linux-x86_64': 'manual',
+    },
+  },
 };
 fs.writeFileSync(process.argv[7], JSON.stringify(payload, null, 2) + '\n');
-" "${manifest_version}" "See release notes at https://github.com/${REPO}/releases/tag/${VERSION}" "${PUB_DATE}" "${platform_key}" "${signature}" "${url}" "${output_file}"
+" "${manifest_version}" "See release notes at https://github.com/${REPO}/releases/tag/${VERSION}" "${PUB_DATE}" "${platform_key}" "${signature}" "${url}" "${output_file}" "${CHANNEL}" "${SEVERITY}" "${ENFORCEMENT}" "${MANDATORY_AFTER}" "${MINIMUM_SUPPORTED_VERSION}" "${ROLLOUT_PERCENTAGE}" "${ROLLOUT_SEED}"
 }
 
 generate_manifest() {

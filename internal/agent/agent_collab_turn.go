@@ -20,7 +20,7 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 	if source == nil || a.Collab == nil || !a.Collab.IsActive(collabID) {
 		return
 	}
-	if a.Hub != nil && a.Hub.IsChannelHeld(source.Channel) {
+	if a.Hub != nil && agentsDeferred(a.Hub, source.Channel) {
 		return
 	}
 

@@ -627,8 +627,8 @@ local-build: ensure-lora-deps ensure-ollama-bundle build-sidecar ## Packaged loc
 	@set -e; \
 	KEY="$$HOME/.tauri/neural-junkie.key"; \
 	if [ -f "$$KEY" ]; then \
-		export TAURI_PRIVATE_KEY="$$(cat "$$KEY")"; \
-		export TAURI_KEY_PASSWORD="$${TAURI_KEY_PASSWORD:-}"; \
+		export TAURI_SIGNING_PRIVATE_KEY="$$(cat "$$KEY")"; \
+		export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}"; \
 		echo "   Updater signing key: $$KEY"; \
 	else \
 		echo "   ⚠️  Missing $$KEY — updater signing may fail (bundles may still be produced)"; \

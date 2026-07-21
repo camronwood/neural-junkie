@@ -170,12 +170,17 @@ import { resolveWorkspaceScope, scopedRepoPaths } from '../utils/workspaceScope'
 import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
 import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
+import { registerRestartBlocker } from '../utils/restartSafety';
 import { useRoomStore } from '../stores/roomStore';
 import {
   agentsToCollaborationAgents,
   showRunbookBuilderForCollab,
   withClientPaletteCommands,
 } from './chat/chatWindowHelpers';
+import {
+  pendingUserQuestionIds,
+  pendingUserQuestionMessages,
+} from '../utils/pendingUserQuestions';
 
 const EMPTY_THINKING_AGENTS: ThinkingAgent[] = [];
 
@@ -208,6 +213,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const thinkingAgentsForChannel = useChatStore(
     (s) => {
+      // While ask_user cards are pending, hide the "responding" bar entirely.
+      if (pendingUserQuestionMessages(s.messages).length > 0) {
+        return EMPTY_THINKING_AGENTS;
+      }
       const inner = s.channelThinkingAgents.get(s.channel);
       if (!inner || inner.size === 0) return EMPTY_THINKING_AGENTS;
       return Array.from(inner.values());
@@ -216,6 +225,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
 
   const channelHeld = useChatStore((s) => s.channelHeld.get(s.channel) === true, shallow);
+  const hasPendingUserQuestion = useChatStore(
+    (s) => pendingUserQuestionMessages(s.messages).length > 0,
+    shallow
+  );
 
   const roomMode = useRoomStore((s) => s.mode);
   const activeRoomId = useRoomStore((s) => s.room?.id ?? null);
@@ -226,6 +239,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const hasStreamingOnChannel = useChatStore(
     (s) => {
+      if (pendingUserQuestionMessages(s.messages).length > 0) return false;
       const ch = s.channel;
       return Object.values(s.streamingMessages).some((m) => (m.channel || ch) === ch);
     },
@@ -401,6 +415,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   useEffect(() => {
     void fetchPacks();
   }, [fetchPacks]);
+
+  // Keep the main composer focused while agents wait on ask_user.
+  useEffect(() => {
+    if (!hasPendingUserQuestion) return;
+    const t = window.setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [hasPendingUserQuestion, channel]);
 
   const handleQuickOpenPath = useCallback(
     async (path: string) => {
@@ -634,6 +657,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     loadConversationModeSetting()
   );
   const [composerDraft, setComposerDraft] = useState('');
+  const [composerHasAttachments, setComposerHasAttachments] = useState(false);
   const [composerMode, setComposerMode] = useState<ComposerMode>(() => loadComposerMode());
   const composerPrefillPending = useComposerPrefillStore((s) => s.pendingText);
   const consumeComposerPrefill = useComposerPrefillStore((s) => s.consumePrefill);
@@ -652,6 +676,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     const input = inputRef.current as (HTMLTextAreaElement & { setDraftText?: (t: string) => void }) | null;
     input?.setDraftText?.(text);
   }, [composerPrefillPending, consumeComposerPrefill]);
+
+  useEffect(
+    () =>
+      registerRestartBlocker('chat-composer', () =>
+        composerDraft.trim() || composerHasAttachments
+          ? {
+              id: 'chat-composer',
+              message: 'A chat message or attachment is still waiting to be sent.',
+            }
+          : null
+      ),
+    [composerDraft, composerHasAttachments]
+  );
 
   const activeChannelMeta = useMemo(
     () => channels.find((c) => c.name === channel),
@@ -1634,7 +1671,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         // Handle thinking status -> typing indicator
         if (message.metadata?.thinking_status) {
           const thinkingStatus = message.metadata.thinking_status as ThinkingStatusMetadata['thinking_status'];
+          const pendingAsks = pendingUserQuestionMessages(st.messages).length > 0;
           if (thinkingStatus === 'started') {
+            // Ignore "responding" while the channel is waiting on ask_user.
+            if (!(pendingAsks && msgChannel === st.channel)) {
             const activity =
               typeof message.metadata.thinking_activity === 'string'
                 ? message.metadata.thinking_activity
@@ -1667,6 +1707,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
               );
             }
             appendTurnTelemetryFromAgentStatus(msgChannel, message);
+            }
           } else if (
             thinkingStatus === 'completed' ||
             thinkingStatus === 'error' ||
@@ -1866,6 +1907,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           surfaceToolApproval(message, false);
           st.addMessageToCache(message.channel, message);
         }
+        if (message.type === 'user_question') {
+          st.addMessageToCache(message.channel, message);
+          if (message.metadata?.status === 'pending') {
+            st.clearThinkingAgents(message.channel);
+            st.stopAllStreamsForChannel(message.channel);
+          }
+        }
         if (message.type === 'command_output') {
           mirrorAgentCommandInTerminal(message);
         }
@@ -1873,6 +1921,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         if (message.type === 'tool_approval') {
           surfaceToolApproval(message, true);
           st.upsertToolApprovalMessage(message);
+        } else if (message.type === 'user_question') {
+          st.upsertUserQuestionMessage(message);
+          if (message.metadata?.status === 'pending') {
+            const qChannel = message.channel || activeChannel;
+            st.clearThinkingAgents(qChannel);
+            st.stopAllStreamsForChannel(qChannel);
+            window.setTimeout(() => inputRef.current?.focus(), 0);
+          }
         } else {
         // Message belongs to the active channel (never wrap addMessage in startTransition —
         // high-frequency agent_status updates can starve transitions and leave the chat empty).
@@ -2335,6 +2391,26 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             : 'This session is complete. Chat is read-only; use /commands or start a new /collaborate or /runbook.',
       });
       return false;
+    }
+
+    // Composer answers pending ask_user cards (keeps focus in the main input).
+    const answerText = content.trim();
+    if (answerText && !answerText.startsWith('/')) {
+      const pendingIds = pendingUserQuestionIds(useChatStore.getState().messages);
+      if (pendingIds.length > 0) {
+        try {
+          await Promise.all(pendingIds.map((id) => api.answerUserQuestion(id, answerText)));
+          window.setTimeout(() => inputRef.current?.focus(), 0);
+          return true;
+        } catch (err) {
+          addToast({
+            type: 'error',
+            title: 'Could not answer agent question',
+            message: err instanceof Error ? err.message : 'Failed to submit answer',
+          });
+          return false;
+        }
+      }
     }
 
     const needs = detectHubDataAccessNeeds(content);
@@ -3014,6 +3090,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         <ChatInputArea
           channel={channel}
           channelHeld={channelHeld}
+          hasPendingUserQuestion={hasPendingUserQuestion}
           thinkingAgentsForChannel={thinkingAgentsForChannel}
           showAgentStop={showAgentStop}
           onChannelInterject={() => void handleChannelInterject()}
@@ -3033,14 +3110,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           inputPlaceholder={
             isClosedCollaborationChannel
               ? 'Collaboration closed — read-only (slash commands still work)'
-              : status === 'connected'
-                ? composerModePlaceholder(composerMode)
-                : 'Connecting...'
+              : hasPendingUserQuestion
+                ? 'Answer the agent question…'
+                : status === 'connected'
+                  ? composerModePlaceholder(composerMode)
+                  : 'Connecting...'
           }
           agents={agents}
           inputRef={inputRef}
           composerDraft={composerDraft}
           onDraftChange={setComposerDraft}
+          onAttachmentStateChange={setComposerHasAttachments}
           showContextIndicator={
             workspaceContextMode === 'auto' || conversationModeSetting === 'auto'
           }

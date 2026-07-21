@@ -64,4 +64,62 @@ describe('chatStore channel hold / interject', () => {
     const promoted = useChatStore.getState().messages.find((m) => m.id === streamId);
     expect(promoted?.content).toBe('partial');
   });
+
+  it('upsertUserQuestionMessage replaces pending card with answered state', () => {
+    const pending: Message = {
+      id: 'question-card-1',
+      type: 'user_question',
+      channel: 'general',
+      from: agent,
+      content: '**RustExpert** asks: Which genre?',
+      timestamp: new Date().toISOString(),
+      metadata: { question_id: 'q1', status: 'pending', question: 'Which genre?' },
+    };
+    const answered: Message = {
+      ...pending,
+      id: 'question-update-1',
+      content: '**Answer:** RTS',
+      metadata: { ...pending.metadata, status: 'answered', answer: 'RTS' },
+    };
+
+    const st = useChatStore.getState();
+    st.upsertUserQuestionMessage(pending);
+    st.upsertUserQuestionMessage(answered);
+
+    const cards = useChatStore
+      .getState()
+      .messages.filter((m) => m.type === 'user_question' && m.metadata?.question_id === 'q1');
+    expect(cards).toHaveLength(1);
+    expect(cards[0].content).toBe('**Answer:** RTS');
+    expect(cards[0].metadata?.status).toBe('answered');
+  });
+
+  it('addMessageToCache upserts user questions for inactive channels', () => {
+    const pending: Message = {
+      id: 'off-channel-pending',
+      type: 'user_question',
+      channel: 'rustgame',
+      from: agent,
+      content: 'Which genre?',
+      timestamp: new Date().toISOString(),
+      metadata: { question_id: 'q-off', status: 'pending' },
+    };
+    const answered: Message = {
+      ...pending,
+      id: 'off-channel-answered',
+      content: '**Answer:** RTS',
+      metadata: { question_id: 'q-off', status: 'answered', answer: 'RTS' },
+    };
+
+    const st = useChatStore.getState();
+    st.addMessageToCache('rustgame', pending);
+    st.addMessageToCache('rustgame', answered);
+
+    const cached = useChatStore.getState().channelMessages.get('rustgame') ?? [];
+    const cards = cached.filter(
+      (m) => m.type === 'user_question' && m.metadata?.question_id === 'q-off'
+    );
+    expect(cards).toHaveLength(1);
+    expect(cards[0].metadata?.status).toBe('answered');
+  });
 });

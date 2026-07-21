@@ -6,6 +6,25 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.8] - 2026-07-21
+
+Automatic desktop updates, safer restarts, and more reliable agent questions.
+
+### Added
+- **Automatic signed updates** — migrated the desktop app to Tauri v2; macOS and Windows now check and download eligible updates in the background and install them on a clean restart.
+- **Release policy controls** — update manifests support beta/stable channels, staged rollout percentages, critical enforcement deadlines, minimum supported versions, and explicit platform availability.
+- **Restart safety** — update installation protects unsaved editor, runbook, pack, and chat drafts plus active streams, collaborations, training/analysis jobs, and terminal foreground work.
+- **Updater release automation** — immutable signed artifacts, manifest validation, atomic beta-channel promotion, desktop version consistency checks, and Tauri Rust CI gates.
+
+### Changed
+- **Agent questions** — equivalent pending questions are coalesced, recent answers are reused, peer agents pause while input is required, and agents continue the original turn after one answer instead of repeatedly asking.
+- **Offline update behavior** — accepted update metadata survives restarts, but mandatory updates only block normal use while a verified bundle is immediately installable.
+- **Linux updates** — `.deb` distribution remains manual while installed-package upgrade behavior is validated.
+
+### Fixed
+- **Question cards** — pending, answered, and expired question states merge reliably in channel history.
+- **Update restart lifecycle** — managed PTYs, the Hub sidecar, and bundled Ollama shut down cleanly before installation.
+
 ## [1.2.0-beta.7] - 2026-07-20
 
 Hotfix release after beta.6 packaged-app soak: chat reliability, workspace grounding for Knowledge Graph asks, and IDE layout panel independence.

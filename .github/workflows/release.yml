@@ -8,6 +8,7 @@ on:
 env:
   GO_VERSION: '1.23'
   NODE_VERSION: '24'
+  VITE_UPDATE_CHANNEL: ${{ contains(github.ref_name, 'beta') && 'beta' || 'stable' }}
 
 permissions:
   contents: write
@@ -53,7 +54,7 @@ jobs:
             | **Windows** | `.msi` installer (or `.exe` setup) |
             | **Linux** | `.deb` (x86_64) |
 
-            **Auto-update:** Installed builds from this release (and later) check for updates in-app. Beta builds use the beta channel; stable builds use the stable channel. One manual install is required if you are upgrading from a build that predates in-app updates.
+            **Auto-update:** macOS and Windows builds check for and download signed updates automatically. Linux `.deb` updates remain manual until the Linux updater path completes installed-package testing.
 
             **macOS:** Official release builds are **Developer ID signed and notarized** when Apple CI secrets are configured. Without those secrets, builds are ad-hoc signed — first launch may require right-click → **Open**.
 
@@ -166,8 +167,8 @@ jobs:
       - name: Build Tauri (Apple Silicon)
         working-directory: desktop
         env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -215,8 +216,8 @@ jobs:
       - name: Build Tauri (Intel)
         working-directory: desktop
         env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -313,12 +314,12 @@ jobs:
         working-directory: desktop
         shell: bash
         env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: |
           npm ci
           npm run build
-          npx tauri build
+          npx tauri build --bundles msi
 
       - name: Verify Windows updater artifacts
         shell: bash
@@ -356,8 +357,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-3-dev \
-            libwebkit2gtk-4.0-dev \
-            libappindicator3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
             libfuse2 \
@@ -403,8 +404,8 @@ jobs:
       - name: Build frontend and Tauri (deb)
         working-directory: desktop
         env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: |
           npm ci
           npm run build
@@ -482,3 +483,20 @@ jobs:
             args+=(--prerelease)
           fi
           gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" "${args[@]}"
+
+  promote-updater-channel:
+    needs:
+      - publish-release
+    if: ${{ needs.publish-release.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Advance updater channel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: chmod +x scripts/promote-updater-channel.sh && ./scripts/promote-updater-channel.sh "${{ github.ref_name }}" "${{ github.repository }}"

@@ -1,39 +1,20 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Neural Junkie",
+  "version": "1.2.0-beta.8",
+  "identifier": "com.camronwood.neuraljunkie",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": false
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "Neural Junkie",
-    "version": "1.0.0-beta.33"
-  },
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "dialog": {
-        "all": false,
-        "open": true
-      },
-      "shell": {
-        "all": false,
-        "open": true,
-        "sidecar": true,
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' asset: http://asset.localhost https: data: blob: http://127.0.0.1:18765 http://localhost:18765; connect-src 'self' http://127.0.0.1:18765 ws://127.0.0.1:18765 http://localhost:18765 ws://localhost:18765 http://localhost:1420 ws://localhost:1420; font-src 'self' data:",
+      "assetProtocol": {
+        "enable": true,
         "scope": [
-          {
-            "name": "binaries/nj-server",
-            "sidecar": true
-          }
-        ]
-      },
-      "path": {
-        "all": false
-      },
-      "protocol": {
-        "asset": true,
-        "assetScope": [
           "$APPDATA/**",
           "$APPLOCALDATA/**",
           "$HOME/**",
@@ -44,54 +25,11 @@
           "/tmp/**",
           "/private/tmp/**"
         ]
-      },
-      "fs": {
-        "scope": [
-          "$APPDATA/*",
-          "$APPLOCALDATA/*"
-        ]
-      },
-      "window": {
-        "all": true
-      },
-      "process": {
-        "relaunch": true
       }
-    },
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "com.camronwood.neuraljunkie",
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ],
-      "externalBin": [
-        "binaries/nj-server"
-      ],
-      "resources": [
-        "ollama/**"
-      ],
-      "macOS": {
-        "signingIdentity": "-"
-      }
-    },
-    "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' asset: https: data: blob: http://127.0.0.1:18765 http://localhost:18765; connect-src 'self' http://127.0.0.1:18765 ws://127.0.0.1:18765 http://localhost:18765 ws://localhost:18765 http://localhost:1420 ws://localhost:1420; font-src 'self' data:"
-    },
-    "updater": {
-      "active": true,
-      "dialog": false,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM4NzgzQUMzMUREN0U2RDAKUldUUTV0Y2R3enA0T016ZWE1R2FiV0hGK05lbEZEbzFFMjF4ZS9YT3c4R2dESm1vOGtVVWVLUE0K",
-      "endpoints": [
-        "https://github.com/camronwood/neural-junkie/releases/latest/download/update-{{target}}-{{arch}}.json"
-      ]
     },
     "windows": [
       {
+        "label": "main",
         "fullscreen": false,
         "resizable": true,
         "title": "Neural Junkie",
@@ -100,8 +38,40 @@
         "center": true,
         "minWidth": 800,
         "minHeight": 600,
-        "fileDropEnabled": true
+        "dragDropEnabled": true
       }
     ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": "v1Compatible",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/nj-server"
+    ],
+    "resources": [
+      "ollama/**/*"
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM4NzgzQUMzMUREN0U2RDAKUldUUTV0Y2R3enA0T016ZWE1R2FiV0hGK05lbEZEbzFFMjF4ZS9YT3c4R2dESm1vOGtVVWVLUE0K",
+      "endpoints": [
+        "https://github.com/camronwood/neural-junkie/releases/latest/download/update-{{target}}-{{arch}}.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

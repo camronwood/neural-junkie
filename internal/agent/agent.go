@@ -77,6 +77,10 @@ type Agent struct {
 	activeGenMu sync.Mutex
 	activeGens  map[string]map[string]context.CancelFunc // channel -> genID -> cancel
 
+	// userWaitPins blocks AbortChannel while ask_user is waiting for the human.
+	userWaitMu   sync.Mutex
+	userWaitPins map[string]int // channel -> nest depth
+
 	// lastDelegationConsulted holds specialist names consulted on the previous turn (for metadata).
 	delegationMu            sync.Mutex
 	lastDelegationConsulted []string
@@ -383,6 +387,10 @@ func ActiveGenCountForTest(a *Agent, channel string) int {
 
 // AbortChannel cancels all in-flight generations on a channel (user Stop / interject).
 func (a *Agent) AbortChannel(channel string) {
+	if a.isGenerationPinnedForUserWait(channel) {
+		log.Printf("[%s] Skipping abort on %s (waiting on ask_user)", a.Info.Name, channel)
+		return
+	}
 	a.activeGenMu.Lock()
 	chGens := a.activeGens[channel]
 	cancels := make([]context.CancelFunc, 0, len(chGens))

@@ -156,6 +156,8 @@ export interface ChatState {
   addMessage: (message: Message) => void;
   /** Merge tool_approval rows by metadata.approval_id (pending → approved/rejected). */
   upsertToolApprovalMessage: (message: Message) => void;
+  /** Merge user_question rows by metadata.question_id (pending → answered/expired). */
+  upsertUserQuestionMessage: (message: Message) => void;
   setMessages: (messages: Message[]) => void;
   prependMessages: (messages: Message[]) => void;
   setAgents: (agents: AgentInfo[]) => void;
@@ -378,6 +380,34 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
       const existingIdx = state.messages.findIndex(
         (m) => m.type === 'tool_approval' && m.metadata?.approval_id === approvalId,
+      );
+      if (existingIdx !== -1) {
+        const updated = [...state.messages];
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          content: message.content,
+          metadata: { ...updated[existingIdx].metadata, ...message.metadata },
+          timestamp: message.timestamp,
+        };
+        return { messages: updated, isTyping: false };
+      }
+      return {
+        messages: trimMessagesToMax([...state.messages, message], MAX_UI_CHANNEL_MESSAGES),
+        isTyping: false,
+      };
+    }),
+
+  upsertUserQuestionMessage: (message) =>
+    set((state) => {
+      const questionId = message.metadata?.question_id as string | undefined;
+      if (!questionId) {
+        return {
+          messages: trimMessagesToMax([...state.messages, message], MAX_UI_CHANNEL_MESSAGES),
+          isTyping: false,
+        };
+      }
+      const existingIdx = state.messages.findIndex(
+        (m) => m.type === 'user_question' && m.metadata?.question_id === questionId,
       );
       if (existingIdx !== -1) {
         const updated = [...state.messages];
@@ -681,6 +711,24 @@ export const useChatStore = create<ChatState>((set, get) => {
       const newCache = new Map(state.channelMessages);
       const cached = newCache.get(channelName) || [];
       if (cached.some(m => m.id === message.id)) return state;
+      const questionId =
+        message.type === 'user_question' ? (message.metadata?.question_id as string | undefined) : undefined;
+      if (questionId) {
+        const existingIdx = cached.findIndex(
+          (m) => m.type === 'user_question' && m.metadata?.question_id === questionId
+        );
+        if (existingIdx !== -1) {
+          const updated = [...cached];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            content: message.content,
+            metadata: { ...updated[existingIdx].metadata, ...message.metadata },
+            timestamp: message.timestamp,
+          };
+          newCache.set(channelName, updated);
+          return { channelMessages: newCache };
+        }
+      }
       newCache.set(
         channelName,
         trimMessagesToMax([...cached, message], MAX_UI_CHANNEL_MESSAGES)

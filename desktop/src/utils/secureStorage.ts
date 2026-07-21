@@ -1,5 +1,5 @@
-import { Store } from '@tauri-apps/plugin-store';
-import { invoke } from '@tauri-apps/api/tauri';
+import { LazyStore as Store } from '@tauri-apps/plugin-store';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import { normalizeHubBaseURL } from '../config/hubUrl';
 
 export interface SavedCredentials {
@@ -15,10 +15,7 @@ const CREDENTIALS_KEY = 'user_credentials';
 const ENCRYPTED_KEY = 'user_credentials_enc';
 
 function isTauriShell(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    Object.prototype.hasOwnProperty.call(window, '__TAURI__')
-  );
+  return typeof window !== 'undefined' && isTauri();
 }
 
 // Initialize the store

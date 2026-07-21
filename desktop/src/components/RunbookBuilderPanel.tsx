@@ -14,6 +14,7 @@ import { RunbookStartModal } from './runbook/RunbookStartModal';
 import { defaultActionSpec } from '../utils/runbookActionUtils';
 import type { GraphLayout, RunInputSpec } from '../types/protocol';
 import { MAX_RUNBOOK_TASKS, createEmptyTask } from '../utils/runbookTaskUtils';
+import { registerRestartBlocker } from '../utils/restartSafety';
 
 interface RunbookBuilderPanelProps {
   collaboration: Collaboration;
@@ -92,6 +93,20 @@ export function RunbookBuilderPanel({
       setBusy(false);
     }
   }, [api, collaboration.id, description, agentPool, tasks, executionPolicy, graphLayout, onSaved]);
+
+  useEffect(
+    () =>
+      registerRestartBlocker(`runbook-builder:${collaboration.id}`, () =>
+        dirty
+          ? {
+              id: `runbook-builder:${collaboration.id}`,
+              message: 'Unsaved runbook changes must be saved before restarting.',
+              save: async () => Boolean(await persist()),
+            }
+          : null
+      ),
+    [collaboration.id, dirty, persist]
+  );
 
   const handleAutoAssign = async (index: number) => {
     const t = tasks[index];

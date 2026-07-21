@@ -44,7 +44,7 @@ func (h *Hub) tickPlanningDiscussionWatchdog(c *collaboration.Collaboration, now
 		return
 	}
 	channel := strings.TrimSpace(c.Channel)
-	if channel == "" || h.IsChannelHeld(channel) {
+	if channel == "" || h.ShouldDeferAgents(channel) {
 		return
 	}
 

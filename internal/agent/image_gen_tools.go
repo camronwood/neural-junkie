@@ -623,12 +623,13 @@ func (a *Agent) runAgentToolLoop(
 		return guardWebSearchToolResult(ctx, req.Name, result), nil
 	}
 
-	text, err := toolProvider.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools, onToolUse)
+	toolCtx := withAskUserTurnState(withWebSearchGuard(ctx))
+	text, err := toolProvider.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools, onToolUse)
 	if errors.Is(err, ai.ErrNativeToolsUnsupported) {
 		if react := wrapReActProvider(a, chatEff, chatEff.GetModel()); react != nil {
 			a.broadcastRoutingTelemetry(msg)
 			if tp, ok := react.(ai.ToolCapableProvider); ok {
-				return tp.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools, onToolUse)
+				return tp.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools, onToolUse)
 			}
 		}
 		return "", err
@@ -642,7 +643,7 @@ func (a *Agent) runAgentToolLoop(
 					Source: "rules",
 				})
 				a.broadcastRoutingTelemetry(msg)
-				return tp.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools, onToolUse)
+				return tp.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools, onToolUse)
 			}
 		}
 		return "", err

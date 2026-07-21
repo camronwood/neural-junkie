@@ -6,6 +6,7 @@ import { terminalAPI } from '../api/terminalAPI';
 import { resolveTerminalCwd } from '../utils/terminalCwd';
 import { shellQuote } from '../utils/runTerminalCommand';
 import type { Collaboration } from '../types/protocol';
+import { registerRestartBlocker } from '../utils/restartSafety';
 
 interface TerminalPanelProps {
   height: number;
@@ -27,6 +28,19 @@ export function TerminalPanel({ height, channel, api, collaboration }: TerminalP
   } = useTerminalStore();
 
   const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(
+    () =>
+      registerRestartBlocker('terminal-foreground-work', () => {
+        const active = useTerminalStore.getState().foregroundSessionIds;
+        if (active.size === 0) return null;
+        return {
+          id: 'terminal-foreground-work',
+          message: `${active.size} terminal session${active.size === 1 ? ' has' : 's have'} foreground work running.`,
+        };
+      }),
+    []
+  );
 
   const handleAddTab = useCallback(() => {
     const cwd = resolveTerminalCwd({ collaboration: collaboration ?? null });

@@ -1309,40 +1309,50 @@ func (ch *CommandHandler) AbortAgentGenerations(agentID string) {
 }
 
 // AbortRuntimeAgentsOnChannel cancels in-flight generations for runtime agents on channel.
-
-// AbortRuntimeAgentsOnChannel cancels in-flight generations for runtime agents on channel.
 func (ch *CommandHandler) AbortRuntimeAgentsOnChannel(channel string) {
+	ch.AbortRuntimeAgentsOnChannelExcept(channel, nil)
+}
+
+// AbortRuntimeAgentsOnChannelExcept cancels in-flight generations on channel,
+// skipping agents whose IDs are in except (e.g. ask_user waiters).
+func (ch *CommandHandler) AbortRuntimeAgentsOnChannelExcept(channel string, except map[string]bool) {
 	if ch == nil || channel == "" {
 		return
 	}
 	ch.agentsMu.RLock()
 	defer ch.agentsMu.RUnlock()
+	abortOne := func(id string, abort func()) {
+		if except != nil && except[id] {
+			return
+		}
+		abort()
+	}
 	for _, ra := range ch.runtimeAgents {
 		if ra == nil {
 			continue
 		}
-		ra.AbortChannel(channel)
+		abortOne(ra.Info.ID, func() { ra.AbortChannel(channel) })
 	}
 	for _, ca := range ch.cliAgents {
 		if ca == nil {
 			continue
 		}
-		ca.AbortChannel(channel)
+		abortOne(ca.Info.ID, func() { ca.AbortChannel(channel) })
 	}
 	if ch.assistantAgent != nil && ch.assistantAgent.Agent != nil {
-		ch.assistantAgent.AbortChannel(channel)
+		abortOne(ch.assistantAgent.Info.ID, func() { ch.assistantAgent.AbortChannel(channel) })
 	}
 	for _, ra := range ch.repoAgents {
 		if ra == nil || ra.Agent == nil {
 			continue
 		}
-		ra.AbortChannel(channel)
+		abortOne(ra.Info.ID, func() { ra.AbortChannel(channel) })
 	}
 	for _, ca := range ch.confluenceAgents {
 		if ca == nil || ca.Agent == nil {
 			continue
 		}
-		ca.AbortChannel(channel)
+		abortOne(ca.Info.ID, func() { ca.AbortChannel(channel) })
 	}
 }
 

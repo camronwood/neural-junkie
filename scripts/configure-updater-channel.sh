@@ -40,7 +40,9 @@ const fs = require('fs');
 const confPath = process.argv[1];
 const endpoints = JSON.parse(process.argv[2]);
 const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
-conf.tauri.updater.endpoints = endpoints;
+conf.plugins ??= {};
+conf.plugins.updater ??= {};
+conf.plugins.updater.endpoints = endpoints;
 fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
 " "${CONF}" "${endpoints_json}"
 

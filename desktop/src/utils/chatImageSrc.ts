@@ -1,12 +1,9 @@
-import { convertFileSrc } from '@tauri-apps/api/tauri';
+import { convertFileSrc, isTauri } from '@tauri-apps/api/core';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 
 function isTauriShell(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    Object.prototype.hasOwnProperty.call(window, '__TAURI__')
-  );
+  return typeof window !== 'undefined' && isTauri();
 }
 
 /**

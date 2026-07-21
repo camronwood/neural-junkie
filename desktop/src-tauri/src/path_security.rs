@@ -80,8 +80,8 @@ pub fn validate_working_dir(roots: &[String], working_dir: Option<&str>) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use std::env;
+    use std::fs;
 
     #[test]
     fn rejects_prefix_sibling() {

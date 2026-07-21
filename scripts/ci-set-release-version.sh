@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Sets package.version in tauri.conf.json from a release tag.
+# Sets the Tauri v2 top-level version from a release tag.
 # Windows uses WiX-safe semver (1.0.0-beta.26 -> 1.0.0-26).
 #
 # Usage: ./scripts/ci-set-release-version.sh v1.0.0-beta.25 [windows]
@@ -29,7 +29,7 @@ const pkgPath = process.argv[2];
 const cargoPath = process.argv[3];
 const version = process.argv[4];
 const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
-conf.package.version = version;
+conf.version = version;
 fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 pkg.version = version;

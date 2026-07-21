@@ -48,6 +48,7 @@ interface RichTextInputProps {
   onInsertMention?: (name: string) => void;
   /** Fired when the composer text changes (for context-scope preview). */
   onDraftChange?: (text: string) => void;
+  onAttachmentStateChange?: (hasAttachments: boolean) => void;
 }
 
 const MAX_USER_IMAGES = 6;
@@ -89,6 +90,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       agents = [],
       onInsertMention,
       onDraftChange,
+      onAttachmentStateChange,
     },
     ref
   ) {
@@ -118,6 +120,10 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
     const hasVisionAgents = visionAgents.length > 0;
     const hasComposerContext =
       message.trim().length > 0 || pendingImages.length > 0 || pendingAttachments.length > 0;
+
+    useEffect(() => {
+      onAttachmentStateChange?.(pendingImages.length > 0 || pendingAttachments.length > 0);
+    }, [onAttachmentStateChange, pendingImages.length, pendingAttachments.length]);
 
     useEffect(() => {
       if (!textareaRef.current) return;
@@ -328,23 +334,19 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       let cancelled = false;
       const unsubs: Array<() => void> = [];
       void (async () => {
-        const { listen } = await import('@tauri-apps/api/event');
+        const { getCurrentWebview } = await import('@tauri-apps/api/webview');
         unsubs.push(
-          await listen('tauri://file-drop-hover', () => {
-            if (!cancelled) setDragActive(true);
-          })
-        );
-        unsubs.push(
-          await listen('tauri://file-drop-cancelled', () => {
-            if (!cancelled) setDragActive(false);
-          })
-        );
-        unsubs.push(
-          await listen<string[]>('tauri://file-drop', (event) => {
+          await getCurrentWebview().onDragDropEvent((event) => {
             if (cancelled) return;
-            setDragActive(false);
-            dropZoneDepthRef.current = 0;
-            void ingestAbsolutePaths(event.payload);
+            if (event.payload.type === 'enter' || event.payload.type === 'over') {
+              setDragActive(true);
+            } else if (event.payload.type === 'leave') {
+              setDragActive(false);
+            } else if (event.payload.type === 'drop') {
+              setDragActive(false);
+              dropZoneDepthRef.current = 0;
+              void ingestAbsolutePaths(event.payload.paths);
+            }
           })
         );
       })();

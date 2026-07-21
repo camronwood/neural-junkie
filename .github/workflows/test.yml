@@ -32,6 +32,13 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri v2 Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm ci
@@ -41,6 +48,12 @@ jobs:
 
       - name: make test-race
         run: make test-race
+
+      - name: Check Tauri shell
+        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml
+
+      - name: Test Tauri shell
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml
 
   collab-preflight:
     if: github.event_name == 'workflow_dispatch' && inputs.collab_preflight

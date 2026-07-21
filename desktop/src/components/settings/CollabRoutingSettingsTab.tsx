@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { open } from '@tauri-apps/api/dialog';
+import { isTauri } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import type { SettingsTabProps } from './settingsShared';
 
 export function CollabRoutingSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
@@ -358,7 +359,7 @@ const handleDelegationToggle = async (enabled: boolean) => {
     const handleBrowseCollabAssetsRoot = async () => {
       setCollabAssetsErr(null);
       setCollabAssetsOk(null);
-      if (!(typeof window !== 'undefined' && (window as { __TAURI__?: unknown }).__TAURI__)) {
+      if (!(typeof window !== 'undefined' && isTauri())) {
         setCollabAssetsErr('Folder picker requires the desktop app');
         return;
       }

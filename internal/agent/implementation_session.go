@@ -65,19 +65,19 @@ type implSessionRoundKey struct{}
 
 // ImplementationSessionState tracks progress during a multi-step implementation run.
 type ImplementationSessionState struct {
-	EditRound       int
-	FilesChanged    []string
-	ProposedCount   int
-	VerifyOutput    string
-	VerifyFailed    bool
-	VerifySkipped   bool
-	RepairUsed      bool
-	RepairAttempts  int
-	Phase           string
-	StackManifest   *StackManifest
-	SeedsLoaded     int
-	DiscoverTools   []string
-	PreflightErrors []string
+	EditRound                  int
+	FilesChanged               []string
+	ProposedCount              int
+	VerifyOutput               string
+	VerifyFailed               bool
+	VerifySkipped              bool
+	RepairUsed                 bool
+	RepairAttempts             int
+	Phase                      string
+	StackManifest              *StackManifest
+	SeedsLoaded                int
+	DiscoverTools              []string
+	PreflightErrors            []string
 	TrustMode                  string
 	BootFixIntent              bool
 	FixLikeIntent              bool
@@ -103,6 +103,8 @@ type ImplementationSessionState struct {
 	DiagnosePhaseComplete      bool
 	LastRepairFailureKind      RepairFailureKind
 	LastVerifyFailureKind      RepairFailureKind
+	LastProposalError          string
+	ConsecutiveProposalErrors  int
 	PrematureStopAttempts      int
 	ToolStepCount              int
 	DialogueSummary            string
@@ -283,6 +285,10 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 	sessionCtx, cancel := context.WithTimeout(ctx, sessionTimeout)
 	defer cancel()
+	// One ask_user budget applies to the entire implementation session, including
+	// every discovery/edit/repair round. Per-generation wrapping below preserves
+	// this state instead of resetting it between rounds.
+	sessionCtx = withImplementationSessionTurnState(sessionCtx)
 
 	if eff == nil {
 		eff = a.GetAIProvider()
@@ -505,271 +511,294 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	}
 	sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
 
+fileCycles:
 	for fileCycle := 0; fileCycle < maxFiles; fileCycle++ {
 		cycleProposed := false
 
-	for round := 0; round < maxEditRounds; round++ {
-		state.EditRound = round
-		state.Phase = "discover"
-		roundCtx := withImplementationSessionRound(sessionCtx, round)
-		if repairNote != "" {
-			roundCtx = withRepairNote(roundCtx, repairNote)
-		}
-
-		toolCtx := ai.WithToolStepObserver(roundCtx, func(ev ai.ToolStepEvent) {
-			a.observeImplementationSessionToolStep(roundCtx, msg, state, streamMsgID, ev)
-		})
-		toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
-
-		if round == 0 && repairNote != "" {
-			a.sendThinkingActivity(msg, protocol.ThinkingActivityReasoning, "planning fix from build output")
-		}
-
-		response, err := a.generateImplementationRound(toolCtx, msg, eff)
-		if err != nil {
-			if sessionCtx.Err() != nil {
-				summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
-				outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
-				return summary, streamMsgID, proposedAny, state.FilesChanged, outcome, nil
+		for round := 0; round < maxEditRounds; round++ {
+			state.EditRound = round
+			state.Phase = "discover"
+			roundCtx := withImplementationSessionRound(sessionCtx, round)
+			if repairNote != "" {
+				roundCtx = withRepairNote(roundCtx, repairNote)
 			}
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
-			return "", streamMsgID, proposedAny, state.FilesChanged, outcome, err
-		}
-		lastResponse = response
 
-		if state.diagnoseGateBlocksProposals() && responseContainsDiagnosis(response) {
-			state.DiagnosePhaseComplete = true
-			repairNote = formatDiagnoseCompleteRepairNote()
-			if round < maxEditRounds-1 {
-				continue
-			}
-		}
-		if state.diagnoseGateBlocksProposals() && (fileChangeBlockRegex.MatchString(response) || strings.Contains(response, `"path"`)) {
-			state.recordRepairFailureKind(RepairFailureGrounding)
-			repairNote = formatDiagnoseRequiredRepairNote(state)
-			if round < maxEditRounds-1 {
-				continue
-			}
-		}
-
-		proposalsBefore := state.ProposedCount
-		cleaned, fileChangeProposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
-		toolProposed := state.ProposedCount > proposalsBefore
-
-		if propErr != nil {
-			log.Printf("[%s] impl session file proposal error: %v", a.Info.Name, propErr)
-			state.recordRepairFailureKind(RepairFailurePreflight)
-			if strings.Contains(propErr.Error(), "focus-scoped deliverable") {
-				repairNote = propErr.Error() + "\nEmit a corrected [FILE_CHANGE] for findings.md grounded only in the allowed source paths."
-				state.PreflightErrors = append(state.PreflightErrors, propErr.Error())
-			} else {
-				repairNote = formatPreflightTypedRepairNote(state.PreflightErrors, state.StackManifest)
-			}
-			if round < maxEditRounds-1 {
-				continue
-			}
-		}
-
-		if state.diagnoseGateBlocksProposals() && (toolProposed || fileChangeProposed) {
-			state.ProposedCount = proposalsBefore
-			state.recordRepairFailureKind(RepairFailureGrounding)
-			repairNote = formatDiagnoseRequiredRepairNote(state)
-			if round < maxEditRounds-1 {
-				continue
-			}
-		}
-
-		if toolProposed || fileChangeProposed {
-			proposedAny = true
-			cycleProposed = true
-			state.Phase = "edit"
-			paths := extractChangedPathsFromResponse(response)
-			state.FilesChanged = appendUnique(state.FilesChanged, paths)
-			if toolProposed && len(paths) == 0 {
-				// paths recorded in executeProposeFileEditTool via FilesChanged
-			}
-			lastResponse = cleaned
-			break
-		}
-
-		if round == 0 && state.groundingSatisfied() {
-			if ok, paths := a.attemptDeterministicImplementationFallback(roundCtx, msg); ok {
-				proposedAny = true
-				cycleProposed = true
-				state.FilesChanged = appendUnique(state.FilesChanged, paths)
-				lastResponse = ""
-				break
-			}
-		}
-
-		if round < maxEditRounds-1 {
-			if reject, note := shouldRejectPrematureStop(a, msg, state, cycleProposed, round, maxEditRounds); reject {
-				notePrematureStopAttempt(state)
-				state.recordRepairFailureKind(RepairFailureAdvisory)
-				repairNote = note
-			} else if responseClaimsPrematureDone(response) || responseIsAdvisoryOnly(response) {
-				notePrematureStopAttempt(state)
-				state.recordRepairFailureKind(RepairFailureAdvisory)
-				if state.VerifyFailed {
-					repairNote = formatAntiStopRepairNote("Verification still fails — continue with concrete file edits.")
-				} else if state.diagnoseGateBlocksProposals() {
-					repairNote = formatDiagnoseRequiredRepairNote(state)
-				} else {
-					repairNote = formatAdvisoryOnlyRepairNote()
-				}
-			} else if len(state.PreflightErrors) > 0 {
-				state.recordRepairFailureKind(RepairFailurePreflight)
-				repairNote = formatPreflightTypedRepairNote(state.PreflightErrors, state.StackManifest)
-			} else if !state.groundingSatisfied() {
-				state.recordRepairFailureKind(RepairFailureGrounding)
-				repairNote = formatGroundingRepairNote("")
-			} else if state.FixLikeIntent {
-				repairNote = fixLikePostDiscoverRepairNote(state)
-			} else {
-				state.recordRepairFailureKind(RepairFailureAdvisory)
-				repairNote = formatAdvisoryOnlyRepairNote()
-			}
-		}
-	}
-
-	if !cycleProposed && strings.TrimSpace(lastResponse) != "" {
-		fallbackCtx := withImplementationSessionState(sessionCtx, state)
-		cleaned, ok, ferr := a.maybeSubmitFileChangeFromResponse(fallbackCtx, lastResponse, msg.Channel, msg)
-		if ferr != nil {
-			log.Printf("[%s] impl session end fallback error: %v", a.Info.Name, ferr)
-		}
-		if ok {
-			proposedAny = true
-			cycleProposed = true
-			lastResponse = cleaned
-			paths := extractChangedPathsFromResponse(lastResponse)
-			state.FilesChanged = appendUnique(state.FilesChanged, paths)
-		}
-	}
-	if !cycleProposed {
-		if ok, paths := a.attemptDeterministicImplementationFallback(sessionCtx, msg); ok {
-			proposedAny = true
-			cycleProposed = true
-			state.FilesChanged = appendUnique(state.FilesChanged, paths)
-		}
-	}
-	if !cycleProposed {
-		if ok, paths := a.attemptPlaybookForSessionState(sessionCtx, msg, state); ok {
-			proposedAny = true
-			cycleProposed = true
-			state.FilesChanged = appendUnique(state.FilesChanged, paths)
-		}
-	}
-	state.noteCommandOnlyRound(cycleProposed)
-	if !cycleProposed && state.commandThrashingDetected() {
-		if ok, paths := a.attemptPlaybookForSessionState(sessionCtx, msg, state); ok {
-			proposedAny = true
-			cycleProposed = true
-			state.FilesChanged = appendUnique(state.FilesChanged, paths)
-		} else {
-			break
-		}
-	}
-	a.repairTailwindDarkModeIfNeeded(sessionCtx, msg, state)
-	a.repairAppThemeIfNeeded(sessionCtx, msg, state)
-	a.repairCorruptAppJSEntryIfNeeded(sessionCtx, msg, state)
-	if !cycleProposed {
-		for _, p := range state.FilesChanged {
-			if strings.Contains(strings.ToLower(p), "tailwind.config") || strings.HasSuffix(strings.ToLower(p), "app.tsx") {
-				cycleProposed = true
-				proposedAny = true
-				break
-			}
-		}
-	}
-
-	if cycleProposed {
-		a.maybeSendImplementationEarlyReply(msg, state)
-		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-
-		if verifyFailed {
-			if a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
-				log.Printf("[%s] skipping verify repair after auto-applied edit (deterministic or Go-only)", a.Info.Name)
-			} else if state.FixLikeIntent {
-				a.sendInterimFixUpdate(msg, "Repro still failing — continuing with fixes…")
-			}
-			maxRepairs := 1
-			if agentRuntimeV2ForMessage(msg) {
-				maxRepairs = agentRuntimeMaxRepairRounds
-			}
-			if !a.shouldSkipVerifyRepairAfterAutoApply(msg, state) && state.RepairAttempts < maxRepairs {
-			state.RepairAttempts++
-			state.RepairUsed = state.RepairAttempts > 0
-			state.Phase = "repair"
-			verifyInfo := classifyVerifyFailure(verifyOut, detectVerifyCommandsForSession(wsPath, state, msg))
-			state.LastVerifyFailureKind = verifyInfo.Kind
-			state.recordRepairFailureKind(verifyInfo.Kind)
-			repairNote = formatVerifyRepairNote(verifyInfo, verifyOut)
-			sessionCtx = ContextWithImplementationRoutingHints(sessionCtx, ImplementationRoutingHints{
-				RepairAttempts: state.RepairAttempts,
-				VerifyFailed:   true,
-				BootFixIntent:  state.BootFixIntent,
-			})
-			if globalImplementationRouting != nil {
-				plan, repairEff := globalImplementationRouting.Plan(sessionCtx, eff, a.Info, msg)
-				if repairEff != nil {
-					eff = repairEff
-				}
-				toolModel := a.resolveImplementationToolModel(plan.ToolModel)
-				sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
-			}
-			roundCtx := withImplementationSessionRound(sessionCtx, state.EditRound+1)
-			roundCtx = withRepairNote(roundCtx, repairNote)
-			roundCtx = ai.WithToolLoopMaxIterations(roundCtx, maxToolIter)
 			toolCtx := ai.WithToolStepObserver(roundCtx, func(ev ai.ToolStepEvent) {
 				a.observeImplementationSessionToolStep(roundCtx, msg, state, streamMsgID, ev)
 			})
 			toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
+
+			if round == 0 && repairNote != "" {
+				a.sendThinkingActivity(msg, protocol.ThinkingActivityReasoning, "planning fix from build output")
+			}
+
 			response, err := a.generateImplementationRound(toolCtx, msg, eff)
-			if err == nil {
-				proposalsBefore := state.ProposedCount
-				cleaned, proposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
-				if propErr != nil {
-					log.Printf("[%s] impl session repair proposal error: %v", a.Info.Name, propErr)
+			if err != nil {
+				if sessionCtx.Err() != nil {
+					summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
+					outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
+					return summary, streamMsgID, proposedAny, state.FilesChanged, outcome, nil
 				}
-				if proposed || state.ProposedCount > proposalsBefore {
-					proposedAny = true
-					lastResponse = cleaned
-					verifyOut2, verifyFailed2, _ := a.runVerifyForState(sessionCtx, msg, state)
-					state.VerifyOutput = verifyOut2
-					state.VerifyFailed = verifyFailed2
-				} else {
-					lastResponse = response
+				outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
+				return "", streamMsgID, proposedAny, state.FilesChanged, outcome, err
+			}
+			lastResponse = response
+
+			if state.diagnoseGateBlocksProposals() && responseContainsDiagnosis(response) {
+				state.DiagnosePhaseComplete = true
+				repairNote = formatDiagnoseCompleteRepairNote()
+				if round < maxEditRounds-1 {
+					continue
 				}
 			}
+			if state.diagnoseGateBlocksProposals() && (fileChangeBlockRegex.MatchString(response) || strings.Contains(response, `"path"`)) {
+				state.recordRepairFailureKind(RepairFailureGrounding)
+				if state.recordProposalError(fmt.Errorf("grounding required: complete diagnosis before proposing edits")) {
+					lastResponse = ""
+					log.Printf("[%s] implementation proposal circuit breaker: repeated diagnose-gate violation", a.Info.Name)
+					break fileCycles
+				}
+				repairNote = formatDiagnoseRequiredRepairNote(state)
+				if round < maxEditRounds-1 {
+					continue
+				}
+			}
+
+			proposalsBefore := state.ProposedCount
+			cleaned, fileChangeProposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
+			toolProposed := state.ProposedCount > proposalsBefore
+
+			if propErr != nil {
+				log.Printf("[%s] impl session file proposal error: %v", a.Info.Name, propErr)
+				repeated := state.recordProposalError(propErr)
+				if strings.Contains(strings.ToLower(propErr.Error()), "grounding required") {
+					state.recordRepairFailureKind(RepairFailureGrounding)
+				} else {
+					state.recordRepairFailureKind(RepairFailurePreflight)
+				}
+				if strings.Contains(propErr.Error(), "focus-scoped deliverable") {
+					repairNote = propErr.Error() + "\nEmit a corrected [FILE_CHANGE] for findings.md grounded only in the allowed source paths."
+				} else {
+					repairNote = formatPreflightTypedRepairNote(state.PreflightErrors, state.StackManifest)
+				}
+				if repeated {
+					lastResponse = ""
+					log.Printf("[%s] implementation proposal circuit breaker: repeated identical error: %v", a.Info.Name, propErr)
+					break fileCycles
+				}
+				if round < maxEditRounds-1 {
+					continue
+				}
+			} else if state.groundingSatisfied() {
+				state.clearProposalError()
+			}
+
+			if state.diagnoseGateBlocksProposals() && (toolProposed || fileChangeProposed) {
+				state.ProposedCount = proposalsBefore
+				state.recordRepairFailureKind(RepairFailureGrounding)
+				repairNote = formatDiagnoseRequiredRepairNote(state)
+				if round < maxEditRounds-1 {
+					continue
+				}
+			}
+
+			if toolProposed || fileChangeProposed {
+				state.clearProposalError()
+				proposedAny = true
+				cycleProposed = true
+				state.Phase = "edit"
+				paths := extractChangedPathsFromResponse(response)
+				state.FilesChanged = appendUnique(state.FilesChanged, paths)
+				if toolProposed && len(paths) == 0 {
+					// paths recorded in executeProposeFileEditTool via FilesChanged
+				}
+				lastResponse = cleaned
+				break
+			}
+
+			if round == 0 && state.groundingSatisfied() {
+				if ok, paths := a.attemptDeterministicImplementationFallback(roundCtx, msg); ok {
+					proposedAny = true
+					cycleProposed = true
+					state.FilesChanged = appendUnique(state.FilesChanged, paths)
+					lastResponse = ""
+					break
+				}
+			}
+
+			if round < maxEditRounds-1 {
+				if reject, note := shouldRejectPrematureStop(a, msg, state, cycleProposed, round, maxEditRounds); reject {
+					notePrematureStopAttempt(state)
+					state.recordRepairFailureKind(RepairFailureAdvisory)
+					repairNote = note
+				} else if responseClaimsPrematureDone(response) || responseIsAdvisoryOnly(response) {
+					notePrematureStopAttempt(state)
+					state.recordRepairFailureKind(RepairFailureAdvisory)
+					if state.VerifyFailed {
+						repairNote = formatAntiStopRepairNote("Verification still fails — continue with concrete file edits.")
+					} else if state.diagnoseGateBlocksProposals() {
+						repairNote = formatDiagnoseRequiredRepairNote(state)
+					} else {
+						repairNote = formatAdvisoryOnlyRepairNote()
+					}
+				} else if len(state.PreflightErrors) > 0 {
+					state.recordRepairFailureKind(RepairFailurePreflight)
+					repairNote = formatPreflightTypedRepairNote(state.PreflightErrors, state.StackManifest)
+				} else if !state.groundingSatisfied() {
+					state.recordRepairFailureKind(RepairFailureGrounding)
+					if state.recordProposalError(fmt.Errorf("grounding required: read the stack manifest and workspace files before continuing")) {
+						lastResponse = ""
+						log.Printf("[%s] implementation proposal circuit breaker: repeated missing-grounding round", a.Info.Name)
+						break fileCycles
+					}
+					repairNote = formatGroundingRepairNote("")
+				} else if state.FixLikeIntent {
+					repairNote = fixLikePostDiscoverRepairNote(state)
+				} else {
+					state.recordRepairFailureKind(RepairFailureAdvisory)
+					repairNote = formatAdvisoryOnlyRepairNote()
+				}
 			}
 		}
-	}
 
-	if !cycleProposed && !proposedAny {
-		if reject, note := shouldRejectPrematureStop(a, msg, state, cycleProposed, state.EditRound, maxEditRounds); reject {
-			notePrematureStopAttempt(state)
-			state.recordRepairFailureKind(RepairFailureAdvisory)
+		if !cycleProposed && strings.TrimSpace(lastResponse) != "" {
+			fallbackCtx := withImplementationSessionState(sessionCtx, state)
+			cleaned, ok, ferr := a.maybeSubmitFileChangeFromResponse(fallbackCtx, lastResponse, msg.Channel, msg)
+			if ferr != nil {
+				log.Printf("[%s] impl session end fallback error: %v", a.Info.Name, ferr)
+			}
+			if ok {
+				proposedAny = true
+				cycleProposed = true
+				lastResponse = cleaned
+				paths := extractChangedPathsFromResponse(lastResponse)
+				state.FilesChanged = appendUnique(state.FilesChanged, paths)
+			}
+		}
+		if !cycleProposed {
+			if ok, paths := a.attemptDeterministicImplementationFallback(sessionCtx, msg); ok {
+				proposedAny = true
+				cycleProposed = true
+				state.FilesChanged = appendUnique(state.FilesChanged, paths)
+			}
+		}
+		if !cycleProposed {
+			if ok, paths := a.attemptPlaybookForSessionState(sessionCtx, msg, state); ok {
+				proposedAny = true
+				cycleProposed = true
+				state.FilesChanged = appendUnique(state.FilesChanged, paths)
+			}
+		}
+		state.noteCommandOnlyRound(cycleProposed)
+		if !cycleProposed && state.commandThrashingDetected() {
+			if ok, paths := a.attemptPlaybookForSessionState(sessionCtx, msg, state); ok {
+				proposedAny = true
+				cycleProposed = true
+				state.FilesChanged = appendUnique(state.FilesChanged, paths)
+			} else {
+				break
+			}
+		}
+		a.repairTailwindDarkModeIfNeeded(sessionCtx, msg, state)
+		a.repairAppThemeIfNeeded(sessionCtx, msg, state)
+		a.repairCorruptAppJSEntryIfNeeded(sessionCtx, msg, state)
+		if !cycleProposed {
+			for _, p := range state.FilesChanged {
+				if strings.Contains(strings.ToLower(p), "tailwind.config") || strings.HasSuffix(strings.ToLower(p), "app.tsx") {
+					cycleProposed = true
+					proposedAny = true
+					break
+				}
+			}
+		}
+
+		if cycleProposed {
+			a.maybeSendImplementationEarlyReply(msg, state)
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+
+			if verifyFailed {
+				if a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
+					log.Printf("[%s] skipping verify repair after auto-applied edit (deterministic or Go-only)", a.Info.Name)
+				} else if state.FixLikeIntent {
+					a.sendInterimFixUpdate(msg, "Repro still failing — continuing with fixes…")
+				}
+				maxRepairs := 1
+				if agentRuntimeV2ForMessage(msg) {
+					maxRepairs = agentRuntimeMaxRepairRounds
+				}
+				if !a.shouldSkipVerifyRepairAfterAutoApply(msg, state) && state.RepairAttempts < maxRepairs {
+					state.RepairAttempts++
+					state.RepairUsed = state.RepairAttempts > 0
+					state.Phase = "repair"
+					verifyInfo := classifyVerifyFailure(verifyOut, detectVerifyCommandsForSession(wsPath, state, msg))
+					state.LastVerifyFailureKind = verifyInfo.Kind
+					state.recordRepairFailureKind(verifyInfo.Kind)
+					repairNote = formatVerifyRepairNote(verifyInfo, verifyOut)
+					sessionCtx = ContextWithImplementationRoutingHints(sessionCtx, ImplementationRoutingHints{
+						RepairAttempts: state.RepairAttempts,
+						VerifyFailed:   true,
+						BootFixIntent:  state.BootFixIntent,
+					})
+					if globalImplementationRouting != nil {
+						plan, repairEff := globalImplementationRouting.Plan(sessionCtx, eff, a.Info, msg)
+						if repairEff != nil {
+							eff = repairEff
+						}
+						toolModel := a.resolveImplementationToolModel(plan.ToolModel)
+						sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
+					}
+					roundCtx := withImplementationSessionRound(sessionCtx, state.EditRound+1)
+					roundCtx = withRepairNote(roundCtx, repairNote)
+					roundCtx = ai.WithToolLoopMaxIterations(roundCtx, maxToolIter)
+					toolCtx := ai.WithToolStepObserver(roundCtx, func(ev ai.ToolStepEvent) {
+						a.observeImplementationSessionToolStep(roundCtx, msg, state, streamMsgID, ev)
+					})
+					toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
+					response, err := a.generateImplementationRound(toolCtx, msg, eff)
+					if err == nil {
+						proposalsBefore := state.ProposedCount
+						cleaned, proposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
+						if propErr != nil {
+							log.Printf("[%s] impl session repair proposal error: %v", a.Info.Name, propErr)
+						}
+						if proposed || state.ProposedCount > proposalsBefore {
+							proposedAny = true
+							lastResponse = cleaned
+							verifyOut2, verifyFailed2, _ := a.runVerifyForState(sessionCtx, msg, state)
+							state.VerifyOutput = verifyOut2
+							state.VerifyFailed = verifyFailed2
+						} else {
+							lastResponse = response
+						}
+					}
+				}
+			}
+		}
+
+		if !cycleProposed && !proposedAny {
+			if reject, note := shouldRejectPrematureStop(a, msg, state, cycleProposed, state.EditRound, maxEditRounds); reject {
+				notePrematureStopAttempt(state)
+				state.recordRepairFailureKind(RepairFailureAdvisory)
+				repairNote = note
+				state.Phase = "discover"
+				continue
+			}
+			break
+		}
+		if msg != nil && (msg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(msg)) && proposedAny {
+			break
+		}
+		if cont, note := shouldContinueImplementationSession(a, msg, state); cont {
 			repairNote = note
 			state.Phase = "discover"
+			persistImplSessionCheckpoint(msg, state, fileCycle)
 			continue
 		}
 		break
-	}
-	if msg != nil && (msg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(msg)) && proposedAny {
-		break
-	}
-	if cont, note := shouldContinueImplementationSession(a, msg, state); cont {
-		repairNote = note
-		state.Phase = "discover"
-		persistImplSessionCheckpoint(msg, state, fileCycle)
-		continue
-	}
-	break
 	} // fileCycle
 
 	persistImplSessionCheckpoint(msg, state, -1)
@@ -924,7 +953,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 	appendImplementationSessionToolGuidance(&sessionGuidance, a, msg)
 	prompt += sessionGuidance.String()
 
-		if round := implementationSessionRoundFromContext(ctx); round == 0 {
+	if round := implementationSessionRoundFromContext(ctx); round == 0 {
 		wsPath := a.resolveWorkspacePath(msg)
 		if wsPath != "" && a.shouldAugmentPromptWithWorkspace(intent, msg) {
 			researchDocDeliverable := isResearchDocumentationDeliverable(msg.Content)

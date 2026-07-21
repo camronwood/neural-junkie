@@ -591,3 +591,108 @@ func TestShouldRespond_implementationStatusCheckPublicChannel(t *testing.T) {
 		t.Fatal("BackendEngineer should not respond when it did not run the implementation session")
 	}
 }
+
+type customChannelHub struct {
+	shouldRespondTestHub
+	agents      []protocol.AgentInfo
+	channelType protocol.ChannelType
+}
+
+func (h customChannelHub) GetChannelType(string) protocol.ChannelType {
+	if h.channelType != "" {
+		return h.channelType
+	}
+	return protocol.ChannelTypeCustom
+}
+
+func (h customChannelHub) GetChannelAgents(string) ([]protocol.AgentInfo, error) {
+	return h.agents, nil
+}
+
+func TestShouldRespond_CustomChannelAlwaysHasFallbackResponder(t *testing.T) {
+	t.Parallel()
+	mockAI := ai.NewMockProvider()
+
+	rust := NewAgent(protocol.AgentTypeRust, "RustExpert", []string{"Rust", "Cargo"}, mockAI, nil)
+	rust.Info.ID = "rust-1"
+	backend := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", []string{"APIs", "Services"}, mockAI, nil)
+	backend.Info.ID = "be-1"
+	arch := NewAgent(protocol.AgentTypeArchitecture, "SoftwareArchitect", []string{"System Design"}, mockAI, nil)
+	arch.Info.ID = "arch-1"
+
+	hub := customChannelHub{
+		agents: []protocol.AgentInfo{rust.Info, backend.Info, arch.Info},
+	}
+	rust.Hub = hub
+	backend.Hub = hub
+	arch.Hub = hub
+	rust.SetCollabClient(shouldRespondTestCollab{})
+	backend.SetCollabClient(shouldRespondTestCollab{})
+	arch.SetCollabClient(shouldRespondTestCollab{})
+
+	// No expertise keywords ("rust"/etc.) and no @mentions — previously silent.
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"rustgame",
+		protocol.AgentInfo{ID: "human-user", Name: "Camron", Type: "human"},
+		"lets build an RTS game, with 2 groups that face each other in battel",
+	)
+
+	responders := 0
+	for _, ag := range []*Agent{rust, backend, arch} {
+		if ag.shouldRespond(msg) {
+			responders++
+		}
+	}
+	if responders == 0 {
+		t.Fatal("expected at least one custom-channel agent to reply without @mention")
+	}
+	if responders > customChannelBroadPromptResponderCap {
+		t.Fatalf("expected at most %d fallback responders, got %d", customChannelBroadPromptResponderCap, responders)
+	}
+}
+
+func TestShouldRespond_CustomChannelRelevanceStillWins(t *testing.T) {
+	t.Parallel()
+	mockAI := ai.NewMockProvider()
+	rust := NewAgent(protocol.AgentTypeRust, "RustExpert", []string{"Rust", "Cargo"}, mockAI, nil)
+	rust.Info.ID = "rust-1"
+	backend := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", []string{"APIs", "Services"}, mockAI, nil)
+	backend.Info.ID = "be-1"
+	hub := customChannelHub{agents: []protocol.AgentInfo{rust.Info, backend.Info}}
+	rust.Hub = hub
+	backend.Hub = hub
+	rust.SetCollabClient(shouldRespondTestCollab{})
+	backend.SetCollabClient(shouldRespondTestCollab{})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"rustgame",
+		protocol.AgentInfo{ID: "human-user", Name: "Camron", Type: "human"},
+		"can you help with this rust ownership error?",
+	)
+	if !rust.shouldRespond(msg) {
+		t.Fatal("RustExpert should respond via expertise match")
+	}
+}
+
+func TestShouldRespond_CollaborationChannelHasFallbackResponder(t *testing.T) {
+	t.Parallel()
+	ag := NewAgent(protocol.AgentTypeArchitecture, "SoftwareArchitect", []string{"System Design"}, ai.NewMockProvider(), nil)
+	ag.Info.ID = "arch-1"
+	hub := customChannelHub{
+		agents:      []protocol.AgentInfo{ag.Info},
+		channelType: protocol.ChannelTypeCollaboration,
+	}
+	ag.Hub = hub
+	ag.SetCollabClient(shouldRespondTestCollab{})
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"collab-rustgame",
+		protocol.AgentInfo{ID: "human-user", Name: "Camron", Type: "human"},
+		"keep going with the RTS",
+	)
+	if !ag.shouldRespond(msg) {
+		t.Fatal("expected a collaboration-channel fallback response without @mention")
+	}
+}
