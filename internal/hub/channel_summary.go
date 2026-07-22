@@ -2,6 +2,8 @@ package hub
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -16,6 +18,12 @@ const (
 	summaryRefreshUserTurns   = 3
 	summaryTranscriptMessages = 12
 )
+
+type summaryRefreshInput struct {
+	Prompt        string
+	LastMessageID string
+	BaseVersion   int
+}
 
 func channelMaintainsSessionSummary(chType protocol.ChannelType, channel string) bool {
 	if !ChannelMaintainsSessionSummary(channel) {
@@ -45,7 +53,7 @@ func (h *Hub) noteChannelActivity(msg *protocol.Message) {
 
 	h.mu.Lock()
 	channel := msg.Channel
-	var transcript string
+	var input summaryRefreshInput
 	var gen uint64
 	var genFn ChannelSummaryGenerator
 
@@ -61,8 +69,8 @@ func (h *Hub) noteChannelActivity(msg *protocol.Message) {
 	case msg.Type == protocol.MessageTypeSystemInfo &&
 		strings.Contains(msg.Content, "Applied change"):
 		if h.channelSummaryGen != nil {
-			transcript = h.transcriptForSummaryLocked(channel)
-			if transcript != "" {
+			input = h.summaryRefreshInputLocked(channel)
+			if input.Prompt != "" {
 				gen = h.bumpSummaryRefreshGenLocked(channel)
 				genFn = h.channelSummaryGen
 				st := h.ensureChannelContextLocked(channel)
@@ -82,8 +90,8 @@ func (h *Hub) noteChannelActivity(msg *protocol.Message) {
 			shouldRefresh = len(filtered) >= 4
 		}
 		if shouldRefresh && h.channelSummaryGen != nil {
-			transcript = h.transcriptForSummaryLocked(channel)
-			if transcript != "" {
+			input = h.summaryRefreshInputLocked(channel)
+			if input.Prompt != "" {
 				gen = h.bumpSummaryRefreshGenLocked(channel)
 				genFn = h.channelSummaryGen
 				st.UserTurns = 0
@@ -92,20 +100,59 @@ func (h *Hub) noteChannelActivity(msg *protocol.Message) {
 	}
 	h.mu.Unlock()
 
-	if genFn != nil && transcript != "" {
-		go h.runSummaryRefresh(channel, gen, transcript, genFn)
+	if genFn != nil && input.Prompt != "" {
+		go h.runSummaryRefresh(channel, gen, input, genFn)
 	}
 }
 
-func (h *Hub) transcriptForSummaryLocked(channel string) string {
+func (h *Hub) summaryRefreshInputLocked(channel string) summaryRefreshInput {
 	msgs := h.messages[channel]
 	if len(msgs) == 0 {
-		return ""
+		return summaryRefreshInput{}
 	}
-	return chatcontext.FormatTranscript(msgs, summaryTranscriptMessages)
+	st := h.ensureChannelContextLocked(channel)
+	start := 0
+	if st.LastCompactedMessageID != "" {
+		for i, msg := range msgs {
+			if msg != nil && msg.ID == st.LastCompactedMessageID {
+				start = i + 1
+				break
+			}
+		}
+	}
+	superseded := map[string]bool{}
+	if state := h.conversationState[channel]; state != nil {
+		for id := range state.SupersededInstructions {
+			superseded[id] = true
+		}
+	}
+	delta := make([]*protocol.Message, 0, len(msgs)-start)
+	lastID := ""
+	for _, msg := range msgs[start:] {
+		if msg == nil || superseded[msg.ID] || superseded[msg.ReplyTo] {
+			continue
+		}
+		delta = append(delta, msg)
+		lastID = msg.ID
+	}
+	transcript := chatcontext.FormatTranscript(delta, summaryTranscriptMessages)
+	if transcript == "" {
+		return summaryRefreshInput{}
+	}
+	stateJSON, _ := json.Marshal(cloneConversationState(h.conversationState[channel]))
+	version := st.SummaryVersion
+	if st.Summary != "" && version < 1 {
+		version = 1
+	}
+	prompt := fmt.Sprintf(
+		"Update the cumulative conversation digest. Preserve still-valid facts, decisions, corrections, and unfinished work. "+
+			"Never restore instructions marked superseded.\n\nPREVIOUS DIGEST (v%d):\n%s\n\nSTRUCTURED STATE:\n%s\n\nTRANSCRIPT DELTA:\n%s",
+		version, strings.TrimSpace(st.Summary), stateJSON, transcript,
+	)
+	return summaryRefreshInput{Prompt: prompt, LastMessageID: lastID, BaseVersion: version}
 }
 
-func (h *Hub) runSummaryRefresh(channel string, gen uint64, transcript string, genFn ChannelSummaryGenerator) {
+func (h *Hub) runSummaryRefresh(channel string, gen uint64, input summaryRefreshInput, genFn ChannelSummaryGenerator) {
 	if genFn == nil {
 		return
 	}
@@ -122,7 +169,7 @@ func (h *Hub) runSummaryRefresh(channel string, gen uint64, transcript string, g
 	}
 	done := make(chan result, 1)
 	go func() {
-		s, err := genFn(transcript)
+		s, err := genFn(input.Prompt)
 		done <- result{summary: s, err: err}
 	}()
 
@@ -147,7 +194,7 @@ func (h *Hub) runSummaryRefresh(channel string, gen uint64, transcript string, g
 	if summary == "" {
 		return
 	}
-	summary = agent.ScrubStaleSessionSummary(summary, transcript)
+	summary = agent.ScrubStaleSessionSummary(summary, input.Prompt)
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -156,8 +203,10 @@ func (h *Hub) runSummaryRefresh(channel string, gen uint64, transcript string, g
 	}
 	st := h.ensureChannelContextLocked(channel)
 	st.Summary = summary
+	st.SummaryVersion = input.BaseVersion + 1
+	st.LastCompactedMessageID = input.LastMessageID
 	st.UpdatedAt = time.Now()
-	log.Printf("[Hub] session summary updated channel=%s len=%d", channel, len(summary))
+	log.Printf("[Hub] session summary updated channel=%s version=%d len=%d", channel, st.SummaryVersion, len(summary))
 }
 
 // scheduleImmediateSummaryRefresh runs a summary pass without waiting for the next agent turn.
@@ -171,12 +220,12 @@ func (h *Hub) scheduleImmediateSummaryRefresh(channel string) {
 	}
 
 	h.mu.Lock()
-	var transcript string
+	var input summaryRefreshInput
 	var gen uint64
 	var genFn ChannelSummaryGenerator
 	if h.channelSummaryGen != nil {
-		transcript = h.transcriptForSummaryLocked(channel)
-		if transcript != "" {
+		input = h.summaryRefreshInputLocked(channel)
+		if input.Prompt != "" {
 			gen = h.bumpSummaryRefreshGenLocked(channel)
 			genFn = h.channelSummaryGen
 			st := h.ensureChannelContextLocked(channel)
@@ -185,7 +234,7 @@ func (h *Hub) scheduleImmediateSummaryRefresh(channel string) {
 	}
 	h.mu.Unlock()
 
-	if genFn != nil && transcript != "" {
-		go h.runSummaryRefresh(channel, gen, transcript, genFn)
+	if genFn != nil && input.Prompt != "" {
+		go h.runSummaryRefresh(channel, gen, input, genFn)
 	}
 }

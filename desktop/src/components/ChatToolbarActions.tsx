@@ -34,6 +34,7 @@ export interface ChatToolbarActionsProps {
   onCycleWorkspaceContext: () => void;
   workspaceContextButtonTitle: string;
   onOpenPendingChanges: () => void;
+  pendingChangeCount: number;
   onOpenFileExplorer: () => void;
   onOpenCodeEditor: () => void;
   onOpenKnowledgeGraph?: () => void;
@@ -81,6 +82,7 @@ export function ChatToolbarActions({
   onCycleWorkspaceContext,
   workspaceContextButtonTitle,
   onOpenPendingChanges,
+  pendingChangeCount,
   onOpenFileExplorer,
   onOpenCodeEditor,
   onOpenKnowledgeGraph,
@@ -166,11 +168,18 @@ export function ChatToolbarActions({
         <button
           type="button"
           onClick={onOpenPendingChanges}
-          className={`${iconBtn} bg-orange-600 hover:bg-orange-700 text-white focus-visible:outline-orange-400`}
-          title={`Pending changes (${formatChord('mod+shift+u')})`}
-          aria-label="Open pending file changes"
+          className={`${iconBtn} relative bg-slack-bgHover hover:bg-slack-border ${
+            pendingChangeCount > 0 ? 'text-amber-300' : 'text-slack-textMuted'
+          } focus-visible:outline-amber-400`}
+          title={`${pendingChangeCount} pending change${pendingChangeCount === 1 ? '' : 's'} — jump to oldest (${formatChord('mod+shift+u')})`}
+          aria-label={`Jump to oldest pending change; ${pendingChangeCount} pending`}
         >
           <PendingChangesIcon className="w-3.5 h-3.5" />
+          {pendingChangeCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 min-w-4 rounded-full bg-amber-500 px-1 text-center text-[9px] font-bold leading-4 text-black">
+              {pendingChangeCount > 99 ? '99+' : pendingChangeCount}
+            </span>
+          )}
         </button>
 
         <button

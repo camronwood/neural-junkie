@@ -253,7 +253,7 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
   {
     id: 'layout.pendingChanges',
     chord: 'mod+shift+u',
-    label: 'Toggle pending changes',
+    label: 'Go to pending change',
     scope: 'chat',
     priority: 40,
     handlerId: 'togglePendingChanges',

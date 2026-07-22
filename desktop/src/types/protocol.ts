@@ -216,6 +216,114 @@ export interface Message {
   mentions?: string[];
 }
 
+export type ChangeProposalKind = 'file_change' | 'git_change';
+export type ChangeProposalStatus =
+  | 'pending'
+  | 'applying'
+  | 'approved'
+  | 'rejected'
+  | 'stale'
+  | 'expired'
+  | 'failed';
+
+export interface ChangeProposalCard {
+  version: number;
+  kind: ChangeProposalKind;
+  id: string;
+  status: ChangeProposalStatus;
+  operation: string;
+  file_path?: string;
+  old_path?: string;
+  new_path?: string;
+  message?: string;
+  paths?: string[];
+  workspace_id?: string;
+  requested_at?: string;
+  expires_at?: string;
+  reason?: string;
+  error?: string;
+}
+
+export interface GitChangeProposal {
+  id: string;
+  operation: string;
+  message?: string;
+  paths?: string[];
+  workspace_id?: string;
+  channel?: string;
+  status: ChangeProposalStatus;
+  requested_at?: string;
+  expires_at?: string;
+  reason?: string;
+  error?: string;
+}
+
+export function getChangeProposalCard(message: Message): ChangeProposalCard | null {
+  const raw = message.metadata?.change_proposal;
+  if (raw && typeof raw === 'object') {
+    const card = raw as Partial<ChangeProposalCard>;
+    if (
+      typeof card.id === 'string' &&
+      (card.kind === 'file_change' || card.kind === 'git_change')
+    ) {
+      return {
+        version: typeof card.version === 'number' ? card.version : 1,
+        kind: card.kind,
+        id: card.id,
+        status: card.status ?? 'pending',
+        operation: typeof card.operation === 'string' ? card.operation : '',
+        file_path: card.file_path,
+        old_path: card.old_path,
+        new_path: card.new_path,
+        message: card.message,
+        paths: Array.isArray(card.paths)
+          ? card.paths.filter((path): path is string => typeof path === 'string')
+          : undefined,
+        workspace_id: card.workspace_id,
+        requested_at: card.requested_at,
+        expires_at: card.expires_at,
+        reason: card.reason,
+        error: card.error,
+      };
+    }
+  }
+
+  // Compatibility with proposal messages persisted before the typed card contract.
+  if (message.type === 'file_change') {
+    const proposal = message.metadata?.file_change_proposal as Record<string, unknown> | undefined;
+    const id = message.metadata?.registered_change_id;
+    if (proposal && typeof id === 'string') {
+      return {
+        version: 1,
+        kind: 'file_change',
+        id,
+        status: message.metadata?.file_change_auto_approved === true ? 'approved' : 'pending',
+        operation: typeof proposal.operation === 'string' ? proposal.operation : '',
+        file_path: typeof proposal.file_path === 'string' ? proposal.file_path : undefined,
+        old_path: typeof proposal.old_path === 'string' ? proposal.old_path : undefined,
+        new_path: typeof proposal.new_path === 'string' ? proposal.new_path : undefined,
+      };
+    }
+  }
+
+  const git = message.metadata?.git_change_proposal as Record<string, unknown> | undefined;
+  if (git && typeof git.id === 'string') {
+    return {
+      version: 1,
+      kind: 'git_change',
+      id: git.id,
+      status: 'pending',
+      operation: typeof git.operation === 'string' ? git.operation : '',
+      message: typeof git.message === 'string' ? git.message : undefined,
+      paths: Array.isArray(git.paths)
+        ? git.paths.filter((path): path is string => typeof path === 'string')
+        : undefined,
+      workspace_id: typeof git.workspace_id === 'string' ? git.workspace_id : undefined,
+    };
+  }
+  return null;
+}
+
 export interface ArtifactReference {
   id: string;
   title?: string;
@@ -335,6 +443,8 @@ export const ROUTING_IMPL_SESSION_METADATA_KEY = 'routing_impl_session';
 export const ROUTING_CONVERSATION_TIER_METADATA_KEY = 'routing_conversation_tier';
 export const ROUTING_CONVERSATION_REASONS_METADATA_KEY = 'routing_conversation_reasons';
 export const ROUTING_CONVERSATION_ESCALATED_FROM_METADATA_KEY = 'routing_conversation_escalated_from';
+export const ROUTING_ATTEMPTS_METADATA_KEY = 'routing_attempts';
+export const ROUTING_FAILURE_EVIDENCE_METADATA_KEY = 'routing_failure_evidence';
 
 export type RoutingMeta = {
   provider_id?: string;
@@ -354,6 +464,8 @@ export type RoutingMeta = {
   conversation_tier?: string;
   conversation_reasons?: string[];
   conversation_escalated_from?: string;
+  attempts?: RoutingAttempt[];
+  failure_evidence?: string[];
 };
 
 export type RoutingGovernanceMeta = {
@@ -390,6 +502,16 @@ export type TurnTraceRouting = {
   cost_tier?: string;
   reason?: string;
   source?: string;
+  attempts?: RoutingAttempt[];
+  failure_evidence?: string[];
+};
+
+export type RoutingAttempt = {
+  provider_id?: string;
+  model?: string;
+  tier?: string;
+  reason?: string;
+  failure_reason?: string;
 };
 
 export type TurnTraceRetrieval = {
@@ -411,6 +533,42 @@ export type TurnTraceSpan = {
   attrs?: Record<string, unknown>;
 };
 
+export type TurnTraceContextSelection = {
+  selected_context_ids?: string[];
+  selected_sections?: string[];
+  dropped_context_ids?: string[];
+  provenance?: Array<{
+    id?: string;
+    section?: string;
+    source?: string;
+    score?: number;
+    freshness?: string;
+  }>;
+  digest_version?: number;
+  section_sizes?: Record<string, { items?: number; bytes?: number }>;
+  section_budgets?: Record<string, number>;
+  compression?: {
+    summary_checkpoint?: boolean;
+    applied?: boolean;
+    original_bytes?: number;
+    final_bytes?: number;
+    compressed_sections?: string[];
+    recoverable?: boolean;
+  };
+  recovery?: {
+    active?: boolean;
+    correction_count?: number;
+    superseded_count?: number;
+    unresolved_actions?: number;
+  };
+  omission_reasons?: Record<string, string>;
+  budget_omission_reasons?: Record<string, string>;
+  retrieval_counts?: {
+    memory?: number;
+    codebase?: number;
+  };
+};
+
 export type TurnTraceResponse = {
   message_id?: string;
   channel?: string;
@@ -426,6 +584,7 @@ export type TurnTraceResponse = {
     };
   };
   retrieval?: TurnTraceRetrieval;
+  context_selection?: TurnTraceContextSelection;
   governance?: RoutingGovernanceMeta;
   tool_steps?: unknown;
   inference_usage?: Record<string, unknown>;
@@ -496,6 +655,16 @@ export function getRoutingMeta(metadata?: Record<string, unknown>): RoutingMeta 
   }
   if (typeof metadata[ROUTING_CONVERSATION_ESCALATED_FROM_METADATA_KEY] === 'string') {
     out.conversation_escalated_from = metadata[ROUTING_CONVERSATION_ESCALATED_FROM_METADATA_KEY] as string;
+  }
+  if (Array.isArray(metadata[ROUTING_ATTEMPTS_METADATA_KEY])) {
+    out.attempts = (metadata[ROUTING_ATTEMPTS_METADATA_KEY] as unknown[]).filter(
+      (value): value is RoutingAttempt => !!value && typeof value === 'object' && !Array.isArray(value)
+    );
+  }
+  if (Array.isArray(metadata[ROUTING_FAILURE_EVIDENCE_METADATA_KEY])) {
+    out.failure_evidence = (metadata[ROUTING_FAILURE_EVIDENCE_METADATA_KEY] as unknown[]).filter(
+      (value): value is string => typeof value === 'string'
+    );
   }
   return out;
 }
@@ -1064,7 +1233,13 @@ export function isSlashCommandMessage(message: Message): boolean {
 
 export type FileOperation = 'create' | 'edit' | 'delete' | 'move';
 
-export type FileChangeStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+export type FileChangeStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'stale'
+  | 'expired'
+  | 'failed';
 
 export interface FileChange {
   id: string;
@@ -1215,6 +1390,8 @@ export interface ExecutionPolicy {
   blocked_upstream_policy?: BlockedUpstreamPolicy;
   strict_task_status?: boolean;
   handoff_max_chars?: number;
+  sla_seconds?: number;
+  retry_budget?: number;
 }
 
 export interface GraphLayoutNode {
@@ -1229,6 +1406,13 @@ export interface TaskExecutionOptions {
   requires_approval?: boolean;
   max_retries?: number;
   timeout_seconds?: number;
+  queue?: string;
+  capability_tags?: string[];
+  cache_policy?: 'none' | 'result';
+  cache_expiration_seconds?: number;
+  refresh_cache?: boolean;
+  idempotency_required?: boolean;
+  retry_on?: Array<'error' | 'dispatch' | 'timeout' | 'lease_lost'>;
   context_paths?: string[];
   expected_provider_id?: string;
   expected_model?: string;
@@ -1495,8 +1679,13 @@ export function isCollaborationMessage(message: Message): boolean {
 }
 
 /** Main-channel rows that must not be dropped when `content` is empty/whitespace (or missing). */
-export function channelTimelineAllowsEmptyContent(type: MessageType): boolean {
+export function channelTimelineAllowsEmptyContent(
+  type: MessageType,
+  metadata?: Record<string, unknown>,
+): boolean {
   return (
+    metadata?.change_proposal !== undefined ||
+    type === 'file_change' ||
     type === 'agent_join' ||
     type === 'agent_leave' ||
     type === 'system_info' ||

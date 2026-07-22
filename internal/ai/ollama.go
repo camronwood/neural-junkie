@@ -82,6 +82,7 @@ type OllamaRequest struct {
 	Model     string                 `json:"model"`
 	Messages  []OllamaMessage        `json:"messages"`
 	Stream    bool                   `json:"stream"`
+	Format    json.RawMessage        `json:"format,omitempty"`
 	KeepAlive interface{}            `json:"keep_alive,omitempty"`
 	Think     *bool                  `json:"think,omitempty"`
 	Tools     []OllamaTool           `json:"tools,omitempty"`
@@ -315,6 +316,60 @@ func (o *OllamaProvider) GenerateResponse(ctx context.Context, prompt string, co
 	o.recordUsage(response)
 
 	return ollamaFinalizeContent(response.Message.Content, response.Message.Thinking)
+}
+
+// GenerateStructuredResponse requests provider-native JSON or JSON Schema output.
+func (o *OllamaProvider) GenerateStructuredResponse(ctx context.Context, structured StructuredOutputRequest) (StructuredOutputResult, error) {
+	systemPrompt, userMessage := SplitSystemPrompt(structured.Prompt)
+	messages := o.buildChatMessages(systemPrompt, userMessage, structured.ConversationHistory)
+	request := o.newChatRequest(messages, false)
+	request.Format = json.RawMessage(`"json"`)
+	if len(structured.JSONSchema) > 0 {
+		if !json.Valid(structured.JSONSchema) {
+			return StructuredOutputResult{}, fmt.Errorf("invalid JSON schema")
+		}
+		request.Format = structured.JSONSchema
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return StructuredOutputResult{}, fmt.Errorf("failed to marshal request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", o.Endpoint+"/api/chat", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return StructuredOutputResult{}, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	release, err := acquireOllamaSlot(ctx)
+	if err != nil {
+		return StructuredOutputResult{}, err
+	}
+	defer release()
+
+	resp, err := o.httpClient.Do(req)
+	if err != nil {
+		return StructuredOutputResult{}, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return StructuredOutputResult{}, fmt.Errorf("Ollama API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var response OllamaResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return StructuredOutputResult{}, fmt.Errorf("failed to decode response: %w", err)
+	}
+	if response.Error != "" {
+		return StructuredOutputResult{}, fmt.Errorf("Ollama API error: %s", response.Error)
+	}
+	o.recordUsage(response)
+	content, err := ollamaFinalizeContent(response.Message.Content, response.Message.Thinking)
+	if err != nil {
+		return StructuredOutputResult{}, err
+	}
+	return StructuredOutputResult{Content: content}, nil
 }
 
 // GenerateVisionResponse uses vision-capable Ollama models (e.g. llava).

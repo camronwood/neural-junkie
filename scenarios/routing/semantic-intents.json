@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "startup-failure-repair",
+      "text": "Something is wrong with this project and the application exits before showing its interface. Diagnose it and sort it out.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_recipient": "frontend",
+      "want_retrieval": ["codebase"]
+    },
+    {
+      "name": "startup-failure-paraphrase",
+      "text": "Launching the project never reaches the UI. Find the cause and repair it.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_retrieval": ["codebase"]
+    },
+    {
+      "name": "durable-canvas",
+      "text": "Create a Neural Canvas beside this conversation that explains the architecture.",
+      "composer_mode": "agent",
+      "want_action": "artifact",
+      "want_mutation": "external"
+    },
+    {
+      "name": "source-code-canvas",
+      "text": "Implement an HTML canvas component in the frontend source code.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "edit",
+      "want_mutation": "workspace",
+      "want_recipient": "frontend",
+      "want_retrieval": ["codebase"]
+    },
+    {
+      "name": "advisory-question",
+      "text": "Do we need to change the router before adding this feature?",
+      "composer_mode": "ask",
+      "has_workspace": true,
+      "want_action": "answer",
+      "want_mutation": "none"
+    },
+    {
+      "name": "pending-continuation",
+      "text": "Proceed with that.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "pending_action_id": "goal-123",
+      "pending_action": "edit",
+      "pending_description": "Apply the approved frontend repair",
+      "want_action": "continue",
+      "want_mutation": "workspace",
+      "want_continuation": "goal-123"
+    },
+    {
+      "name": "retraction",
+      "text": "Actually, do not edit anything. Explain the tradeoff instead.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "pending_action_id": "goal-123",
+      "pending_description": "Apply the frontend repair",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "want_interaction": "correction"
+    },
+    {
+      "name": "image-discussion",
+      "text": "Explain how image generation works in this application.",
+      "composer_mode": "ask",
+      "want_action": "answer",
+      "want_mutation": "none"
+    },
+    {
+      "name": "image-generation",
+      "text": "Generate a product logo image and post it here.",
+      "composer_mode": "agent",
+      "want_action": "image",
+      "want_mutation": "external"
+    },
+    {
+      "name": "quoted-command",
+      "text": "What does the command `go test ./...` do? Do not execute it.",
+      "composer_mode": "ask",
+      "want_action": "answer",
+      "want_mutation": "none"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -164,6 +165,17 @@ func inferConversationModeFromMessage(msg *protocol.Message, channelType protoco
 
 // EffectiveConversationMode returns metadata mode or server-side inference.
 func EffectiveConversationMode(msg *protocol.Message, channelType protocol.ChannelType) string {
+	if channelType == protocol.ChannelTypeCollaboration {
+		return ConversationModeCollab
+	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		switch decision.Action {
+		case semantic.ActionInspect, semantic.ActionDebug, semantic.ActionEdit, semantic.ActionRun, semantic.ActionContinue:
+			return ConversationModeCode
+		default:
+			return ConversationModeChat
+		}
+	}
 	if mode := ConversationModeFromMessage(msg); mode != "" {
 		return mode
 	}

@@ -1,0 +1,311 @@
+package intent
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+)
+
+// Classifier resolves natural-language meaning only. Policy and permissions are
+// applied by Router after classification.
+type Classifier interface {
+	Classify(context.Context, TurnFeatures) (SemanticIntent, error)
+	Model() string
+}
+
+type Router struct {
+	Classifier    Classifier
+	MinConfidence float64
+	Timeout       time.Duration
+}
+
+func NewRouter(classifier Classifier, minConfidence float64) *Router {
+	if minConfidence <= 0 || minConfidence > 1 {
+		minConfidence = 0.65
+	}
+	return &Router{
+		Classifier:    classifier,
+		MinConfidence: minConfidence,
+		Timeout:       20 * time.Second,
+	}
+}
+
+// Resolve returns one decision. Structural directives bypass the classifier when
+// they determine the action; otherwise classification is local and bounded.
+func (r *Router) Resolve(ctx context.Context, features TurnFeatures) TurnDecision {
+	if semantic, ok := structuralIntent(features); ok {
+		return ResolvePolicy(features, semantic, SourceStructural)
+	}
+	if r == nil || r.Classifier == nil {
+		return classifierFallback(features, "classifier_unavailable")
+	}
+
+	timeout := r.Timeout
+	if timeout <= 0 {
+		timeout = 20 * time.Second
+	}
+	classifyCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	started := time.Now()
+	semantic, err := r.Classifier.Classify(classifyCtx, features)
+	latency := time.Since(started).Milliseconds()
+	if err != nil {
+		decision := classifierFallback(features, "classifier_error")
+		decision.ClassifierModel = r.Classifier.Model()
+		decision.ClassifierLatencyMS = latency
+		decision.AbstentionReason = err.Error()
+		return decision
+	}
+	applyExplicitSemanticDirectives(features, &semantic)
+	normalizeSemanticConsistency(features, &semantic)
+	if err := semantic.Validate(); err != nil {
+		decision := classifierFallback(features, "classifier_invalid")
+		decision.ClassifierModel = r.Classifier.Model()
+		decision.ClassifierLatencyMS = latency
+		decision.AbstentionReason = err.Error()
+		return decision
+	}
+	if semantic.Confidence < r.MinConfidence {
+		decision := classifierFallback(features, "classifier_low_confidence")
+		decision.ClassifierModel = r.Classifier.Model()
+		decision.ClassifierLatencyMS = latency
+		decision.Confidence = semantic.Confidence
+		decision.AbstentionReason = fmt.Sprintf("confidence %.3f below %.3f", semantic.Confidence, r.MinConfidence)
+		return decision
+	}
+	decision := ResolvePolicy(features, semantic, SourceLocalModel)
+	decision.ClassifierModel = r.Classifier.Model()
+	decision.ClassifierLatencyMS = latency
+	return decision
+}
+
+func normalizeSemanticConsistency(features TurnFeatures, semantic *SemanticIntent) {
+	if semantic == nil {
+		return
+	}
+	if semantic.Interaction == InteractionContinuation && features.PendingActionID != "" {
+		semantic.RequestedAction = ActionContinue
+		semantic.ContinuationTarget = features.PendingActionID
+		if features.PendingAction != "" {
+			semantic.MutationRequested = mutationForAction(features.PendingAction)
+		} else {
+			semantic.MutationRequested = MutationWorkspace
+		}
+	}
+	if semantic.RequestedAction == ActionContinue {
+		if semantic.ContinuationTarget == "" {
+			semantic.ContinuationTarget = features.PendingActionID
+		}
+		if semantic.MutationRequested == MutationNone && features.PendingAction != "" {
+			semantic.MutationRequested = mutationForAction(features.PendingAction)
+		}
+	}
+	switch semantic.RequestedAction {
+	case ActionArtifact, ActionImage:
+		semantic.MutationRequested = MutationExternal
+	case ActionEdit:
+		semantic.MutationRequested = MutationWorkspace
+	case ActionAnswer, ActionInspect, ActionPlan, ActionAskUser:
+		semantic.MutationRequested = MutationNone
+	}
+	if (semantic.RecipientType == "" || semantic.RecipientType == "assistant" || semantic.RecipientType == "general") &&
+		(semantic.RequestedAction == ActionInspect || semantic.RequestedAction == ActionDebug ||
+			semantic.RequestedAction == ActionEdit || semantic.RequestedAction == ActionRun ||
+			semantic.RequestedAction == ActionContinue) {
+		semantic.RecipientType = recipientForDomain(semantic.Domain)
+	}
+}
+
+func recipientForDomain(domain string) string {
+	switch domain {
+	case "code_review":
+		return "code-review"
+	case "frontend", "backend", "devops", "architecture", "database", "security", "biology", "rust", "cad":
+		return domain
+	default:
+		return "assistant"
+	}
+}
+
+func structuralIntent(features TurnFeatures) (SemanticIntent, bool) {
+	base := SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionTask,
+		RequestedAction:   features.ExplicitAction,
+		MutationRequested: MutationNone,
+		Confidence:        1,
+		ReasonCodes:       []string{"explicit_turn_directive"},
+	}
+	switch {
+	case features.IsSlashCommand:
+		base.Interaction = InteractionTask
+		base.RequestedAction = ActionAnswer
+		return base, true
+	case features.PendingActionID != "" && (features.ReplyTarget != "" || looksLikeContinuationAffirmation(features.Text)):
+		base.Interaction = InteractionContinuation
+		base.RequestedAction = ActionContinue
+		base.ContinuationTarget = features.PendingActionID
+		base.MutationRequested = mutationForAction(features.PendingAction)
+		if base.MutationRequested == MutationNone {
+			base.MutationRequested = MutationWorkspace
+		}
+		return base, true
+	default:
+		return SemanticIntent{}, false
+	}
+}
+
+func looksLikeContinuationAffirmation(text string) bool {
+	text = strings.ToLower(strings.TrimSpace(text))
+	if text == "" || len(text) > 80 {
+		return false
+	}
+	phrases := []string{
+		"proceed", "go ahead", "keep going", "continue", "do it", "yes", "approved",
+		"sounds good", "that works", "please continue", "go for it",
+	}
+	for _, phrase := range phrases {
+		if text == phrase || strings.HasPrefix(text, phrase+" ") || strings.HasPrefix(text, phrase+",") ||
+			strings.HasPrefix(text, phrase+"!") || strings.HasPrefix(text, phrase+".") {
+			return true
+		}
+	}
+	return false
+}
+
+func applyExplicitSemanticDirectives(features TurnFeatures, semantic *SemanticIntent) {
+	if semantic == nil {
+		return
+	}
+	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))
+	switch {
+	case features.ExplicitAction != "":
+		semantic.RequestedAction = features.ExplicitAction
+		semantic.MutationRequested = mutationForAction(features.ExplicitAction)
+		semantic.ReasonCodes = append(semantic.ReasonCodes, "explicit_action")
+	case mode == "plan":
+		semantic.RequestedAction = ActionPlan
+		semantic.MutationRequested = MutationNone
+		semantic.ReasonCodes = append(semantic.ReasonCodes, "explicit_plan_mode")
+	case mode == "export":
+		semantic.RequestedAction = ActionEdit
+		semantic.MutationRequested = MutationWorkspace
+		semantic.ReasonCodes = append(semantic.ReasonCodes, "explicit_export_mode")
+	}
+}
+
+// ResolvePolicy applies deterministic authorization and environment constraints.
+func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source) TurnDecision {
+	decision := TurnDecision{
+		SchemaVersion:      SchemaVersion,
+		Interaction:        semantic.Interaction,
+		RequestedAction:    semantic.RequestedAction,
+		Action:             semantic.RequestedAction,
+		Domain:             strings.TrimSpace(semantic.Domain),
+		RecipientType:      strings.TrimSpace(semantic.RecipientType),
+		Retrieval:          append([]RetrievalTarget(nil), semantic.Retrieval...),
+		Mutation:           semantic.MutationRequested,
+		ContinuationTarget: strings.TrimSpace(semantic.ContinuationTarget),
+		Complexity:         strings.TrimSpace(semantic.Complexity),
+		Confidence:         semantic.Confidence,
+		Source:             source,
+		ReasonCodes:        normalizeStrings(semantic.ReasonCodes),
+	}
+	if decision.Interaction == "" {
+		decision.Interaction = InteractionQuestion
+	}
+	if decision.RequestedAction == "" {
+		decision.RequestedAction = ActionAnswer
+		decision.Action = ActionAnswer
+	}
+	if decision.Mutation == "" {
+		decision.Mutation = mutationForAction(decision.Action)
+	}
+
+	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))
+	if mode == "ask" || mode == "plan" {
+		if decision.Mutation != MutationNone || isMutatingAction(decision.Action) {
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "composer_mode_forbids_mutation")
+		}
+		decision.Mutation = MutationNone
+		if mode == "plan" {
+			decision.Action = ActionPlan
+		} else if isMutatingAction(decision.Action) {
+			decision.Action = ActionAnswer
+		}
+	}
+	if decision.Mutation == MutationWorkspace {
+		if !features.CanProposeFiles || !features.CanRunImplementation {
+			decision.Action = ActionAskUser
+			decision.Mutation = MutationNone
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_mutation_not_authorized")
+		} else if !features.HasWorkspace {
+			decision.Action = ActionAskUser
+			decision.Mutation = MutationNone
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_required")
+		}
+	}
+	if decision.Action == ActionContinue && decision.ContinuationTarget == "" {
+		decision.ContinuationTarget = strings.TrimSpace(features.PendingActionID)
+		if decision.ContinuationTarget == "" {
+			decision.Action = ActionAskUser
+			decision.Mutation = MutationNone
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "continuation_target_missing")
+		}
+	}
+	decision.PolicyOverrides = normalizeStrings(decision.PolicyOverrides)
+	return decision
+}
+
+func mutationForAction(action Action) Mutation {
+	switch action {
+	case ActionEdit, ActionContinue:
+		return MutationWorkspace
+	case ActionArtifact, ActionImage:
+		return MutationExternal
+	default:
+		return MutationNone
+	}
+}
+
+func isMutatingAction(action Action) bool {
+	return mutationForAction(action) != MutationNone
+}
+
+func safeFallback(features TurnFeatures, reason string) TurnDecision {
+	recipient := strings.TrimSpace(features.ExplicitRecipient)
+	if recipient == "" {
+		recipient = "assistant"
+	}
+	return TurnDecision{
+		SchemaVersion:    SchemaVersion,
+		Interaction:      InteractionQuestion,
+		RequestedAction:  ActionAnswer,
+		Action:           ActionAnswer,
+		RecipientType:    recipient,
+		Retrieval:        []RetrievalTarget{RetrievalMemory},
+		Mutation:         MutationNone,
+		Confidence:       0,
+		Source:           SourceSafeFallback,
+		ReasonCodes:      []string{reason},
+		AbstentionReason: reason,
+	}
+}
+
+func classifierFallback(features TurnFeatures, reason string) TurnDecision {
+	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))
+	if features.ExplicitAction == "" && mode != "plan" && mode != "export" {
+		return safeFallback(features, reason)
+	}
+	semantic := SemanticIntent{
+		SchemaVersion: SchemaVersion, Interaction: InteractionTask,
+		RequestedAction: ActionAnswer, MutationRequested: MutationNone,
+		Confidence: 1, ReasonCodes: []string{reason},
+		RecipientType: strings.TrimSpace(features.ExplicitRecipient),
+	}
+	applyExplicitSemanticDirectives(features, &semantic)
+	decision := ResolvePolicy(features, semantic, SourceStructural)
+	decision.AbstentionReason = reason
+	return decision
+}

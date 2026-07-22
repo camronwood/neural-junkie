@@ -27,7 +27,7 @@ export interface ChatShortcutHandlerDeps {
   setFileExplorerOpen: (fn: (prev: boolean) => boolean) => void;
   setCodeEditorOpen: (fn: (prev: boolean) => boolean) => void;
   setTaskManagementOpen: (fn: (prev: boolean) => boolean) => void;
-  setPendingChangesOpen: (fn: (prev: boolean) => boolean) => void;
+  onOpenPendingChanges: () => void;
   setToolbarSidebarOpen: (fn: (prev: boolean) => boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setModelLibraryOpen: (open: boolean) => void;
@@ -161,7 +161,7 @@ export function useChatShortcutHandlers(deps: ChatShortcutHandlerDeps) {
         const s = useIdeOverlayStore.getState();
         s.setProblemsOpen(!s.problemsOpen);
       },
-      togglePendingChanges: () => d.current.setPendingChangesOpen((o) => !o),
+      togglePendingChanges: () => d.current.onOpenPendingChanges(),
       toggleMyAgents: () => setMyAgentsPanelOpen(!myAgentsPanelOpen),
       toggleChatPanel: () => {
         void d.current.updateLayoutSettings({

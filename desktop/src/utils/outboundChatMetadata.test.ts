@@ -92,8 +92,8 @@ describe('trimWorkspaceContext', () => {
   });
 });
 
-describe('buildHumanOutboundMetadata DM personal questions', () => {
-  it('downgrades export/agent composer to ask for non-code DM messages', () => {
+describe('buildHumanOutboundMetadata explicit turn metadata', () => {
+  it('preserves explicit export mode regardless of message wording', () => {
     const meta = buildHumanOutboundMetadata({
       contextMode: 'auto',
       message:
@@ -105,10 +105,11 @@ describe('buildHumanOutboundMetadata DM personal questions', () => {
         implementation_session: true,
       },
     });
-    expect(meta?.editor_mode).toBe('ask');
-    expect(meta?.composer_mode).toBe('ask');
-    expect(meta?.can_run_impl_session).toBe(false);
-    expect(meta?.implementation_session).toBeUndefined();
+    expect(meta?.editor_mode).toBe('export');
+    expect(meta?.composer_mode).toBe('export');
+    expect(meta?.can_run_impl_session).toBe(true);
+    expect(meta?.implementation_session).toBe(true);
+    expect(meta?.conversation_mode).toBeUndefined();
   });
 
   it('keeps export metadata for explicit save-to-file asks in DMs', () => {
@@ -126,7 +127,7 @@ describe('buildHumanOutboundMetadata DM personal questions', () => {
     expect(meta?.can_run_impl_session).toBe(true);
   });
 
-  it('strips workspace context for personal assistant DM questions', () => {
+  it('does not change agent mode from personal-assistant message wording', () => {
     const meta = buildHumanOutboundMetadata({
       contextMode: 'always',
       message: 'What Amtrak trains run from St. Louis to Chicago tomorrow?',
@@ -137,13 +138,13 @@ describe('buildHumanOutboundMetadata DM personal questions', () => {
         implementation_session: true,
       },
     });
-    expect(meta?.editor_mode).toBe('ask');
-    expect(meta?.context_scope).toBe('none');
-    expect(meta?.conversation_mode).toBe('chat');
-    expect(meta?.workspace_context).toBeUndefined();
+    expect(meta?.editor_mode).toBe('agent');
+    expect(meta?.context_scope).toBe('full');
+    expect(meta?.conversation_mode).toBeUndefined();
+    expect(meta?.implementation_session).toBeUndefined();
   });
 
-  it('does not strip workspace for specialist DM error-log follow-ups', () => {
+  it('does not infer continuation metadata from error logs or history', () => {
     const meta = buildHumanOutboundMetadata({
       contextMode: 'auto',
       message:
@@ -169,11 +170,10 @@ describe('buildHumanOutboundMetadata DM personal questions', () => {
         },
       ],
     });
-    expect(meta?.context_scope_reason).not.toBe('personal assistant DM');
-    expect(meta?.conversation_mode).toBe('code');
-    expect(meta?.context_scope_reason).toBe('implementation thread continuation');
-    expect(meta?.editor_mode).toBe('agent');
-    expect(meta?.implementation_session).toBe(true);
+    expect(meta?.conversation_mode).toBeUndefined();
+    expect(meta?.context_scope_reason).toBe('workspace mode auto');
+    expect(meta?.editor_mode).toBe('ask');
+    expect(meta?.implementation_session).toBeUndefined();
     expect(meta?.workspace_context).toBeDefined();
   });
 
@@ -189,7 +189,9 @@ describe('buildHumanOutboundMetadata DM personal questions', () => {
       },
     });
     expect(meta?.editor_mode).toBe('agent');
-    expect(meta?.implementation_session).toBe(true);
+    expect(meta?.implementation_session).toBeUndefined();
+    expect(meta?.can_propose_files).toBe(true);
+    expect(meta?.can_run_impl_session).toBe(false);
   });
 
   it('attaches workspace for knowledge-graph relate questions even in chat mode', () => {
@@ -228,7 +230,7 @@ describe('buildHumanOutboundMetadata custom expert turn context', () => {
   };
 
   it.each(['auto', 'always'] as const)(
-    'keeps a Writing expert in Chat with no workspace when sharing is %s',
+    'does not infer Writing expert semantics when sharing is %s',
     (contextMode) => {
       const meta = buildHumanOutboundMetadata({
         contextMode,
@@ -240,15 +242,14 @@ describe('buildHumanOutboundMetadata custom expert turn context', () => {
         ideCoding: true,
       });
 
-      expect(meta?.conversation_mode).toBe('chat');
-      expect(meta?.context_scope).toBe('none');
-      expect(meta?.workspace_context).toBeUndefined();
-      expect(meta?.editor_mode).toBe('ask');
+      expect(meta?.conversation_mode).toBeUndefined();
+      expect(meta?.context_scope).toBe(contextMode === 'always' ? 'full' : 'outline');
+      expect(meta?.editor_mode).toBe('agent');
       expect(meta?.implementation_session).toBeUndefined();
     }
   );
 
-  it('gives a Writing expert focused context for an explicit open-file request', () => {
+  it('uses explicit workspace sharing rather than open-file request wording', () => {
     useFileExplorerStore.setState({
       workspaces: [{ id: 'proj', name: 'Project', path: '/proj', kind: 'local' }],
       activeWorkspaceId: 'proj',
@@ -286,13 +287,16 @@ describe('buildHumanOutboundMetadata custom expert turn context', () => {
       ideCoding: true,
     });
 
-    expect(meta?.conversation_mode).toBe('code');
-    expect(meta?.context_scope).toBe('focus');
+    expect(meta?.conversation_mode).toBeUndefined();
+    expect(meta?.context_scope).toBe('full');
     const workspace = meta?.workspace_context as WorkspaceContext;
-    expect(workspace.open_files.map((file) => file.path)).toEqual(['/proj/draft.md']);
+    expect(workspace.open_files.map((file) => file.path)).toEqual([
+      '/proj/draft.md',
+      '/proj/notes.md',
+    ]);
   });
 
-  it('honors explicit Code for Writing while focusing context, including workspace Off', () => {
+  it('does not emit conversation mode while honoring workspace settings', () => {
     useFileExplorerStore.setState({
       workspaces: [{ id: 'proj', name: 'Project', path: '/proj', kind: 'local' }],
       activeWorkspaceId: 'proj',
@@ -330,11 +334,14 @@ describe('buildHumanOutboundMetadata custom expert turn context', () => {
       ideCoding: true,
     });
 
-    expect(codeMeta?.conversation_mode).toBe('code');
-    expect(codeMeta?.context_scope).toBe('focus');
+    expect(codeMeta?.conversation_mode).toBeUndefined();
+    expect(codeMeta?.context_scope).toBe('full');
     expect(codeMeta?.editor_mode).toBe('agent');
     const workspace = codeMeta?.workspace_context as WorkspaceContext;
-    expect(workspace.open_files.map((file) => file.path)).toEqual(['/proj/draft.md']);
+    expect(workspace.open_files.map((file) => file.path)).toEqual([
+      '/proj/draft.md',
+      '/proj/notes.md',
+    ]);
 
     const offMeta = buildHumanOutboundMetadata({
       contextMode: 'off',
@@ -346,13 +353,13 @@ describe('buildHumanOutboundMetadata custom expert turn context', () => {
       ideCoding: true,
     });
 
-    expect(offMeta?.conversation_mode).toBe('code');
+    expect(offMeta?.conversation_mode).toBeUndefined();
     expect(offMeta?.context_scope).toBe('none');
     expect(offMeta?.workspace_context).toBeUndefined();
     expect(offMeta?.editor_mode).toBe('agent');
   });
 
-  it('preserves IDE code behavior for engineering specialists', () => {
+  it('does not infer conversation mode for engineering specialists', () => {
     const meta = buildHumanOutboundMetadata({
       contextMode: 'auto',
       conversationMode: 'auto',
@@ -366,7 +373,7 @@ describe('buildHumanOutboundMetadata custom expert turn context', () => {
       ideCoding: true,
     });
 
-    expect(meta?.conversation_mode).toBe('code');
+    expect(meta?.conversation_mode).toBeUndefined();
     expect(meta?.context_scope).not.toBe('none');
   });
 });

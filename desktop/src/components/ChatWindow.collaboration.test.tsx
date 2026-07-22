@@ -44,6 +44,8 @@ const { apiHarness, wsHarness, confirmStartMock, confirmReplaceMock, addToastMoc
     fetchFileContent: vi.fn().mockResolvedValue(''),
     fetchFiles: vi.fn().mockResolvedValue([]),
     getRunbook: vi.fn(),
+    listPendingFileChanges: vi.fn().mockResolvedValue([]),
+    fetchGitChanges: vi.fn().mockResolvedValue([]),
   };
   const wsHarness = {
     lastOpts: null as null | {
@@ -77,6 +79,8 @@ vi.mock('../api/chatAPI', () => ({
     fetchFileContent = apiHarness.fetchFileContent;
     fetchFiles = apiHarness.fetchFiles;
     getRunbook = apiHarness.getRunbook;
+    listPendingFileChanges = apiHarness.listPendingFileChanges;
+    fetchGitChanges = apiHarness.fetchGitChanges;
   },
 }));
 
@@ -113,7 +117,6 @@ vi.mock('../stores/settingsStore', () => {
       chatPanelVisible: true,
       terminalPanelVisible: false,
       myAgentsPanelVisible: false,
-      pendingChangesPanelVisible: false,
       editorAgentMode: 'agent',
       sidebarAgentsVisible: true,
       toolbarChipsPlacement: 'top',
@@ -214,9 +217,6 @@ vi.mock('./ThreadPanel', () => ({
 }));
 vi.mock('./MyAgentsPanel', () => ({
   MyAgentsPanel: () => null,
-}));
-vi.mock('./PendingChangesPanel', () => ({
-  PendingChangesPanel: () => null,
 }));
 vi.mock('./TerminalPanel', () => ({
   TerminalPanel: () => null,

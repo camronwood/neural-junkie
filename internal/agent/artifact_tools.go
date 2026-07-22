@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/artifacts"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -22,6 +24,62 @@ var (
 	agentArtifactStore     *artifacts.Store
 	agentArtifactStoreErr  error
 )
+
+var (
+	explicitCanvasRequestRE = regexp.MustCompile(`(?i)(?:\b(?:create|make|generate|show|give|build|produce|open|render)\b.{0,64}\b(?:neural canvas|canvas|artifact)\b|\b(?:neural canvas|canvas|artifact)\b.{0,64}\b(?:of|for|showing|about)\b)`)
+	explicitVisualRequestRE = regexp.MustCompile(`(?i)\b(?:create|make|generate|show|give|produce|render)\b.{0,64}\b(?:report|chart|timeline|mermaid diagram|diagram|table)\b`)
+	artifactCodeTargetRE    = regexp.MustCompile(`(?i)\b(?:component|page|screen|endpoint|function|class|service|widget|html canvas|canvas element|source file)\b`)
+)
+
+// UserRequestsArtifact reports explicit requests for a standalone Neural Canvas
+// deliverable. Generic visuals with a code target remain implementation work.
+func UserRequestsArtifact(content string) bool {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return false
+	}
+	if explicitCanvasRequestRE.MatchString(content) {
+		return !artifactCodeTargetRE.MatchString(content) ||
+			strings.Contains(strings.ToLower(content), "neural canvas") ||
+			strings.Contains(strings.ToLower(content), "artifact")
+	}
+	return explicitVisualRequestRE.MatchString(content) && !artifactCodeTargetRE.MatchString(content)
+}
+
+func channelHasPendingArtifactRequest(history []*protocol.Message, skipMsgID string) bool {
+	return pendingArtifactRequestID(history, skipMsgID) != ""
+}
+
+func pendingArtifactRequestID(history []*protocol.Message, skipMsgID string) string {
+	seen := 0
+	for i := len(history) - 1; i >= 0 && seen < 20; i-- {
+		msg := history[i]
+		if msg == nil || msg.ID == skipMsgID {
+			continue
+		}
+		seen++
+		if msg.Type == protocol.MessageTypeArtifactChanged {
+			return ""
+		}
+		if protocol.IsUserLikeSender(msg.From) {
+			if UserRequestsArtifact(msg.Content) {
+				return msg.ID
+			}
+			if userRequestsImplementation(msg.Content) {
+				return ""
+			}
+		}
+	}
+	return ""
+}
+
+func messageHasArtifactAction(msg *protocol.Message) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	action, _ := msg.Metadata["turn_action"].(string)
+	return ActionIntent(strings.TrimSpace(action)) == ActionArtifact
+}
 
 var createArtifactToolSchema = json.RawMessage(`{
   "type": "object",
@@ -71,7 +129,16 @@ func artifactToolsEnabledForMessage(msg *protocol.Message) bool {
 	if msg == nil {
 		return true
 	}
-	if msg.ImplementationSession() || ConversationModeFromMessage(msg) == ConversationModeCode {
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		if decision.Action == semantic.ActionArtifact {
+			return true
+		}
+		if decision.Action == semantic.ActionDebug || decision.Action == semantic.ActionEdit ||
+			decision.Action == semantic.ActionContinue {
+			return false
+		}
+	}
+	if msg.ImplementationSession() && !UserRequestsArtifact(msg.Content) && !messageHasArtifactAction(msg) {
 		return false
 	}
 	phase := strings.ToLower(strings.TrimSpace(msg.GetCollaborationPhase()))
@@ -81,6 +148,7 @@ func artifactToolsEnabledForMessage(msg *protocol.Message) bool {
 func appendArtifactPrompt(system *strings.Builder) {
 	system.WriteString("NEURAL CANVAS:\n")
 	system.WriteString("Use create_artifact for substantial standalone analytical deliverables such as reports, charts, tables, timelines, Mermaid diagrams, and graph explorations. Keep short factual answers in chat.\n")
+	system.WriteString("When the user explicitly requests a Neural Canvas or standalone artifact, call create_artifact in this turn. Do not promise to create it later and do not start a file implementation session.\n")
 	system.WriteString("Artifact payloads must be declarative JSON. Never place executable JavaScript, React code, or arbitrary HTML in an artifact.\n\n")
 }
 

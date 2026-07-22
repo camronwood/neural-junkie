@@ -34,6 +34,12 @@ func (a *Agent) resolveWorkspacePath(msg *protocol.Message) string {
 // AI providers that support a "system" role (Ollama, Claude, LM Studio) will
 // split on the separator and send the first part as a system message.
 func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string {
+	if msg != nil {
+		if msg.Metadata == nil {
+			msg.Metadata = make(map[string]interface{})
+		}
+		msg.Metadata[contextRetrieveCapabilityMetadata] = false
+	}
 	resolvedIntent := IntentSubstantive
 	if len(intent) > 0 {
 		resolvedIntent = intent[0]
@@ -95,7 +101,13 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	isCollab := collabInfo.ID != ""
 
 	if a.MCPServer != nil && includeTooling && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
-		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer), a.Info.Type, effectiveMCPToolAllowlist(a, msg))
+		mcpServer := mcpServerFromInterface(a.MCPServer)
+		allowlist := effectiveMCPToolAllowlist(a, msg)
+		appendMCPToolsPrompt(&system, mcpServer, a.Info.Type, allowlist)
+		if msg != nil && mcpServer != nil && mcpServer.GetTool(contextRetrieveToolName) != nil &&
+			(len(allowlist) == 0 || toolInAllowlist(contextRetrieveToolName, allowlist)) {
+			msg.Metadata[contextRetrieveCapabilityMetadata] = true
+		}
 	}
 	// Hub media generation is a core capability — always document it when enabled,
 	// even in casual chat turns where MCP/implementation tooling stays compact.
@@ -356,6 +368,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	}
 
 	AppendPromptAttachments(&user, msg)
+	AppendAmbientState(&user, msg)
 
 	// Append workspace context if the user shared it
 	AppendWorkspaceContextForChannel(&user, msg, a.effectiveChannelType(msg.Channel))

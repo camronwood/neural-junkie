@@ -401,21 +401,68 @@ func (h *Hub) AddAgentToChannel(agentID, channelName string) error {
 	}
 
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	ch, ok := h.channels[channelName]
 	if !ok {
+		h.mu.Unlock()
 		return nil
 	}
 
 	// Track as explicit member (deduplicated)
+	alreadyMember := false
 	for _, m := range ch.Members {
 		if m == agentID {
-			return nil
+			alreadyMember = true
+			break
 		}
 	}
-	ch.Members = append(ch.Members, agentID)
+	if !alreadyMember {
+		ch.Members = append(ch.Members, agentID)
+	}
+	h.mu.Unlock()
+
+	// Membership and message delivery are separate. DM-spawned custom experts
+	// disable channel discovery, so every explicit add must eagerly start the
+	// runtime listener (including idempotent re-adds after restore).
+	h.ensureAgentSubscribed(agentID, channelName)
 	return nil
+}
+
+// RebindRestoredChannelMembers replaces session-era member IDs with the
+// currently registered runtime IDs and eagerly restores their listeners.
+// Agent IDs are process-local; display names are the stable persistence key.
+func (h *Hub) RebindRestoredChannelMembers() {
+	if h == nil {
+		return
+	}
+
+	h.mu.Lock()
+	pending := h.restoredChannelMemberNames
+	h.restoredChannelMemberNames = make(map[string][]string)
+	h.mu.Unlock()
+	if len(pending) == 0 {
+		return
+	}
+
+	agentsByName := make(map[string]*protocol.AgentInfo)
+	for _, info := range h.ListAgents() {
+		if info == nil {
+			continue
+		}
+		agentsByName[strings.ToLower(strings.TrimSpace(info.Name))] = info
+	}
+
+	for channelName, names := range pending {
+		for _, name := range names {
+			target := agentsByName[strings.ToLower(strings.TrimSpace(name))]
+			if target == nil {
+				log.Printf("Warning: restored channel member %q unavailable for %s", name, channelName)
+				continue
+			}
+			if err := h.AddAgentToChannel(target.ID, channelName); err != nil {
+				log.Printf("Warning: failed to rebind restored channel member %s to %s: %v", target.Name, channelName, err)
+			}
+		}
+	}
 }
 
 // RemoveAgentFromChannel removes an agent from a channel and its member list

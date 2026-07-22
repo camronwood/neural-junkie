@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	unified "github.com/camronwood/neural-junkie/internal/routing"
 )
 
@@ -57,6 +58,24 @@ func ClassifyChat(in ChatInput) TaskClass {
 	text := strings.TrimSpace(in.Text)
 	dec := unified.ClassifyRules(unified.Input{Text: text, AgentType: in.AgentType})
 	if dec.CostTier == unified.CostCheap {
+		return TaskUtility
+	}
+	return TaskChat
+}
+
+// ClassifySemantic maps the canonical turn decision without rescanning text.
+func ClassifySemantic(decision semantic.TurnDecision, askMode, implSession bool) TaskClass {
+	if askMode {
+		return TaskAskMode
+	}
+	if implSession || decision.Action == semantic.ActionDebug ||
+		decision.Action == semantic.ActionEdit || decision.Action == semantic.ActionContinue {
+		if decision.Complexity == "heavy" {
+			return TaskImplementHeavy
+		}
+		return TaskImplement
+	}
+	if decision.Complexity == "cheap" {
 		return TaskUtility
 	}
 	return TaskChat

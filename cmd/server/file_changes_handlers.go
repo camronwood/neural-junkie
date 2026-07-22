@@ -150,20 +150,25 @@ func handleProposeFileChangeFromMessage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	systemFrom := protocol.AgentInfo{
-		ID:     "system",
-		Name:   "System",
-		Type:   protocol.AgentTypeGeneral,
-		Status: "active",
-	}
-	infoMsg := protocol.NewMessage(
-		protocol.MessageTypeSystemInfo,
+	proposalMsg := protocol.NewMessage(
+		protocol.MessageTypeFileChange,
 		req.Channel,
-		systemFrom,
-		fmt.Sprintf("Created file change proposal `%s` for `%s` from message `%s`.", change.ID, change.FilePath, source.ID),
+		source.From,
+		fmt.Sprintf("Proposed an edit to `%s`.", change.FilePath),
 	)
-	if sendErr := chatHub.SendMessage(infoMsg); sendErr != nil {
-		log.Printf("Failed to send propose-from-message system message: %v", sendErr)
+	proposalMsg.Metadata[protocol.MetaChangeProposal] = protocol.ChangeProposalCard{
+		Version:     1,
+		Kind:        protocol.ChangeProposalKindFile,
+		ID:          change.ID,
+		Status:      protocol.ChangeProposalStatusPending,
+		Operation:   string(change.Operation),
+		FilePath:    change.FilePath,
+		RequestedAt: change.RequestedAt,
+		ExpiresAt:   change.ExpiresAt,
+	}
+	proposalMsg.Metadata["source_message_id"] = source.ID
+	if sendErr := chatHub.SendMessage(proposalMsg); sendErr != nil {
+		log.Printf("Failed to send propose-from-message card: %v", sendErr)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -257,6 +262,8 @@ func handleApproveFileChange(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fileChangeManager := chatHub.GetFileChangeManager()
+	current, _ := fileChangeManager.GetFileChangeRecord(path)
+	wasPending := current != nil && current.Status == filechange.FileChangeStatusPending
 
 	var req struct {
 		NewContent string `json:"new_content"`
@@ -270,9 +277,44 @@ func handleApproveFileChange(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if wasPending {
+		chatHub.UpdateChangeProposalStatus(
+			current.Channel,
+			current.ID,
+			protocol.ChangeProposalStatusApplying,
+			"",
+			"",
+		)
+	}
 
 	change, err := fileChangeManager.ApproveFileChange(path, userID)
 	if err != nil {
+		if wasPending {
+			lowerErr := strings.ToLower(err.Error())
+			if strings.Contains(lowerErr, "already processed") {
+				if latest, getErr := fileChangeManager.GetFileChangeRecord(path); getErr == nil {
+					chatHub.UpdateChangeProposalStatus(
+						latest.Channel,
+						path,
+						protocol.ChangeProposalStatus(latest.Status),
+						latest.Reason,
+						"",
+					)
+				}
+			} else {
+				status := protocol.ChangeProposalStatusFailed
+				managerStatus := filechange.FileChangeStatusFailed
+				if strings.Contains(lowerErr, "stale") || strings.Contains(lowerErr, "no-op") {
+					status = protocol.ChangeProposalStatusStale
+					managerStatus = filechange.FileChangeStatusStale
+				} else if strings.Contains(lowerErr, "expired") {
+					status = protocol.ChangeProposalStatusExpired
+					managerStatus = filechange.FileChangeStatusExpired
+				}
+				_, _ = fileChangeManager.MarkFileChangeStatus(path, managerStatus, err.Error())
+				chatHub.UpdateChangeProposalStatus(current.Channel, path, status, "", err.Error())
+			}
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -316,6 +358,7 @@ func handleRejectFileChange(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	chatHub.NotifyFileChangeRejected(change)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(change)

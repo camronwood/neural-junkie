@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 )
 
 const maxResponseImageBytes = 8 * 1024 * 1024
@@ -146,7 +147,29 @@ func readLocalImage(path string) ([]byte, string, error) {
 	}
 }
 
-var imageGenerationVerbRE = regexp.MustCompile(`\b(make|generate|create|draw|show)\b`)
+var (
+	imageGenerationVerbRE = regexp.MustCompile(`\b(make|generate|create|draw|show|render|design|illustrate|mock\s*up)\b`)
+	imageGenerationNounRE = regexp.MustCompile(
+		`\b(image|picture|illustration|artwork|cover\s+art|cover\s+image|logo|visual|diagram|png|mockup)\b`,
+	)
+	imageGenerationIndirectRE = regexp.MustCompile(
+		`\b(?:let'?s|can\s+(?:we|i)|could\s+(?:we|i)|may\s+i|i\s+want\s+to|i'?d\s+like\s+to)\s+` +
+			`(?:see|view|preview)\b.{0,120}\b(?:image|picture|illustration|artwork|cover\s+art|cover\s+image|logo|visual|diagram|png|mockup)\b|` +
+			`\b(?:see|show|preview)\b.{0,80}\b(?:sample|mockup)\b.{0,80}\b(?:image|picture|illustration|artwork|cover\s+art|cover\s+image|logo|visual|diagram|png)\b`,
+	)
+	imageGenerationNegationRE = regexp.MustCompile(
+		`\b(?:do\s+not|don'?t|never|without|no\s+need\s+to|can\s+you\s+not)\s+.{0,24}` +
+			`\b(?:make|generate|create|draw|show|render|design|illustrate|mock\s*up)\b|` +
+			`\b(?:you|we|it)\s+(?:can\s+not|cannot|can'?t)\s+.{0,16}` +
+			`\b(?:make|generate|create|draw|show|render|design|illustrate|mock\s*up)\b`,
+	)
+	imageCompanionTextRE = regexp.MustCompile(
+		`\b(?:outline|synopsis|summary|caption|description|copy|draft|chapter|text)\b.{0,120}\band\b.{0,120}` +
+			`\b(?:image|picture|illustration|artwork|cover\s+art|cover\s+image|logo|visual|diagram|png|mockup)\b|` +
+			`\b(?:image|picture|illustration|artwork|cover\s+art|cover\s+image|logo|visual|diagram|png|mockup)\b.{0,120}\band\b.{0,120}` +
+			`\b(?:outline|synopsis|summary|caption|description|copy|draft|chapter|text)\b`,
+	)
+)
 
 // UserRequestsGeneratedImage is a lightweight heuristic for image-generation asks.
 func UserRequestsGeneratedImage(content string) bool {
@@ -157,18 +180,30 @@ func UserRequestsGeneratedImage(content string) bool {
 	if c == strings.ToLower(protocol.GeneratedImageDeliveryContent) {
 		return false
 	}
+	if imageGenerationNegationRE.MatchString(c) {
+		return false
+	}
 	phrases := []string{
 		"make it an image", "make this an image", "as an image", "as a png",
 		"generate an image", "generate a image", "create an image", "draw me",
-		"draw a ", "show me a diagram", "quick diagram",
+		"draw a ", "show me a diagram", "quick diagram", "show me the cover art",
 	}
 	for _, p := range phrases {
 		if strings.Contains(c, p) {
 			return true
 		}
 	}
-	hasNoun := strings.Contains(c, "image") || strings.Contains(c, "diagram") || strings.Contains(c, "png")
-	return hasNoun && imageGenerationVerbRE.MatchString(c)
+	if imageGenerationIndirectRE.MatchString(c) {
+		return true
+	}
+	return imageGenerationNounRE.MatchString(c) && imageGenerationVerbRE.MatchString(c)
+}
+
+// UserRequestsImageWithCompanionText reports mixed turns that need both an
+// image action and a substantive text deliverable, such as an outline.
+func UserRequestsImageWithCompanionText(content string) bool {
+	c := strings.ToLower(strings.TrimSpace(content))
+	return UserRequestsGeneratedImage(c) && imageCompanionTextRE.MatchString(c)
 }
 
 // ImagePromptFromMessage strips mentions and returns a prompt suitable for hub image generation.
@@ -197,7 +232,11 @@ func (a *Agent) MaybePostHubGeneratedImageForCLI(msg *protocol.Message, response
 	if !a.isCLIAgent() || responseHasImage || msg == nil || a.Hub == nil {
 		return
 	}
-	if !a.Hub.ImageGenerationEnabled() || !UserRequestsGeneratedImage(msg.Content) {
+	explicitImageIntent := UserRequestsGeneratedImage(msg.Content)
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		explicitImageIntent = decision.Action == semantic.ActionImage
+	}
+	if !a.Hub.ImageGenerationEnabled() || !explicitImageIntent {
 		return
 	}
 	prompt := ImagePromptFromMessage(msg.Content)

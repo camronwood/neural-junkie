@@ -14,6 +14,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
@@ -186,6 +187,26 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if msg.GetCollaborationID() != "" && !collaborationAllowsImplementationSession(msg) {
 		return false
 	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		caps := protocol.ResolveTurnCapabilities(msg)
+		switch decision.Action {
+		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue:
+			return caps.CanRunImplSession &&
+				(a.Info.Type != protocol.AgentTypeAssistant || assistantAllowsImplementationSession(a, msg)) &&
+				agentTypeCanShipFileChanges(a.Info.Type) &&
+				a.Info.Type != protocol.AgentTypeCodeReview
+		default:
+			return false
+		}
+	}
+	if UserRequestsArtifact(msg.Content) ||
+		(userAffirmsPendingImplementation(msg.Content) &&
+			channelHasPendingArtifactRequest(a.channelHistorySafe(msg.Channel), msg.ID)) {
+		return false
+	}
+	if isAdvisoryImplementationQuestion(msg.Content) {
+		return false
+	}
 	// Markdown/doc collab deliverables use the light path (propose FILE_CHANGE + status),
 	// not the full multi-iteration implementation session.
 	if msg.Type == protocol.MessageTypeCollabTask && collabTaskPrefersLightExecution(msg) {
@@ -317,13 +338,22 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	wsPath := a.resolveWorkspacePath(msg)
 	if wsPath != "" {
 		state.StackManifest = DetectStackManifest(wsPath)
-		state.BootFixIntent = messageImpliesBootFix(msg.Content, history)
-		state.FixLikeIntent = messageImpliesFixLikeIntent(msg.Content, history)
-		if state.FixLikeIntent && !state.BootFixIntent {
+		semanticDecision, hasSemanticDecision := protocol.ExtractTurnDecision(msg)
+		if hasSemanticDecision {
+			state.FixLikeIntent = semanticDecision.Action == semantic.ActionDebug
+			state.BootFixIntent = semanticDecisionHasReason(semanticDecision, "startup_failure", "boot_failure")
+		} else {
+			state.BootFixIntent = messageImpliesBootFix(msg.Content, history)
+			state.FixLikeIntent = messageImpliesFixLikeIntent(msg.Content, history)
+		}
+		if !hasSemanticDecision && state.FixLikeIntent && !state.BootFixIntent {
 			state.BootFixIntent = state.FixLikeIntent
 		}
 		state.ReproCommand = inferReproCommand(wsPath, state.StackManifest, msg.Content)
 		state.DiagnosePhaseRequired = requiresDiagnoseGate(msg, state, wsPath)
+		if hasSemanticDecision && semanticDecision.Action == semantic.ActionDebug {
+			state.DiagnosePhaseRequired = true
+		}
 	}
 	// Focus-scoped collab tasks already carry source contents via open_files / task_context_paths.
 	if n := len(collaborationFocusAllowedReadPaths(msg)); n > 0 && collaborationRestrictsDiscoveryTools(msg) {
@@ -856,7 +886,7 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 	outcome["verify_skipped"] = state.VerifySkipped
 	if len(state.RegisteredFiles) > 0 {
 		outcome["files_changed"] = append([]string(nil), state.RegisteredFiles...)
-	} else if len(state.FilesChanged) > 0 {
+	} else if proposed && len(state.FilesChanged) > 0 {
 		outcome["files_changed"] = append([]string(nil), state.FilesChanged...)
 	}
 	trust := ""
@@ -1036,7 +1066,9 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 
 	history := a.conversationHistoryForIntent(msg, intent)
 	prompt = a.appendPriorReferenceGuidance(prompt, msg, history)
-	prompt, _ = applyContextBudgetForMessage(msg, prompt)
+	var budgetStats ContextBudgetStats
+	prompt, budgetStats = applyContextBudgetForMessage(msg, prompt)
+	stampContextBudgetStats(msg, budgetStats)
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 	eff = a.toolCapableProvider(approvalCtx, eff)
@@ -1584,10 +1616,23 @@ func appendImplementationSessionToolGuidance(prompt *strings.Builder, a *Agent, 
 	appendFileChangeMachineBlockDocs(prompt)
 	if a != nil && msg != nil {
 		history := a.channelHistorySafe(msg.Channel)
-		if messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content) {
+		decision, canonical := protocol.ExtractTurnDecision(msg)
+		if (canonical && semanticDecisionHasReason(decision, "startup_failure", "boot_failure")) ||
+			(!canonical && (messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content))) {
 			prompt.WriteString("Boot-fix: read Makefile, package.json, and scripts/start-all.sh, then inspect read-only Git status/diff for pre-existing damage before running make start-all or npm run dev.\n")
 		}
 	}
+}
+
+func semanticDecisionHasReason(decision semantic.TurnDecision, reasons ...string) bool {
+	for _, have := range decision.ReasonCodes {
+		for _, want := range reasons {
+			if have == want {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 const proposeFileEditToolName = "propose_file_edit"

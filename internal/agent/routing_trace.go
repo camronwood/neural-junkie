@@ -21,11 +21,18 @@ func (a *Agent) recordClassifierRouting(msg *protocol.Message) {
 	if a == nil || msg == nil || msg.Type == protocol.MessageTypeCollabTask {
 		return
 	}
-	dec := unified.ClassifyRules(unified.Input{
-		Text:      msg.Content,
-		AgentType: string(a.Info.Type),
-	})
+	var dec unified.RoutingDecision
+	if semanticDecision, ok := protocol.ExtractTurnDecision(msg); ok {
+		dec = unified.DecisionFromSemantic(semanticDecision, nil)
+	} else {
+		dec = unified.ClassifyRules(unified.Input{
+			Text:      msg.Content,
+			AgentType: string(a.Info.Type),
+		})
+	}
 	snap := RoutingSnapshot{
+		Source:               dec.Source,
+		Reason:               dec.Reason,
 		Domain:               dec.Domain,
 		CostTier:             dec.CostTier,
 		ClassifierIntent:     dec.Intent,

@@ -209,6 +209,7 @@ func handleCollabTaskApprove(w http.ResponseWriter, collabID, taskID string) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	chatHub.ResolveCollabTaskApproval(collabID, taskID, "user", "approved", "")
 	chatHub.DispatchReadyCollabTasksForSnapshot(snap, false)
 	snap, _ = cm.GetCollaborationSnapshot(collabID)
 	writeCollabJSON(w, snap)

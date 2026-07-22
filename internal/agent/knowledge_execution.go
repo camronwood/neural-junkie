@@ -63,6 +63,9 @@ func (a *Agent) effectiveKnowledgePlan(msg *protocol.Message, intent TurnIntent)
 		return knowledgePlanFromSnapshot(snap)
 	}
 	if msg != nil {
+		if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+			return routing.PlanKnowledgeRouteForDecision(decision)
+		}
 		skipDefault := intent == IntentClosure || intent == IntentLowSignal
 		return routing.PlanKnowledgeRouteForTurn(msg.Content, skipDefault)
 	}

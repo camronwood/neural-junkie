@@ -8,13 +8,13 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	"github.com/camronwood/neural-junkie/internal/integrations/ticketing"
-	"github.com/camronwood/neural-junkie/internal/mcp/shared"
-	"github.com/camronwood/neural-junkie/internal/config"
-	"github.com/camronwood/neural-junkie/internal/schema"
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
+	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/schema"
 	"github.com/google/uuid"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -205,7 +205,8 @@ func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, 
 		system.WriteString("\nUse these tools to provide data-driven answers. When diagnosing issues,\n")
 		system.WriteString("USE THE TOOLS to get actual data rather than guessing.\n\n")
 	}
-	if contextcompress.RuntimeOptions().Enabled {
+	if contextcompress.RuntimeOptions().Enabled && mcpServer.GetTool(contextRetrieveToolName) != nil &&
+		(len(allowlist) == 0 || toolInAllowlist(contextRetrieveToolName, allowlist)) {
 		system.WriteString("Large tool outputs may be compressed with a ref marker; use nj_retrieve_context to expand when needed.\n\n")
 	}
 }

@@ -131,8 +131,8 @@ func TestEscalateConversationProviderAllowsOneReliableReroute(t *testing.T) {
 	if _, ok := a.EscalateConversationProvider(context.Background(), msg); ok {
 		t.Fatal("second escalation must be rejected")
 	}
-	if router.calls != 1 {
-		t.Fatalf("router calls = %d, want 1", router.calls)
+	if router.calls != 2 {
+		t.Fatalf("router calls = %d, want 2 ladder lookups with duplicate tier rejected", router.calls)
 	}
 	snap := a.LastRoutingSnapshot()
 	if snap.ConversationTier != string(ConversationTierReliable) ||

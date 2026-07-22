@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from scenario_contract import validate_deliverable_contract
+from scenario_contract import validate_deliverable_contract, validate_scenario_shape
 
 
 class DeliverableContractTest(unittest.TestCase):
@@ -86,6 +86,16 @@ class DeliverableContractTest(unittest.TestCase):
         }
         errors = validate_deliverable_contract("collab/bad.json", scenario)
         self.assertTrue(any("for_question" in e or "llm_judge" in e for e in errors))
+
+    def test_long_horizon_chat_requires_four_turns_and_metrics(self) -> None:
+        scenario = {
+            "name": "short",
+            "evaluation": {"long_horizon": True, "min_user_turns": 4},
+            "steps": [{"action": "send", "content": "one"}],
+        }
+        errors = validate_scenario_shape("chat/short.json", scenario)
+        self.assertTrue(any("at least 4" in error for error in errors))
+        self.assertTrue(any("assert_transcript_metrics" in error for error in errors))
 
 
 if __name__ == "__main__":

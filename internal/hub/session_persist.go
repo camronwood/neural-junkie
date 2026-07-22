@@ -59,6 +59,7 @@ func slimMessageMetadataForPersist(md map[string]interface{}) {
 	slimWorkspaceContextMetadata(md)
 	slimLinkedWorkspacesMetadata(md)
 	slimGrantedHubDataAccessMetadata(md)
+	delete(md, agent.MetadataAmbientState)
 	delete(md, "prompt_attachments")
 	delete(md, "user_images")
 }
@@ -457,16 +458,17 @@ type SessionSaveHealth struct {
 
 // ChannelSnapshot holds all messages for a single channel.
 type ChannelSnapshot struct {
-	Name              string                    `json:"name"`
-	DisplayName       string                    `json:"display_name,omitempty"`
-	Description       string                    `json:"description"`
-	Type              protocol.ChannelType      `json:"type"`
-	CreatedBy         string                    `json:"created_by,omitempty"`
-	Members           []string                  `json:"members,omitempty"`
-	Messages          []*protocol.Message       `json:"messages"`
-	SessionSummary    string                    `json:"session_summary,omitempty"`
-	SessionSummaryAt  time.Time                 `json:"session_summary_at,omitempty"`
-	ConversationState *ChannelConversationState `json:"conversation_state,omitempty"`
+	Name                     string                        `json:"name"`
+	DisplayName              string                        `json:"display_name,omitempty"`
+	Description              string                        `json:"description"`
+	Type                     protocol.ChannelType          `json:"type"`
+	CreatedBy                string                        `json:"created_by,omitempty"`
+	Members                  []string                      `json:"members,omitempty"`
+	Messages                 []*protocol.Message           `json:"messages"`
+	SessionSummary           string                        `json:"session_summary,omitempty"` // legacy compatibility
+	SessionSummaryAt         time.Time                     `json:"session_summary_at,omitempty"`
+	SessionSummaryCheckpoint *protocol.ConversationSummary `json:"session_summary_checkpoint,omitempty"`
+	ConversationState        *ChannelConversationState     `json:"conversation_state,omitempty"`
 }
 
 // ThreadSnapshot holds all messages and metadata for a single thread.
@@ -505,6 +507,14 @@ func (h *Hub) TakeSessionSnapshot() *SessionSnapshot {
 			if ctx := h.channelContext[name]; ctx != nil && ctx.Summary != "" {
 				cs.SessionSummary = ctx.Summary
 				cs.SessionSummaryAt = ctx.UpdatedAt
+				version := ctx.SummaryVersion
+				if version < 1 {
+					version = 1
+				}
+				cs.SessionSummaryCheckpoint = &protocol.ConversationSummary{
+					Version: version, Digest: ctx.Summary,
+					LastCompactedMessageID: ctx.LastCompactedMessageID, UpdatedAt: ctx.UpdatedAt,
+				}
 			}
 		}
 		if msgs, ok := h.messages[name]; ok {
@@ -569,6 +579,13 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		}
 		return nil
 	}
+	restoredAgentNames := make(map[string]string, len(snapshot.Agents))
+	for _, info := range snapshot.Agents {
+		if info == nil || strings.TrimSpace(info.ID) == "" || strings.TrimSpace(info.Name) == "" {
+			continue
+		}
+		restoredAgentNames[info.ID] = info.Name
+	}
 
 	h.mu.Lock()
 	h.channels = make(map[string]*protocol.Channel)
@@ -580,11 +597,22 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 	h.threadSubscribers = make(map[string][]chan *protocol.Message)
 	h.channelContext = make(map[string]*ChannelContextState)
 	h.conversationState = make(map[string]*ChannelConversationState)
+	h.restoredChannelMemberNames = make(map[string][]string)
 	h.channelSummaryRefreshGen = make(map[string]uint64)
 
 	for name, ch := range snapshot.Channels {
 		if ch == nil {
 			continue
+		}
+		unknownMembers := make([]string, 0, len(ch.Members))
+		for _, memberID := range ch.Members {
+			if agentName := strings.TrimSpace(restoredAgentNames[memberID]); agentName != "" {
+				h.restoredChannelMemberNames[name] = append(h.restoredChannelMemberNames[name], agentName)
+				continue
+			}
+			// Preserve legacy/foreign member identifiers that are not present in
+			// the session's agent directory.
+			unknownMembers = append(unknownMembers, memberID)
 		}
 		channel := &protocol.Channel{
 			ID:          uuid.New().String(),
@@ -595,7 +623,7 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 			CreatedBy:   ch.CreatedBy,
 			Created:     snapshot.SavedAt,
 			Agents:      []protocol.AgentInfo{},
-			Members:     append([]string(nil), ch.Members...),
+			Members:     unknownMembers,
 			Tags:        []string{},
 		}
 		h.channels[name] = channel
@@ -607,10 +635,15 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		} else {
 			h.conversationStateLocked(name)
 		}
-		if strings.TrimSpace(ch.SessionSummary) != "" {
+		if checkpoint := ch.SessionSummaryCheckpoint; checkpoint != nil && strings.TrimSpace(checkpoint.Digest) != "" {
 			h.channelContext[name] = &ChannelContextState{
-				Summary:   ch.SessionSummary,
-				UpdatedAt: ch.SessionSummaryAt,
+				Summary: checkpoint.Digest, SummaryVersion: max(checkpoint.Version, 1),
+				LastCompactedMessageID: checkpoint.LastCompactedMessageID, UpdatedAt: checkpoint.UpdatedAt,
+			}
+		} else if strings.TrimSpace(ch.SessionSummary) != "" {
+			// Migrate snapshots written before cumulative checkpoints existed.
+			h.channelContext[name] = &ChannelContextState{
+				Summary: ch.SessionSummary, SummaryVersion: 1, UpdatedAt: ch.SessionSummaryAt,
 			}
 		}
 	}

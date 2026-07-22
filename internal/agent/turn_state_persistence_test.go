@@ -58,7 +58,7 @@ func (h *conversationStateCaptureHub) RecordConversationCorrection(_, goalID, me
 	})
 }
 
-func (h *conversationStateCaptureHub) RecordConversationActionPromise(_, actionID, goalID, _, _ string) {
+func (h *conversationStateCaptureHub) RecordConversationActionPromise(_, actionID, goalID, _, _, _ string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.promises[actionID] = goalID

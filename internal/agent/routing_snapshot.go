@@ -31,6 +31,8 @@ type RoutingSnapshot struct {
 	ConversationTier          string
 	ConversationReasons       []string
 	ConversationEscalatedFrom string
+	Attempts                  []protocol.RoutingAttempt
+	FailureEvidence           []string
 }
 
 type routingSnapshotHolder struct {
@@ -126,6 +128,12 @@ func (a *Agent) RecordRoutingSnapshot(snap RoutingSnapshot) {
 	if snap.ConversationEscalatedFrom != "" {
 		a.routingSnap.snap.ConversationEscalatedFrom = snap.ConversationEscalatedFrom
 	}
+	if len(snap.Attempts) > 0 {
+		a.routingSnap.snap.Attempts = append([]protocol.RoutingAttempt(nil), snap.Attempts...)
+	}
+	if len(snap.FailureEvidence) > 0 {
+		a.routingSnap.snap.FailureEvidence = append([]string(nil), snap.FailureEvidence...)
+	}
 }
 
 // RecordRoutingFromProvider captures provider id and model from an AI provider.
@@ -208,5 +216,7 @@ func (a *Agent) ApplyRoutingMetadataToResponse(msg *protocol.Message) {
 		ConversationTier:          snap.ConversationTier,
 		ConversationReasons:       snap.ConversationReasons,
 		ConversationEscalatedFrom: snap.ConversationEscalatedFrom,
+		Attempts:                  snap.Attempts,
+		FailureEvidence:           snap.FailureEvidence,
 	})
 }

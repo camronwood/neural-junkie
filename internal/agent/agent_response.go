@@ -101,6 +101,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 
 	var budgetStats ContextBudgetStats
 	prompt, budgetStats = applyContextBudgetForMessage(msg, prompt)
+	stampContextBudgetStats(msg, budgetStats)
 	if budgetStats.Truncated {
 		log.Printf("[%s] context budget applied: %d -> %d bytes", a.Info.Name, budgetStats.OriginalBytes, budgetStats.FinalBytes)
 	}
@@ -122,7 +123,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		return resp, nil
 	}
 	if resp, ok := a.tryHubImageGenerationShortcut(approvalCtx, msg); ok {
-		return resp, nil
+		return a.completeMixedImageResponse(approvalCtx, msg, prompt, history, eff, resp), nil
 	}
 	if resp, ok := a.tryHubMusicGenerationShortcut(approvalCtx, msg); ok {
 		return resp, nil
@@ -159,6 +160,30 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		return retry, nil
 	}
 	return a.finalizeWorkspaceVisibilityReply(msg, response), nil
+}
+
+func (a *Agent) completeMixedImageResponse(
+	ctx context.Context,
+	msg *protocol.Message,
+	prompt string,
+	history []*protocol.Message,
+	eff ai.AIProvider,
+	imageResponse string,
+) string {
+	if msg == nil || eff == nil || !UserRequestsImageWithCompanionText(msg.Content) {
+		return imageResponse
+	}
+	companionPrompt := prompt +
+		"\n\n=== COMPLETED IMAGE ACTION ===\n" +
+		"The requested image has already been generated and posted successfully. " +
+		"Answer only the remaining non-image portion of the user's request now. " +
+		"Do not deny image capability, ask whether to proceed, or claim that the image still needs to be generated."
+	companion, err := eff.GenerateResponse(ctx, companionPrompt, historyToMessages(history))
+	companion = strings.TrimSpace(sanitizeInternalToolNames(companion))
+	if err != nil || companion == "" {
+		return imageResponse
+	}
+	return companion + "\n\n" + imageResponse
 }
 
 // generateResponseStreaming builds the same prompt as generateResponse but
@@ -258,6 +283,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 
 	var streamBudgetStats ContextBudgetStats
 	prompt, streamBudgetStats = applyContextBudgetForMessage(msg, prompt)
+	stampContextBudgetStats(msg, streamBudgetStats)
 	if streamBudgetStats.Truncated {
 		log.Printf("[%s] context budget applied (stream): %d -> %d bytes", a.Info.Name, streamBudgetStats.OriginalBytes, streamBudgetStats.FinalBytes)
 	}
@@ -290,6 +316,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 	}
 	if resp, ok := a.tryHubImageGenerationShortcut(approvalCtx, msg); ok {
+		resp = a.completeMixedImageResponse(approvalCtx, msg, prompt, history, eff, resp)
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}

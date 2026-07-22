@@ -229,7 +229,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// IDE file-tab routing applies only when the user did not @mention a specific agent.
 	// Skip in DMs: the channel partner is always the intended recipient.
 	if routedType := msg.IdeRouteAgentType(); routedType != "" && !msg.HasMentions() && !a.isDMChannel(msg.Channel) {
-		if userRequestsCodeReview(msg.Content) {
+		if _, canonical := protocol.ExtractTurnDecision(msg); !canonical && userRequestsCodeReview(msg.Content) {
 			return false
 		}
 		return strings.EqualFold(string(a.Info.Type), routedType)

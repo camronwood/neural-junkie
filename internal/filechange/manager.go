@@ -2,6 +2,7 @@ package filechange
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -46,6 +47,25 @@ func NewFileChangeManager(executor *FileChangeExecutor) *FileChangeManager {
 func (fcm *FileChangeManager) Stop() {
 	fcm.stopCleanup <- true
 	fcm.cleanupTicker.Stop()
+}
+
+// RestorePending rehydrates a durable file proposal after restart.
+func (fcm *FileChangeManager) RestorePending(change *FileChange) {
+	if fcm == nil || change == nil || change.ID == "" || change.Status != FileChangeStatusPending {
+		return
+	}
+	copyChange := *change
+	if change.Metadata != nil {
+		copyChange.Metadata = make(map[string]interface{}, len(change.Metadata))
+		for key, value := range change.Metadata {
+			copyChange.Metadata[key] = value
+		}
+	}
+	fcm.mu.Lock()
+	if _, exists := fcm.changes[change.ID]; !exists {
+		fcm.changes[change.ID] = &copyChange
+	}
+	fcm.mu.Unlock()
 }
 
 // ProposeFileChange creates a new file change proposal
@@ -134,6 +154,17 @@ func (fcm *FileChangeManager) GetFileChange(changeID string) (*FileChange, error
 	return change, nil
 }
 
+// GetFileChangeRecord retrieves lifecycle metadata even when a proposal expired.
+func (fcm *FileChangeManager) GetFileChangeRecord(changeID string) (*FileChange, error) {
+	fcm.mu.RLock()
+	defer fcm.mu.RUnlock()
+	change, ok := fcm.changes[changeID]
+	if !ok {
+		return nil, fmt.Errorf("file change not found: %s", changeID)
+	}
+	return change, nil
+}
+
 // ApproveFileChange approves and executes a file change
 func (fcm *FileChangeManager) ApproveFileChange(changeID, requestingUserID string) (*FileChange, error) {
 	fcm.mu.Lock()
@@ -146,7 +177,8 @@ func (fcm *FileChangeManager) ApproveFileChange(changeID, requestingUserID strin
 
 	// Check if expired
 	if change.IsExpired() {
-		delete(fcm.changes, changeID)
+		change.Status = FileChangeStatusExpired
+		change.Reason = "file change expired"
 		return nil, fmt.Errorf("file change expired")
 	}
 
@@ -165,15 +197,21 @@ func (fcm *FileChangeManager) ApproveFileChange(changeID, requestingUserID strin
 			return nil, fmt.Errorf("read current file before approval: %w", err)
 		}
 		if SanitizeFileChangeContent(current) != SanitizeFileChangeContent(change.OldContent) {
+			change.Status = FileChangeStatusStale
+			change.Reason = fmt.Sprintf("stale edit rejected: %s changed after proposal", change.FilePath)
 			return nil, fmt.Errorf("stale edit rejected: %s changed after proposal", change.FilePath)
 		}
 		if SanitizeFileChangeContent(current) == SanitizeFileChangeContent(change.NewContent) {
+			change.Status = FileChangeStatusStale
+			change.Reason = fmt.Sprintf("no-op edit rejected: %s already has proposed content", change.FilePath)
 			return nil, fmt.Errorf("no-op edit rejected: %s already has proposed content", change.FilePath)
 		}
 	}
 
 	// Execute the file change with the workspace/backend captured at registration.
 	if err := executor.ExecuteFileChange(change); err != nil {
+		change.Status = FileChangeStatusFailed
+		change.Reason = err.Error()
 		return nil, fmt.Errorf("failed to execute file change: %w", err)
 	}
 
@@ -197,7 +235,8 @@ func (fcm *FileChangeManager) RejectFileChange(changeID, requestingUserID, reaso
 
 	// Check if expired
 	if change.IsExpired() {
-		delete(fcm.changes, changeID)
+		change.Status = FileChangeStatusExpired
+		change.Reason = "file change expired"
 		return nil, fmt.Errorf("file change expired")
 	}
 
@@ -225,7 +264,8 @@ func (fcm *FileChangeManager) UpdatePendingNewContent(changeID, newContent strin
 		return nil, fmt.Errorf("file change not found: %s", changeID)
 	}
 	if change.IsExpired() {
-		delete(fcm.changes, changeID)
+		change.Status = FileChangeStatusExpired
+		change.Reason = "file change expired"
 		return nil, fmt.Errorf("file change expired")
 	}
 	if change.Status != FileChangeStatusPending {
@@ -251,8 +291,28 @@ func (fcm *FileChangeManager) ListPendingFileChanges(userID string) []*FileChang
 			pending = append(pending, change)
 		}
 	}
+	sort.Slice(pending, func(i, j int) bool {
+		return pending[i].RequestedAt.Before(pending[j].RequestedAt)
+	})
 
 	return pending
+}
+
+// MarkFileChangeStatus records a terminal status after an approval attempt fails.
+func (fcm *FileChangeManager) MarkFileChangeStatus(changeID string, status FileChangeStatus, reason string) (*FileChange, error) {
+	fcm.mu.Lock()
+	defer fcm.mu.Unlock()
+	change, ok := fcm.changes[changeID]
+	if !ok {
+		return nil, fmt.Errorf("file change not found: %s", changeID)
+	}
+	change.Status = status
+	change.Reason = reason
+	now := time.Now()
+	if status == FileChangeStatusRejected {
+		change.RejectedAt = &now
+	}
+	return change, nil
 }
 
 // ListAllFileChanges returns all file changes (for admin/debug purposes)

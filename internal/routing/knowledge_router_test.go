@@ -67,6 +67,16 @@ func TestPlanKnowledgeRoute_empty(t *testing.T) {
 	}
 }
 
+func TestPlanKnowledgeRoute_bootFailureUsesCodebase(t *testing.T) {
+	plan := PlanKnowledgeRoute("Something is wrong with this code I am working on and the app will not boot up")
+	if !plan.Has(RouteCodebase) {
+		t.Fatalf("boot failure should retrieve codebase context, got %+v", plan)
+	}
+	if plan.Has(RouteConversationMemory) {
+		t.Fatalf("first-turn boot failure should not default to conversation memory, got %+v", plan)
+	}
+}
+
 func TestKnowledgePlan_Has(t *testing.T) {
 	plan := PlanKnowledgeRoute("@codebase auth")
 	if !plan.Has(RouteCodebase) || plan.Has(RouteCollabArtifact) {

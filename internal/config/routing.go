@@ -12,6 +12,16 @@ type RoutingConfig struct {
 	ModelCapabilityRoutingEnabled bool `json:"model_capability_routing_enabled"`
 	// CapabilityProfilesPath overrides the default model-capability-profiles.json path.
 	CapabilityProfilesPath string `json:"capability_profiles_path,omitempty"`
+	// LocalEscalationEnabled permits automatic retries on progressively more
+	// capable installed local models. It defaults to enabled.
+	LocalEscalationEnabled bool `json:"local_escalation_enabled"`
+	// FrontierEscalationEnabled is explicit consent to send a failed local turn
+	// to a configured non-local provider. Merely configuring that provider is
+	// intentionally insufficient.
+	FrontierEscalationEnabled bool `json:"frontier_escalation_enabled"`
+	// SemanticRoutingLegacyRollback disables the canonical server semantic
+	// router and restores legacy distributed inference for emergency rollback.
+	SemanticRoutingLegacyRollback bool `json:"semantic_routing_legacy_rollback"`
 }
 
 // DefaultRoutingConfig returns LLM-first routing defaults.
@@ -22,6 +32,7 @@ func DefaultRoutingConfig() RoutingConfig {
 		RulesFallback:                 true,
 		MinConfidence:                 0.6,
 		ModelCapabilityRoutingEnabled: true,
+		LocalEscalationEnabled:        true,
 	}
 }
 

@@ -123,13 +123,24 @@ class TestModelBenchmark(unittest.TestCase):
         self.assertEqual(parse_quality_score(reason), 0.85)
 
     def test_parse_metrics_json(self) -> None:
-        out = 'ok\nMETRICS_JSON:{"prompt_tokens":10,"completion_tokens":20,"ttft_ms":12.5,"tok_per_s":33.1,"repair_attempts":1}\n'
+        out = (
+            'ok\nMETRICS_JSON:{"prompt_tokens":10,"completion_tokens":20,'
+            '"ttft_ms":12.5,"tok_per_s":33.1,"repair_attempts":1,'
+            '"passed_at_1":false,"eventual_pass":true,"attempts":2,'
+            '"actual_provider":"ollama","actual_model":"coder:14b",'
+            '"retry_reasons":["timeout"],"tool_calls":3}\n'
+        )
         m = parse_metrics_from_output(out)
         self.assertIsNotNone(m)
         assert m is not None
         self.assertEqual(m.prompt_tokens, 10)
         self.assertEqual(m.completion_tokens, 20)
         self.assertEqual(m.repair_attempts, 1)
+        self.assertIs(m.passed_at_1, False)
+        self.assertIs(m.eventual_pass, True)
+        self.assertEqual(m.actual_provider, "ollama")
+        self.assertEqual(m.retry_reasons, ["timeout"])
+        self.assertEqual(m.tool_calls, 3)
 
     def test_render_markdown_includes_winner(self) -> None:
         r = ModelBenchmarkResult(
@@ -153,6 +164,7 @@ class TestModelBenchmark(unittest.TestCase):
         )
         self.assertIn("qwen2.5-coder:14b", md)
         self.assertIn("winner", md)
+        self.assertIn("Pass@1", md)
 
     def test_to_dict_pass_rate_helpers(self) -> None:
         r = ModelBenchmarkResult(

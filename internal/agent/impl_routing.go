@@ -54,10 +54,39 @@ func (a *Agent) EffectiveImplementationProvider(ctx context.Context, msg *protoc
 	if m := eff.GetModel(); m != "" {
 		snap.ChatModel = m
 	}
-	if plan.Reason == "reliable_repair_tier" {
+	prior := a.LastRoutingSnapshot()
+	snap.Attempts = append([]protocol.RoutingAttempt(nil), prior.Attempts...)
+	hints := ImplementationRoutingHintsFromContext(ctx)
+	if hints.RepairAttempts > 0 && len(snap.Attempts) > 0 {
+		last := len(snap.Attempts) - 1
+		if snap.Attempts[last].FailureReason == "" {
+			snap.Attempts[last].FailureReason = "implementation_repair"
+		}
+		snap.FailureEvidence = appendUniqueString(prior.FailureEvidence, "implementation_repair")
+	}
+	if !routingAttemptContains(snap.Attempts, plan.ProviderID, snap.ChatModel) {
+		snap.Attempts = append(snap.Attempts, protocol.RoutingAttempt{
+			ProviderID: plan.ProviderID,
+			Model:      snap.ChatModel,
+			Tier:       implementationAttemptTier(plan.Reason),
+			Reason:     plan.Reason,
+		})
+	}
+	if plan.Reason == "reliable_local_repair_tier" || plan.Reason == "frontier_after_local_exhaustion" {
 		snap.CostTier = unified.CostPremium
 	}
 	a.RecordRoutingSnapshot(snap)
 	a.broadcastRoutingTelemetry(msg)
 	return eff
+}
+
+func implementationAttemptTier(reason string) string {
+	switch reason {
+	case "reliable_local_repair_tier":
+		return string(ConversationTierReliable)
+	case "frontier_after_local_exhaustion":
+		return "frontier"
+	default:
+		return string(ConversationTierStandard)
+	}
 }

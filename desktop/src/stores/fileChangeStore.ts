@@ -8,6 +8,9 @@ import { refreshFileExplorerForPaths } from '../utils/refreshFileExplorer';
 interface FileChangeState {
   // State
   pendingChanges: FileChange[];
+  changesById: Record<string, FileChange>;
+  busyById: Record<string, boolean>;
+  errorsById: Record<string, string>;
   loading: boolean;
   error: string | null;
   selectedChangeId: string | null;
@@ -27,6 +30,9 @@ interface FileChangeState {
 export const useFileChangeStore = create<FileChangeState>((set, get) => ({
   // Initial state
   pendingChanges: [],
+  changesById: {},
+  busyById: {},
+  errorsById: {},
   loading: false,
   error: null,
   selectedChangeId: null,
@@ -39,8 +45,15 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     try {
       const api = new ChatAPI();
       const changes = await api.listPendingFileChanges(userId);
-      // Ensure changes is always an array, never null
-      set({ pendingChanges: Array.isArray(changes) ? changes : [], loading: false });
+      const pendingChanges = Array.isArray(changes) ? changes : [];
+      set((state) => ({
+        pendingChanges,
+        changesById: pendingChanges.reduce<Record<string, FileChange>>(
+          (next, change) => ({ ...next, [change.id]: change }),
+          { ...state.changesById },
+        ),
+        loading: false,
+      }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch file changes';
       set({ 
@@ -53,7 +66,11 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
 
   // Approve a file change
   approveChange: async (changeId: string, userId = 'default', newContent?: string) => {
-    set({ loading: true, error: null });
+    set((state) => ({
+      busyById: { ...state.busyById, [changeId]: true },
+      errorsById: { ...state.errorsById, [changeId]: '' },
+      error: null,
+    }));
     
     try {
       const api = new ChatAPI();
@@ -63,7 +80,11 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
       const state = get();
       const existingChange = state.pendingChanges.find(change => change.id === changeId);
       const updatedChanges = state.pendingChanges.filter(change => change.id !== changeId);
-      set({ pendingChanges: updatedChanges, loading: false });
+      set((current) => ({
+        pendingChanges: updatedChanges,
+        changesById: { ...current.changesById, [changeId]: approvedChange },
+        busyById: { ...current.busyById, [changeId]: false },
+      }));
 
       // Refresh the file explorer so newly created/edited files appear immediately.
       const change = existingChange ?? approvedChange;
@@ -86,7 +107,12 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to approve file change';
-      set({ error: errorMessage, loading: false });
+      set((state) => ({
+        error: errorMessage,
+        busyById: { ...state.busyById, [changeId]: false },
+        errorsById: { ...state.errorsById, [changeId]: errorMessage },
+      }));
+      throw error;
     }
   },
 
@@ -99,6 +125,10 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
         pendingChanges: state.pendingChanges.map((c) =>
           c.id === changeId ? { ...c, new_content: newContent } : c
         ),
+        changesById: {
+          ...state.changesById,
+          [changeId]: diffData.change,
+        },
       }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update file change';
@@ -108,33 +138,59 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
 
   // Reject a file change
   rejectChange: async (changeId: string, reason = 'No reason provided', userId = 'default') => {
-    set({ loading: true, error: null });
+    set((state) => ({
+      busyById: { ...state.busyById, [changeId]: true },
+      errorsById: { ...state.errorsById, [changeId]: '' },
+      error: null,
+    }));
     
     try {
       const api = new ChatAPI();
-      await api.rejectFileChange(changeId, reason, userId);
+      const rejectedChange = await api.rejectFileChange(changeId, reason, userId);
       
       // Remove the rejected change from the list
       const state = get();
       const updatedChanges = state.pendingChanges.filter(change => change.id !== changeId);
-      set({ pendingChanges: updatedChanges, loading: false });
+      set((current) => ({
+        pendingChanges: updatedChanges,
+        changesById: { ...current.changesById, [changeId]: rejectedChange },
+        busyById: { ...current.busyById, [changeId]: false },
+      }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to reject file change';
-      set({ error: errorMessage, loading: false });
+      set((state) => ({
+        error: errorMessage,
+        busyById: { ...state.busyById, [changeId]: false },
+        errorsById: { ...state.errorsById, [changeId]: errorMessage },
+      }));
+      throw error;
     }
   },
 
   // Get file diff for preview
   getFileDiff: async (changeId: string) => {
-    set({ loading: true, error: null });
+    set((state) => ({
+      busyById: { ...state.busyById, [changeId]: true },
+      errorsById: { ...state.errorsById, [changeId]: '' },
+      error: null,
+    }));
     
     try {
       const api = new ChatAPI();
       const diffData = await api.getFileDiff(changeId);
-      set({ previewData: diffData, loading: false });
+      set((state) => ({
+        previewData: diffData,
+        changesById: { ...state.changesById, [changeId]: diffData.change },
+        busyById: { ...state.busyById, [changeId]: false },
+      }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to get file diff';
-      set({ error: errorMessage, loading: false });
+      set((state) => ({
+        error: errorMessage,
+        busyById: { ...state.busyById, [changeId]: false },
+        errorsById: { ...state.errorsById, [changeId]: errorMessage },
+      }));
+      throw error;
     }
   },
 

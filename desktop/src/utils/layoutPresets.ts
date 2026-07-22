@@ -12,7 +12,6 @@ export function panelsForPreset(preset: LayoutPreset): Partial<LayoutSettings> {
       editorPanelVisible: true,
       terminalPanelVisible: false,
       myAgentsPanelVisible: false,
-      pendingChangesPanelVisible: false,
     };
   }
   return {

@@ -12,11 +12,11 @@ type Classifier interface {
 
 // Options configures the default router.
 type Options struct {
-	Classifier       string  // llm | rules
-	ClassifierModel  string
-	RulesFallback    bool
-	MinConfidence    float64
-	LLMClassifier    Classifier
+	Classifier      string // llm | rules
+	ClassifierModel string
+	RulesFallback   bool
+	MinConfidence   float64
+	LLMClassifier   Classifier
 }
 
 // DefaultOptions returns LLM-first routing with rules fallback.
@@ -34,9 +34,15 @@ func Classify(ctx context.Context, in Input, opts Options) RoutingDecision {
 	opts = opts.withDefaults()
 	rules := ClassifyRules(in)
 
-	useLLM := strings.EqualFold(strings.TrimSpace(opts.Classifier), "llm") && opts.LLMClassifier != nil
+	useLLM := strings.EqualFold(strings.TrimSpace(opts.Classifier), "llm")
 	if !useLLM {
 		return rules
+	}
+	if opts.LLMClassifier == nil {
+		if opts.RulesFallback {
+			return rules
+		}
+		return failedLLMDecision("llm_classifier_unavailable")
 	}
 
 	dec, err := opts.LLMClassifier.Classify(ctx, in)
@@ -44,7 +50,7 @@ func Classify(ctx context.Context, in Input, opts Options) RoutingDecision {
 		if opts.RulesFallback {
 			return rules
 		}
-		return rules
+		return failedLLMDecision("llm_classifier_failed")
 	}
 	dec = dec.Normalized()
 	if dec.Confidence < opts.MinConfidence && opts.RulesFallback {
@@ -60,6 +66,16 @@ func Classify(ctx context.Context, in Input, opts Options) RoutingDecision {
 		dec.Reason = "llm_classified"
 	}
 	return dec
+}
+
+func failedLLMDecision(reason string) RoutingDecision {
+	return RoutingDecision{
+		Domain:     DomainGeneral,
+		CostTier:   CostStandard,
+		Confidence: 0,
+		Reason:     reason,
+		Source:     SourceLLM,
+	}
 }
 
 func (o Options) withDefaults() Options {

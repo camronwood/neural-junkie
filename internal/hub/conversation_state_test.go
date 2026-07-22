@@ -29,6 +29,26 @@ func TestChannelConversationState_CorrectionSupersedesAtomically(t *testing.T) {
 	}
 }
 
+func TestTurnConversationContextContainsOnlyUnresolvedActions(t *testing.T) {
+	h := NewHub()
+	h.SetCurrentGoal("general", "goal-1", "goal-message", "Build the service")
+	h.RecordConversationActionPromise("general", "pending", "goal-1", "edit", "write tests", "promise-1")
+	h.RecordConversationActionPromise("general", "done", "goal-1", "edit", "write code", "promise-2")
+	h.CompleteConversationAction("general", "done", "complete-2")
+	h.RecordConversationCorrection("general", "goal-1", "correction", "Use Rust", []string{"old"})
+
+	envelope := h.GetTurnConversationContext("general")
+	if envelope.Goal == nil || envelope.Goal.ID != "goal-1" {
+		t.Fatalf("goal missing from envelope: %+v", envelope.Goal)
+	}
+	if len(envelope.UnresolvedActions) != 1 || envelope.UnresolvedActions[0].ID != "pending" {
+		t.Fatalf("unexpected unresolved actions: %+v", envelope.UnresolvedActions)
+	}
+	if len(envelope.SupersededMessageIDs) != 1 || envelope.SupersededMessageIDs[0] != "old" {
+		t.Fatalf("unexpected superseded IDs: %+v", envelope.SupersededMessageIDs)
+	}
+}
+
 func TestResolveConversationGoalID_ApprovalContinuationRetainsGoal(t *testing.T) {
 	h := NewHub()
 	h.SetCurrentGoal("general", "goal-original", "request-message", "Implement feature")
@@ -168,7 +188,7 @@ func TestSessionPersistence_RestoresIntegratedGoalCorrectionAndApproval(t *testi
 	)
 	h.PersistConversationGoal("general", "goal-message", "approval-message", "Yes, continue")
 	h.RecordConversationActionPromise(
-		"general", "goal-message", "goal-message", "Implement the API", "approval-message",
+		"general", "goal-message", "goal-message", "edit", "Implement the API", "approval-message",
 	)
 
 	path := filepath.Join(t.TempDir(), "last-session.json")

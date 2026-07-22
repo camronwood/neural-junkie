@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hasBootFixRoutingSignals } from './bootFixRouting';
-import { buildImplementationSessionMetadata } from './ideComposer';
+import { prepareOutboundPayload } from './prepareOutboundPayload';
 
 describe('hasBootFixRoutingSignals', () => {
   it('detects boot-fix messages', () => {
@@ -10,34 +10,42 @@ describe('hasBootFixRoutingSignals', () => {
   });
 });
 
-describe('buildImplementationSessionMetadata boot-fix routing', () => {
-  it('routes boot-fix to frontend on team channels without mention', () => {
-    const metadata = buildImplementationSessionMetadata({
-      content: 'the app is not booting up can you help?',
+describe('desktop boot-fix routing metadata', () => {
+  it('leaves boot-fix semantics to the hub', async () => {
+    const { metadata } = await prepareOutboundPayload({
+      content:
+        'Something is wrong with this code I am working on and the app will not boot up, can you sort me out here?',
+      composerMode: 'agent',
       agents: [
         { id: '1', name: 'SoftwareArchitect', type: 'architecture' },
         { id: '2', name: 'FrontendEngineer', type: 'frontend' },
       ],
       activeTab: null,
-      editorAgentMode: 'agent',
       editorAgentTrust: 'auto_apply_edits',
     });
-    expect(metadata.ide_route_agent_type).toBe('frontend');
+    expect(metadata.ide_route_agent_type).toBeUndefined();
+    expect(metadata.implementation_session).toBeUndefined();
   });
 
-  it('uses DM partner type in specialist DMs (not boot-fix override)', () => {
-    const metadata = buildImplementationSessionMetadata({
+  it('preserves the explicit DM partner without a boot-fix override', async () => {
+    const { metadata } = await prepareOutboundPayload({
       content: 'the app is not booting up can you help?',
+      composerMode: 'agent',
       agents: [
         { id: '1', name: 'SoftwareArchitect', type: 'architecture' },
         { id: '2', name: 'FrontendEngineer', type: 'frontend' },
       ],
       activeTab: null,
-      editorAgentMode: 'agent',
       editorAgentTrust: 'auto_apply_edits',
-      channelType: 'dm',
-      dmPartnerAgentType: 'architecture',
+      channel: 'dm-user-softwarearchitect',
+      channelMeta: {
+        type: 'dm',
+        agents: ['1'],
+        name: 'dm-user-softwarearchitect',
+        description: '',
+      },
     });
     expect(metadata.ide_route_agent_type).toBe('architecture');
+    expect(metadata.implementation_session).toBeUndefined();
   });
 });

@@ -14,6 +14,7 @@ import {
   isCollaborationMessage,
   isSlashCommandMessage,
   getArtifactReference,
+  getChangeProposalCard,
 } from '../types/protocol';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MessageContent } from './MessageContent';
@@ -37,6 +38,7 @@ import { generatedAudioSrc, generatedImageSrc } from '../utils/chatImageSrc';
 import { formatToolStepLabel } from '../utils/thinkingActivityLabel';
 import { ChatClickableImage } from './ImageLightboxModal';
 import { ArtifactCard } from './neural-canvas';
+import { ChangeProposalMessageCard } from './ChangeProposalCard';
 
 function MessageUserImages({ metadata }: { metadata?: Record<string, unknown> }) {
   const raw = metadata?.[USER_IMAGES_METADATA_KEY];
@@ -336,6 +338,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const reasoningText = getReasoningText(message.metadata as Record<string, unknown> | undefined);
   const toolSteps = getToolSteps(message.metadata as Record<string, unknown> | undefined);
   const artifactRef = getArtifactReference(message.metadata as Record<string, unknown> | undefined);
+  const changeProposal = getChangeProposalCard(message);
   const senderName = slackSenderDisplayName(message);
   const sharedContextBadge = workspaceContextBadge(message.metadata as Record<string, unknown> | undefined);
   const imageAttached = hasUserImages(message.metadata as Record<string, unknown> | undefined);
@@ -402,7 +405,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
       addToast({
         type: 'success',
         title: 'Proposal created',
-        message: 'A new file-change proposal is ready for review in Pending Changes.',
+        message: 'The file-change proposal is ready for review in this chat.',
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create proposal from message';
@@ -577,6 +580,11 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
               routingLabel={routingBadgeLabel || undefined}
             />
             <MessageContent content={slackMessageBody(message)} isStreaming={isStreaming} />
+            {changeProposal && !isStreaming && (
+              <div className={message.content?.trim() ? 'mt-3' : ''}>
+                <ChangeProposalMessageCard message={message} />
+              </div>
+            )}
             {artifactRef && !isStreaming && (
               <ArtifactCard
                 className="mt-3"

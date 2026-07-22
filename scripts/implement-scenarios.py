@@ -17,6 +17,14 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
+from lib.eval_telemetry import (  # noqa: E402
+    absorb_messages,
+    absorb_metadata,
+    finish,
+    metrics_payload,
+    new_run,
+    record_reason,
+)
 from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
 from lib.regression_boot import maybe_boot_regression, restart_hub_for_live_run  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
@@ -52,13 +60,14 @@ def scenario_repo_root(scenario: dict) -> str:
 
 
 class ImplementContext:
-    def __init__(self, base: str, scenario: dict) -> None:
+    def __init__(self, base: str, scenario: dict, telemetry: dict | None = None) -> None:
         self.base = base.rstrip("/")
         self.scenario = scenario
         self.channel = (scenario.get("channel") or DEFAULT_CHANNEL).strip()
         self.target_agent = (scenario.get("target_agent") or "BackendEngineer").strip().lstrip("@")
         self.baseline_agent_count: dict[str, int] = {}
         self.file_snapshots: dict[str, str] = {}
+        self.telemetry = telemetry or new_run("implement", str(scenario.get("name") or "unknown"))
 
 
 def _chat_baseline(ctx: ImplementContext, agent: str) -> int:
@@ -149,6 +158,7 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
                 metadata={"conversation_mode": "code", "implementation_session": True},
                 from_name=DEFAULT_FROM,
             )
+            record_reason(ctx.telemetry, "nudge_reasons", f"silent agent after {secs * 0.55:.0f}s")
             print(f"  wait_reply: nudged silent @{from_name}", flush=True)
         time.sleep(2)
     hub.abort_channel_agents(ctx.base, ctx.channel, held_by="ImplementScenario")
@@ -467,36 +477,62 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dic
 
     outcome: dict = {}
     last_detail = ""
+    telemetry = new_run("implement", name)
     # Selection-scoped extract is late in alpha order and flaky under Ollama soak — allow 3 attempts.
     max_attempts = 3 if name == "selection-scoped-edit" else 2
     for attempt in range(1, max_attempts + 1):
-        ok, outcome, last_detail = _run_scenario_once(base, name, keep=keep)
+        telemetry["attempts"] = attempt
+        ok, outcome, last_detail = _run_scenario_once(
+            base, name, keep=keep, telemetry=telemetry
+        )
+        absorb_metadata(telemetry, outcome)
         if ok:
-            return ok, outcome
-        if not maybe_retry_after_failure(
+            telemetry["passed_at_1"] = attempt == 1
+            report = finish(telemetry, eventual_pass=True)
+            print("EVAL_JSON:" + json.dumps(report, separators=(",", ":")))
+            print(
+                "METRICS_JSON:"
+                + json.dumps(metrics_payload(report, outcome), separators=(",", ":"))
+            )
+            return ok, {**outcome, "evaluation": report}
+        should_retry = maybe_retry_after_failure(
             base, name, last_detail, attempt, max_attempts=max_attempts
-        ):
+        )
+        if not should_retry:
             break
+        record_reason(telemetry, "retry_reasons", last_detail)
         # Clear stuck implementation turns before the next attempt.
         hub.abort_channel_agents(base, "implement-scenarios", held_by="ImplementScenario")
         pause_before_retry(8.0)
-    return False, outcome
+    report = finish(telemetry, eventual_pass=False)
+    print("EVAL_JSON:" + json.dumps(report, separators=(",", ":")))
+    print(
+        "METRICS_JSON:"
+        + json.dumps(metrics_payload(report, outcome), separators=(",", ":"))
+    )
+    return False, {**outcome, "evaluation": report}
 
 
-def _run_scenario_once(base: str, name: str, *, keep: bool = False) -> tuple[bool, dict, str]:
+def _run_scenario_once(
+    base: str,
+    name: str,
+    *,
+    keep: bool = False,
+    telemetry: dict | None = None,
+) -> tuple[bool, dict, str]:
     scenario = load_scenario(name)
-    ctx = ImplementContext(base, scenario)
+    ctx = ImplementContext(base, scenario, telemetry=telemetry)
     empty_outcome: dict = {}
     print(f"\n=== implement: {name} ===")
     if not ensure_hub_ready(base, f"implement:{name}"):
-        return False, empty_outcome
+        return False, empty_outcome, "hub unhealthy"
     required = scenario.get("required_agents") or [ctx.target_agent]
     ok, missing = hub.verify_agents_online(base, required)
     if not ok:
         print(f"  FAIL: offline agents: {missing}", file=sys.stderr)
-        return False, empty_outcome
+        return False, empty_outcome, f"offline agents: {missing}"
     if not ensure_channel(ctx):
-        return False, empty_outcome
+        return False, empty_outcome, "could not ensure channel"
     hub.abort_channel_agents(ctx.base, ctx.channel, held_by="ImplementScenario")
     if scenario.get("cleanup", "clear") == "clear" and not keep:
         hub.clear_channel_history(ctx.base, ctx.channel)
@@ -531,17 +567,10 @@ def _run_scenario_once(base: str, name: str, *, keep: bool = False) -> tuple[boo
                 break
     finally:
         outcome = _outcome_from_last_reply(ctx, ctx.target_agent)
+        absorb_messages(ctx.telemetry, hub.list_messages(ctx.base, ctx.channel, 200))
         reset_fixture_baseline(scenario, root=ROOT)
         if scenario.get("cleanup", "clear") == "clear" and not keep:
             hub.clear_channel_history(ctx.base, ctx.channel)
-    metrics_payload = {
-        "prompt_tokens": outcome.get("prompt_tokens"),
-        "completion_tokens": outcome.get("completion_tokens"),
-        "ttft_ms": outcome.get("ttft_ms"),
-        "tok_per_s": outcome.get("tok_per_s"),
-        "repair_attempts": outcome.get("repair_attempts"),
-    }
-    print("METRICS_JSON:" + json.dumps(metrics_payload, separators=(",", ":")))
     print(f"=== {'PASS' if all_ok else 'FAIL'}: {name} ===\n")
     return all_ok, outcome, last_detail
 

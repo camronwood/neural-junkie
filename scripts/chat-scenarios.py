@@ -22,6 +22,7 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
+from lib.eval_telemetry import absorb_messages, finish, metrics_payload, new_run, record_reason  # noqa: E402
 from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
 from lib.scenario_assert import check_text_patterns, looks_like_read_only_inspection_command  # noqa: E402
@@ -51,6 +52,7 @@ class ChatScenarioContext:
         verbose: bool = False,
         *,
         require_debug: bool = False,
+        telemetry: dict | None = None,
     ) -> None:
         self.base = base.rstrip("/")
         self.scenario = scenario
@@ -62,6 +64,7 @@ class ChatScenarioContext:
         self.baseline_agent_count = 0
         self.start_agent_count = 0
         self.start_message_count = 0
+        self.telemetry = telemetry or new_run("chat", str(scenario.get("name") or self.channel))
 
     def log(self, msg: str) -> None:
         if self.verbose:
@@ -183,6 +186,8 @@ def step_wait_reply(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
                 "failure" in detail.lower() or "timeout" in detail.lower()
             ):
                 if resend_on_error and step.get("resend_content"):
+                    record_reason(ctx.telemetry, "retry_reasons", detail)
+                    record_reason(ctx.telemetry, "nudge_reasons", "resend after wait failure")
                     ctx.log(f"  wait_reply: {detail}; re-sending user message")
                     hub.send_message(
                         ctx.base,
@@ -201,12 +206,15 @@ def step_wait_reply(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
                     time.sleep(3)
                     continue
                 ctx.log(f"  wait_reply attempt {attempt + 1}: {detail}; retrying")
+                record_reason(ctx.telemetry, "retry_reasons", detail)
                 time.sleep(3)
                 continue
             return ok, detail
         last = _last_agent_chat_message(ctx, from_agent)
         if _is_generation_error_reply(last):
             if attempt < retries and resend_on_error and step.get("resend_content"):
+                record_reason(ctx.telemetry, "retry_reasons", "generation_error reply")
+                record_reason(ctx.telemetry, "nudge_reasons", "resend after generation_error")
                 ctx.log("  wait_reply got generation_error; re-sending user message")
                 hub.send_message(
                     ctx.base,
@@ -225,6 +233,7 @@ def step_wait_reply(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
                 time.sleep(2)
                 continue
             if attempt < retries:
+                record_reason(ctx.telemetry, "retry_reasons", "generation_error poll retry")
                 ctx.log("  wait_reply got generation_error; retrying poll")
                 time.sleep(3)
                 continue
@@ -402,10 +411,12 @@ def step_assert_transcript_metrics(ctx: ChatScenarioContext, step: dict) -> tupl
     """Apply deterministic metrics to messages produced by this scenario run."""
     messages = hub.list_messages(ctx.base, ctx.channel, 200)
     messages = messages[ctx.start_message_count :]
+    absorb_messages(ctx.telemetry, messages)
     contract = extract_transcript(
         messages,
         source=f"live:{ctx.scenario.get('name') or ctx.channel}",
         cases=step.get("cases") or [],
+        telemetry=ctx.telemetry,
     )
     result = evaluate_contract(contract)
     failures = check_thresholds(result, step.get("thresholds") or {})
@@ -484,20 +495,32 @@ def run_scenario(
     last_detail = ""
     metric_run = "metrics" in scenario_tags(load_scenario(name))
     max_attempts = 1 if metric_run else (3 if name == "dm-backend-codebase-semantic" else 2)
+    telemetry = new_run("chat", name)
     for attempt in range(1, max_attempts + 1):
+        telemetry["attempts"] = attempt
         ok, last_detail = _run_scenario_once(
             base,
             name,
             verbose=verbose,
             keep=keep,
             require_debug=require_debug,
+            telemetry=telemetry,
         )
         if ok:
+            telemetry["passed_at_1"] = attempt == 1 and not telemetry["retry_reasons"]
+            report = finish(telemetry, eventual_pass=True)
+            print("EVAL_JSON:" + json.dumps(report, separators=(",", ":")))
+            print("METRICS_JSON:" + json.dumps(metrics_payload(report), separators=(",", ":")))
             return True
-        if not maybe_retry_after_failure(
+        should_retry = maybe_retry_after_failure(
             base, name, last_detail, attempt, max_attempts=max_attempts
-        ):
+        )
+        if not should_retry:
             break
+        record_reason(telemetry, "retry_reasons", last_detail)
+    report = finish(telemetry, eventual_pass=False)
+    print("EVAL_JSON:" + json.dumps(report, separators=(",", ":")))
+    print("METRICS_JSON:" + json.dumps(metrics_payload(report), separators=(",", ":")))
     return False
 
 
@@ -508,9 +531,16 @@ def _run_scenario_once(
     verbose: bool = False,
     keep: bool = False,
     require_debug: bool = False,
+    telemetry: dict | None = None,
 ) -> tuple[bool, str]:
     scenario = load_scenario(name)
-    ctx = ChatScenarioContext(base, scenario, verbose, require_debug=require_debug)
+    ctx = ChatScenarioContext(
+        base,
+        scenario,
+        verbose,
+        require_debug=require_debug,
+        telemetry=telemetry,
+    )
 
     print(f"\n=== scenario: {name} ===")
     print(f"  hub={base}")
@@ -546,6 +576,9 @@ def _run_scenario_once(
             all_ok = False
             last_detail = detail
             break
+
+    produced_messages = hub.list_messages(ctx.base, ctx.channel, 200)[ctx.start_message_count :]
+    absorb_messages(ctx.telemetry, produced_messages)
 
     cleanup = scenario.get("cleanup", "clear")
     if cleanup == "clear" and not keep:

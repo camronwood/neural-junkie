@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/scananalysis"
@@ -65,6 +66,16 @@ func (a *Agent) imageGenerationToolsEnabledForMessage(msg *protocol.Message) boo
 func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 	if msg == nil {
 		return false
+	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		if decision.Action == semantic.ActionImage {
+			return false
+		}
+		if decision.Action == semantic.ActionDebug || decision.Action == semantic.ActionEdit ||
+			decision.Action == semantic.ActionContinue || decision.Action == semantic.ActionRun ||
+			decision.Action == semantic.ActionArtifact {
+			return true
+		}
 	}
 	explicitImageIntent := UserRequestsGeneratedImage(msg.Content)
 	if msg.ImplementationSession() {

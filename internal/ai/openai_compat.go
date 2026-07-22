@@ -109,6 +109,76 @@ func (p *OpenAICompatProvider) GenerateResponse(ctx context.Context, prompt stri
 	return text, nil
 }
 
+// GenerateStructuredResponse requests JSON output through response_format.
+func (p *OpenAICompatProvider) GenerateStructuredResponse(ctx context.Context, structured StructuredOutputRequest) (StructuredOutputResult, error) {
+	systemPrompt, userMessage := SplitSystemPrompt(structured.Prompt)
+	messages := buildOpenAIChatMessages(systemPrompt, userMessage, structured.ConversationHistory, nil)
+	responseFormat := &OpenAIResponseFormat{Type: "json_object"}
+	if len(structured.JSONSchema) > 0 {
+		if !json.Valid(structured.JSONSchema) {
+			return StructuredOutputResult{}, fmt.Errorf("invalid JSON schema")
+		}
+		name := strings.TrimSpace(structured.SchemaName)
+		if name == "" {
+			name = "response"
+		}
+		responseFormat = &OpenAIResponseFormat{
+			Type: "json_schema",
+			JSONSchema: &OpenAIJSONSchema{
+				Name:   name,
+				Strict: true,
+				Schema: structured.JSONSchema,
+			},
+		}
+	}
+	reqBody := OpenAICompatibleRequest{
+		Model:          p.Model,
+		Messages:       messages,
+		Stream:         false,
+		ResponseFormat: responseFormat,
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return StructuredOutputResult{}, fmt.Errorf("failed to marshal request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", p.Endpoint+"/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return StructuredOutputResult{}, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if p.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.APIKey)
+	}
+	for k, v := range p.Headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return StructuredOutputResult{}, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return StructuredOutputResult{}, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var response OpenAICompatibleResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return StructuredOutputResult{}, fmt.Errorf("failed to decode response: %w", err)
+	}
+	if len(response.Choices) == 0 {
+		return StructuredOutputResult{}, fmt.Errorf("no choices in response")
+	}
+	recordOpenAICompatUsage(&p.usage, response.Usage.PromptTokens, response.Usage.CompletionTokens)
+	text := strings.TrimSpace(openAIMessageTextContent(response.Choices[0].Message.Content))
+	if text == "" {
+		return StructuredOutputResult{}, fmt.Errorf("no content in response")
+	}
+	return StructuredOutputResult{Content: text}, nil
+}
+
 func (p *OpenAICompatProvider) GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, imageType string, conversationHistory []protocol.Message) (string, error) {
 	if len(imageData) == 0 {
 		return "", fmt.Errorf("empty image")
@@ -279,7 +349,7 @@ func (p *OpenAICompatProvider) GenerateResponseStream(ctx context.Context, promp
 	return p.GenerateMultimodalStream(ctx, prompt, nil, conversationHistory)
 }
 
-func (p *OpenAICompatProvider) GetEndpoint() string  { return p.Endpoint }
+func (p *OpenAICompatProvider) GetEndpoint() string   { return p.Endpoint }
 func (p *OpenAICompatProvider) SetModel(model string) { p.Model = model }
 func (p *OpenAICompatProvider) SetEndpoint(endpoint string) {
 	p.Endpoint = strings.TrimRight(endpoint, "/")

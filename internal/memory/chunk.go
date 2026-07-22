@@ -76,18 +76,40 @@ func MessageChunks(msg *protocol.Message) []Chunk {
 			id = "msg:" + msg.ID
 		}
 		chunks = append(chunks, Chunk{
-			ID:         id,
-			SourceType: SourceMessage,
-			SourceID:   msg.ID,
-			Channel:    strings.TrimSpace(msg.Channel),
-			ThreadID:   msg.GetThreadID(),
-			SenderName: sender,
-			Content:    part,
-			ContentHash: ContentHash(part),
-			CreatedAt:  msg.Timestamp,
+			ID:           id,
+			SourceType:   SourceMessage,
+			SourceID:     msg.ID,
+			Channel:      strings.TrimSpace(msg.Channel),
+			ThreadID:     msg.GetThreadID(),
+			GoalID:       messageMetadataString(msg, "original_goal_id", "goal_id"),
+			IsCorrection: messageMetadataBool(msg, "is_correction"),
+			SenderName:   sender,
+			Content:      part,
+			ContentHash:  ContentHash(part),
+			CreatedAt:    msg.Timestamp,
 		})
 	}
 	return chunks
+}
+
+func messageMetadataString(msg *protocol.Message, keys ...string) string {
+	if msg == nil {
+		return ""
+	}
+	for _, key := range keys {
+		if value, ok := msg.Metadata[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func messageMetadataBool(msg *protocol.Message, key string) bool {
+	if msg == nil {
+		return false
+	}
+	value, _ := msg.Metadata[key].(bool)
+	return value
 }
 
 // FileChunks builds indexable chunks from a collab markdown file.

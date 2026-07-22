@@ -8,7 +8,9 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	implrouting "github.com/camronwood/neural-junkie/internal/implementation/routing"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/routing"
 )
 
 type implementationRoutingRuntime struct{}
@@ -29,8 +31,12 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		}
 	}
 	taskText := ""
+	var semanticDecision *semantic.TurnDecision
 	if msg != nil {
 		taskText = msg.Content
+		if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+			semanticDecision = &decision
+		}
 	}
 	hints := agent.ImplementationRoutingHintsFromContext(ctx)
 	selID, toolModel, reason := implrouting.SelectProviderID(implrouting.Input{
@@ -41,6 +47,8 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		ReliableToolModel:             cfg.ReliableToolModelOrDefault(),
 		ReliableProviderID:            cfg.ReliableProviderID,
 		FallbackProviderIDs:           cfg.FallbackProviderIDs,
+		LocalEscalationEnabled:        appConfig.Routing.LocalEscalationEnabled,
+		FrontierEscalationEnabled:     appConfig.Routing.FrontierEscalationEnabled,
 		Providers:                     appConfig.ListProvidersSnapshot(),
 		DefaultProviderID:             defaultID,
 		TaskText:                      taskText,
@@ -50,6 +58,7 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		BootFixIntent:                 hints.BootFixIntent,
 		InstalledOllamaTags:           collectInstalledOllamaTags(ctx),
 		OllamaTagToolFilter:           ollamaToolCapableTagFilter(ctx),
+		SemanticDecision:              semanticDecision,
 	})
 	mainModel, mainReason := implrouting.SelectMainModel(implrouting.Input{
 		RoutingEnabled:                cfg.RoutingEnabled,
@@ -57,6 +66,8 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		LocalToolModel:                cfg.LocalToolModelOrDefault(),
 		ReliableToolModel:             cfg.ReliableToolModelOrDefault(),
 		ReliableProviderID:            cfg.ReliableProviderID,
+		LocalEscalationEnabled:        appConfig.Routing.LocalEscalationEnabled,
+		FrontierEscalationEnabled:     appConfig.Routing.FrontierEscalationEnabled,
 		TaskText:                      taskText,
 		AgentType:                     string(info.Type),
 		RepairAttempts:                hints.RepairAttempts,
@@ -64,6 +75,7 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		BootFixIntent:                 hints.BootFixIntent,
 		InstalledOllamaTags:           collectInstalledOllamaTags(ctx),
 		OllamaTagToolFilter:           ollamaToolCapableTagFilter(ctx),
+		SemanticDecision:              semanticDecision,
 	})
 	plan = agent.ImplementationRoutingPlan{
 		ProviderID: selID,
@@ -86,7 +98,12 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		tag := strings.TrimSpace(mainModel)
 		if hasLoRACapability(capLoRAAdapters) && tag == "" {
 			loraTags := collectInstalledLoRATags(ctx)
-			dec := classifyTask(ctx, appConfig, taskText, string(info.Type), agentModelForName(info.Name), false, loraTags)
+			var dec routing.RoutingDecision
+			if semanticDecision != nil {
+				dec = routing.DecisionFromSemantic(*semanticDecision, loraTags)
+			} else {
+				dec = classifyTask(ctx, appConfig, taskText, string(info.Type), agentModelForName(info.Name), false, loraTags)
+			}
 			if t := strings.TrimSpace(dec.LoRATag); t != "" {
 				tag = t
 				mainReason = dec.Reason

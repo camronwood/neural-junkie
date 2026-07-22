@@ -31,18 +31,18 @@ var (
 	upgrader = websocket.Upgrader{
 		CheckOrigin: checkWebSocketOrigin,
 	}
-	chatHub             *hub.Hub
-	workspaceManager    *hub.WorkspaceManager
-	projectSetManager   *hub.ProjectSetManager
+	chatHub                  *hub.Hub
+	workspaceManager         *hub.WorkspaceManager
+	projectSetManager        *hub.ProjectSetManager
 	workspaceBackendResolver *workspacebackend.Resolver
-	lspManager          *lspserver.Manager
-	appConfig           *config.Config
-	serverStartTime     time.Time
-	ollamaMgr           *ollamaManager.Manager
-	globalProviderCache *ai.ProviderCache
-	apiRateLimiter      = hub.NewRateLimiter()
-	slackBridgeCtx      context.Context
-	stopSlackBridgeCtx  context.CancelFunc
+	lspManager               *lspserver.Manager
+	appConfig                *config.Config
+	serverStartTime          time.Time
+	ollamaMgr                *ollamaManager.Manager
+	globalProviderCache      *ai.ProviderCache
+	apiRateLimiter           = hub.NewRateLimiter()
+	slackBridgeCtx           context.Context
+	stopSlackBridgeCtx       context.CancelFunc
 )
 
 // CORS middleware to allow requests from Tauri dev server
@@ -138,6 +138,12 @@ func main() {
 		}
 	}
 	chatHub = hub.NewHub()
+	chatHub.SetSemanticTurnRouter(semanticTurnRouter(appConfig))
+	defer func() {
+		if err := chatHub.CloseOrchestrationStore(); err != nil {
+			log.Printf("⚠️  Failed to close orchestration store: %v", err)
+		}
+	}()
 	applyCollabActionConfig()
 	initMessageStore()
 	initAuthStore()
@@ -204,7 +210,6 @@ func main() {
 			}
 		}
 	}
-
 	// Initialize workspace manager
 	workspaceManager, err = hub.NewWorkspaceManager()
 	if err != nil {
@@ -219,6 +224,7 @@ func main() {
 	registerRemoteWorkspacesOnStartup()
 	chatHub.SetFileChangeBackendFn(backendForWorkspaceRoot)
 	chatHub.SetCollabWorktreeBackendResolver(resolveWorktreeBackend)
+	chatHub.RestoreDurableOrchestrationInputs()
 
 	// Drop legacy demo channels (project-alpha / project-beta) from restored sessions.
 	if n := chatHub.RemoveLegacySeedChannels(); n > 0 {

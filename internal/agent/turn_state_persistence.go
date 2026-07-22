@@ -19,7 +19,7 @@ type conversationCorrectionRecorder interface {
 }
 
 type conversationActionPromiseRecorder interface {
-	RecordConversationActionPromise(channel, actionID, goalID, description, messageID string)
+	RecordConversationActionPromise(channel, actionID, goalID, action, description, messageID string)
 }
 
 type conversationActionCompleter interface {
@@ -29,12 +29,20 @@ type conversationActionCompleter interface {
 // persistTurnConversationState bridges immutable agent TurnGoal data into the
 // hub's durable channel state without adding hub types to the agent package.
 func persistTurnConversationState(a *Agent, msg *protocol.Message, goal TurnGoal) TurnGoal {
-	if a == nil || a.Hub == nil || msg == nil {
+	if msg == nil {
+		return goal
+	}
+	stampTurnGoalCapabilities(msg, goal)
+	if a == nil || a.Hub == nil {
 		return goal
 	}
 	isCorrection := protocol.IsUserLikeSender(msg.From) && userCorrectionRE.MatchString(msg.Content)
-	if goal.Action == ActionContinue || isCorrection {
+	if goal.Action == ActionContinue || isCorrection ||
+		(goal.Action == ActionArtifact && goal.ContinuationParent != "") {
 		explicitGoalID := firstStringMetadata(msg.Metadata, "original_goal_id")
+		if explicitGoalID == "" && goal.Action == ActionArtifact {
+			explicitGoalID = strings.TrimSpace(goal.ContinuationParent)
+		}
 		retainedGoalID := ""
 		if resolver, ok := a.Hub.(conversationGoalResolver); ok {
 			retainedGoalID = resolver.ResolveConversationGoalID(msg.Channel, explicitGoalID)
@@ -53,6 +61,7 @@ func persistTurnConversationState(a *Agent, msg *protocol.Message, goal TurnGoal
 		msg.Metadata = make(map[string]interface{})
 	}
 	msg.Metadata["goal_id"] = goal.ID
+	msg.Metadata["is_correction"] = isCorrection
 	if goal.ID != msg.ID {
 		msg.Metadata["original_goal_id"] = goal.ID
 	}
@@ -66,6 +75,7 @@ func persistTurnConversationState(a *Agent, msg *protocol.Message, goal TurnGoal
 			if priorID := relevantPriorUserInstructionID(a.channelHistory(msg.Channel), msg); priorID != "" {
 				supersedes = []string{priorID}
 			}
+			msg.Metadata["supersedes_message_ids"] = append([]string(nil), supersedes...)
 			recorder.RecordConversationCorrection(
 				msg.Channel, goal.ID, msg.ID, goal.NormalizedRequest, supersedes,
 			)
@@ -75,11 +85,28 @@ func persistTurnConversationState(a *Agent, msg *protocol.Message, goal TurnGoal
 		if recorder, ok := a.Hub.(conversationActionPromiseRecorder); ok {
 			recorder.RecordConversationActionPromise(
 				msg.Channel, conversationActionID(goal), goal.ID,
-				goal.NormalizedRequest, msg.ID,
+				string(goal.Action), goal.NormalizedRequest, msg.ID,
 			)
 		}
 	}
 	return goal
+}
+
+func stampTurnGoalCapabilities(msg *protocol.Message, goal TurnGoal) {
+	if msg == nil {
+		return
+	}
+	if msg.Metadata == nil {
+		msg.Metadata = make(map[string]interface{})
+	}
+	msg.Metadata["turn_action"] = string(goal.Action)
+	if !goal.ImplementationSession {
+		return
+	}
+	msg.Metadata[protocol.IdeMetaImplementationSession] = true
+	msg.Metadata[protocol.TurnMetaCanProposeFiles] = goal.Mutation == MutationWorkspace
+	msg.Metadata[protocol.TurnMetaCanRunImplSession] = true
+	msg.Metadata[protocol.TurnMetaRequiresWorkspace] = true
 }
 
 func relevantPriorUserInstructionID(history []*protocol.Message, current *protocol.Message) string {

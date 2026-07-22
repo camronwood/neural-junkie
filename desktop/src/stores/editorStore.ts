@@ -82,9 +82,15 @@ export interface OpenFileOptions {
 }
 
 export interface EditorSelectionContext {
+  tabId: string;
   startLine: number;
   endLine: number;
   text: string;
+}
+
+export interface RecentEditorEdit {
+  path: string;
+  editedAt: number;
 }
 
 interface EditorState {
@@ -93,6 +99,8 @@ interface EditorState {
   activeTabId: string | null;
   /** Non-empty selection in the active Monaco editor (for dev-pack agent context). */
   activeSelection: EditorSelectionContext | null;
+  /** Ephemeral most-recent-first edit paths used for one-turn ambient context. */
+  recentEdits: RecentEditorEdit[];
   /** Jump-to-line request consumed by CodeEditorPanel. */
   revealRequest: { workspaceId: string; path: string; line: number } | null;
 
@@ -192,6 +200,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   activeSelection: null,
+  recentEdits: [],
   revealRequest: null,
   saving: false,
   error: null,
@@ -209,6 +218,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (existingTab) {
       set({
         activeTabId: activate ? existingTab.id : state.activeTabId,
+        activeSelection: activate && existingTab.id !== state.activeTabId ? null : state.activeSelection,
         tabs: asPreview
           ? state.tabs
           : state.tabs.map((t) =>
@@ -254,6 +264,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       tabs: nextTabs,
       activeTabId: activate ? newTab.id : state.activeTabId,
+      activeSelection: activate ? null : state.activeSelection,
     });
 
     logActivity({
@@ -805,11 +816,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       tabs: newTabs,
       activeTabId: newActiveTabId,
+      activeSelection: newActiveTabId === state.activeTabId ? state.activeSelection : null,
     });
   },
   
   setActiveTab: (tabId) => {
-    set({ activeTabId: tabId });
+    set((state) => ({
+      activeTabId: tabId,
+      activeSelection: tabId === state.activeTabId ? state.activeSelection : null,
+    }));
   },
 
   pinTab: (tabId) => {
@@ -855,6 +870,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         // Editing a preview tab pins it (hard open).
         return { ...tab, content, isDirty: true, isPreview: false };
       }),
+      recentEdits: (() => {
+        const tab = state.tabs.find((item) => item.id === tabId);
+        if (!tab || tab.content === content) return state.recentEdits;
+        return [
+          { path: tab.path, editedAt: Date.now() },
+          ...state.recentEdits.filter((item) => item.path !== tab.path),
+        ].slice(0, 20);
+      })(),
     }));
   },
   
@@ -1032,13 +1055,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   closeAllTabs: () => {
-    set({ tabs: [], activeTabId: null });
+    set({ tabs: [], activeTabId: null, activeSelection: null });
   },
   
   closeOtherTabs: (keepTabId) => {
     set(state => ({
       tabs: state.tabs.filter(tab => tab.id === keepTabId),
       activeTabId: keepTabId,
+      activeSelection: state.activeSelection?.tabId === keepTabId ? state.activeSelection : null,
     }));
   },
   

@@ -22,6 +22,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check evaluation contracts
+        env:
+          NJ_SCENARIO_FLAKE_RETRY: '0'
+          PYTHONHASHSEED: '0'
+          PYTHONPATH: scripts:scripts/lib
+        run: |
+          python3 scripts/lib/scenario_contract.py
+          python3 scripts/transcript-metrics.py
+          python3 -m unittest \
+            scripts.lib.eval_telemetry_test \
+            scripts.lib.transcript_contract_test \
+            scripts.lib.scenario_contract_test \
+            scripts.lib.model_benchmark_test
+
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}

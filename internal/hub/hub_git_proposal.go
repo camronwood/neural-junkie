@@ -27,7 +27,7 @@ func (h *Hub) registerGitChangeProposal(msg *protocol.Message, raw interface{}) 
 		log.Printf("[hub] git proposal parse: %v", err)
 		return
 	}
-	_, err = h.gitChangeManager.Propose(gitchange.Proposal{
+	proposal, err := h.gitChangeManager.Propose(gitchange.Proposal{
 		ID:          payload.ID,
 		Operation:   gitchange.Operation(payload.Operation),
 		Message:     payload.Message,
@@ -38,5 +38,19 @@ func (h *Hub) registerGitChangeProposal(msg *protocol.Message, raw interface{}) 
 	})
 	if err != nil {
 		log.Printf("[hub] git proposal register: %v", err)
+		return
+	}
+	h.persistGitChange(proposal)
+	msg.Metadata[protocol.MetaChangeProposal] = protocol.ChangeProposalCard{
+		Version:     1,
+		Kind:        protocol.ChangeProposalKindGit,
+		ID:          proposal.ID,
+		Status:      protocol.ChangeProposalStatusPending,
+		Operation:   string(proposal.Operation),
+		Message:     proposal.Message,
+		Paths:       proposal.Paths,
+		WorkspaceID: proposal.WorkspaceID,
+		RequestedAt: proposal.RequestedAt,
+		ExpiresAt:   proposal.ExpiresAt,
 	}
 }

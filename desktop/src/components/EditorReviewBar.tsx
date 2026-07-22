@@ -6,12 +6,13 @@ interface EditorReviewBarProps {
 }
 
 export function EditorReviewBar({ workspaceRoot }: EditorReviewBarProps) {
-  const { pendingChanges, approveChange, rejectChange, loading } = useFileChangeStore();
+  const { pendingChanges, approveChange, rejectChange, busyById } = useFileChangeStore();
   const relevant = pendingChanges.filter((c) => {
     if (!workspaceRoot) return true;
     const fp = c.file_path || c.new_path || c.old_path || '';
     return fp.startsWith(workspaceRoot);
   });
+  const busy = relevant.some((change) => busyById[change.id]);
 
   if (relevant.length === 0) return null;
 
@@ -41,7 +42,7 @@ export function EditorReviewBar({ workspaceRoot }: EditorReviewBarProps) {
       <div className="flex gap-2">
         <button
           type="button"
-          disabled={loading}
+          disabled={busy}
           onClick={() => void rejectAll()}
           className="px-2 py-1 text-xs rounded border border-slack-border hover:bg-slack-bgHover"
         >
@@ -49,7 +50,7 @@ export function EditorReviewBar({ workspaceRoot }: EditorReviewBarProps) {
         </button>
         <button
           type="button"
-          disabled={loading}
+          disabled={busy}
           onClick={() => void acceptAll()}
           className="px-2 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white"
         >

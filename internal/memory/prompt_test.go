@@ -33,3 +33,35 @@ func TestAppendForPrompt_budgetAndDisabled(t *testing.T) {
 		t.Fatalf("expected injection, got count=%d body=%q", pr.Count, sb.String())
 	}
 }
+
+func TestAppendForPrompt_truncatesEntryAndContinuesWithinBudget(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "memory.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	SetStore(s)
+	SetEmbedClient(nil, "")
+	SetEnabledChecker(func() bool { return true })
+	now := time.Now()
+	for i, marker := range []string{"alpha", "bravo", "charlie", "delta", "echo"} {
+		content := "auth " + marker + " " + strings.Repeat(marker+" detail ", 60)
+		if err := s.UpsertChunk(Chunk{
+			ID: "msg:" + marker, SourceType: SourceMessage, SourceID: marker, Channel: "ch",
+			Content: content, ContentHash: ContentHash(content), CreatedAt: now.Add(-time.Duration(i) * time.Second),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var sb strings.Builder
+	result := AppendForPrompt(&sb, PromptContext{Query: "auth", Channel: "ch"})
+	if result.Count != 4 {
+		t.Fatalf("count=%d ids=%v body=%q", result.Count, result.IDs, sb.String())
+	}
+	if !strings.Contains(sb.String(), "delta") || !strings.Contains(sb.String(), "…") {
+		t.Fatalf("expected fourth entry to be truncated and retained: %q", sb.String())
+	}
+	if len(sb.String()) > DefaultPromptBudget+len(sectionStart)+len(sectionEnd)+len(sectionHint)+20 {
+		t.Fatalf("prompt memory exceeded bounded section: %d", len(sb.String()))
+	}
+}

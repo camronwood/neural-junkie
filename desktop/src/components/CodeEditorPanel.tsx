@@ -395,6 +395,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     const subSelection = ed.onDidChangeCursorSelection(() => {
       const sel = ed.getSelection();
       const model = ed.getModel();
+      const tabId = useEditorStore.getState().activeTabId;
       if (!sel || !model || sel.isEmpty()) {
         useEditorStore.getState().setActiveSelection(null);
         return;
@@ -404,7 +405,12 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
         useEditorStore.getState().setActiveSelection(null);
         return;
       }
+      if (!tabId) {
+        useEditorStore.getState().setActiveSelection(null);
+        return;
+      }
       useEditorStore.getState().setActiveSelection({
+        tabId,
         startLine: sel.startLineNumber,
         endLine: sel.endLineNumber,
         text: text.length > 2048 ? text.slice(0, 2048) : text,

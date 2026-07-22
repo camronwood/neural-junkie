@@ -24,7 +24,7 @@ See also **Settings → Keyboard** in the app for the live list from the shortcu
 | `mod+shift+t` | Toggle task management |
 | `mod+shift+g` | Toggle Git panel (dev pack) |
 | `mod+shift+d` | Toggle problems panel (dev pack) |
-| `mod+shift+u` | Toggle pending changes (dev pack) |
+| `mod+shift+u` | Jump to the oldest pending change card (dev pack) |
 | `mod+shift+a` | Toggle My Agents panel |
 | `mod+shift+c` | Toggle chat panel |
 | `mod+shift+\` | Toggle toolbar sidebar (compact layout) |

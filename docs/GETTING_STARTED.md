@@ -184,7 +184,8 @@ Toggle panels from **Settings > Layout**:
 - **Code Editor** -- View and edit code
 - **Terminal** -- Embedded terminal output
 - **My Agents** -- Active agent list with status
-- **Pending Changes** -- File change proposals from agents
+
+File and Git proposals appear inline in the chat where the agent proposed them. Use the pending-count toolbar control to jump to the oldest unresolved proposal; file cards can open detailed review in the code editor.
 
 ## Creating Dynamic Agents
 

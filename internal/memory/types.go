@@ -11,11 +11,12 @@ const (
 )
 
 const (
-	DefaultTopK          = 5
-	DefaultPromptBudget  = 1536
-	DefaultChunkSize     = 600
-	DefaultChunkOverlap  = 80
+	DefaultTopK            = 5
+	DefaultPromptBudget    = 1536
+	DefaultChunkSize       = 600
+	DefaultChunkOverlap    = 80
 	DefaultSearchPrefilter = 200
+	DefaultRelevanceFloor  = 0.16
 )
 
 // Chunk is a searchable unit stored in memory.db.
@@ -25,6 +26,8 @@ type Chunk struct {
 	SourceID        string     `json:"source_id"`
 	Channel         string     `json:"channel"`
 	ThreadID        string     `json:"thread_id"`
+	GoalID          string     `json:"goal_id"`
+	IsCorrection    bool       `json:"is_correction"`
 	CollaborationID string     `json:"collaboration_id"`
 	RelPath         string     `json:"rel_path"`
 	SenderName      string     `json:"sender_name"`
@@ -43,11 +46,15 @@ type SearchResult struct {
 
 // PromptContext carries retrieval inputs at agent prompt build time.
 type PromptContext struct {
-	Query             string
-	Channel           string
-	CollaborationID   string
-	ExcludeMessageIDs []string
-	SourceTypes       []SourceType // nil = all sources
+	Query                string
+	Channel              string
+	ThreadID             string
+	GoalID               string
+	IsCorrection         bool
+	CollaborationID      string
+	ExcludeMessageIDs    []string
+	SupersededMessageIDs []string
+	SourceTypes          []SourceType // nil = all sources
 }
 
 // PromptResult is injection output for debug metadata.
@@ -58,8 +65,8 @@ type PromptResult struct {
 
 // Stats summarizes index state.
 type Stats struct {
-	TotalChunks      int            `json:"total_chunks"`
-	BySourceType     map[string]int `json:"by_source_type"`
-	ChannelsIndexed  int            `json:"channels_indexed"`
-	CollabsIndexed   int            `json:"collabs_indexed"`
+	TotalChunks     int            `json:"total_chunks"`
+	BySourceType    map[string]int `json:"by_source_type"`
+	ChannelsIndexed int            `json:"channels_indexed"`
+	CollabsIndexed  int            `json:"collabs_indexed"`
 }

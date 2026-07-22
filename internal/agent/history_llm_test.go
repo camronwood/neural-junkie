@@ -77,6 +77,53 @@ func TestHistoryForGenerationExcludesCurrentAndTrims(t *testing.T) {
 	}
 }
 
+func TestRecentCompleteExchangesRetainsPairAndReferencedReply(t *testing.T) {
+	user := protocol.AgentInfo{ID: "u", Name: "Camron", Type: "human"}
+	assistant := protocol.AgentInfo{ID: "a", Name: "Assistant", Type: protocol.AgentTypeAssistant}
+	u1 := protocol.NewMessage(protocol.MessageTypeChat, "dm", user, "original request")
+	u1.ID = "u1"
+	a1 := protocol.NewMessage(protocol.MessageTypeAnswer, "dm", assistant, "original answer")
+	a1.ID, a1.ReplyTo = "a1", "u1"
+	u2 := protocol.NewMessage(protocol.MessageTypeChat, "dm", user, "new request")
+	u2.ID = "u2"
+	a2 := protocol.NewMessage(protocol.MessageTypeAnswer, "dm", assistant, "new answer")
+	a2.ID, a2.ReplyTo = "a2", "u2"
+	current := protocol.NewMessage(protocol.MessageTypeChat, "dm", user, "expand your original answer")
+	current.ID, current.ReplyTo = "u3", "a1"
+
+	exchanges := recentCompleteExchanges([]*protocol.Message{u1, a1, u2, a2}, current, nil, 2)
+	messages := messagesFromExchanges(exchanges)
+	got := map[string]bool{}
+	for _, message := range messages {
+		got[message.ID] = true
+	}
+	for _, id := range []string{"u2", "a2", "a1"} {
+		if !got[id] {
+			t.Fatalf("referenced/latest exchange message %s missing: %+v", id, got)
+		}
+	}
+}
+
+func TestRecentCompleteExchangesExcludesSupersededInstruction(t *testing.T) {
+	user := protocol.AgentInfo{ID: "u", Name: "Camron", Type: "human"}
+	assistant := protocol.AgentInfo{ID: "a", Name: "Assistant", Type: protocol.AgentTypeAssistant}
+	old := protocol.NewMessage(protocol.MessageTypeChat, "dm", user, "use Python")
+	old.ID = "old"
+	answer := protocol.NewMessage(protocol.MessageTypeAnswer, "dm", assistant, "I will use Python")
+	answer.ID, answer.ReplyTo = "answer", "old"
+	correction := protocol.NewMessage(protocol.MessageTypeChat, "dm", user, "use Rust instead")
+	correction.ID = "correction"
+
+	messages := messagesFromExchanges(recentCompleteExchanges(
+		[]*protocol.Message{old, answer, correction}, nil, []string{"old"}, 10,
+	))
+	for _, message := range messages {
+		if message.ID == "old" || message.ID == "answer" {
+			t.Fatalf("superseded instruction or its stale reply remained in context: %s", message.ID)
+		}
+	}
+}
+
 func TestMessageTooOldForUnansweredReplay(t *testing.T) {
 	old := &protocol.Message{Timestamp: time.Now().Add(-2 * time.Hour)}
 	if !messageTooOldForUnansweredReplay(old) {

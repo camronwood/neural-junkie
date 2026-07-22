@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -164,6 +165,55 @@ func TestTryHubImageGenerationShortcut(t *testing.T) {
 	}
 	if !strings.Contains(resp, "posted") {
 		t.Fatalf("unexpected response: %q", resp)
+	}
+}
+
+func TestTryHubImageGenerationShortcut_IndirectCoverRequest(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "BookWriter", Type: protocol.AgentTypeExpert},
+		Hub:  hub,
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-camron-bookwriter",
+		protocol.AgentInfo{ID: "user", Name: "Camron", Type: protocol.AgentTypeGeneral},
+		"ok lets see what a sample outline and cover art image will look like",
+	)
+	goal := deriveTurnGoal(a, msg, IntentTask)
+	if goal.Action != ActionImage {
+		t.Fatalf("action = %q, want image", goal.Action)
+	}
+	ctx := contextWithTurnGoal(context.Background(), goal)
+	if _, ok := a.tryHubImageGenerationShortcut(ctx, msg); !ok {
+		t.Fatal("expected indirect cover request to use image shortcut")
+	}
+	if !hub.posted {
+		t.Fatal("expected cover image to be posted")
+	}
+}
+
+func TestCompleteMixedImageResponseIncludesTextDeliverable(t *testing.T) {
+	a := &Agent{}
+	msg := &protocol.Message{Content: "Show me a sample outline and cover art image."}
+	got := a.completeMixedImageResponse(
+		context.Background(),
+		msg,
+		"Write the requested outline.",
+		nil,
+		ai.NewMockProvider(),
+		"Done — I've posted the generated image to the channel.",
+	)
+	if !strings.Contains(got, "mock response") || !strings.Contains(got, "posted the generated image") {
+		t.Fatalf("mixed response did not preserve both deliverables: %q", got)
+	}
+
+	imageOnly := &protocol.Message{Content: "Generate cover art for the book."}
+	const imageResponse = "Done — image posted."
+	if got := a.completeMixedImageResponse(
+		context.Background(), imageOnly, "prompt", nil, ai.NewMockProvider(), imageResponse,
+	); got != imageResponse {
+		t.Fatalf("image-only response unexpectedly called companion model: %q", got)
 	}
 }
 

@@ -43,25 +43,46 @@ func AppendForPrompt(system *strings.Builder, pctx PromptContext) PromptResult {
 	if query == "" {
 		return res
 	}
-	entries, ids := SelectForPrompt(context.Background(), pctx)
+	entries, _ := SelectForPrompt(context.Background(), pctx)
 	if len(entries) == 0 {
 		return res
 	}
-	res.IDs = ids
 	system.WriteString("\n" + sectionStart + "\n")
 	system.WriteString(sectionHint + "\n\n")
 	budget := DefaultPromptBudget
 	for _, e := range entries {
 		line := formatChunkLine(e.Chunk)
 		if len(line) > budget {
-			break
+			line = truncateEntryToBudget(line, budget)
+		}
+		if line == "" {
+			continue
 		}
 		system.WriteString(line)
 		budget -= len(line)
 		res.Count++
+		res.IDs = append(res.IDs, e.Chunk.ID)
 	}
 	system.WriteString("\n" + sectionEnd + "\n\n")
 	return res
+}
+
+func truncateEntryToBudget(line string, budget int) string {
+	const suffix = "…\n"
+	if budget <= len(suffix)+16 {
+		return ""
+	}
+	maxContent := budget - len(suffix)
+	if maxContent >= len(line) {
+		return line
+	}
+	for maxContent > 0 && maxContent < len(line) && line[maxContent]&0xc0 == 0x80 {
+		maxContent--
+	}
+	if maxContent <= 16 {
+		return ""
+	}
+	return strings.TrimSpace(line[:maxContent]) + suffix
 }
 
 func formatChunkLine(ch Chunk) string {

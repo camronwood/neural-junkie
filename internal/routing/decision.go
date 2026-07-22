@@ -1,6 +1,12 @@
 // Package routing classifies tasks for domain, tool need, and cost tier routing.
 package routing
 
+import (
+	"strings"
+
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
+)
+
 // Domain labels for specialist routing.
 const (
 	DomainGeneral      = "general"
@@ -18,9 +24,9 @@ const (
 
 // Cost tier labels.
 const (
-	CostCheap     = "cheap"
-	CostStandard  = "standard"
-	CostPremium   = "premium"
+	CostCheap    = "cheap"
+	CostStandard = "standard"
+	CostPremium  = "premium"
 )
 
 // Classifier source labels.
@@ -64,8 +70,45 @@ func (d RoutingDecision) Normalized() RoutingDecision {
 	if out.Source == "" {
 		out.Source = SourceRules
 	}
-	if out.Confidence <= 0 {
-		out.Confidence = 1.0
+	if out.Confidence < 0 {
+		out.Confidence = 0
+	} else if out.Confidence > 1 {
+		out.Confidence = 1
 	}
+	return out
+}
+
+// DecisionFromSemantic adapts the canonical turn decision for provider and
+// capability routing without classifying the raw user text again.
+func DecisionFromSemantic(decision semantic.TurnDecision, installedTags map[string]struct{}) RoutingDecision {
+	cost := CostStandard
+	switch decision.Complexity {
+	case "cheap":
+		cost = CostCheap
+	case "heavy":
+		cost = CostPremium
+	}
+	toolNeed := false
+	switch decision.Action {
+	case semantic.ActionInspect, semantic.ActionDebug, semantic.ActionEdit,
+		semantic.ActionRun, semantic.ActionContinue, semantic.ActionArtifact, semantic.ActionImage:
+		toolNeed = true
+	}
+	out := RoutingDecision{
+		Intent:     string(decision.Interaction),
+		Domain:     strings.TrimSpace(decision.Domain),
+		ToolNeed:   toolNeed,
+		CostTier:   cost,
+		Confidence: decision.Confidence,
+		Reason:     "semantic_turn_decision",
+		Source:     string(decision.Source),
+	}
+	if out.Domain == "" {
+		out.Domain = DomainGeneral
+	}
+	out.LoRATag, _ = SelectLoRATag(Input{
+		AgentType:     out.Domain,
+		InstalledTags: installedTags,
+	})
 	return out
 }

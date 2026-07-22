@@ -47,6 +47,7 @@ func (h *Hub) executeCollabActionTask(snap *collaboration.Collaboration, task co
 	if typ == "wait_human" {
 		_, _ = h.collabManager.UpdateTaskStatusWithEffects(collabID, task.ID, collaboration.TaskInProgress, "Awaiting human approval")
 		_ = h.collabManager.SetTaskAwaitingApproval(collabID, task.ID, true)
+		h.persistCollabTaskApproval(snap, task)
 		h.broadcastCollabSystem(snap.Channel, collabID, fmt.Sprintf("⏸ **%s** — waiting for your approval.", task.Title))
 		return true
 	}
@@ -55,6 +56,7 @@ func (h *Hub) executeCollabActionTask(snap *collaboration.Collaboration, task co
 	}
 	if typ == "webhook" || typ == "sms" {
 		if err := h.collabManager.SetTaskAwaitingApproval(collabID, task.ID, true); err == nil {
+			h.persistCollabTaskApproval(snap, task)
 			h.broadcastCollabSystem(snap.Channel, collabID, fmt.Sprintf("⏸ Action **%s** requires approval before running.", task.Title))
 			return true
 		}

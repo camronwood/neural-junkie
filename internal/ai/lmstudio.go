@@ -28,12 +28,26 @@ type LMStudioProvider struct {
 
 // OpenAICompatibleRequest represents a request to OpenAI-compatible API (used by LM Studio)
 type OpenAICompatibleRequest struct {
-	Model         string                    `json:"model"`
-	Messages      []OpenAICompatibleMessage `json:"messages"`
-	Stream        bool                      `json:"stream,omitempty"`
-	StreamOptions *OpenAIStreamOptions      `json:"stream_options,omitempty"`
-	Tools         []OpenAITool              `json:"tools,omitempty"`
-	ToolChoice    string                    `json:"tool_choice,omitempty"`
+	Model          string                    `json:"model"`
+	Messages       []OpenAICompatibleMessage `json:"messages"`
+	Stream         bool                      `json:"stream,omitempty"`
+	StreamOptions  *OpenAIStreamOptions      `json:"stream_options,omitempty"`
+	Tools          []OpenAITool              `json:"tools,omitempty"`
+	ToolChoice     string                    `json:"tool_choice,omitempty"`
+	ResponseFormat *OpenAIResponseFormat     `json:"response_format,omitempty"`
+}
+
+// OpenAIResponseFormat configures JSON output for OpenAI-compatible APIs.
+type OpenAIResponseFormat struct {
+	Type       string            `json:"type"`
+	JSONSchema *OpenAIJSONSchema `json:"json_schema,omitempty"`
+}
+
+// OpenAIJSONSchema is the named JSON Schema envelope used by response_format.
+type OpenAIJSONSchema struct {
+	Name   string          `json:"name"`
+	Strict bool            `json:"strict"`
+	Schema json.RawMessage `json:"schema"`
 }
 
 // OpenAIStreamOptions configures streaming behavior (OpenAI-compatible APIs).
@@ -244,6 +258,15 @@ func (l *LMStudioProvider) GenerateResponse(ctx context.Context, prompt string, 
 	}
 
 	return text, nil
+}
+
+// GenerateStructuredResponse delegates to LM Studio's OpenAI-compatible response_format.
+func (l *LMStudioProvider) GenerateStructuredResponse(ctx context.Context, request StructuredOutputRequest) (StructuredOutputResult, error) {
+	model, err := l.resolveChatModel(ctx)
+	if err != nil {
+		return StructuredOutputResult{}, err
+	}
+	return l.openAICompatFor(model).GenerateStructuredResponse(ctx, request)
 }
 
 // ResetSessionUsage implements UsageAware.

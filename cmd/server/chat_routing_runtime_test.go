@@ -67,6 +67,65 @@ func TestChatRoutingRuntimeReliableFallsBackSafely(t *testing.T) {
 	}
 }
 
+func TestLocalEscalationLadderMovesFrom3BToLargerInstalledModel(t *testing.T) {
+	installed := map[string]struct{}{
+		"qwen2.5:3b":  {},
+		"qwen3.5:9b":  {},
+		"qwen3.5:27b": {},
+	}
+	attempts := []protocol.RoutingAttempt{{
+		ProviderID: "ollama-local", Model: "qwen2.5:3b", Tier: "standard",
+		FailureReason: agent.ConversationReasonQualityGateFailure,
+	}}
+	got := chooseNextLocalChatModel(
+		installed,
+		[]string{"qwen3.5:27b", "qwen3.5:9b", "qwen2.5:3b"},
+		"qwen2.5:3b",
+		attempts,
+	)
+	if got != "qwen3.5:9b" {
+		t.Fatalf("next model = %q, want first capability-ranked larger local model", got)
+	}
+	attempts = append(attempts, protocol.RoutingAttempt{ProviderID: "ollama-local", Model: got})
+	if again := chooseNextLocalChatModel(installed, []string{"qwen3.5:9b"}, got, attempts); again != "" {
+		t.Fatalf("tier repeated as %q; each tier must be attempted at most once", again)
+	}
+}
+
+func TestChatFrontierRequiresExplicitConsentAfterLocalExhaustion(t *testing.T) {
+	restoreChatRoutingGlobals(t)
+	appConfig = config.DefaultConfig()
+	appConfig.Routing.ModelCapabilityRoutingEnabled = false
+	appConfig.AI.Providers = append(appConfig.AI.Providers, config.ProviderConfig{
+		ID: "frontier", Type: "openai-compatible", Endpoint: "http://localhost:1234", Model: "frontier-model",
+	})
+	appConfig.Implementation.ReliableProviderID = "frontier"
+	globalProviderCache = ai.NewProviderCache()
+
+	base := ai.NewOllamaProviderWithConfig("http://localhost:11434", "qwen2.5:3b")
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{Name: "Camron"}, "Try again")
+	msg.Metadata[protocol.MetadataRoutingAttempts] = []protocol.RoutingAttempt{
+		{ProviderID: "qwen2.5:3b", Model: "qwen2.5:3b", Tier: "standard", FailureReason: agent.ConversationReasonQualityGateFailure},
+		{ProviderID: "qwen3.5:9b", Model: "qwen3.5:9b", Tier: "reliable", FailureReason: agent.ConversationReasonQualityGateFailure},
+	}
+	trust := agent.ConversationTrustDecision{Tier: agent.ConversationTierReliable}
+
+	blocked := (chatRoutingRuntime{}).EffectiveAI(context.Background(), base, protocol.AgentInfo{Name: "Assistant"}, msg, trust)
+	if blocked.GetModel() == "frontier-model" {
+		t.Fatal("configured frontier was used without explicit consent")
+	}
+
+	appConfig.Routing.FrontierEscalationEnabled = true
+	allowed := (chatRoutingRuntime{}).EffectiveAI(context.Background(), base, protocol.AgentInfo{Name: "Assistant"}, msg, trust)
+	if allowed.GetModel() != "frontier-model" {
+		t.Fatalf("model = %q, want frontier after exhausted local attempts and consent", allowed.GetModel())
+	}
+	attempts := protocol.ExtractRoutingMeta(msg).Attempts
+	if len(attempts) != 3 || attempts[2].Tier != "frontier" {
+		t.Fatalf("attempts = %+v, want final frontier attempt metadata", attempts)
+	}
+}
+
 func restoreChatRoutingGlobals(t *testing.T) {
 	t.Helper()
 	oldConfig := appConfig

@@ -125,6 +125,8 @@ type ExecutionPolicy struct {
 	BlockedUpstreamPolicy BlockedUpstreamPolicy `json:"blocked_upstream_policy,omitempty"`
 	StrictTaskStatus      bool                  `json:"strict_task_status,omitempty"`
 	HandoffMaxChars       int                   `json:"handoff_max_chars,omitempty"`
+	SLASeconds            int                   `json:"sla_seconds,omitempty"`
+	RetryBudget           int                   `json:"retry_budget,omitempty"`
 }
 
 // Normalized returns defaults for zero fields.
@@ -171,6 +173,13 @@ type TaskExecutionOptions struct {
 	RequiresApproval    bool     `json:"requires_approval,omitempty"`
 	MaxRetries          int      `json:"max_retries,omitempty"`
 	TimeoutSeconds      int      `json:"timeout_seconds,omitempty"`
+	Queue               string   `json:"queue,omitempty"`
+	CapabilityTags      []string `json:"capability_tags,omitempty"`
+	CachePolicy         string   `json:"cache_policy,omitempty"` // none | result
+	CacheExpirationSecs int      `json:"cache_expiration_seconds,omitempty"`
+	RefreshCache        bool     `json:"refresh_cache,omitempty"`
+	IdempotencyRequired bool     `json:"idempotency_required,omitempty"`
+	RetryOn             []string `json:"retry_on,omitempty"` // error | dispatch | timeout | lease_lost
 	ContextPaths        []string `json:"context_paths,omitempty"`
 	ExpectedProviderID  string   `json:"expected_provider_id,omitempty"`
 	ExpectedModel       string   `json:"expected_model,omitempty"`
@@ -312,7 +321,7 @@ const (
 // CreateOptions configures optional collaboration creation parameters.
 type CreateOptions struct {
 	ExecutionMode                 ExecutionMode
-	SourceRepoPath                string // absolute git repo root; optional until workspace ack
+	SourceRepoPath                string                 // absolute git repo root; optional until workspace ack
 	SourceWorkspaceContext        map[string]interface{} // snapshot from desktop outbound metadata
 	AttachWorkspaceContext        bool                   // copy workspace onto collab channel messages (--workspace / --repo)
 	Source                        CollaborationSource

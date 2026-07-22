@@ -12,7 +12,7 @@ import (
 
 // Metadata keys for client-supplied prompt context (must match desktop).
 const (
-	MetadataUserRulesMarkdown    = "user_rules_markdown"
+	MetadataUserRulesMarkdown = "user_rules_markdown"
 	// MetadataHubSessionUsername is the authenticated hub session display name (may differ from msg.From.Name).
 	MetadataHubSessionUsername   = "hub_session_username"
 	MetadataPromptAttachments    = "prompt_attachments"
@@ -33,12 +33,12 @@ const (
 )
 
 const (
-	maxUserRulesMarkdownBytes   = 32 * 1024
+	maxUserRulesMarkdownBytes     = 32 * 1024
 	compactUserRulesMarkdownBytes = 3 * 1024
 	// Total JSON size for prompt_attachments after marshal (approximate guard).
 	maxPromptAttachmentsBytes = 400 * 1024
-	maxPerAttachmentContent     = 120 * 1024
-	maxAttachmentFiles          = 12
+	maxPerAttachmentContent   = 120 * 1024
+	maxAttachmentFiles        = 12
 )
 
 // AppendUserAndAgentRules writes global (message metadata) and per-agent markdown
@@ -183,6 +183,7 @@ func SanitizeInboundMessageMetadata(msg *protocol.Message) {
 	if raw, ok := msg.Metadata[MetadataPromptAttachments]; ok {
 		msg.Metadata[MetadataPromptAttachments] = sanitizePromptAttachmentsValue(raw)
 	}
+	SanitizeAmbientStateMetadata(msg)
 	protocol.SanitizeUserImagesMetadata(msg)
 }
 

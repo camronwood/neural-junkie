@@ -41,10 +41,10 @@ type activeSpan struct {
 
 // Recorder collects spans for a single turn.
 type Recorder struct {
-	mu      sync.Mutex
-	trace   Trace
-	stack   []*activeSpan
-	closed  bool
+	mu     sync.Mutex
+	trace  Trace
+	stack  []*activeSpan
+	closed bool
 }
 
 // NewRecorder starts a trace for a turn.
@@ -136,6 +136,29 @@ type SpanHandle struct {
 	ended    bool
 }
 
+// Annotate merges attributes into a span, including after it has ended.
+// This supports observations (for example prompt compression) that become
+// available after the operation which selected the context.
+func (h *SpanHandle) Annotate(attrs map[string]any) {
+	if h == nil || h.recorder == nil || h.span == nil || len(attrs) == 0 {
+		return
+	}
+	h.recorder.mu.Lock()
+	defer h.recorder.mu.Unlock()
+	for k, v := range attrs {
+		if h.span.span.Attrs == nil {
+			h.span.span.Attrs = map[string]any{}
+		}
+		h.span.span.Attrs[k] = v
+	}
+	for i := range h.recorder.trace.Spans {
+		if h.recorder.trace.Spans[i].ID == h.span.span.ID {
+			h.recorder.trace.Spans[i].Attrs = copyAttrs(h.span.span.Attrs)
+			break
+		}
+	}
+}
+
 // End marks the span successful.
 func (h *SpanHandle) End(attrs map[string]any) {
 	h.end(StatusOK, attrs)
@@ -184,6 +207,9 @@ func copyAttrs(attrs map[string]any) map[string]any {
 
 // DefaultDir returns ~/.neural-junkie/traces
 func DefaultDir() string {
+	if configured := os.Getenv("NEURAL_JUNKIE_TRACE_DIR"); configured != "" {
+		return configured
+	}
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return "traces"

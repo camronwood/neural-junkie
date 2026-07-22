@@ -42,6 +42,9 @@ interface TerminalStore {
   alignActiveTabCwd: (cwd: string) => void;
   foregroundSessionIds: Set<string>;
   setSessionForegroundWork: (id: string, active: boolean) => void;
+  /** Ephemeral tails for terminals whose output most recently indicated failure. */
+  recentFailedTails: Record<string, string>;
+  recordOutput: (id: string, data: string) => void;
 
   // Command suggestions (shown as inline banner)
   suggestedCommands: CommandSuggestion[];
@@ -58,6 +61,9 @@ interface TerminalStore {
 }
 
 let tabCounter = 1;
+const terminalOutputBuffers: Record<string, string> = {};
+const FAILURE_OUTPUT_RE =
+  /(?:^|\b)(?:error|failed|failure|fatal|panic|traceback|command not found|permission denied|exited? with (?:code )?[1-9]\d*)\b/i;
 
 export const useTerminalStore = create<TerminalStore>((set) => ({
   // Panel state
@@ -121,6 +127,7 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
     })),
 
   foregroundSessionIds: new Set(),
+  recentFailedTails: {},
   setSessionForegroundWork: (id, active) =>
     set((state) => {
       const foregroundSessionIds = new Set(state.foregroundSessionIds);
@@ -128,6 +135,15 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
       else foregroundSessionIds.delete(id);
       return { foregroundSessionIds };
     }),
+  recordOutput: (id, data) => {
+    const next = ((terminalOutputBuffers[id] ?? '') + data).slice(-8192);
+    terminalOutputBuffers[id] = next;
+    const searchable = next.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '');
+    if (!FAILURE_OUTPUT_RE.test(searchable)) return;
+    set((state) => ({
+      recentFailedTails: { ...state.recentFailedTails, [id]: next.slice(-4096) },
+    }));
+  },
 
   // Command suggestions
   suggestedCommands: [],

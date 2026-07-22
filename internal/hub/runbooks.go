@@ -13,23 +13,23 @@ import (
 
 // RunbookCreateRequest is the JSON body for POST /api/runbooks.
 type RunbookCreateRequest struct {
-	Description        string                            `json:"description"`
-	AgentIDs           []string                          `json:"agent_ids"`
-	Channel            string                            `json:"channel"`
-	CreatedBy          string                            `json:"created_by"`
-	Tasks              []collaboration.CollaborationTask `json:"tasks,omitempty"`
-	ExecutionMode      string                            `json:"execution_mode,omitempty"`
-	SourceRepoPath     string                            `json:"source_repo_path,omitempty"`
-	DefinitionID       string                            `json:"definition_id,omitempty"`
-	DefinitionVersion  int                               `json:"definition_version,omitempty"`
-	RunInputs          map[string]string                 `json:"run_inputs,omitempty"`
-	GraphLayout        collaboration.GraphLayout         `json:"graph_layout,omitempty"`
-	ExecutionPolicy    *collaboration.ExecutionPolicy    `json:"execution_policy,omitempty"`
+	Description       string                            `json:"description"`
+	AgentIDs          []string                          `json:"agent_ids"`
+	Channel           string                            `json:"channel"`
+	CreatedBy         string                            `json:"created_by"`
+	Tasks             []collaboration.CollaborationTask `json:"tasks,omitempty"`
+	ExecutionMode     string                            `json:"execution_mode,omitempty"`
+	SourceRepoPath    string                            `json:"source_repo_path,omitempty"`
+	DefinitionID      string                            `json:"definition_id,omitempty"`
+	DefinitionVersion int                               `json:"definition_version,omitempty"`
+	RunInputs         map[string]string                 `json:"run_inputs,omitempty"`
+	GraphLayout       collaboration.GraphLayout         `json:"graph_layout,omitempty"`
+	ExecutionPolicy   *collaboration.ExecutionPolicy    `json:"execution_policy,omitempty"`
 }
 
 // RunbookCreateResult is returned when a runbook is created.
 type RunbookCreateResult struct {
-	CollaborationID    string `json:"collaboration_id"`
+	CollaborationID      string `json:"collaboration_id"`
 	CollaborationChannel string `json:"collaboration_channel"`
 }
 
@@ -144,6 +144,7 @@ func (h *Hub) StartRunbook(collabID string, inputs map[string]string) (*collabor
 	if _, err := h.collabManager.ApprovePlan(collabID); err != nil {
 		return nil, err
 	}
+	h.resolvePlanApproval(collabID, "user")
 	if _, err := h.collabManager.TransitionToExecuting(collabID); err != nil {
 		return nil, err
 	}

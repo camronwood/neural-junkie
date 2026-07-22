@@ -6,6 +6,7 @@ import (
 	"unicode"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -41,7 +42,7 @@ type ConversationTrustDecision struct {
 
 var (
 	explicitToolActionRE = regexp.MustCompile(`(?i)\b(?:run|execute|test|build|deploy|search|inspect|read|open|edit|write|create|delete|remove|rename|move|commit|push|apply|generate)\b`)
-	userCorrectionRE     = regexp.MustCompile(`(?i)(?:\b(?:no|wrong|incorrect|actually|instead|you missed|you forgot|that is not|that's not|do not ask)\b|(?:^|\s)(?:again|as i (?:said|asked|requested))[,.:;!\s])`)
+	userCorrectionRE     = regexp.MustCompile(`(?i)(?:\b(?:no|incorrect|actually|instead|you missed|you forgot|that is not|that's not|do not ask)\b|\b(?:that is|that's|you are|you're)\s+wrong\b|\bwrong\s+(?:file|path|branch|model|provider|approach|answer)\b|(?:^|\s)(?:again|as i (?:said|asked|requested))[,.:;!\s])`)
 	repeatedRequestRE    = regexp.MustCompile(`(?i)\b(?:again|retry|try again|as i (?:said|asked|requested)|still need|already asked)\b`)
 )
 
@@ -52,13 +53,22 @@ func (a *Agent) ClassifyConversationTrust(msg *protocol.Message) ConversationTru
 		return decision
 	}
 
-	if explicitToolActionRE.MatchString(msg.Content) {
+	semanticDecision, hasSemanticDecision := protocol.ExtractTurnDecision(msg)
+	if hasSemanticDecision {
+		switch semanticDecision.Action {
+		case semantic.ActionInspect, semantic.ActionDebug, semantic.ActionEdit, semantic.ActionRun, semantic.ActionContinue:
+			decision.Reasons = append(decision.Reasons, ConversationReasonExplicitToolAction)
+		}
+		if semanticDecision.Interaction == semantic.InteractionCorrection {
+			decision.Reasons = append(decision.Reasons, ConversationReasonUserCorrection)
+		}
+	} else if explicitToolActionRE.MatchString(msg.Content) {
 		decision.Reasons = append(decision.Reasons, ConversationReasonExplicitToolAction)
 	}
 	if len(msg.Content) >= conversationLargeContextBytes || metadataHasLargeContext(msg.Metadata) {
 		decision.Reasons = append(decision.Reasons, ConversationReasonLargeContext)
 	}
-	if userCorrectionRE.MatchString(msg.Content) {
+	if !hasSemanticDecision && userCorrectionRE.MatchString(msg.Content) {
 		decision.Reasons = append(decision.Reasons, ConversationReasonUserCorrection)
 	}
 	if repeatedRequestRE.MatchString(msg.Content) || a.matchesPriorUserRequest(msg) {

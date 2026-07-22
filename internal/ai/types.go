@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -46,6 +47,26 @@ type AIProvider interface {
 	GenerateResponse(ctx context.Context, prompt string, conversationHistory []protocol.Message) (string, error)
 	GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, imageType string, conversationHistory []protocol.Message) (string, error)
 	GetModel() string
+}
+
+// StructuredOutputRequest describes a non-streaming response constrained to JSON.
+// When JSONSchema is empty, providers request any valid JSON object.
+type StructuredOutputRequest struct {
+	Prompt              string
+	ConversationHistory []protocol.Message
+	SchemaName          string
+	JSONSchema          json.RawMessage
+}
+
+// StructuredOutputResult contains the provider's JSON response text.
+type StructuredOutputResult struct {
+	Content string
+}
+
+// StructuredOutputProvider is an optional interface for provider-native JSON output.
+// Callers should fall back to AIProvider.GenerateResponse when it is unavailable.
+type StructuredOutputProvider interface {
+	GenerateStructuredResponse(ctx context.Context, request StructuredOutputRequest) (StructuredOutputResult, error)
 }
 
 // StreamToken represents a single token/chunk from a streaming AI response.

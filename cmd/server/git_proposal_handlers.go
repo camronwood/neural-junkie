@@ -8,6 +8,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/git"
 	"github.com/camronwood/neural-junkie/internal/hub/gitchange"
+	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 func handleGitChanges(w http.ResponseWriter, r *http.Request) {
@@ -47,16 +48,45 @@ func handleGitChangeApprove(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	if _, err := mgr.MarkApproved(id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if _, err := mgr.MarkApplying(id); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	chatHub.UpdateChangeProposalStatus(
+		p.Channel,
+		p.ID,
+		protocol.ChangeProposalStatusApplying,
+		"",
+		"",
+	)
 	if err := executeGitProposal(p); err != nil {
+		_, _ = mgr.MarkFailed(id, err.Error())
+		chatHub.ResolveGitProposalInput(id, "user", "failed", err.Error())
+		chatHub.UpdateChangeProposalStatus(
+			p.Channel,
+			p.ID,
+			protocol.ChangeProposalStatusFailed,
+			"",
+			err.Error(),
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	approved, err := mgr.MarkApproved(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	chatHub.UpdateChangeProposalStatus(
+		approved.Channel,
+		approved.ID,
+		protocol.ChangeProposalStatusApproved,
+		"",
+		"",
+	)
+	chatHub.ResolveGitProposalInput(id, "user", "approved", "")
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "approved"})
+	json.NewEncoder(w).Encode(approved)
 }
 
 func handleGitChangeReject(w http.ResponseWriter, r *http.Request) {
@@ -73,11 +103,27 @@ func handleGitChangeReject(w http.ResponseWriter, r *http.Request) {
 	if _, ok := ensureMutationAccess(w, r, ""); !ok {
 		return
 	}
-	if err := chatHub.GetGitChangeManager().Reject(id); err != nil {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+	proposal, err := chatHub.GetGitChangeManager().Reject(id, req.Reason)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	chatHub.UpdateChangeProposalStatus(
+		proposal.Channel,
+		proposal.ID,
+		protocol.ChangeProposalStatusRejected,
+		proposal.Reason,
+		"",
+	)
+	chatHub.ResolveGitProposalInput(id, "user", "rejected", proposal.Reason)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(proposal)
 }
 
 func executeGitProposal(p *gitchange.Proposal) error {

@@ -1,8 +1,11 @@
 package hub
 
 import (
+	"sort"
 	"strings"
 	"time"
+
+	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 // ChannelConversationState is durable, structured state for one channel.
@@ -36,6 +39,7 @@ type ConversationDecision struct {
 type ConversationAction struct {
 	ID                   string     `json:"id"`
 	GoalID               string     `json:"goal_id,omitempty"`
+	Action               string     `json:"action,omitempty"`
 	Description          string     `json:"description"`
 	PromisedMessageID    string     `json:"promised_message_id,omitempty"`
 	LastPromiseMessageID string     `json:"last_promise_message_id,omitempty"`
@@ -204,6 +208,9 @@ func (h *Hub) RecordPromisedAction(channel string, action ConversationAction) {
 		if existing.Description == "" {
 			existing.Description = action.Description
 		}
+		if action.Action != "" {
+			existing.Action = action.Action
+		}
 		if action.PromisedMessageID != "" && action.PromisedMessageID != existing.LastPromiseMessageID {
 			existing.LastPromiseMessageID = action.PromisedMessageID
 			existing.CompletedAt = nil
@@ -218,9 +225,9 @@ func (h *Hub) RecordPromisedAction(channel string, action ConversationAction) {
 	h.mu.Unlock()
 }
 
-func (h *Hub) RecordConversationActionPromise(channel, actionID, goalID, description, messageID string) {
+func (h *Hub) RecordConversationActionPromise(channel, actionID, goalID, action, description, messageID string) {
 	h.RecordPromisedAction(channel, ConversationAction{
-		ID: actionID, GoalID: goalID, Description: description,
+		ID: actionID, GoalID: goalID, Action: action, Description: description,
 		PromisedMessageID: messageID,
 	})
 }
@@ -256,6 +263,67 @@ func (h *Hub) GetChannelConversationState(channel string) *ChannelConversationSt
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return cloneConversationState(h.conversationState[channel])
+}
+
+// GetTurnConversationContext exposes a transport-safe snapshot to the agent
+// pipeline without making agent depend on hub-owned persistence types.
+func (h *Hub) GetTurnConversationContext(channel string) protocol.TurnContextEnvelope {
+	state := h.GetChannelConversationState(channel)
+	out := protocol.TurnContextEnvelope{
+		Version:        1,
+		Channel:        channel,
+		SectionBudgets: map[string]int{"durable_state": 6000, "recent_exchanges": 8000},
+	}
+	if state == nil {
+		return out
+	}
+	if state.CurrentGoal != nil {
+		out.Goal = &protocol.TurnContextGoal{
+			ID: state.CurrentGoal.ID, MessageID: state.CurrentGoal.MessageID,
+			LastMessageID: state.CurrentGoal.LastMessageID, Text: state.CurrentGoal.Text,
+		}
+		out.Provenance = append(out.Provenance, protocol.TurnContextProvenance{
+			ID: state.CurrentGoal.MessageID, Section: "goal", Source: "channel_conversation_state",
+		})
+	}
+	decisionKeys := make([]string, 0, len(state.AnsweredDecisions))
+	for key := range state.AnsweredDecisions {
+		decisionKeys = append(decisionKeys, key)
+	}
+	sort.Strings(decisionKeys)
+	for _, key := range decisionKeys {
+		d := state.AnsweredDecisions[key]
+		out.Decisions = append(out.Decisions, protocol.TurnContextDecision{
+			GoalID: d.GoalID, DecisionKey: d.DecisionKey, MessageID: d.MessageID,
+			Answer: d.Answer, AnsweredAt: d.AnsweredAt,
+		})
+	}
+	actionKeys := make([]string, 0, len(state.Actions))
+	for key, action := range state.Actions {
+		if action.CompletedAt == nil {
+			actionKeys = append(actionKeys, key)
+		}
+	}
+	sort.Strings(actionKeys)
+	for _, key := range actionKeys {
+		action := state.Actions[key]
+		out.UnresolvedActions = append(out.UnresolvedActions, protocol.TurnContextAction{
+			ID: action.ID, GoalID: action.GoalID, Action: action.Action, Description: action.Description,
+			LastPromiseMessageID: action.LastPromiseMessageID, PromisedAt: action.PromisedAt,
+		})
+	}
+	for _, correction := range state.Corrections {
+		out.Corrections = append(out.Corrections, protocol.TurnContextCorrection{
+			GoalID: correction.GoalID, MessageID: correction.MessageID,
+			Instruction:          correction.Instruction,
+			SupersedesMessageIDs: append([]string(nil), correction.SupersedesMessageIDs...),
+		})
+	}
+	for id := range state.SupersededInstructions {
+		out.SupersededMessageIDs = append(out.SupersededMessageIDs, id)
+	}
+	sort.Strings(out.SupersededMessageIDs)
+	return out
 }
 
 func cloneConversationState(state *ChannelConversationState) *ChannelConversationState {

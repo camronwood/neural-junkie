@@ -8,7 +8,6 @@ describe('layoutPresets', () => {
     expect(p.layoutPreset).toBe('ide');
     expect(p.filesPanelVisible).toBe(true);
     expect(p.editorPanelVisible).toBe(true);
-    expect(p.pendingChangesPanelVisible).toBe(false);
   });
 
   it('panelsForPreset team closes editor panels', () => {

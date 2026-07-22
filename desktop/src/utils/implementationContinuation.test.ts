@@ -131,7 +131,7 @@ describe('buildHumanOutboundMetadata continuation', () => {
     expect(meta?.context_scope).toBe('full');
   });
 
-  it('DM settings modal request uses code mode and outline/focus scope', () => {
+  it('does not infer code mode from implementation wording', () => {
     const meta = buildHumanOutboundMetadata({
       contextMode: 'always',
       message:
@@ -139,29 +139,30 @@ describe('buildHumanOutboundMetadata continuation', () => {
       channel: 'dm-camron-frontendengineer',
       channelType: 'dm',
     });
-    expect(meta?.conversation_mode).toBe('code');
-    expect(['outline', 'focus']).toContain(meta?.context_scope);
+    expect(meta?.conversation_mode).toBeUndefined();
+    expect(meta?.context_scope).toBe('full');
+    expect(meta?.implementation_session).toBeUndefined();
   });
 
-  it('DM workspace directive uses code mode', () => {
+  it('does not infer code mode from a workspace directive', () => {
     const meta = buildHumanOutboundMetadata({
       contextMode: 'always',
       message: 'use the open workspace it has all the files you need',
       channel: 'dm-camron-frontendengineer',
       channelType: 'dm',
     });
-    expect(meta?.conversation_mode).toBe('code');
+    expect(meta?.conversation_mode).toBeUndefined();
   });
 
-  it('article about app attaches outline scope in auto mode', () => {
+  it('uses a stable auto workspace hint regardless of content wording', () => {
     const meta = buildHumanOutboundMetadata({
       contextMode: 'auto',
       message: 'Can you write me an article about the app that is in the workspace?',
       channel: 'dm-camron-assistant',
       channelType: 'dm',
     });
-    expect(meta?.context_scope).toBe('outline');
-    expect(meta?.context_scope_reason).toContain('content delivery');
+    expect(meta?.context_scope).toBe('hint');
+    expect(meta?.context_scope_reason).toBe('workspace mode auto');
   });
 
   it('content delivery on general uses hint scope without file tree', () => {
@@ -173,19 +174,19 @@ describe('buildHumanOutboundMetadata continuation', () => {
       channelType: 'public',
     });
     expect(meta?.context_scope).toBe('hint');
-    expect(meta?.context_scope_reason).toContain('shared channel');
+    expect(meta?.context_scope_reason).toBe('workspace mode auto');
     const ws = meta?.workspace_context as { file_tree?: string } | undefined;
     expect(ws?.file_tree ?? '').toBe('');
   });
 
-  it('workspace access affirmation attaches outline scope', () => {
+  it('does not expand context from workspace-access phrasing', () => {
     const meta = buildHumanOutboundMetadata({
       contextMode: 'auto',
       message: 'you have workspace access',
       channel: 'dm-camron-assistant',
       channelType: 'dm',
     });
-    expect(meta?.context_scope).toBe('outline');
+    expect(meta?.context_scope).toBe('hint');
   });
 
   it('explicit export editor_mode forces code scope', () => {
@@ -196,8 +197,8 @@ describe('buildHumanOutboundMetadata continuation', () => {
       channelType: 'dm',
       composerMetadata: { editor_mode: 'export', implementation_session: true },
     });
-    expect(meta?.conversation_mode).toBe('code');
-    expect(meta?.context_scope_reason).toContain('export');
+    expect(meta?.conversation_mode).toBeUndefined();
+    expect(['outline', 'focus']).toContain(meta?.context_scope);
     expect(meta?.composer_mode).toBe('export');
     expect(meta?.can_run_impl_session).toBe(true);
   });

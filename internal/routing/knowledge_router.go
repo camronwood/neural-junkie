@@ -3,6 +3,8 @@ package routing
 import (
 	"regexp"
 	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/intent"
 )
 
 // RouteTarget is a knowledge retrieval mode.
@@ -96,6 +98,45 @@ func PlanKnowledgeRouteForTurn(text string, skipDefaultMemory bool) KnowledgePla
 	return plan
 }
 
+// PlanKnowledgeRouteForDecision compiles the canonical semantic retrieval needs
+// into the deterministic execution plan. It does not reinterpret user text.
+func PlanKnowledgeRouteForDecision(decision intent.TurnDecision) KnowledgePlan {
+	plan := KnowledgePlan{Cues: map[RouteTarget]string{}}
+	for _, requested := range decision.Retrieval {
+		var target RouteTarget
+		switch requested {
+		case intent.RetrievalMemory:
+			target = RouteConversationMemory
+		case intent.RetrievalCodebase:
+			target = RouteCodebase
+		case intent.RetrievalCodeGraph:
+			target = RouteCodeGraph
+		case intent.RetrievalPriorReference:
+			target = RoutePriorReference
+		case intent.RetrievalCollaboration:
+			target = RouteCollabArtifact
+		default:
+			continue
+		}
+		if !plan.Has(target) {
+			plan.Targets = append(plan.Targets, target)
+			plan.Cues[target] = "semantic_decision"
+		}
+	}
+	if len(plan.Targets) == 0 {
+		switch decision.Interaction {
+		case intent.InteractionClosure, intent.InteractionCasual:
+			plan.Reason = "semantic_no_retrieval"
+			return plan
+		default:
+			plan.Targets = []RouteTarget{RouteConversationMemory}
+			plan.Cues[RouteConversationMemory] = "semantic_default"
+		}
+	}
+	plan.Reason = "semantic_decision"
+	return plan
+}
+
 func ClassifyKnowledgeRoute(text string) Decision {
 	plan := PlanKnowledgeRoute(text)
 	return Decision{Target: plan.Primary(), Reason: plan.Reason}
@@ -138,9 +179,22 @@ func matchesCodebaseCue(lower, raw string) bool {
 		strings.Contains(lower, "in the repo") ||
 		strings.Contains(lower, "in this codebase") ||
 		strings.Contains(lower, "in the code") ||
+		strings.Contains(lower, "this code") ||
+		strings.Contains(lower, "my code") ||
 		strings.Contains(lower, "where is it in the repo") ||
 		strings.Contains(lower, "where is that in the repo") {
 		return true
+	}
+	codeFailureCues := []string{
+		"app will not boot", "app won't boot", "app is not booting",
+		"cannot boot", "can't boot", "fails to boot",
+		"build is failing", "build fails", "compile error", "runtime error",
+		"blank screen", "white screen",
+	}
+	for _, cue := range codeFailureCues {
+		if strings.Contains(lower, cue) {
+			return true
+		}
 	}
 	locationCue := strings.Contains(lower, "where is it") ||
 		strings.Contains(lower, "where is that") ||

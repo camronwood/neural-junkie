@@ -69,7 +69,7 @@ The command palette on the frontend (`desktop/src/components/CommandPalette.tsx`
 
 ### File Change Workflow
 
-Agents can propose file changes via message metadata. The `FileChangeManager` tracks proposals with status (pending, approved, rejected, expired). The desktop app shows proposals in the Pending Changes panel with diff preview. Approved changes are applied by `FileChangeExecutor` which creates backups before modifying files.
+Agents can propose file and Git changes via typed `change_proposal` message metadata. The proposal managers remain authoritative for lifecycle state, while the original message renders as a durable inline chat card. Users can accept or reject directly in chat; file review opens the editor diff/hunk workflow. Approved file changes are applied by `FileChangeExecutor`, which creates backups before modifying files.
 
 ### Agent Lifecycle
 

@@ -1,9 +1,11 @@
 package routing
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -22,6 +24,20 @@ Rules:
 - api/sql/backend -> domain backend
 - k8s/terraform/ci -> domain devops
 - tool_need true when MCP tools, tests, linters, or file execution are clearly required`
+
+var routingDecisionSchema = json.RawMessage(`{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"domain": {"type": "string", "enum": ["general", "security", "biology", "frontend", "backend", "devops", "architecture", "code_review", "database", "rust", "cad"]},
+		"tool_need": {"type": "boolean"},
+		"cost_tier": {"type": "string", "enum": ["cheap", "standard", "premium"]},
+		"confidence": {"type": "number", "minimum": 0, "maximum": 1},
+		"reason": {"type": "string", "minLength": 1},
+		"lora_tag": {"type": "string"}
+	},
+	"required": ["domain", "tool_need", "cost_tier", "confidence", "reason", "lora_tag"]
+}`)
 
 // LLMClassifier uses a small utility model for structured routing decisions.
 type LLMClassifier struct {
@@ -47,7 +63,18 @@ func (c LLMClassifier) Classify(ctx context.Context, in Input) (RoutingDecision,
 	}
 	prompt += in.Text
 
-	raw, err := c.Provider.GenerateResponse(ctx, prompt, nil)
+	var raw string
+	var err error
+	if provider, ok := c.Provider.(ai.StructuredOutputProvider); ok {
+		result, structuredErr := provider.GenerateStructuredResponse(ctx, ai.StructuredOutputRequest{
+			Prompt:     prompt,
+			SchemaName: "routing_decision",
+			JSONSchema: routingDecisionSchema,
+		})
+		raw, err = result.Content, structuredErr
+	} else {
+		raw, err = c.Provider.GenerateResponse(ctx, prompt, nil)
+	}
 	if err != nil {
 		return RoutingDecision{}, err
 	}
@@ -58,15 +85,39 @@ func (c LLMClassifier) Classify(ctx context.Context, in Input) (RoutingDecision,
 	raw = strings.TrimSpace(raw)
 
 	var parsed struct {
-		Domain     string  `json:"domain"`
-		ToolNeed   bool    `json:"tool_need"`
-		CostTier   string  `json:"cost_tier"`
-		Confidence float64 `json:"confidence"`
-		Reason     string  `json:"reason"`
-		LoRATag    string  `json:"lora_tag"`
+		Domain     string   `json:"domain"`
+		ToolNeed   *bool    `json:"tool_need"`
+		CostTier   string   `json:"cost_tier"`
+		Confidence *float64 `json:"confidence"`
+		Reason     string   `json:"reason"`
+		LoRATag    string   `json:"lora_tag"`
 	}
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader([]byte(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&parsed); err != nil {
 		return RoutingDecision{}, fmt.Errorf("parse routing json: %w (raw=%q)", err, truncate(raw, 200))
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			err = fmt.Errorf("multiple JSON values")
+		}
+		return RoutingDecision{}, fmt.Errorf("parse routing json: %w (raw=%q)", err, truncate(raw, 200))
+	}
+	if !validRoutingDomain(parsed.Domain) {
+		return RoutingDecision{}, fmt.Errorf("invalid routing domain %q", parsed.Domain)
+	}
+	if parsed.ToolNeed == nil {
+		return RoutingDecision{}, fmt.Errorf("missing routing tool_need")
+	}
+	if !validCostTier(parsed.CostTier) {
+		return RoutingDecision{}, fmt.Errorf("invalid routing cost_tier %q", parsed.CostTier)
+	}
+	if parsed.Confidence == nil || *parsed.Confidence < 0 || *parsed.Confidence > 1 {
+		return RoutingDecision{}, fmt.Errorf("invalid routing confidence")
+	}
+	if strings.TrimSpace(parsed.Reason) == "" {
+		return RoutingDecision{}, fmt.Errorf("missing routing reason")
 	}
 	tag := strings.TrimSpace(parsed.LoRATag)
 	if tag != "" && !tagInstalled(in.InstalledTags, tag) {
@@ -74,13 +125,32 @@ func (c LLMClassifier) Classify(ctx context.Context, in Input) (RoutingDecision,
 	}
 	return RoutingDecision{
 		Domain:     parsed.Domain,
-		ToolNeed:   parsed.ToolNeed,
+		ToolNeed:   *parsed.ToolNeed,
 		CostTier:   parsed.CostTier,
-		Confidence: parsed.Confidence,
-		Reason:     parsed.Reason,
+		Confidence: *parsed.Confidence,
+		Reason:     strings.TrimSpace(parsed.Reason),
 		LoRATag:    tag,
 		Source:     SourceLLM,
 	}.Normalized(), nil
+}
+
+func validRoutingDomain(domain string) bool {
+	switch domain {
+	case DomainGeneral, DomainSecurity, DomainBiology, DomainFrontend, DomainBackend,
+		DomainDevOps, DomainArchitecture, DomainCodeReview, DomainDatabase, DomainRust, DomainCAD:
+		return true
+	default:
+		return false
+	}
+}
+
+func validCostTier(tier string) bool {
+	switch tier {
+	case CostCheap, CostStandard, CostPremium:
+		return true
+	default:
+		return false
+	}
 }
 
 func truncate(s string, n int) string {

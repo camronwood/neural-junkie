@@ -18,8 +18,13 @@ func (a *Agent) recordKnowledgeRoute(msg *protocol.Message, intent TurnIntent) {
 		})
 		return
 	}
-	skipDefault := intent == IntentClosure || intent == IntentLowSignal
-	plan := routing.PlanKnowledgeRouteForTurn(msg.Content, skipDefault)
+	var plan routing.KnowledgePlan
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		plan = routing.PlanKnowledgeRouteForDecision(decision)
+	} else {
+		skipDefault := intent == IntentClosure || intent == IntentLowSignal
+		plan = routing.PlanKnowledgeRouteForTurn(msg.Content, skipDefault)
+	}
 	a.RecordRoutingSnapshot(RoutingSnapshot{
 		KnowledgeRoute:   string(plan.Primary()),
 		KnowledgeReason:  plan.Reason,

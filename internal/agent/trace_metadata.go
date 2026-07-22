@@ -5,7 +5,9 @@ import (
 	"github.com/camronwood/neural-junkie/internal/trace"
 )
 
-// ApplyTraceMetadataToResponse stamps trace_id, spans, and tool_steps on the response.
+// ApplyTraceMetadataToResponse stamps the trace ID and an in-flight span
+// snapshot on the response. The pipeline persists the authoritative trace only
+// after delivery and the root span have closed.
 func (a *Agent) ApplyTraceMetadataToResponse(msg *protocol.Message, recorder *trace.Recorder, toolSteps []map[string]interface{}) {
 	if a == nil || msg == nil {
 		return
@@ -26,5 +28,4 @@ func (a *Agent) ApplyTraceMetadataToResponse(msg *protocol.Message, recorder *tr
 	if len(tr.Spans) > 0 {
 		msg.Metadata[protocol.MetadataTraceSpans] = tr.Spans
 	}
-	_ = trace.Persist(tr)
 }

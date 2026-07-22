@@ -113,7 +113,7 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
       : messages;
     const filtered = base.filter((m) => {
       if (m.is_thread_reply && !slackMirrorTimeline) return false;
-      if (!m.content?.trim() && !channelTimelineAllowsEmptyContent(m.type)) return false;
+      if (!m.content?.trim() && !channelTimelineAllowsEmptyContent(m.type, m.metadata)) return false;
       if (!normalizedSearchQuery) return true;
       const content = m.content?.toLowerCase() || '';
       const authorName = m.from?.name?.toLowerCase() || '';

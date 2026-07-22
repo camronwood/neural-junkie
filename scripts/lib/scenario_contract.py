@@ -11,6 +11,8 @@ from scenario_assert import scenario_all_steps
 ROOT = Path(__file__).resolve().parents[2]
 IMPLEMENT_DIR = ROOT / "scenarios" / "implement"
 COLLAB_DIR = ROOT / "scenarios" / "collab"
+CHAT_DIR = ROOT / "scenarios" / "chat"
+PARITY_DIR = ROOT / "scenarios" / "parity"
 
 
 def _has_quality_bar(spec: dict[str, Any]) -> bool:
@@ -36,7 +38,7 @@ def implement_requires_deliverable_contract(scenario: dict) -> bool:
         meta = step.get("metadata") if isinstance(step.get("metadata"), dict) else {}
         mode = (meta.get("editor_mode") or "").strip().lower()
         if mode in ("ask", "plan"):
-            return False
+            continue
         if mode == "agent":
             return True
         if meta.get("implementation_session") and mode not in ("ask", "plan"):
@@ -91,6 +93,42 @@ def validate_deliverable_contract(scenario_relpath: str, scenario: dict) -> list
     return errors
 
 
+def validate_scenario_shape(scenario_relpath: str, scenario: dict) -> list[str]:
+    errors: list[str] = []
+    if not str(scenario.get("name") or "").strip():
+        errors.append(f"{scenario_relpath}: missing name")
+    steps = scenario.get("steps", scenario.get("turns"))
+    if not isinstance(steps, list) or not steps:
+        errors.append(f"{scenario_relpath}: steps must be a non-empty list")
+        return errors
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            errors.append(f"{scenario_relpath}: steps[{index}] must be an object")
+        elif not str(step.get("action") or step.get("type") or "").strip():
+            errors.append(f"{scenario_relpath}: steps[{index}] missing action")
+
+    evaluation = scenario.get("evaluation")
+    if isinstance(evaluation, dict) and evaluation.get("long_horizon") is True:
+        sends = [
+            step
+            for step in scenario_all_steps(scenario)
+            if str(step.get("action") or "").strip() == "send"
+        ]
+        minimum = int(evaluation.get("min_user_turns") or 4)
+        if len(sends) < minimum:
+            errors.append(
+                f"{scenario_relpath}: long-horizon scenario needs at least {minimum} send turns"
+            )
+        if scenario_relpath.startswith("chat/") and not any(
+            str(step.get("action") or "").strip() == "assert_transcript_metrics"
+            for step in scenario_all_steps(scenario)
+        ):
+            errors.append(
+                f"{scenario_relpath}: long-horizon chat scenario needs assert_transcript_metrics"
+            )
+    return errors
+
+
 def load_scenario_json(path: Path) -> dict:
     with path.open(encoding="utf-8") as f:
         data = json.load(f)
@@ -101,7 +139,12 @@ def load_scenario_json(path: Path) -> dict:
 
 def validate_all_scenario_contracts() -> list[str]:
     errors: list[str] = []
-    for directory, prefix in ((IMPLEMENT_DIR, "implement"), (COLLAB_DIR, "collab")):
+    for directory, prefix in (
+        (IMPLEMENT_DIR, "implement"),
+        (COLLAB_DIR, "collab"),
+        (CHAT_DIR, "chat"),
+        (PARITY_DIR, "parity"),
+    ):
         if not directory.is_dir():
             continue
         for path in sorted(directory.glob("*.json")):
@@ -111,6 +154,7 @@ def validate_all_scenario_contracts() -> list[str]:
             except (OSError, json.JSONDecodeError, ValueError) as exc:
                 errors.append(f"{rel}: invalid JSON ({exc})")
                 continue
+            errors.extend(validate_scenario_shape(rel, scenario))
             errors.extend(validate_deliverable_contract(rel, scenario))
     return errors
 
@@ -122,7 +166,7 @@ def main() -> int:
             print(err, file=__import__("sys").stderr)
         print(f"\n{len(errors)} deliverable contract error(s)", file=__import__("sys").stderr)
         return 1
-    print("OK: all file-producing scenarios declare expect_deliverables with quality bars")
+    print("OK: scenario shapes and deliverable contracts are valid")
     return 0
 
 

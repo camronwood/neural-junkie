@@ -49,3 +49,18 @@ func TestSpanErrorStatus(t *testing.T) {
 		t.Fatalf("status=%q", tr.Spans[0].Status)
 	}
 }
+
+func TestSpanAnnotateAfterEndUpdatesSnapshot(t *testing.T) {
+	r := NewRecorder("turn-4", "ch", "ag")
+	h := r.StartSpan("context_select", map[string]any{"digest_version": 1})
+	h.End(nil)
+	h.Annotate(map[string]any{"compression": map[string]any{"applied": true}})
+	tr := r.Snapshot()
+	if len(tr.Spans) != 1 {
+		t.Fatalf("spans=%d", len(tr.Spans))
+	}
+	compression, ok := tr.Spans[0].Attrs["compression"].(map[string]any)
+	if !ok || compression["applied"] != true {
+		t.Fatalf("attrs=%+v", tr.Spans[0].Attrs)
+	}
+}

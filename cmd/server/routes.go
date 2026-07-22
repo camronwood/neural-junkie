@@ -281,6 +281,16 @@ func registerRoutes() {
 	http.HandleFunc("/api/web-search/config", corsMiddleware(localOnly(handleWebSearchConfig)))
 	http.HandleFunc("/api/web-search/test", corsMiddleware(handleWebSearchTest))
 	http.HandleFunc("/api/debug/turn-trace", corsMiddleware(localOnly(handleDebugTurnTrace)))
+	http.HandleFunc("/api/orchestration/run", corsMiddleware(localOnly(handleOrchestrationRun)))
+	http.HandleFunc("/api/orchestration/deployments", corsMiddleware(localOnly(handleOrchestrationDeployments)))
+	http.HandleFunc("/api/orchestration/automations", corsMiddleware(localOnly(handleOrchestrationAutomations)))
+	http.HandleFunc("/api/orchestration/workers/register", corsMiddleware(localOnly(handleOrchestrationWorkerRegister)))
+	http.HandleFunc("/api/orchestration/workers/heartbeat", corsMiddleware(localOnly(handleOrchestrationWorkerHeartbeat)))
+	http.HandleFunc("/api/orchestration/work/claim", corsMiddleware(localOnly(handleOrchestrationWorkerClaim)))
+	http.HandleFunc("/api/orchestration/work/heartbeat", corsMiddleware(localOnly(handleOrchestrationWorkHeartbeat)))
+	http.HandleFunc("/api/orchestration/work/spawn", corsMiddleware(localOnly(handleOrchestrationWorkSpawn)))
+	http.HandleFunc("/api/orchestration/work/complete", corsMiddleware(localOnly(handleOrchestrationWorkerComplete)))
+	http.HandleFunc("/api/orchestration/work/fail", corsMiddleware(localOnly(handleOrchestrationWorkerFail)))
 
 	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" {
 		http.HandleFunc("/api/debug/hub-memory", corsMiddleware(localOnly(handleDebugHubMemory)))

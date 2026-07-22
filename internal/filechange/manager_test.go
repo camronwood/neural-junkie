@@ -122,6 +122,12 @@ func TestApproveEditRejectsStaleBase(t *testing.T) {
 	if _, err := mgr.ApproveFileChange(change.ID, "user-1"); err == nil || !strings.Contains(err.Error(), "stale edit") {
 		t.Fatalf("expected stale edit rejection, got %v", err)
 	}
+	if change.Status != FileChangeStatusStale {
+		t.Fatalf("status = %q, want stale", change.Status)
+	}
+	if _, err := mgr.ApproveFileChange(change.ID, "user-1"); err == nil || !strings.Contains(err.Error(), "already processed") {
+		t.Fatalf("expected terminal stale proposal to reject another action, got %v", err)
+	}
 	got, _ := os.ReadFile(target)
 	if string(got) != "user version" {
 		t.Fatalf("stale approval clobbered user content: %q", got)

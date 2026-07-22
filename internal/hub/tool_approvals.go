@@ -3,6 +3,7 @@ package hub
 import (
 	"fmt"
 	"log"
+	"reflect"
 	"sync"
 	"time"
 
@@ -45,7 +46,7 @@ type ToolApproval struct {
 type ToolApprovalManager struct {
 	mu        sync.Mutex
 	approvals map[string]*ToolApproval
-	waiters   map[string]chan ToolApprovalStatus // approval ID -> signal channel
+	waiters   map[string][]chan ToolApprovalStatus // approval ID -> signal channels
 
 	hub         *Hub
 	stopCleanup chan struct{}
@@ -54,7 +55,7 @@ type ToolApprovalManager struct {
 func NewToolApprovalManager(hub *Hub) *ToolApprovalManager {
 	tam := &ToolApprovalManager{
 		approvals:   make(map[string]*ToolApproval),
-		waiters:     make(map[string]chan ToolApprovalStatus),
+		waiters:     make(map[string][]chan ToolApprovalStatus),
 		hub:         hub,
 		stopCleanup: make(chan struct{}),
 	}
@@ -66,10 +67,39 @@ func (tam *ToolApprovalManager) Stop() {
 	close(tam.stopCleanup)
 }
 
+// RestorePending rehydrates a durable approval card after restart. The
+// approval remains visible and resolvable even though the original hook
+// process is gone; a retried tool call must create a new execution attempt.
+func (tam *ToolApprovalManager) RestorePending(approval *ToolApproval) {
+	if tam == nil || approval == nil || approval.ID == "" || approval.Status != ToolApprovalPending {
+		return
+	}
+	copyApproval := *approval
+	if approval.ToolInput != nil {
+		copyApproval.ToolInput = make(map[string]interface{}, len(approval.ToolInput))
+		for key, value := range approval.ToolInput {
+			copyApproval.ToolInput[key] = value
+		}
+	}
+	tam.mu.Lock()
+	if _, exists := tam.approvals[approval.ID]; !exists {
+		tam.approvals[approval.ID] = &copyApproval
+	}
+	tam.mu.Unlock()
+}
+
 // CreateApproval registers a new pending tool approval and broadcasts it to the chat.
 func (tam *ToolApprovalManager) CreateApproval(agentID, agentName, sessionID, toolName, channel string, toolInput map[string]interface{}) *ToolApproval {
 	tam.mu.Lock()
 	defer tam.mu.Unlock()
+
+	for _, pending := range tam.approvals {
+		if pending != nil && pending.Status == ToolApprovalPending &&
+			pending.SessionID == sessionID && pending.ToolName == toolName &&
+			pending.Channel == channel && reflect.DeepEqual(pending.ToolInput, toolInput) {
+			return pending
+		}
+	}
 
 	approval := &ToolApproval{
 		ID:        uuid.New().String()[:8],
@@ -84,10 +114,12 @@ func (tam *ToolApprovalManager) CreateApproval(agentID, agentName, sessionID, to
 	}
 
 	tam.approvals[approval.ID] = approval
-	tam.waiters[approval.ID] = make(chan ToolApprovalStatus, 1)
 
 	// Broadcast to chat so the frontend can render the approval card
 	tam.broadcastApproval(approval)
+	if tam.hub != nil {
+		tam.hub.persistToolApproval(approval, approval.CreatedAt.Add(ToolApprovalTTL))
+	}
 
 	return approval
 }
@@ -95,11 +127,15 @@ func (tam *ToolApprovalManager) CreateApproval(agentID, agentName, sessionID, to
 // WaitForDecision blocks until the approval is resolved or the timeout expires.
 // Returns the final status.
 func (tam *ToolApprovalManager) WaitForDecision(approvalID string, timeout time.Duration) (ToolApprovalStatus, string) {
+	ch := make(chan ToolApprovalStatus, 1)
 	tam.mu.Lock()
-	ch, ok := tam.waiters[approvalID]
+	approval, ok := tam.approvals[approvalID]
+	if ok && approval.Status == ToolApprovalPending {
+		tam.waiters[approvalID] = append(tam.waiters[approvalID], ch)
+	}
 	tam.mu.Unlock()
 
-	if !ok {
+	if !ok || approval.Status != ToolApprovalPending {
 		return ToolApprovalRejected, "approval not found"
 	}
 
@@ -114,14 +150,24 @@ func (tam *ToolApprovalManager) WaitForDecision(approvalID string, timeout time.
 		return status, reason
 	case <-time.After(timeout):
 		tam.mu.Lock()
+		var waiters []chan ToolApprovalStatus
 		if a, exists := tam.approvals[approvalID]; exists && a.Status == ToolApprovalPending {
 			now := time.Now()
 			a.Status = ToolApprovalExpired
 			a.ResolvedAt = &now
 			a.Reason = "timed out waiting for user decision"
+			waiters = tam.waiters[approvalID]
 		}
 		delete(tam.waiters, approvalID)
 		tam.mu.Unlock()
+		for _, waiter := range waiters {
+			if waiter != ch {
+				waiter <- ToolApprovalExpired
+			}
+		}
+		if tam.hub != nil {
+			tam.hub.expireDurableInput(approvalID, "timed out waiting for user decision")
+		}
 		return ToolApprovalExpired, "timed out waiting for user decision"
 	}
 }
@@ -143,12 +189,17 @@ func (tam *ToolApprovalManager) Approve(approvalID string) error {
 	approval.Status = ToolApprovalApproved
 	approval.ResolvedAt = &now
 
-	if ch, ok := tam.waiters[approvalID]; ok {
-		ch <- ToolApprovalApproved
+	if waiters, ok := tam.waiters[approvalID]; ok {
+		for _, ch := range waiters {
+			ch <- ToolApprovalApproved
+		}
 		delete(tam.waiters, approvalID)
 	}
 
 	tam.broadcastApprovalUpdate(approval)
+	if tam.hub != nil {
+		tam.hub.resolveDurableInput(approvalID, "user", map[string]any{"status": ToolApprovalApproved})
+	}
 	return nil
 }
 
@@ -170,12 +221,19 @@ func (tam *ToolApprovalManager) Reject(approvalID, reason string) error {
 	approval.ResolvedAt = &now
 	approval.Reason = reason
 
-	if ch, ok := tam.waiters[approvalID]; ok {
-		ch <- ToolApprovalRejected
+	if waiters, ok := tam.waiters[approvalID]; ok {
+		for _, ch := range waiters {
+			ch <- ToolApprovalRejected
+		}
 		delete(tam.waiters, approvalID)
 	}
 
 	tam.broadcastApprovalUpdate(approval)
+	if tam.hub != nil {
+		tam.hub.resolveDurableInput(approvalID, "user", map[string]any{
+			"status": ToolApprovalRejected, "reason": reason,
+		})
+	}
 	return nil
 }
 
@@ -194,6 +252,9 @@ func (tam *ToolApprovalManager) ListPending() []*ToolApproval {
 }
 
 func (tam *ToolApprovalManager) broadcastApproval(a *ToolApproval) {
+	if tam == nil || tam.hub == nil {
+		return
+	}
 	inputSummary := formatToolInput(a.ToolName, a.ToolInput)
 
 	msg := &protocol.Message{
@@ -221,6 +282,9 @@ func (tam *ToolApprovalManager) broadcastApproval(a *ToolApproval) {
 }
 
 func (tam *ToolApprovalManager) broadcastApprovalUpdate(a *ToolApproval) {
+	if tam == nil || tam.hub == nil {
+		return
+	}
 	msg := &protocol.Message{
 		ID:      uuid.New().String(),
 		Type:    protocol.MessageTypeToolApproval,
@@ -252,15 +316,36 @@ func (tam *ToolApprovalManager) cleanupLoop() {
 	for {
 		select {
 		case <-ticker.C:
+			var expired []*ToolApproval
+			var expiredWaiters []chan ToolApprovalStatus
 			tam.mu.Lock()
-			cutoff := time.Now().Add(-5 * time.Minute)
+			now := time.Now()
+			cutoff := now.Add(-5 * time.Minute)
 			for id, a := range tam.approvals {
+				if a.Status == ToolApprovalPending && now.Sub(a.CreatedAt) > ToolApprovalTTL {
+					a.Status = ToolApprovalExpired
+					a.ResolvedAt = &now
+					a.Reason = "timed out waiting for user decision"
+					expired = append(expired, a)
+					expiredWaiters = append(expiredWaiters, tam.waiters[id]...)
+					delete(tam.waiters, id)
+					continue
+				}
 				if a.Status != ToolApprovalPending && a.CreatedAt.Before(cutoff) {
 					delete(tam.approvals, id)
 					delete(tam.waiters, id)
 				}
 			}
 			tam.mu.Unlock()
+			for _, waiter := range expiredWaiters {
+				waiter <- ToolApprovalExpired
+			}
+			for _, approval := range expired {
+				tam.broadcastApprovalUpdate(approval)
+				if tam.hub != nil {
+					tam.hub.expireDurableInput(approval.ID, approval.Reason)
+				}
+			}
 		case <-tam.stopCleanup:
 			return
 		}

@@ -23,33 +23,46 @@ const (
 	MetadataRoutingConversationTier          = "routing_conversation_tier"
 	MetadataRoutingConversationReasons       = "routing_conversation_reasons"
 	MetadataRoutingConversationEscalatedFrom = "routing_conversation_escalated_from"
+	MetadataRoutingAttempts                  = "routing_attempts"
+	MetadataRoutingFailureEvidence           = "routing_failure_evidence"
 	MetadataTraceID                          = "trace_id"
 	MetadataTraceSpans                       = "trace_spans"
 )
 
+// RoutingAttempt records one unique provider/model tier considered for a turn.
+type RoutingAttempt struct {
+	ProviderID    string `json:"provider_id,omitempty"`
+	Model         string `json:"model,omitempty"`
+	Tier          string `json:"tier,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	FailureReason string `json:"failure_reason,omitempty"`
+}
+
 // RoutingMeta captures per-turn model routing decisions for UI display.
 type RoutingMeta struct {
-	ProviderID                string   `json:"provider_id,omitempty"`
-	Model                     string   `json:"model,omitempty"`
-	ToolModel                 string   `json:"tool_model,omitempty"`
-	Reason                    string   `json:"reason,omitempty"`
-	Source                    string   `json:"source,omitempty"`
-	Domain                    string   `json:"domain,omitempty"`
-	CostTier                  string   `json:"cost_tier,omitempty"`
-	KnowledgeRoute            string   `json:"knowledge_route,omitempty"`
-	KnowledgeReason           string   `json:"knowledge_reason,omitempty"`
-	KnowledgeTargets          []string `json:"knowledge_targets,omitempty"`
-	KnowledgeExecuted         []string `json:"knowledge_executed,omitempty"`
-	ComposerMode              string   `json:"composer_mode,omitempty"`
-	ContextScope              string   `json:"context_scope,omitempty"`
-	ImplSession               bool     `json:"impl_session,omitempty"`
-	ClassifierIntent          string   `json:"classifier_intent,omitempty"`
-	ClassifierToolNeed        bool     `json:"classifier_tool_need,omitempty"`
-	ClassifierConfidence      float64  `json:"classifier_confidence,omitempty"`
-	ClassifierLoRATag         string   `json:"classifier_lora_tag,omitempty"`
-	ConversationTier          string   `json:"conversation_tier,omitempty"`
-	ConversationReasons       []string `json:"conversation_reasons,omitempty"`
-	ConversationEscalatedFrom string   `json:"conversation_escalated_from,omitempty"`
+	ProviderID                string           `json:"provider_id,omitempty"`
+	Model                     string           `json:"model,omitempty"`
+	ToolModel                 string           `json:"tool_model,omitempty"`
+	Reason                    string           `json:"reason,omitempty"`
+	Source                    string           `json:"source,omitempty"`
+	Domain                    string           `json:"domain,omitempty"`
+	CostTier                  string           `json:"cost_tier,omitempty"`
+	KnowledgeRoute            string           `json:"knowledge_route,omitempty"`
+	KnowledgeReason           string           `json:"knowledge_reason,omitempty"`
+	KnowledgeTargets          []string         `json:"knowledge_targets,omitempty"`
+	KnowledgeExecuted         []string         `json:"knowledge_executed,omitempty"`
+	ComposerMode              string           `json:"composer_mode,omitempty"`
+	ContextScope              string           `json:"context_scope,omitempty"`
+	ImplSession               bool             `json:"impl_session,omitempty"`
+	ClassifierIntent          string           `json:"classifier_intent,omitempty"`
+	ClassifierToolNeed        bool             `json:"classifier_tool_need,omitempty"`
+	ClassifierConfidence      float64          `json:"classifier_confidence,omitempty"`
+	ClassifierLoRATag         string           `json:"classifier_lora_tag,omitempty"`
+	ConversationTier          string           `json:"conversation_tier,omitempty"`
+	ConversationReasons       []string         `json:"conversation_reasons,omitempty"`
+	ConversationEscalatedFrom string           `json:"conversation_escalated_from,omitempty"`
+	Attempts                  []RoutingAttempt `json:"attempts,omitempty"`
+	FailureEvidence           []string         `json:"failure_evidence,omitempty"`
 }
 
 // ApplyRoutingMeta writes routing fields onto message metadata.
@@ -58,7 +71,7 @@ func ApplyRoutingMeta(msg *Message, meta RoutingMeta) {
 		return
 	}
 	if meta.ProviderID == "" && meta.Model == "" && meta.Reason == "" && meta.KnowledgeRoute == "" &&
-		len(meta.KnowledgeTargets) == 0 && meta.ConversationTier == "" {
+		len(meta.KnowledgeTargets) == 0 && meta.ConversationTier == "" && len(meta.Attempts) == 0 {
 		return
 	}
 	if msg.Metadata == nil {
@@ -127,6 +140,12 @@ func ApplyRoutingMeta(msg *Message, meta RoutingMeta) {
 	if meta.ConversationEscalatedFrom != "" {
 		msg.Metadata[MetadataRoutingConversationEscalatedFrom] = meta.ConversationEscalatedFrom
 	}
+	if len(meta.Attempts) > 0 {
+		msg.Metadata[MetadataRoutingAttempts] = meta.Attempts
+	}
+	if len(meta.FailureEvidence) > 0 {
+		msg.Metadata[MetadataRoutingFailureEvidence] = meta.FailureEvidence
+	}
 }
 
 // ExtractRoutingMeta reads routing metadata from a message.
@@ -194,7 +213,30 @@ func ExtractRoutingMeta(msg *Message) RoutingMeta {
 	if v, ok := msg.Metadata[MetadataRoutingConversationEscalatedFrom].(string); ok {
 		out.ConversationEscalatedFrom = v
 	}
+	if v, ok := msg.Metadata[MetadataRoutingAttempts].([]RoutingAttempt); ok {
+		out.Attempts = append([]RoutingAttempt(nil), v...)
+	} else if rows, ok := msg.Metadata[MetadataRoutingAttempts].([]interface{}); ok {
+		for _, raw := range rows {
+			row, ok := raw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			out.Attempts = append(out.Attempts, RoutingAttempt{
+				ProviderID:    metaString(row, "provider_id"),
+				Model:         metaString(row, "model"),
+				Tier:          metaString(row, "tier"),
+				Reason:        metaString(row, "reason"),
+				FailureReason: metaString(row, "failure_reason"),
+			})
+		}
+	}
+	out.FailureEvidence = stringSliceFromMeta(msg.Metadata[MetadataRoutingFailureEvidence])
 	return out
+}
+
+func metaString(row map[string]interface{}, key string) string {
+	v, _ := row[key].(string)
+	return v
 }
 
 func stringSliceFromMeta(raw interface{}) []string {

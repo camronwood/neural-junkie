@@ -25,11 +25,19 @@ func (h *Hub) NotifyFileChangeApproved(change *filechange.FileChange, approvedBy
 	if h == nil || change == nil {
 		return
 	}
+	h.resolveDurableInput(change.ID, approvedBy, map[string]any{"status": "approved"})
 	channel := strings.TrimSpace(change.Channel)
 	if channel == "" {
 		channel = "general"
 	}
 	displayPath := change.GetDisplayPath()
+	h.UpdateChangeProposalStatus(
+		channel,
+		change.ID,
+		protocol.ChangeProposalStatusApproved,
+		"",
+		"",
+	)
 
 	systemFrom := protocol.AgentInfo{
 		ID:     "system",
@@ -77,5 +85,45 @@ func (h *Hub) NotifyFileChangeApproved(change *filechange.FileChange, approvedBy
 			wsRoot = h.fileChangeManager.GetExecutor().GetWorkspaceRoot()
 		}
 		memory.IndexCollabMarkdownRel(wsRoot, rel, channel)
+	}
+}
+
+// NotifyFileChangeRejected updates the durable proposal card and records the
+// decision in the visible transcript.
+func (h *Hub) NotifyFileChangeRejected(change *filechange.FileChange) {
+	if h == nil || change == nil {
+		return
+	}
+	h.resolveDurableInput(change.ID, "user", map[string]any{
+		"status": "rejected", "reason": change.Reason,
+	})
+	channel := strings.TrimSpace(change.Channel)
+	if channel == "" {
+		channel = "general"
+	}
+	h.UpdateChangeProposalStatus(
+		channel,
+		change.ID,
+		protocol.ChangeProposalStatusRejected,
+		change.Reason,
+		"",
+	)
+	systemFrom := protocol.AgentInfo{
+		ID:     "system",
+		Name:   "System",
+		Type:   protocol.AgentTypeGeneral,
+		Status: "active",
+	}
+	content := fmt.Sprintf("Rejected change `%s` for `%s`.", change.ID, change.GetDisplayPath())
+	if strings.TrimSpace(change.Reason) != "" && change.Reason != "No reason provided" {
+		content += " Reason: " + strings.TrimSpace(change.Reason)
+	}
+	if err := h.SendMessage(protocol.NewMessage(
+		protocol.MessageTypeSystemInfo,
+		channel,
+		systemFrom,
+		content,
+	)); err != nil {
+		log.Printf("[FileChange] Failed to send rejection confirmation: %v", err)
 	}
 }

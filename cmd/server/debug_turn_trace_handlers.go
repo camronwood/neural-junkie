@@ -83,6 +83,8 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 				"confidence": meta.ClassifierConfidence,
 				"lora_tag":   meta.ClassifierLoRATag,
 			},
+			"attempts":         meta.Attempts,
+			"failure_evidence": meta.FailureEvidence,
 		}
 		trace["retrieval"] = map[string]interface{}{
 			"mode":     meta.KnowledgeRoute,
@@ -91,15 +93,11 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 			"executed": meta.KnowledgeExecuted,
 		}
 		if target.Metadata != nil {
-			if n, ok := target.Metadata["injected_memory_count"].(int); ok && n > 0 {
+			if n, ok := turnTraceMetadataCount(target.Metadata, "injected_memory_count"); ok {
 				trace["retrieval"].(map[string]interface{})["memory_count"] = n
-			} else if n, ok := target.Metadata["injected_memory_count"].(float64); ok && n > 0 {
-				trace["retrieval"].(map[string]interface{})["memory_count"] = int(n)
 			}
-			if n, ok := target.Metadata["injected_codebase_count"].(int); ok && n > 0 {
+			if n, ok := turnTraceMetadataCount(target.Metadata, "injected_codebase_count"); ok {
 				trace["retrieval"].(map[string]interface{})["codebase_count"] = n
-			} else if n, ok := target.Metadata["injected_codebase_count"].(float64); ok && n > 0 {
-				trace["retrieval"].(map[string]interface{})["codebase_count"] = int(n)
 			}
 		}
 		if meta.KnowledgeRoute == "" && query != "" {
@@ -124,11 +122,27 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 			}
 			if traceID, ok := target.Metadata[protocol.MetadataTraceID].(string); ok && traceID != "" {
 				trace["trace_id"] = traceID
-				if spans, ok := target.Metadata[protocol.MetadataTraceSpans]; ok {
+				if spans := preferredTurnTraceSpans(traceID, target.Metadata); spans != nil {
 					trace["spans"] = spans
-				} else if loaded, err := tracelib.Load(traceID); err == nil && len(loaded.Spans) > 0 {
-					trace["spans"] = loaded.Spans
 				}
+			}
+		}
+		if runID := target.GetCollaborationID(); runID != "" {
+			ids := map[string]interface{}{
+				"run_id":  runID,
+				"task_id": target.GetTaskID(),
+			}
+			if target.Metadata != nil {
+				ids["attempt_id"] = target.Metadata["orchestration_attempt_id"]
+			}
+			trace["orchestration_ids"] = ids
+			if snapshot, err := chatHub.GetOrchestrationSnapshot(r.Context(), runID, 0); err == nil {
+				trace["orchestration"] = snapshot
+			}
+		}
+		if spans, ok := trace["spans"]; ok {
+			if selection := turnTraceContextSelection(spans); selection != nil {
+				trace["context_selection"] = selection
 			}
 		}
 		compress := protocol.ExtractCompressMeta(target)
@@ -151,6 +165,50 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(trace)
+}
+
+func turnTraceMetadataCount(metadata map[string]interface{}, key string) (int, bool) {
+	value, exists := metadata[key]
+	if !exists {
+		return 0, false
+	}
+	switch n := value.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+func turnTraceContextSelection(raw interface{}) map[string]interface{} {
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var spans []tracelib.Span
+	if err := json.Unmarshal(encoded, &spans); err != nil {
+		return nil
+	}
+	for i := len(spans) - 1; i >= 0; i-- {
+		if spans[i].Name == "context_select" {
+			return spans[i].Attrs
+		}
+	}
+	return nil
+}
+
+func preferredTurnTraceSpans(traceID string, metadata map[string]interface{}) interface{} {
+	if loaded, err := tracelib.Load(traceID); err == nil && len(loaded.Spans) > 0 {
+		return loaded.Spans
+	}
+	if metadata != nil {
+		return metadata[protocol.MetadataTraceSpans]
+	}
+	return nil
 }
 
 func turnTraceHasRoutingMeta(msg *protocol.Message) bool {

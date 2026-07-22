@@ -274,17 +274,15 @@ Cross-specialist [delegation](DELEGATION.md) runs after intent classification an
 
 ### File Change Flow
 
-```
-Agent proposes file change (via message metadata)
-    │
-    ▼
-Hub registers proposal with FileChangeManager
-    │
-    ▼
-Desktop shows in Pending Changes panel (with diff)
-    │
-    ├── User approves → Executor applies change to workspace
-    └── User rejects → Change discarded
+```mermaid
+flowchart TD
+    agentProposal[Agent proposes a file or Git change] --> hubRegister[Hub registers the proposal]
+    hubRegister --> chatCard[Desktop renders a durable inline chat card]
+    chatCard -->|Review file| editorDiff[Editor diff and hunk review]
+    chatCard -->|Accept| executor[Proposal manager executes the change]
+    chatCard -->|Reject| rejectedState[Proposal is marked rejected]
+    executor --> resolvedCard[Original chat card is updated]
+    rejectedState --> resolvedCard
 ```
 
 ## Design Patterns

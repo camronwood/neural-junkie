@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, ResolvedCapability, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, GitChangeProposal, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, ResolvedCapability, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
 export type { ResolvedCapability } from '../types/protocol';
 import {
   getHubBaseURL,
@@ -581,7 +581,7 @@ export class ChatAPI {
     return response.json();
   }
 
-  async fetchGitChanges(userId: string): Promise<Array<Record<string, unknown>>> {
+  async fetchGitChanges(userId: string): Promise<GitChangeProposal[]> {
     const response = await this.hubFetch(`/api/git-changes?user_id=${encodeURIComponent(userId)}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch git changes: ${response.statusText}`);
@@ -589,22 +589,28 @@ export class ChatAPI {
     return response.json();
   }
 
-  async approveGitChange(changeId: string): Promise<void> {
+  async approveGitChange(changeId: string): Promise<GitChangeProposal> {
     const response = await this.hubFetch(`/api/git-changes/approve/${encodeURIComponent(changeId)}`, {
       method: 'POST',
     });
     if (!response.ok) {
-      throw new Error(`Failed to approve git change: ${response.statusText}`);
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to approve git change: ${response.statusText}`);
     }
+    return response.json();
   }
 
-  async rejectGitChange(changeId: string): Promise<void> {
+  async rejectGitChange(changeId: string, reason?: string): Promise<GitChangeProposal> {
     const response = await this.hubFetch(`/api/git-changes/reject/${encodeURIComponent(changeId)}`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason ?? '' }),
     });
     if (!response.ok) {
-      throw new Error(`Failed to reject git change: ${response.statusText}`);
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to reject git change: ${response.statusText}`);
     }
+    return response.json();
   }
 
   async fetchTurnTrace(channel: string, messageId: string, q?: string): Promise<Record<string, unknown>> {
@@ -3346,7 +3352,8 @@ export class ChatAPI {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to approve file change: ${response.statusText}`);
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to approve file change: ${response.statusText}`);
     }
 
     return response.json();
@@ -3363,7 +3370,8 @@ export class ChatAPI {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to update file change: ${response.statusText}`);
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to update file change: ${response.statusText}`);
     }
 
     return response.json();
@@ -3383,7 +3391,8 @@ export class ChatAPI {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to reject file change: ${response.statusText}`);
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to reject file change: ${response.statusText}`);
     }
 
     return response.json();
@@ -3394,7 +3403,8 @@ export class ChatAPI {
     const response = await this.hubFetch(`/api/file-changes/${changeId}`);
     
     if (!response.ok) {
-      throw new Error(`Failed to get file diff: ${response.statusText}`);
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to get file diff: ${response.statusText}`);
     }
     
     return response.json();

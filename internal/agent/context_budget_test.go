@@ -7,6 +7,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
+	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 func TestApplyContextBudget_preservesUserRulesSection(t *testing.T) {
@@ -36,7 +37,7 @@ func TestApplyContextBudget_capsOversizedProtectedRules(t *testing.T) {
 		ai.SystemPromptSeparator + "USER MESSAGE:\nplan one task"
 
 	const limit = 32 * 1024
-	out, stats := applyContextBudgetWithLimit(prompt, limit, maxBudgetWorkspaceOutline, "")
+	out, stats := applyContextBudgetWithLimit(prompt, limit, maxBudgetWorkspaceOutline, "", false)
 	if !stats.Truncated {
 		t.Fatal("expected oversized protected rules to be truncated")
 	}
@@ -62,12 +63,31 @@ func TestApplyContextBudget_sectionCCR(t *testing.T) {
 	long := strings.Repeat("workspace line\n", 800)
 	prompt := "=== PERSONA ===\nfixed\n\n=== WORKSPACE CONTEXT ===\n" + long +
 		ai.SystemPromptSeparator + "USER MESSAGE:\nhello"
-	out, stats := applyContextBudgetForMessage(nil, prompt)
+	msg := &protocol.Message{Metadata: map[string]interface{}{contextRetrieveCapabilityMetadata: true}}
+	out, stats := applyContextBudgetForMessage(msg, prompt)
 	if !stats.Truncated && len(stats.CompressedSections) == 0 {
 		t.Fatalf("expected compression stats, got %+v", stats)
 	}
 	if !strings.Contains(out, "nj_retrieve_context") {
 		t.Fatalf("expected CCR marker in output: %q", out[:min(300, len(out))])
+	}
+}
+
+func TestApplyContextBudget_sectionExcerptWithoutRetrieveCapability(t *testing.T) {
+	enabled := true
+	ai.SetHubRuntimeOptions(
+		config.PerformanceConfig{ContextCompressEnabled: &enabled},
+		config.OllamaConfig{},
+	)
+	long := strings.Repeat("workspace line\n", 800)
+	prompt := "=== WORKSPACE CONTEXT ===\n" + long +
+		ai.SystemPromptSeparator + "USER MESSAGE:\nhello"
+	out, _ := applyContextBudgetForMessage(&protocol.Message{}, prompt)
+	if strings.Contains(out, "nj_retrieve_context") || strings.Contains(out, "ref=ctx-") {
+		t.Fatalf("must not advertise unavailable retrieval: %q", out[:min(300, len(out))])
+	}
+	if !strings.Contains(out, "[excerpted:") {
+		t.Fatalf("expected deterministic excerpt marker: %q", out[:min(300, len(out))])
 	}
 }
 

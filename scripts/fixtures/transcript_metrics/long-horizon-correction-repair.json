@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "source": "sanitized:long-horizon-correction-repair",
+  "telemetry": {
+    "passed_at_1": false,
+    "eventual_pass": true,
+    "attempts": 2,
+    "retry_count": 1,
+    "retry_reasons": ["validation failed: stale target"],
+    "nudge_count": 1,
+    "nudge_reasons": ["continue after corrected target"],
+    "actual_provider": "ollama",
+    "actual_model": "local-coder",
+    "validation_failures": ["notes.md was superseded"],
+    "repair_attempts": 1,
+    "tool_calls": 2,
+    "wall_duration_ms": 2400.0
+  },
+  "turns": [
+    {"role": "user", "speaker": "User", "event": "chat", "content": "Keep the title North Star throughout this task."},
+    {"role": "assistant", "speaker": "Agent", "event": "chat", "content": "I will retain North Star."},
+    {"role": "user", "speaker": "User", "event": "chat", "content": "Draft a three-part outline."},
+    {"role": "assistant", "speaker": "Agent", "event": "chat", "content": "The outline has setup, conflict, and resolution."},
+    {"role": "user", "speaker": "User", "event": "chat", "content": "Correction: apply the result to story.md, not notes.md."},
+    {"role": "assistant", "speaker": "Agent", "event": "chat", "content": "Understood; the corrected target is story.md."},
+    {"role": "user", "speaker": "User", "event": "chat", "content": "Continue from your outline and finish the task."},
+    {"role": "tool", "speaker": "Workspace", "event": "tool_result", "content": "Applied story.md and validation passed.", "labels": ["applied_file_change", "tool_success"]},
+    {"role": "assistant", "speaker": "Agent", "event": "chat", "content": "Completed story.md with the title North Star."}
+  ],
+  "cases": [
+    {"metric": "direct_answer", "user_match": "Draft a three-part outline", "assistant_match": "setup.*conflict.*resolution"},
+    {"metric": "repeated_question", "assistant_match": "(title|outline|target)"},
+    {"metric": "correction_recovery", "user_match": "Correction", "assistant_match": "story\\.md"},
+    {"metric": "instruction_retention", "user_match": "Keep the title", "after_user_match": "Continue", "assistant_match": "North Star"},
+    {"metric": "correction_latency", "user_match": "Correction", "assistant_match": "story\\.md"},
+    {"metric": "stale_plan", "user_match": "Correction", "stale_match": "(apply|completed).*notes\\.md"},
+    {"metric": "truthful_completion", "assistant_match": "Completed story\\.md", "evidence_label": "applied_file_change"},
+    {"metric": "unsupported_claim", "assistant_match": "Completed story\\.md", "evidence_label": "applied_file_change"},
+    {"metric": "edit_precision", "expected_edit_match": "Applied story\\.md", "forbidden_edit_match": "Applied notes\\.md", "evidence_role": "tool"}
+  ],
+  "thresholds": {
+    "direct_answer_rate": 1.0,
+    "repeated_question_rate": 0.0,
+    "correction_recovery_rate": 1.0,
+    "instruction_retention_rate": 1.0,
+    "correction_latency_turns": 1.0,
+    "stale_plan_rate": 0.0,
+    "truthful_completion_rate": 1.0,
+    "unsupported_claim_rate": 0.0,
+    "edit_precision_rate": 1.0
+  }
+}

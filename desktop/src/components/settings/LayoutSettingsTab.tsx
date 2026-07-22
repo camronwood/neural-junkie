@@ -133,22 +133,6 @@ export function LayoutSettingsTab({ isActive }: SettingsTabProps) {
 
       <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
         <div className="flex-1">
-          <div className="font-medium text-slack-text">Pending Changes Panel</div>
-          <div className="text-sm text-slack-textMuted">View and manage pending file changes</div>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={layoutSettings.pendingChangesPanelVisible}
-            onChange={(e) => updateLayoutSettings({ pendingChangesPanelVisible: e.target.checked })}
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-        </label>
-      </div>
-
-      <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
-        <div className="flex-1">
           <div className="font-medium text-slack-text">Sidebar agent shortcuts</div>
           <div className="text-sm text-slack-textMuted">
             Show agents without a DM under Direct Messages. Turn off for a cleaner list; open DMs stay.

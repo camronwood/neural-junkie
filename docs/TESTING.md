@@ -80,6 +80,19 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 
 See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORATION.md).
 
+## Evaluation telemetry and long-horizon contracts
+
+Live chat and implementation runners emit `EVAL_JSON:` and `METRICS_JSON:` records. The additive schema distinguishes `passed_at_1` from `eventual_pass` and reports attempts, retry/nudge reasons, actual provider/model, validation and escalation failures, repairs, tool calls, TTFT, and wall latency when those values are present in persisted metadata. Missing runtime fields remain `null`; configured model names must not be treated as proof of the model actually used.
+
+Deterministic transcript fixtures cover instruction retention, correction latency, repeated questions, stale-plan use, truthful completion, edit precision, and existing direct-answer/tool-follow-through checks:
+
+```bash
+PYTHONPATH=scripts:scripts/lib python3 scripts/lib/scenario_contract.py
+PYTHONPATH=scripts:scripts/lib python3 scripts/transcript-metrics.py
+```
+
+Scenarios marked with `evaluation.long_horizon: true` must declare at least four user send turns. Long-horizon chat scenarios must also include an `assert_transcript_metrics` step. CI runs both contract commands without a live hub or model.
+
 ## Phase 1 acceptance (~80% Cursor “implement this feature”)
 
 **Gate:** `make implement-scenarios` with a regression hub and Ollama tool model (`qwen3.5:9b` or Settings → Implementation tool model).

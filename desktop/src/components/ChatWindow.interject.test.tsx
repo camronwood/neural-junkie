@@ -36,6 +36,8 @@ const { apiHarness, wsHarness, addToastMock } = vi.hoisted(() => {
     fetchWorkspaces: vi.fn().mockResolvedValue([]),
     fetchFileContent: vi.fn().mockResolvedValue(''),
     fetchFiles: vi.fn().mockResolvedValue([]),
+    listPendingFileChanges: vi.fn().mockResolvedValue([]),
+    fetchGitChanges: vi.fn().mockResolvedValue([]),
   };
   const wsHarness = {
     lastOpts: null as null | { onMessage: (m: Message) => void | Promise<void>; onConnect?: () => void },
@@ -65,6 +67,8 @@ vi.mock('../api/chatAPI', () => ({
     fetchWorkspaces = apiHarness.fetchWorkspaces;
     fetchFileContent = apiHarness.fetchFileContent;
     fetchFiles = apiHarness.fetchFiles;
+    listPendingFileChanges = apiHarness.listPendingFileChanges;
+    fetchGitChanges = apiHarness.fetchGitChanges;
   },
 }));
 
@@ -99,7 +103,6 @@ vi.mock('../stores/settingsStore', () => {
       chatPanelVisible: true,
       terminalPanelVisible: false,
       myAgentsPanelVisible: false,
-      pendingChangesPanelVisible: false,
       editorAgentMode: 'agent',
       sidebarAgentsVisible: true,
       toolbarChipsPlacement: 'top',
@@ -169,7 +172,6 @@ vi.mock('../hooks/useSidebarAutoUnhide', () => ({ useSidebarAutoUnhide: vi.fn() 
 vi.mock('./MessageList', () => ({ MessageList: () => <div data-testid="message-list" /> }));
 vi.mock('./ThreadPanel', () => ({ ThreadPanel: () => null }));
 vi.mock('./MyAgentsPanel', () => ({ MyAgentsPanel: () => null }));
-vi.mock('./PendingChangesPanel', () => ({ PendingChangesPanel: () => null }));
 vi.mock('./TerminalPanel', () => ({ TerminalPanel: () => null }));
 vi.mock('./FileExplorerPanel', () => ({ FileExplorerPanel: () => null }));
 vi.mock('./CodeEditorPanel', () => ({ CodeEditorPanel: () => null }));

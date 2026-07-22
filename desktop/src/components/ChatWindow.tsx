@@ -26,6 +26,7 @@ import {
   workspaceContextModeLabel,
   WORKSPACE_CONTEXT_MODE_KEY,
 } from '../utils/outboundChatMetadata';
+import { attachAmbientStateMetadata } from '../utils/ambientState';
 import {
   formatContextIndicator,
   loadConversationModeSetting,
@@ -43,10 +44,6 @@ import {
 import { HubDataAccessModal } from './HubDataAccessModal';
 import { shouldSendChannelJoinMessage } from '../utils/joinMessage';
 import { devLog } from '../utils/devLog';
-import {
-  registeredFileChangeId,
-  shouldPromptFileChangeApproval,
-} from '../utils/fileChangeApprovalPrompt';
 import {
   fileChangeProposalPaths,
   refreshFileExplorerForPaths,
@@ -70,7 +67,6 @@ import {
 import { isSlackHubChannelName } from '../utils/slackChannelDisplay';
 import { ThreadPanel } from './ThreadPanel';
 import { MyAgentsPanel } from './MyAgentsPanel';
-import { PendingChangesPanel } from './PendingChangesPanel';
 import { TerminalPanel } from './TerminalPanel';
 import { FileExplorerPanel } from './FileExplorerPanel';
 import { CodeEditorPanel } from './CodeEditorPanel';
@@ -124,7 +120,7 @@ import type {
   ThinkingAgent,
   ThinkingStatusMetadata,
 } from '../types/protocol';
-import { isCollaborationMessage, getCollaborationId, showThreadReplyInMainTimeline, isToolStepStreamDelta, isReasoningStreamDelta, THINKING_ACTIVITY_DETAIL_KEY, THINKING_ACTIVITY_REASONING, THINKING_ACTIVITY_USING_TOOL, THINKING_ACTIVITY_WRITING } from '../types/protocol';
+import { isCollaborationMessage, getCollaborationId, getChangeProposalCard, showThreadReplyInMainTimeline, isToolStepStreamDelta, isReasoningStreamDelta, THINKING_ACTIVITY_DETAIL_KEY, THINKING_ACTIVITY_REASONING, THINKING_ACTIVITY_USING_TOOL, THINKING_ACTIVITY_WRITING } from '../types/protocol';
 import { findThreadParentMessage } from '../utils/slackThread';
 import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
@@ -144,6 +140,7 @@ import {
 } from '../utils/repoAgentWorkspace';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useFileChangeStore } from '../stores/fileChangeStore';
+import { useGitChangeStore } from '../stores/gitChangeStore';
 import { getHubBaseURL } from '../config/hubUrl';
 import { isIdeLayout, layoutPresetLabel, panelsForPreset } from '../utils/layoutPresets';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
@@ -171,6 +168,10 @@ import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
 import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
 import { registerRestartBlocker } from '../utils/restartSafety';
+import {
+  oldestPendingProposalMessage,
+  pendingProposalCount,
+} from '../utils/pendingChangeNavigation';
 import { useRoomStore } from '../stores/roomStore';
 import {
   agentsToCollaborationAgents,
@@ -567,9 +568,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     ]
   );
 
-  // State for pending changes panel
-  const [pendingChangesOpen, setPendingChangesOpen] = useState(false);
-  const [pendingChangePreviewId, setPendingChangePreviewId] = useState<string | null>(null);
   const { pendingChanges, fetchPendingChanges } = useFileChangeStore(
     (s) => ({
       pendingChanges: s.pendingChanges,
@@ -577,6 +575,31 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }),
     shallow
   );
+  const { pendingGitChanges, fetchPendingGitChanges } = useGitChangeStore(
+    (s) => ({
+      pendingGitChanges: s.pendingGitChanges,
+      fetchPendingGitChanges: s.fetchPendingGitChanges,
+    }),
+    shallow,
+  );
+  const pendingChangeCount = pendingProposalCount(
+    pendingChanges.map((change) => change.id),
+    pendingGitChanges.map((change) => change.id),
+  );
+
+  useEffect(() => {
+    const refresh = () => {
+      void fetchPendingChanges(username || 'default').catch((error) =>
+        console.error('Failed to load pending file changes:', error),
+      );
+      void fetchPendingGitChanges(username || 'default').catch((error) =>
+        console.error('Failed to load pending Git changes:', error),
+      );
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 30_000);
+    return () => window.clearInterval(timer);
+  }, [fetchPendingChanges, fetchPendingGitChanges, username]);
 
   // Sidebar visibility
   const [channelSidebarOpen, setChannelSidebarOpen] = useState<boolean>(() => {
@@ -754,7 +777,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const workspaceGateToastIdRef = useRef<string | null>(null);
   const handledRepoWorkspaceActionsRef = useRef<Set<string>>(new Set());
   const handledLearningProposalsRef = useRef<Set<string>>(new Set());
-  const handledFileChangeApprovalsRef = useRef<Set<string>>(new Set());
+  const handledChangeProposalNoticesRef = useRef<Set<string>>(new Set());
   const handledParticipantRequestPromptsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -891,12 +914,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       setMyAgentsPanelOpen(layoutSettings.myAgentsPanelVisible);
     }
   }, [layoutSettings?.myAgentsPanelVisible, setMyAgentsPanelOpen]);
-
-  useEffect(() => {
-    if (layoutSettings) {
-      setPendingChangesOpen(layoutSettings.pendingChangesPanelVisible);
-    }
-  }, [layoutSettings?.pendingChangesPanelVisible, setPendingChangesOpen]);
 
   // Load agents function
   const loadAgents = useCallback(async () => {
@@ -1540,44 +1557,68 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [refreshExplorerForFileChange]
   );
 
-  const promptFileChangeApproval = useCallback(
-    async (message: Message) => {
+  const surfaceChangeProposal = useCallback(
+    (message: Message, isActiveChannel: boolean) => {
+      const proposal = getChangeProposalCard(message);
+      if (!proposal) return;
+      if (proposal.kind === 'file_change') {
+        void fetchPendingChanges(username || 'default').catch((error) =>
+          console.error('Failed to refresh pending file changes:', error),
+        );
+        if (proposal.status === 'approved') {
+          debouncedRefreshExplorer(message);
+        }
+      } else {
+        void fetchPendingGitChanges(username || 'default').catch((error) =>
+          console.error('Failed to refresh pending Git changes:', error),
+        );
+      }
       if (
-        !shouldPromptFileChangeApproval(
-          message,
-          useChatStore.getState().channel,
-          collaborationsByIDRef.current,
-        )
+        proposal.status === 'pending' &&
+        !isActiveChannel &&
+        !handledChangeProposalNoticesRef.current.has(message.id)
       ) {
-        return;
+        handledChangeProposalNoticesRef.current.add(message.id);
+        addToast({
+          type: 'info',
+          title: 'Change needs review',
+          message: `${message.from.name} proposed a ${proposal.kind === 'file_change' ? 'file change' : 'Git operation'} in #${message.channel}.`,
+        });
       }
-      const changeId = registeredFileChangeId(message);
-      if (!changeId || handledFileChangeApprovalsRef.current.has(message.id)) {
-        return;
-      }
-      handledFileChangeApprovalsRef.current.add(message.id);
-      if (message.metadata?.file_change_auto_approved === true) {
-        return;
-      }
-      try {
-        await fetchPendingChanges(username || 'default');
-      } catch (error) {
-        console.error('[ChatWindow] fetch pending file changes failed:', error);
-      }
-      const pending = useFileChangeStore.getState().pendingChanges;
-      if (!pending.some((change) => change.id === changeId)) {
-        return;
-      }
-      setPendingChangePreviewId(changeId);
-      setPendingChangesOpen(true);
-      addToast({
-        type: 'info',
-        title: 'File change needs approval',
-        message: `${message.from.name} proposed a file change. Review and approve to apply it.`,
-      });
     },
-    [addToast, fetchPendingChanges, username],
+    [
+      addToast,
+      debouncedRefreshExplorer,
+      fetchPendingChanges,
+      fetchPendingGitChanges,
+      username,
+    ],
   );
+
+  const jumpToOldestPendingChange = useCallback(() => {
+    const pendingIds = new Set([
+      ...pendingChanges.map((change) => change.id),
+      ...pendingGitChanges.map((change) => change.id),
+    ]);
+    const target = oldestPendingProposalMessage(
+      useChatStore.getState().messages,
+      pendingIds,
+    );
+    if (target) {
+      const store = useChatStore.getState();
+      store.setPendingScrollToMessageId(target.id);
+      store.setHighlightMessageId(target.id);
+      return;
+    }
+    addToast({
+      type: 'info',
+      title: pendingChangeCount > 0 ? 'Pending change is in another chat' : 'No pending changes',
+      message:
+        pendingChangeCount > 0
+          ? 'Open the chat where the change was proposed to review it.'
+          : 'All proposed file and Git changes have been resolved.',
+    });
+  }, [addToast, pendingChangeCount, pendingChanges, pendingGitChanges]);
 
   const scrollToApproval = useCallback((approvalId: string) => {
     const el = document.querySelector(`[data-approval-id="${approvalId}"]`);
@@ -1922,9 +1963,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             message: `Activity in #${message.channel} — switch there to see messages.`,
           });
         }
-        if (message.type === 'file_change') {
-          debouncedRefreshExplorer(message);
-          await promptFileChangeApproval(message);
+        if (getChangeProposalCard(message)) {
+          surfaceChangeProposal(message, false);
         }
         if (message.type === 'tool_approval') {
           surfaceToolApproval(message, false);
@@ -2015,9 +2055,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           setLearningProposalOpen(true);
         }
 
-        if (message.type === 'file_change') {
-          debouncedRefreshExplorer(message);
-          await promptFileChangeApproval(message);
+        if (getChangeProposalCard(message)) {
+          surfaceChangeProposal(message, true);
         }
       }
       
@@ -2120,7 +2159,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         channel,
         channelMeta: activeChannelMeta,
       });
-      const mergedMetadata = buildHumanOutboundMetadata({
+      const baseMetadata = buildHumanOutboundMetadata({
         contextMode: workspaceContextMode,
         conversationMode: conversationModeSetting,
         message: payload.content,
@@ -2130,6 +2169,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         ideCoding: ideLayout && hasIdeComposer,
         recentChannelMessages: useChatStore.getState().messages,
       });
+      const mergedMetadata =
+        workspaceContextMode === 'off'
+          ? baseMetadata
+          : await attachAmbientStateMetadata(
+              baseMetadata,
+              payload.content,
+              ideLayout && hasIdeComposer,
+            );
       await api.sendThreadReply(
         threadId,
         channel,
@@ -2225,7 +2272,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       sendContent = payload.content;
       composerMeta = payload.metadata;
 
-      const mergedMetadata = buildHumanOutboundMetadata({
+      const baseMetadata = buildHumanOutboundMetadata({
         contextMode: workspaceContextMode,
         conversationMode: conversationModeSetting,
         message: sendContent,
@@ -2235,6 +2282,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         ideCoding: ideLayout && hasIdeComposer,
         recentChannelMessages: useChatStore.getState().messages,
       });
+      const mergedMetadata =
+        workspaceContextMode === 'off'
+          ? baseMetadata
+          : await attachAmbientStateMetadata(
+              baseMetadata,
+              sendContent,
+              ideLayout && hasIdeComposer,
+            );
 
       useChatStore.getState().setIsTyping(true);
       try {
@@ -2620,7 +2675,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     setFileExplorerOpen,
     setCodeEditorOpen,
     setTaskManagementOpen,
-    setPendingChangesOpen,
+    onOpenPendingChanges: jumpToOldestPendingChange,
     setToolbarSidebarOpen,
     setCommandPaletteOpen,
     setModelLibraryOpen,
@@ -2793,7 +2848,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, next);
       },
       workspaceContextButtonTitle: `Workspace context: ${workspaceContextModeLabel(workspaceContextMode)} (click to cycle). Next send: ${contextScopePreview.scope}`,
-      onOpenPendingChanges: () => setPendingChangesOpen(true),
+      onOpenPendingChanges: jumpToOldestPendingChange,
+      pendingChangeCount,
       onOpenFileExplorer: () => {
         setFileExplorerOpen(true);
         void updateLayoutSettings({ filesPanelVisible: true });
@@ -2846,6 +2902,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }),
     [
       openCommandPalette,
+      jumpToOldestPendingChange,
+      pendingChangeCount,
       updateLayoutSettings,
       workspaceContextMode,
       contextScopePreview.scope,
@@ -3346,17 +3404,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           <MyAgentsPanel
             onClose={() => setMyAgentsPanelOpen(false)}
             onTrainLoRA={handleTrainLoRAForAgent}
-          />
-        )}
-
-        {/* Pending Changes Panel */}
-        {pendingChangesOpen && (
-          <PendingChangesPanel
-            initialChangeId={pendingChangePreviewId}
-            onClose={() => {
-              setPendingChangesOpen(false);
-              setPendingChangePreviewId(null);
-            }}
           />
         )}
 

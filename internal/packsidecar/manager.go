@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,8 @@ const (
 	hubServerRelPath  = "assets/hub/server.py"
 	startupTimeout    = 15 * time.Second
 	defaultHealthWait = 500 * time.Millisecond
+	supervisorTick    = 5 * time.Second
+	maxRestarts       = 5
 )
 
 // Instance is a running pack hub sidecar.
@@ -38,13 +41,29 @@ type Instance struct {
 
 // Manager starts and stops pack sidecars for enabled customer packs.
 type Manager struct {
-	mu        sync.Mutex
-	instances map[string]*Instance
+	mu              sync.Mutex
+	instances       map[string]*Instance
+	desired         map[string]packs.SidecarEnv
+	restartAttempts map[string]int
+	nextRestart     map[string]time.Time
+	terminalErrors  map[string]string
+	stopSupervisor  chan struct{}
+	supervisorWG    sync.WaitGroup
 }
 
 // NewManager creates a sidecar manager.
 func NewManager() *Manager {
-	return &Manager{instances: make(map[string]*Instance)}
+	m := &Manager{
+		instances:       make(map[string]*Instance),
+		desired:         make(map[string]packs.SidecarEnv),
+		restartAttempts: make(map[string]int),
+		nextRestart:     make(map[string]time.Time),
+		terminalErrors:  make(map[string]string),
+		stopSupervisor:  make(chan struct{}),
+	}
+	m.supervisorWG.Add(1)
+	go m.supervise()
+	return m
 }
 
 // Sync ensures sidecars match the given enabled pack manifests.
@@ -61,10 +80,14 @@ func (m *Manager) Sync(ctx context.Context, enabled []packs.SidecarEnv) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.desired = want
 	for id, inst := range m.instances {
 		if _, ok := want[id]; !ok {
 			m.stopLocked(inst)
 			delete(m.instances, id)
+			delete(m.restartAttempts, id)
+			delete(m.nextRestart, id)
+			delete(m.terminalErrors, id)
 		}
 	}
 	var firstErr error
@@ -80,6 +103,9 @@ func (m *Manager) Sync(ctx context.Context, enabled []packs.SidecarEnv) error {
 			continue
 		}
 		m.instances[id] = inst
+		m.restartAttempts[id] = 0
+		delete(m.nextRestart, id)
+		delete(m.terminalErrors, id)
 	}
 	return firstErr
 }
@@ -94,6 +120,10 @@ func (m *Manager) RestartPack(ctx context.Context, env packs.SidecarEnv) error {
 		return fmt.Errorf("pack id required")
 	}
 	m.mu.Lock()
+	m.desired[packID] = env
+	m.restartAttempts[packID] = 0
+	delete(m.nextRestart, packID)
+	delete(m.terminalErrors, packID)
 	if inst, ok := m.instances[packID]; ok {
 		m.stopLocked(inst)
 		delete(m.instances, packID)
@@ -114,12 +144,19 @@ func (m *Manager) StopAll() {
 	if m == nil {
 		return
 	}
+	select {
+	case <-m.stopSupervisor:
+	default:
+		close(m.stopSupervisor)
+	}
+	m.supervisorWG.Wait()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for id, inst := range m.instances {
 		m.stopLocked(inst)
 		delete(m.instances, id)
 	}
+	clear(m.desired)
 }
 
 // BaseURL returns the sidecar base URL for packID, or "" if not running.
@@ -202,6 +239,118 @@ func (m *Manager) ProxyHTTP(w http.ResponseWriter, r *http.Request, packID, side
 	w.WriteHeader(resp.StatusCode)
 	_, err = io.Copy(w, resp.Body)
 	return err
+}
+
+// SupervisionStatus describes the health and restart state of one desired sidecar.
+type SupervisionStatus struct {
+	PackID          string    `json:"pack_id"`
+	Running         bool      `json:"running"`
+	RestartAttempts int       `json:"restart_attempts"`
+	NextRestart     time.Time `json:"next_restart,omitempty"`
+	TerminalError   string    `json:"terminal_error,omitempty"`
+}
+
+// Status returns a point-in-time supervisor snapshot.
+func (m *Manager) Status() []SupervisionStatus {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]SupervisionStatus, 0, len(m.desired))
+	for id := range m.desired {
+		_, running := m.instances[id]
+		out = append(out, SupervisionStatus{
+			PackID: id, Running: running, RestartAttempts: m.restartAttempts[id],
+			NextRestart: m.nextRestart[id], TerminalError: m.terminalErrors[id],
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].PackID < out[j].PackID })
+	return out
+}
+
+func (m *Manager) supervise() {
+	defer m.supervisorWG.Done()
+	ticker := time.NewTicker(supervisorTick)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-m.stopSupervisor:
+			return
+		case now := <-ticker.C:
+			m.superviseOnce(now)
+		}
+	}
+}
+
+func (m *Manager) superviseOnce(now time.Time) {
+	type observed struct {
+		id   string
+		env  packs.SidecarEnv
+		inst *Instance
+	}
+	m.mu.Lock()
+	items := make([]observed, 0, len(m.desired))
+	for id, env := range m.desired {
+		items = append(items, observed{id: id, env: env, inst: m.instances[id]})
+	}
+	m.mu.Unlock()
+
+	for _, item := range items {
+		if item.inst != nil {
+			if err := healthCheck(item.inst.BaseURL); err == nil {
+				m.mu.Lock()
+				m.restartAttempts[item.id] = 0
+				delete(m.nextRestart, item.id)
+				m.mu.Unlock()
+				continue
+			}
+			m.noteSidecarFailure(item.id, item.inst, now, "health check failed")
+			continue
+		}
+		m.mu.Lock()
+		attempts := m.restartAttempts[item.id]
+		next := m.nextRestart[item.id]
+		terminal := m.terminalErrors[item.id] != ""
+		m.mu.Unlock()
+		if terminal || attempts >= maxRestarts || (!next.IsZero() && now.Before(next)) {
+			continue
+		}
+		inst, err := m.startLocked(context.Background(), item.env)
+		if err != nil {
+			m.noteSidecarFailure(item.id, nil, now, err.Error())
+			continue
+		}
+		m.mu.Lock()
+		if _, stillDesired := m.desired[item.id]; stillDesired {
+			m.instances[item.id] = inst
+			delete(m.nextRestart, item.id)
+		} else {
+			m.stopLocked(inst)
+		}
+		m.mu.Unlock()
+	}
+}
+
+func (m *Manager) noteSidecarFailure(id string, observed *Instance, now time.Time, reason string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if current := m.instances[id]; current != nil && (observed == nil || current == observed) {
+		m.stopLocked(current)
+		delete(m.instances, id)
+	}
+	attempts := m.restartAttempts[id] + 1
+	m.restartAttempts[id] = attempts
+	if attempts >= maxRestarts {
+		m.terminalErrors[id] = reason
+		delete(m.nextRestart, id)
+		return
+	}
+	delay := time.Second * time.Duration(1<<(attempts-1))
+	if delay > 30*time.Second {
+		delay = 30 * time.Second
+	}
+	m.nextRestart[id] = now.Add(delay)
 }
 
 func (m *Manager) startLocked(ctx context.Context, env packs.SidecarEnv) (*Instance, error) {

@@ -95,6 +95,7 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
     terminalAPI.onPtyOutput((payload) => {
       if (payload.id === sessionId) {
         term.write(payload.data);
+        useTerminalStore.getState().recordOutput(sessionId, payload.data);
       }
     }).then((unlisten) => {
       unlistenPty = unlisten;

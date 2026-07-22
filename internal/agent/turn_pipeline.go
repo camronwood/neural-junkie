@@ -2,8 +2,10 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
@@ -16,6 +18,8 @@ import (
 )
 
 type turnOutcome int
+
+const maxChatValidationEscalations = 3
 
 const (
 	turnContinue turnOutcome = iota
@@ -33,8 +37,10 @@ type turnState struct {
 	clearResponded func()
 
 	traceRecorder *trace.Recorder
+	contextSpan   *trace.SpanHandle
 	intent        TurnIntent
 	goal          TurnGoal
+	context       protocol.TurnContextEnvelope
 	evidence      *ActionEvidenceLedger
 	knowledgePlan routing.KnowledgePlan
 
@@ -56,6 +62,8 @@ type turnState struct {
 	responseHasImage    bool
 	toolSteps           []map[string]interface{}
 	validationRetried   bool
+	validationAttempts  int
+	contextRecovered    bool
 	actionValidated     bool
 }
 
@@ -73,6 +81,10 @@ func (a *Agent) runTurnPipeline(ctx context.Context, msg *protocol.Message, clea
 	root := st.traceRecorder.StartSpan("turn", nil)
 	defer func() {
 		root.End(nil)
+		finalTrace := st.traceRecorder.Close()
+		if err := trace.Persist(finalTrace); err != nil {
+			log.Printf("[%s] failed to persist final turn trace: %v", a.Info.Name, err)
+		}
 		if st.genCancel != nil {
 			st.genCancel()
 		}
@@ -88,6 +100,7 @@ func (a *Agent) defaultTurnPipeline(st *turnState) []pipeline.Step {
 	return []pipeline.Step{
 		pipeline.FuncStep{StepName: "prepare_turn", Fn: st.stepPrepareTurn},
 		pipeline.FuncStep{StepName: "intent_classify", Fn: st.stepIntentClassify},
+		pipeline.FuncStep{StepName: "context_select", Fn: st.stepContextSelect},
 		pipeline.FuncStep{StepName: "knowledge_plan", Fn: st.stepKnowledgePlan},
 		pipeline.FuncStep{StepName: "knowledge_execute", Fn: st.stepKnowledgeExecute},
 		pipeline.FuncStep{StepName: "governance_record", Fn: st.stepGovernanceRecord},
@@ -98,6 +111,110 @@ func (a *Agent) defaultTurnPipeline(st *turnState) []pipeline.Step {
 		pipeline.FuncStep{StepName: "stamp_metadata", Fn: st.stepStampMetadata},
 		pipeline.FuncStep{StepName: "deliver_response", Fn: st.stepDeliverResponse},
 	}
+}
+
+func (st *turnState) stepContextSelect(ctx context.Context) error {
+	if err := st.skipIfDone(); err != nil {
+		return err
+	}
+	span := trace.StartSpan(ctx, "context_select", nil)
+	st.contextSpan = span
+	st.context = st.agent.selectTurnContext(st.msg)
+	st.ctx = contextWithTurnEnvelope(st.ctx, st.context)
+	span.End(contextSelectionTraceAttrs(st.context))
+	return nil
+}
+
+func contextSelectionTraceAttrs(envelope protocol.TurnContextEnvelope) map[string]any {
+	selectedIDs := make([]string, 0, len(envelope.Provenance))
+	sectionSet := map[string]bool{}
+	for _, item := range envelope.Provenance {
+		if item.ID != "" {
+			selectedIDs = append(selectedIDs, item.ID)
+		}
+		if item.Section != "" {
+			sectionSet[item.Section] = true
+		}
+	}
+	if envelope.Goal != nil {
+		sectionSet["goal"] = true
+	}
+	for section, count := range map[string]int{
+		"decisions": len(envelope.Decisions), "unresolved_actions": len(envelope.UnresolvedActions),
+		"corrections": len(envelope.Corrections), "recent_exchanges": len(envelope.RecentExchanges),
+		"retrieved_memories": len(envelope.RetrievedMemories), "workspace_evidence": len(envelope.WorkspaceEvidence),
+	} {
+		if count > 0 {
+			sectionSet[section] = true
+		}
+	}
+	digestVersion := 0
+	if envelope.Summary != nil {
+		digestVersion = envelope.Summary.Version
+		sectionSet["summary"] = true
+	}
+	selectedSections := make([]string, 0, len(sectionSet))
+	for section := range sectionSet {
+		selectedSections = append(selectedSections, section)
+	}
+	sort.Strings(selectedSections)
+	omissions := make(map[string]string, len(envelope.SupersededMessageIDs))
+	for _, id := range envelope.SupersededMessageIDs {
+		if id != "" {
+			omissions[id] = "superseded"
+		}
+	}
+	return map[string]any{
+		"selected_context_ids": selectedIDs,
+		"selected_sections":    selectedSections,
+		"dropped_context_ids":  append([]string(nil), envelope.SupersededMessageIDs...),
+		"omission_reasons":     omissions,
+		"provenance":           append([]protocol.TurnContextProvenance(nil), envelope.Provenance...),
+		"digest_version":       digestVersion,
+		"section_sizes":        contextEnvelopeSectionSizes(envelope),
+		"section_budgets":      envelope.SectionBudgets,
+		"compression": map[string]any{
+			"summary_checkpoint": envelope.Summary != nil,
+		},
+		"recovery": map[string]any{
+			"active":             len(envelope.Corrections) > 0 || len(envelope.SupersededMessageIDs) > 0,
+			"correction_count":   len(envelope.Corrections),
+			"superseded_count":   len(envelope.SupersededMessageIDs),
+			"unresolved_actions": len(envelope.UnresolvedActions),
+		},
+	}
+}
+
+func contextEnvelopeSectionSizes(envelope protocol.TurnContextEnvelope) map[string]map[string]int {
+	sections := map[string]any{
+		"goal":               envelope.Goal,
+		"decisions":          envelope.Decisions,
+		"unresolved_actions": envelope.UnresolvedActions,
+		"corrections":        envelope.Corrections,
+		"recent_exchanges":   envelope.RecentExchanges,
+		"retrieved_memories": envelope.RetrievedMemories,
+		"workspace_evidence": envelope.WorkspaceEvidence,
+		"summary":            envelope.Summary,
+	}
+	counts := map[string]int{
+		"goal": boolInt(envelope.Goal != nil), "decisions": len(envelope.Decisions),
+		"unresolved_actions": len(envelope.UnresolvedActions), "corrections": len(envelope.Corrections),
+		"recent_exchanges": len(envelope.RecentExchanges), "retrieved_memories": len(envelope.RetrievedMemories),
+		"workspace_evidence": len(envelope.WorkspaceEvidence), "summary": boolInt(envelope.Summary != nil),
+	}
+	out := make(map[string]map[string]int, len(sections))
+	for name, value := range sections {
+		encoded, _ := json.Marshal(value)
+		out[name] = map[string]int{"items": counts[name], "bytes": len(encoded)}
+	}
+	return out
+}
+
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func (st *turnState) skipIfDone() error {
@@ -148,10 +265,21 @@ func (st *turnState) stepIntentClassify(ctx context.Context) error {
 	span := trace.StartSpan(ctx, "intent_classify", nil)
 	st.intent = st.agent.classifyTurnIntentForMessage(st.msg)
 	st.goal = deriveTurnGoal(st.agent, st.msg, st.intent)
+	st.intent = st.goal.Intent
 	st.goal = persistTurnConversationState(st.agent, st.msg, st.goal)
 	st.ctx = contextWithTurnGoal(st.ctx, st.goal)
 	st.ctx = contextWithActionEvidence(st.ctx, st.evidence)
-	span.End(map[string]any{"intent": st.intent.String(), "action": string(st.goal.Action), "goal_id": st.goal.ID})
+	attrs := map[string]any{"intent": st.intent.String(), "action": string(st.goal.Action), "goal_id": st.goal.ID}
+	if decision, ok := protocol.ExtractTurnDecision(st.msg); ok {
+		attrs["semantic_schema_version"] = decision.SchemaVersion
+		attrs["semantic_source"] = decision.Source
+		attrs["semantic_confidence"] = decision.Confidence
+		attrs["semantic_classifier_model"] = decision.ClassifierModel
+		attrs["semantic_classifier_latency_ms"] = decision.ClassifierLatencyMS
+		attrs["semantic_policy_overrides"] = decision.PolicyOverrides
+		attrs["semantic_abstention"] = decision.AbstentionReason
+	}
+	span.End(attrs)
 
 	if st.intent == IntentClosure {
 		if resp, ok := tryConversationalClosure(st.agent, st.msg); ok {
@@ -546,31 +674,67 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 	if len(issues) > 0 {
 		if st.goal.RequiresActionEvidence() {
 			st.response = safeActionFailure(st.goal, st.evidence)
-		} else if !st.validationRetried {
+		} else {
 			st.validationRetried = true
-			retryProvider := st.eff
-			if reliable, ok := st.agent.EscalateConversationProvider(st.ctx, st.msg); ok && reliable != nil {
-				retryProvider = reliable
-				st.eff = reliable
-			}
-			var retry string
-			var err error
-			if retryProvider != nil {
-				retry, err = retryProvider.GenerateResponse(
+			for st.validationAttempts < maxChatValidationEscalations {
+				retryProvider, ok := st.agent.EscalateConversationProvider(st.ctx, st.msg)
+				if !ok || retryProvider == nil {
+					break
+				}
+				st.validationAttempts++
+				st.eff = retryProvider
+
+				retryPrompt := buildResponseValidationRetryPrompt(st.goal, st.evidence, st.msg)
+				recovered := false
+				if !st.contextRecovered && turnContextRecoveryApplicable(st.context) {
+					recoverySpan := trace.StartSpan(ctx, "context_recovery", map[string]any{
+						"attempt": st.validationAttempts,
+						"reason":  ConversationReasonQualityGateFailure,
+					})
+					recoveredContext := st.agent.selectTurnContext(st.msg)
+					if turnContextRecoveryApplicable(recoveredContext) {
+						st.context = recoveredContext
+					}
+					st.ctx = contextWithTurnEnvelope(st.ctx, st.context)
+					retryPrompt = appendDurableConversationContext(retryPrompt, st.context)
+					st.contextRecovered = true
+					recovered = true
+					recoverySpan.End(contextSelectionTraceAttrs(st.context))
+				}
+
+				attemptSpan := trace.StartSpan(ctx, "model_attempt", validationAttemptTraceAttrs(
+					st.validationAttempts, retryProvider, recovered,
+				))
+				retry, err := retryProvider.GenerateResponse(
 					ai.WithToolApprovalChannel(st.ctx, st.msg.Channel),
-					buildResponseValidationRetryPrompt(st.goal, st.evidence, st.msg),
+					retryPrompt,
 					nil,
 				)
+				retry = sanitizeInternalToolNames(retry)
+				retry = sanitizeAbsolutePathFileChangeFromResponse(retry)
+				retryIssues := validateResponseAgainstEvidence(st.goal, st.evidence, st.msg, retry, history)
+				if err == nil && strings.TrimSpace(retry) != "" && len(retryIssues) == 0 {
+					attemptSpan.End(map[string]any{"validation": "passed"})
+					st.response = retry
+					issues = nil
+					break
+				}
+				attemptSpan.EndError(err, map[string]any{
+					"validation": "failed",
+					"issues":     validationIssueNames(retryIssues),
+				})
+				markLastRoutingAttemptFailed(st.msg, ConversationReasonQualityGateFailure)
+				st.agent.recordRoutingEvidenceFromMessage(st.msg)
+				if len(retryIssues) > 0 {
+					issues = retryIssues
+				}
 			}
-			retry = sanitizeInternalToolNames(retry)
-			retry = sanitizeAbsolutePathFileChangeFromResponse(retry)
-			if err == nil && strings.TrimSpace(retry) != "" &&
-				len(validateResponseAgainstEvidence(st.goal, st.evidence, st.msg, retry, history)) == 0 {
-				st.response = retry
-			} else if literal, ok := tryCodebaseReturnLiteralAnswer(st.msg); ok {
-				st.response = literal
-			} else {
-				st.response = "I couldn't produce a sufficiently grounded answer from the available context."
+			if len(issues) > 0 {
+				if literal, ok := tryCodebaseReturnLiteralAnswer(st.msg); ok {
+					st.response = literal
+				} else {
+					st.response = "I couldn't produce a sufficiently grounded answer from the available context."
+				}
 			}
 		}
 	}
@@ -583,6 +747,8 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 		st.responseMsg.Metadata["action_intent"] = string(st.goal.Action)
 		st.responseMsg.Metadata["action_evidence"] = st.evidence.Entries()
 		st.responseMsg.Metadata["response_validation_retry"] = st.validationRetried
+		st.responseMsg.Metadata["response_validation_attempts"] = st.validationAttempts
+		st.responseMsg.Metadata["response_context_recovered"] = st.contextRecovered
 		if len(issues) > 0 {
 			names := make([]string, 0, len(issues))
 			for _, issue := range issues {
@@ -593,6 +759,32 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func turnContextRecoveryApplicable(envelope protocol.TurnContextEnvelope) bool {
+	return envelope.Goal != nil || envelope.Summary != nil ||
+		len(envelope.Decisions) > 0 || len(envelope.UnresolvedActions) > 0 ||
+		len(envelope.Corrections) > 0 || len(envelope.SupersededMessageIDs) > 0
+}
+
+func validationAttemptTraceAttrs(attempt int, provider ai.AIProvider, recovered bool) map[string]any {
+	attrs := map[string]any{
+		"attempt":          attempt,
+		"context_recovery": recovered,
+	}
+	if provider != nil {
+		attrs["provider_id"] = providerIDFromAI(provider)
+		attrs["model"] = provider.GetModel()
+	}
+	return attrs
+}
+
+func validationIssueNames(issues []responseValidationIssue) []string {
+	names := make([]string, 0, len(issues))
+	for _, issue := range issues {
+		names = append(names, string(issue))
+	}
+	return names
 }
 
 func (st *turnState) applyReviewMetadata(responseMsg, msg *protocol.Message) {
@@ -651,11 +843,74 @@ func (st *turnState) stepStampMetadata(ctx context.Context) error {
 	if responseMsg == nil {
 		return nil
 	}
+	if decision, ok := protocol.ExtractTurnDecision(st.msg); ok {
+		_ = protocol.StampTurnDecision(responseMsg, decision)
+	}
 	a.ApplyRoutingMetadataToResponse(responseMsg)
 	a.ApplyCompressMetadataToResponse(responseMsg)
+	st.stampContextObservability(responseMsg)
 	a.ApplyTraceMetadataToResponse(responseMsg, st.traceRecorder, st.toolSteps)
 	a.applyUsageTelemetry(st)
 	return nil
+}
+
+func (st *turnState) stampContextObservability(responseMsg *protocol.Message) {
+	if st == nil || responseMsg == nil || st.msg == nil {
+		return
+	}
+	if responseMsg.Metadata == nil {
+		responseMsg.Metadata = make(map[string]interface{})
+	}
+	for _, key := range []string{
+		"injected_memory_count", "injected_memory_ids",
+		"injected_codebase_count",
+	} {
+		if value, ok := st.msg.Metadata[key]; ok {
+			responseMsg.Metadata[key] = value
+		}
+	}
+	if st.contextSpan == nil {
+		return
+	}
+	attrs := map[string]any{}
+	if raw, ok := st.msg.Metadata[contextBudgetStatsMetadata]; ok {
+		switch stats := raw.(type) {
+		case ContextBudgetStats:
+			attrs["compression"] = map[string]any{
+				"summary_checkpoint":  st.context.Summary != nil,
+				"applied":             stats.Truncated,
+				"original_bytes":      stats.OriginalBytes,
+				"final_bytes":         stats.FinalBytes,
+				"compressed_sections": stats.CompressedSections,
+				"recoverable":         st.msg.Metadata[contextRetrieveCapabilityMetadata] == true,
+			}
+			if len(stats.CompressedSections) > 0 {
+				omissions := map[string]string{}
+				for _, section := range stats.CompressedSections {
+					omissions[section] = "compressed_to_budget"
+				}
+				attrs["budget_omission_reasons"] = omissions
+			}
+		}
+	}
+	attrs["retrieval_counts"] = map[string]int{
+		"memory":   metadataInt(st.msg.Metadata, "injected_memory_count"),
+		"codebase": metadataInt(st.msg.Metadata, "injected_codebase_count"),
+	}
+	st.contextSpan.Annotate(attrs)
+}
+
+func metadataInt(metadata map[string]interface{}, key string) int {
+	switch value := metadata[key].(type) {
+	case int:
+		return value
+	case int64:
+		return int(value)
+	case float64:
+		return int(value)
+	default:
+		return 0
+	}
 }
 
 func (st *turnState) stepDeliverResponse(ctx context.Context) error {

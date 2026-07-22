@@ -67,6 +67,21 @@ func (uqm *UserQuestionManager) Stop() {
 	close(uqm.stopCleanup)
 }
 
+// RestorePending rehydrates a durable question without a process-local waiter.
+// A retried agent call joins the restored question and supplies a fresh waiter.
+func (uqm *UserQuestionManager) RestorePending(question *UserQuestion) {
+	if uqm == nil || question == nil || question.ID == "" || question.Status != UserQuestionPending {
+		return
+	}
+	copyQuestion := *question
+	copyQuestion.Options = append([]string(nil), question.Options...)
+	uqm.mu.Lock()
+	if _, exists := uqm.questions[question.ID]; !exists {
+		uqm.questions[question.ID] = &copyQuestion
+	}
+	uqm.mu.Unlock()
+}
+
 // Ask creates a question, broadcasts it to the channel, and blocks until the user answers or timeout.
 func (uqm *UserQuestionManager) Ask(agentID, agentName, channel, question string, options []string, timeout time.Duration) (string, error) {
 	return uqm.AskWithContext(agentID, agentName, channel, question, options, "", "", timeout)
@@ -145,6 +160,9 @@ func (uqm *UserQuestionManager) AskWithContext(agentID, agentName, channel, ques
 	}
 
 	uqm.broadcastQuestion(&broadcastQ)
+	if uqm.hub != nil {
+		uqm.hub.persistUserQuestion(q, q.CreatedAt.Add(timeout))
+	}
 
 	return uqm.waitForAnswer(q.ID, waiter, timeout)
 }
@@ -172,6 +190,9 @@ func (uqm *UserQuestionManager) waitForAnswer(questionID string, waiter chan str
 			close(ch)
 		}
 		uqm.broadcastQuestionUpdate(questionID)
+		if uqm.hub != nil {
+			uqm.hub.expireDurableInput(questionID, "timed out waiting for user response")
+		}
 		return "", fmt.Errorf("timed out waiting for user response")
 	}
 }
@@ -215,6 +236,9 @@ func (uqm *UserQuestionManager) Answer(questionID, answer string) error {
 		close(ch)
 	}
 	uqm.broadcastQuestionUpdate(questionID)
+	if uqm.hub != nil {
+		uqm.hub.resolveDurableInput(questionID, "user", map[string]any{"answer": answer})
+	}
 	return nil
 }
 
@@ -561,6 +585,9 @@ func (uqm *UserQuestionManager) expireStale() {
 	}
 	for _, id := range expiredIDs {
 		uqm.broadcastQuestionUpdate(id)
+		if uqm.hub != nil {
+			uqm.hub.expireDurableInput(id, "timed out waiting for user response")
+		}
 	}
 }
 

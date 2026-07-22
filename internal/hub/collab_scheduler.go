@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -41,6 +42,7 @@ func (s *CollabScheduler) Tick(now time.Time) {
 	if s == nil || s.hub == nil {
 		return
 	}
+	s.hub.reconcileOrchestration(context.Background(), now)
 	s.OnPlanningSilence(now)
 }
 

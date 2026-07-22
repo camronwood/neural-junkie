@@ -62,6 +62,11 @@ func (a *Agent) EffectiveAIProvider(ctx context.Context, msg *protocol.Message) 
 			eff = chatEff
 		}
 		a.recordConversationTrust(eff, trust)
+		routeMeta := protocol.ExtractRoutingMeta(msg)
+		a.RecordRoutingSnapshot(RoutingSnapshot{
+			Attempts:        routeMeta.Attempts,
+			FailureEvidence: routeMeta.FailureEvidence,
+		})
 	}
 	if msg != nil && msg.Type == protocol.MessageTypeCollabTask && globalCollabRouting != nil {
 		overrides := TaskRoutingOverrides{}

@@ -79,6 +79,10 @@ type Hub struct {
 	channelSummaryGen        ChannelSummaryGenerator
 	channelSummaryModel      string
 	conversationState        map[string]*ChannelConversationState
+	semanticTurnRouter       SemanticTurnRouter
+	// restoredChannelMemberNames temporarily retains stable agent names while
+	// runtime IDs are recreated during startup.
+	restoredChannelMemberNames map[string][]string
 
 	// channelHolds: user interject (Stop) — agents defer new turns until a human message.
 	channelHolds map[string]ChannelHold
@@ -117,6 +121,7 @@ func NewHub() *Hub {
 		removedAgents:                 make(map[string]*protocol.AgentInfo),
 		channelContext:                make(map[string]*ChannelContextState),
 		conversationState:             make(map[string]*ChannelConversationState),
+		restoredChannelMemberNames:    make(map[string][]string),
 		channelHolds:                  make(map[string]ChannelHold),
 		collabWatchdogRedispatch:      make(map[string]int),
 		collabWatchdogAutoAckTried:    make(map[string]bool),

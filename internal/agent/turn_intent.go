@@ -119,6 +119,9 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 
 func (a *Agent) classifyTurnIntentForMessage(msg *protocol.Message) TurnIntent {
 	if msg != nil {
+		if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+			return turnIntentFromSemantic(decision.Interaction)
+		}
 		caps := protocol.ResolveTurnCapabilities(msg)
 		if caps.ComposerMode == "ask" {
 			return IntentSubstantive
@@ -204,7 +207,11 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 	return b.String()
 }
 
-func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) string {
+func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) (prompt string) {
+	envelope := a.selectTurnContext(msg)
+	defer func() {
+		prompt = appendDurableConversationContext(prompt, envelope)
+	}()
 	if a.effectiveChannelType(msg.Channel) == protocol.ChannelTypeCollaboration {
 		return a.injectSessionSummary(a.buildPrompt(msg, intent), msg)
 	}
@@ -246,6 +253,12 @@ func (a *Agent) conversationHistoryForIntent(msg *protocol.Message, intent TurnI
 	if len(raw) == 0 {
 		raw = a.channelHistory(msg.Channel)
 	}
+	envelope := a.selectTurnContext(msg)
+	if hasSummary {
+		return messagesFromExchanges(recentCompleteExchanges(
+			raw, msg, envelope.SupersededMessageIDs, max,
+		))
+	}
 	var base []*protocol.Message
 	if a.Info.Type == protocol.AgentTypeAssistant {
 		base = filterAssistantHistory(raw, msg)
@@ -258,7 +271,14 @@ func (a *Agent) conversationHistoryForIntent(msg *protocol.Message, intent TurnI
 			base = recentUserHistoryOnly(base, max)
 		}
 	}
-	return trimHistoryTail(base, max)
+	superseded := conversationMessageSet(envelope.SupersededMessageIDs)
+	filtered := base[:0]
+	for _, historical := range base {
+		if historical != nil && !superseded[historical.ID] {
+			filtered = append(filtered, historical)
+		}
+	}
+	return trimHistoryTail(filtered, max)
 }
 
 func maxHistoryForIntent(intent TurnIntent, hasSummary bool) int {

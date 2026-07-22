@@ -10,6 +10,11 @@ import (
 )
 
 func rebindRuntimeAgentsToRestoredDMs() {
+	// Restore explicit custom/public channel membership first. Session-era agent
+	// IDs are process-local, so the hub remaps persisted names to live IDs and
+	// eagerly starts listeners for discovery-disabled custom experts.
+	chatHub.RebindRestoredChannelMembers()
+
 	channels := chatHub.ListChannels()
 	agents := chatHub.ListAgents()
 	if len(channels) == 0 || len(agents) == 0 {

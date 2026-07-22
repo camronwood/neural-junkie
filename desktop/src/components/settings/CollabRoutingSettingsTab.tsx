@@ -21,6 +21,8 @@ export function CollabRoutingSettingsTab({ hubHttp, isActive }: SettingsTabProps
   const [implReliableToolModelPersisted, setImplReliableToolModelPersisted] = useState('qwen2.5-coder:14b');
   const [implReliableProviderId, setImplReliableProviderId] = useState('');
   const [implReliableProviderIdPersisted, setImplReliableProviderIdPersisted] = useState('');
+  const [frontierEscalationEnabled, setFrontierEscalationEnabled] = useState(false);
+  const [frontierEscalationEnabledPersisted, setFrontierEscalationEnabledPersisted] = useState(false);
   const [collabAutoApproveDeliverables, setCollabAutoApproveDeliverables] = useState(true);
   const [collabRoutingSaving, setCollabRoutingSaving] = useState(false);
   const [collabRoutingErr, setCollabRoutingErr] = useState<string | null>(null);
@@ -89,6 +91,9 @@ export function CollabRoutingSettingsTab({ hubHttp, isActive }: SettingsTabProps
               : '';
           setImplReliableProviderId(reliableProv);
           setImplReliableProviderIdPersisted(reliableProv);
+          const frontierConsent = cfg.routing?.frontier_escalation_enabled === true;
+          setFrontierEscalationEnabled(frontierConsent);
+          setFrontierEscalationEnabledPersisted(frontierConsent);
           setCollabAutoApproveDeliverables(cfg.collaboration?.auto_approve_deliverables !== false);
           setDelegationEnabled(!!cfg.delegation?.enabled);
           const root =
@@ -149,6 +154,10 @@ const handleDelegationToggle = async (enabled: boolean) => {
         const cfg = await r.json();
         const next = {
           ...cfg,
+          routing: {
+            ...(cfg.routing ?? {}),
+            frontier_escalation_enabled: frontierEscalationEnabled,
+          },
           implementation: {
             ...(cfg.implementation ?? {}),
             routing_enabled: implRoutingEnabled,
@@ -168,6 +177,7 @@ const handleDelegationToggle = async (enabled: boolean) => {
         setImplLocalToolModelPersisted(implLocalToolModel.trim() || 'qwen2.5-coder:7b');
         setImplReliableToolModelPersisted(implReliableToolModel.trim() || 'qwen2.5-coder:14b');
         setImplReliableProviderIdPersisted(implReliableProviderId.trim());
+        setFrontierEscalationEnabledPersisted(frontierEscalationEnabled);
         setImplRoutingEnabledPersisted(implRoutingEnabled);
       } catch (e) {
         setCollabRoutingErr(e instanceof Error ? e.message : String(e));
@@ -593,9 +603,24 @@ const handleDelegationToggle = async (enabled: boolean) => {
           ))}
         </select>
         <p className="text-xs text-slack-textMuted mt-1">
-          Used only when verify/repair reaches round 2+. Local-first otherwise.
+          Used only when verify/repair reaches round 2+ and frontier escalation consent is enabled.
         </p>
       </div>
+      <label className="flex items-start gap-3 cursor-pointer mt-4">
+        <input
+          type="checkbox"
+          checked={frontierEscalationEnabled}
+          disabled={collabRoutingSaving}
+          onChange={(e) => setFrontierEscalationEnabled(e.target.checked)}
+          className="mt-1 rounded border-slack-border"
+        />
+        <span className="text-sm text-slack-text">
+          Allow frontier escalation after local models are exhausted
+          <span className="block text-xs text-slack-textMuted">
+            Explicit consent: failed chat and implementation turns may be sent to the configured non-local provider.
+          </span>
+        </span>
+      </label>
       <button
         type="button"
         disabled={
@@ -603,7 +628,8 @@ const handleDelegationToggle = async (enabled: boolean) => {
           (implRoutingEnabled === implRoutingEnabledPersisted &&
             (implLocalToolModel.trim() || 'qwen2.5-coder:7b') === implLocalToolModelPersisted &&
             (implReliableToolModel.trim() || 'qwen2.5-coder:14b') === implReliableToolModelPersisted &&
-            implReliableProviderId.trim() === implReliableProviderIdPersisted)
+            implReliableProviderId.trim() === implReliableProviderIdPersisted &&
+            frontierEscalationEnabled === frontierEscalationEnabledPersisted)
         }
         onClick={() => void saveImplementationSettings()}
         className="mt-4 px-4 py-2 text-sm rounded bg-slack-accent text-white disabled:opacity-50"

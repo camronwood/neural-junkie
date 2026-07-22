@@ -332,7 +332,10 @@ export const useChatStore = create<ChatState>((set, get) => {
   addMessage: (message) =>
     set((state) => {
       // Skip empty messages (some CLI agents send blank status messages)
-      if (!message.content?.trim() && !channelTimelineAllowsEmptyContent(message.type)) {
+      if (
+        !message.content?.trim() &&
+        !channelTimelineAllowsEmptyContent(message.type, message.metadata)
+      ) {
         return state;
       }
 
@@ -710,7 +713,16 @@ export const useChatStore = create<ChatState>((set, get) => {
     set((state) => {
       const newCache = new Map(state.channelMessages);
       const cached = newCache.get(channelName) || [];
-      if (cached.some(m => m.id === message.id)) return state;
+      const existingMessageIdx = cached.findIndex((m) => m.id === message.id);
+      if (existingMessageIdx !== -1) {
+        const updated = [...cached];
+        updated[existingMessageIdx] = mergeMessagePreservingImages(
+          updated[existingMessageIdx],
+          message,
+        );
+        newCache.set(channelName, updated);
+        return { channelMessages: newCache };
+      }
       const questionId =
         message.type === 'user_question' ? (message.metadata?.question_id as string | undefined) : undefined;
       if (questionId) {

@@ -47,6 +47,18 @@ class ScenarioMetrics:
     repair_attempts: int | None = None
     wall_duration_s: float | None = None
     cost_usd: float | None = None
+    passed_at_1: bool | None = None
+    eventual_pass: bool | None = None
+    attempts: int | None = None
+    retry_count: int | None = None
+    retry_reasons: list[str] = field(default_factory=list)
+    nudge_count: int | None = None
+    nudge_reasons: list[str] = field(default_factory=list)
+    actual_provider: str | None = None
+    actual_model: str | None = None
+    validation_failures: list[str] = field(default_factory=list)
+    escalation_count: int | None = None
+    escalation_reasons: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -108,6 +120,21 @@ class ModelBenchmarkResult:
         return self.passed / self.total
 
     @property
+    def pass_at_1_rate(self) -> float:
+        if not self.scenarios:
+            return 0.0
+        passed = sum(
+            1
+            for scenario in self.scenarios
+            if (
+                scenario.metrics.passed_at_1
+                if scenario.metrics and scenario.metrics.passed_at_1 is not None
+                else scenario.passed
+            )
+        )
+        return passed / self.total
+
+    @property
     def structural_pass_rate(self) -> float:
         if not self.scenarios:
             return 0.0
@@ -131,6 +158,8 @@ class ModelBenchmarkResult:
         d["passed_count"] = self.passed
         d["total_count"] = self.total
         d["pass_rate"] = round(self.pass_rate, 4)
+        d["pass_at_1_rate"] = round(self.pass_at_1_rate, 4)
+        d["eventual_pass_rate"] = round(self.pass_rate, 4)
         d["structural_pass_rate"] = round(self.structural_pass_rate, 4)
         d["quality_pass_rate"] = round(self.quality_pass_rate, 4)
         d["composite_pass_rate"] = round(self.composite_pass_rate, 4)
@@ -543,6 +572,10 @@ def _optional_float(value: Any) -> float | None:
 
 
 def scenario_metrics_from_dict(data: dict[str, Any]) -> ScenarioMetrics:
+    def strings(name: str) -> list[str]:
+        raw = data.get(name)
+        return [str(item) for item in raw] if isinstance(raw, list) else []
+
     return ScenarioMetrics(
         prompt_tokens=_optional_int(data.get("prompt_tokens")),
         completion_tokens=_optional_int(data.get("completion_tokens")),
@@ -552,6 +585,18 @@ def scenario_metrics_from_dict(data: dict[str, Any]) -> ScenarioMetrics:
         repair_attempts=_optional_int(data.get("repair_attempts")),
         wall_duration_s=_optional_float(data.get("wall_duration_s")),
         cost_usd=_optional_float(data.get("cost_usd")),
+        passed_at_1=data.get("passed_at_1") if isinstance(data.get("passed_at_1"), bool) else None,
+        eventual_pass=data.get("eventual_pass") if isinstance(data.get("eventual_pass"), bool) else None,
+        attempts=_optional_int(data.get("attempts")),
+        retry_count=_optional_int(data.get("retry_count")),
+        retry_reasons=strings("retry_reasons"),
+        nudge_count=_optional_int(data.get("nudge_count")),
+        nudge_reasons=strings("nudge_reasons"),
+        actual_provider=str(data["actual_provider"]) if data.get("actual_provider") else None,
+        actual_model=str(data["actual_model"]) if data.get("actual_model") else None,
+        validation_failures=strings("validation_failures"),
+        escalation_count=_optional_int(data.get("escalation_count")),
+        escalation_reasons=strings("escalation_reasons"),
     )
 
 
@@ -822,8 +867,8 @@ def render_markdown_report(
         "",
         "## Summary",
         "",
-        "| Rank | Model | Pass | Rate | Implement | Chat | Total time | Notes |",
-        "|------|-------|------|------|-----------|------|------------|-------|",
+        "| Rank | Configured model | Pass@1 | Eventual | Implement | Chat | Total time | Notes |",
+        "|------|------------------|--------|----------|-----------|------|------------|-------|",
     ]
 
     # Published/historical winner uses structural pass rate for continuity;
@@ -839,12 +884,13 @@ def render_markdown_report(
         chat = [s for s in r.scenarios if s.kind == "chat"]
         impl_s = f"{sum(1 for s in impl if s.passed)}/{len(impl)}" if impl else "—"
         chat_s = f"{sum(1 for s in chat if s.passed)}/{len(chat)}" if chat else "—"
-        rate = f"{r.pass_rate * 100:.0f}%"
+        first_rate = f"{r.pass_at_1_rate * 100:.0f}%"
+        eventual_rate = f"{r.pass_rate * 100:.0f}%"
         notes = ""
         if r.model_tag == ranked[0].model_tag and r.passed == r.total and r.total:
             notes = "winner"
         lines.append(
-            f"| {i} | `{r.model_tag}` | {r.passed}/{r.total} | {rate} | {impl_s} | {chat_s} | {format_duration(r.total_duration_s)} | {notes} |"
+            f"| {i} | `{r.model_tag}` | {first_rate} | {r.passed}/{r.total} ({eventual_rate}) | {impl_s} | {chat_s} | {format_duration(r.total_duration_s)} | {notes} |"
         )
 
     if skipped:
@@ -983,8 +1029,9 @@ def write_reports(
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     tsv_lines = [
-        "model_tag\tscenario_kind\tscenario\tpassed\tduration_s\tjudge_passed\tjudge_reason\t"
-        "prompt_tokens\tcompletion_tokens\tttft_ms\ttok_per_s\trepair_attempts\t"
+        "model_tag\tscenario_kind\tscenario\tpassed_at_1\teventual_pass\tattempts\tduration_s\tjudge_passed\tjudge_reason\t"
+        "actual_provider\tactual_model\tretry_reasons\tnudge_reasons\tvalidation_failures\tescalation_reasons\t"
+        "prompt_tokens\tcompletion_tokens\tttft_ms\ttok_per_s\ttool_calls\trepair_attempts\t"
         "quality_score\tstructural_passed\tdetail"
     ]
     for r in results:
@@ -999,14 +1046,23 @@ def write_reports(
                         r.model_tag,
                         s.kind,
                         s.name,
-                        str(int(s.passed)),
+                        str(int(m.passed_at_1 if m.passed_at_1 is not None else s.passed)),
+                        str(int(m.eventual_pass if m.eventual_pass is not None else s.passed)),
+                        "" if m.attempts is None else str(m.attempts),
                         f"{s.duration_s:.1f}",
                         judge_passed,
                         s.judge_reason.replace("\t", " "),
+                        m.actual_provider or "",
+                        m.actual_model or "",
+                        "; ".join(m.retry_reasons).replace("\t", " "),
+                        "; ".join(m.nudge_reasons).replace("\t", " "),
+                        "; ".join(m.validation_failures).replace("\t", " "),
+                        "; ".join(m.escalation_reasons).replace("\t", " "),
                         "" if m.prompt_tokens is None else str(m.prompt_tokens),
                         "" if m.completion_tokens is None else str(m.completion_tokens),
                         "" if m.ttft_ms is None else f"{m.ttft_ms:.1f}",
                         "" if m.tok_per_s is None else f"{m.tok_per_s:.2f}",
+                        "" if m.tool_calls is None else str(m.tool_calls),
                         "" if m.repair_attempts is None else str(m.repair_attempts),
                         quality,
                         structural,

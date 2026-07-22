@@ -86,6 +86,13 @@ func CompressToolResult(store *Store, toolName, channelID, callID, raw string, o
 
 // CompressSection compresses a prompt section and stores the original when over maxBytes.
 func CompressSection(store *Store, sectionLabel, channelID, callID, raw string, maxBytes int, opts Options) Result {
+	return CompressSectionWithRetrieval(store, sectionLabel, channelID, callID, raw, maxBytes, opts, true)
+}
+
+// CompressSectionWithRetrieval emits a reversible CCR marker only when the
+// receiving model can call nj_retrieve_context. Otherwise it returns the same
+// deterministic excerpt without advertising or storing an unusable reference.
+func CompressSectionWithRetrieval(store *Store, sectionLabel, channelID, callID, raw string, maxBytes int, opts Options, canRetrieve bool) Result {
 	opts = opts.normalized()
 	originalBytes := len(raw)
 	out := Result{
@@ -99,6 +106,18 @@ func CompressSection(store *Store, sectionLabel, channelID, callID, raw string, 
 	}
 	body, strategy := compressGeneric(raw, maxBytes)
 	strategy = StrategySection
+	if !canRetrieve {
+		body = strings.ReplaceAll(
+			body,
+			"…(content compressed; use nj_retrieve_context for full text)",
+			"…(content excerpted; retrieval unavailable)",
+		)
+		marker := formatExcerptMarker(originalBytes, len(body), strategy)
+		out.Text = body + "\n" + marker
+		out.Strategy = strategy
+		out.CompressedBytes = len(out.Text)
+		return out
+	}
 	ref := ""
 	if store != nil {
 		ref = store.Put(channelID, callID, sectionLabel, []byte(raw))
@@ -110,6 +129,11 @@ func CompressSection(store *Store, sectionLabel, channelID, callID, raw string, 
 	out.CompressedBytes = len(out.Text)
 	out.Stored = ref != ""
 	return out
+}
+
+func formatExcerptMarker(originalBytes, compressedBytes int, strategy string) string {
+	return "[excerpted: " + itoa(originalBytes) + "→" + itoa(compressedBytes) +
+		" bytes, strategy=" + strategy + ", retrieval unavailable.]"
 }
 
 func formatRefMarker(originalBytes, compressedBytes int, strategy, ref string) string {

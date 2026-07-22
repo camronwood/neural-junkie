@@ -1,6 +1,10 @@
 package hub
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +22,92 @@ func TestChannelSnapshot_summaryRoundTrip(t *testing.T) {
 	cs := snap.Channels["dm-test"]
 	if cs == nil || cs.SessionSummary != "User asked about CRISPR." {
 		t.Fatalf("snapshot summary missing: %+v", cs)
+	}
+}
+
+func TestSummaryRefreshBuildsCumulativeVersionedCheckpoint(t *testing.T) {
+	h := NewHub()
+	name := "dm-cumulative"
+	h.CreateChannelWithType(name, "test", "", protocol.ChannelTypeDM, "system")
+	user := protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}
+	old := protocol.NewMessage(protocol.MessageTypeChat, name, user, "already compacted request")
+	old.ID = "old"
+	delta := protocol.NewMessage(protocol.MessageTypeChat, name, user, "new correction")
+	delta.ID = "delta"
+	h.messages[name] = []*protocol.Message{old, delta}
+	h.channelContext[name] = &ChannelContextState{
+		Summary: "durable prior digest", SummaryVersion: 2, LastCompactedMessageID: "old",
+	}
+
+	h.mu.Lock()
+	input := h.summaryRefreshInputLocked(name)
+	gen := h.bumpSummaryRefreshGenLocked(name)
+	h.mu.Unlock()
+	if !strings.Contains(input.Prompt, "durable prior digest") ||
+		!strings.Contains(input.Prompt, "new correction") ||
+		strings.Contains(input.Prompt, "already compacted request") {
+		t.Fatalf("unexpected cumulative summary prompt:\n%s", input.Prompt)
+	}
+	h.runSummaryRefresh(name, gen, input, func(prompt string) (string, error) {
+		return "updated cumulative digest", nil
+	})
+
+	checkpoint := h.GetChannelSummaryCheckpoint(name)
+	if checkpoint == nil || checkpoint.Version != 3 ||
+		checkpoint.LastCompactedMessageID != "delta" ||
+		checkpoint.Digest != "updated cumulative digest" {
+		t.Fatalf("unexpected checkpoint: %+v", checkpoint)
+	}
+}
+
+func TestSummaryRefreshExcludesSupersededInstructionAndReply(t *testing.T) {
+	h := NewHub()
+	name := "dm-superseded"
+	h.CreateChannelWithType(name, "test", "", protocol.ChannelTypeDM, "system")
+	user := protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}
+	assistant := protocol.AgentInfo{ID: "a1", Name: "Assistant", Type: protocol.AgentTypeAssistant}
+	old := protocol.NewMessage(protocol.MessageTypeChat, name, user, "use Python")
+	old.ID = "old"
+	stale := protocol.NewMessage(protocol.MessageTypeAnswer, name, assistant, "I will use Python")
+	stale.ID, stale.ReplyTo = "stale", "old"
+	correction := protocol.NewMessage(protocol.MessageTypeChat, name, user, "use Rust instead")
+	correction.ID = "correction"
+	h.messages[name] = []*protocol.Message{old, stale, correction}
+	h.RecordConversationCorrection(name, "goal", "correction", correction.Content, []string{"old"})
+
+	h.mu.Lock()
+	input := h.summaryRefreshInputLocked(name)
+	h.mu.Unlock()
+	if strings.Contains(input.Prompt, "use Python") || !strings.Contains(input.Prompt, "use Rust instead") {
+		t.Fatalf("superseded context leaked into summary prompt:\n%s", input.Prompt)
+	}
+}
+
+func TestSessionPersistenceMigratesLegacySummary(t *testing.T) {
+	h := NewHub()
+	name := "dm-legacy-summary"
+	h.CreateChannelWithType(name, "test", "", protocol.ChannelTypeDM, "system")
+	h.channelContext[name] = &ChannelContextState{
+		Summary: "legacy digest", UpdatedAt: time.Now().UTC(),
+	}
+	snapshot := h.TakeSessionSnapshot()
+	snapshot.Channels[name].SessionSummaryCheckpoint = nil
+	data, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "legacy-session.json")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	restored := NewHub()
+	if err := restored.LoadSessionFromFile(path); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint := restored.GetChannelSummaryCheckpoint(name)
+	if checkpoint == nil || checkpoint.Version != 1 || checkpoint.Digest != "legacy digest" {
+		t.Fatalf("legacy summary was not migrated: %+v", checkpoint)
 	}
 }
 

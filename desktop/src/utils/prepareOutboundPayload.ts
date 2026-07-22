@@ -1,10 +1,8 @@
 import type { ChatAPI } from '../api/chatAPI';
 import type { AgentInfo } from '../types/protocol';
 import type { EditorTab } from '../stores/editorStore';
-import type { ComposerMode } from '../constants/composerMode';
-import { resolveEffectiveComposerMode } from '../constants/composerMode';
+import type { EffectiveComposerMode } from '../constants/composerMode';
 import {
-  CONVERSATION_MODE_METADATA_KEY,
   EDITOR_AGENT_TRUST_KEY,
   EDITOR_MODE_KEY,
   IMPLEMENTATION_SESSION_METADATA_KEY,
@@ -13,12 +11,8 @@ import {
 import {
   applyIdeAskPrefix,
   applyIdePlanPrefix,
-  buildImplementationSessionMetadata,
   mergeCodebaseAttachments,
-  pickAgentTypeForImplementation,
 } from './ideComposer';
-import { hasBootFixRoutingSignals } from './bootFixRouting';
-import { hasCodeReviewSignals } from './codeReviewSignals';
 import { resolveDmPartnerAgent } from './dmChannelDisplay';
 import type { Channel } from '../types/protocol';
 
@@ -28,7 +22,7 @@ export function isSlashCommandContent(content: string): boolean {
 
 export type PrepareOutboundPayloadOptions = {
   content: string;
-  composerMode: ComposerMode;
+  composerMode: EffectiveComposerMode;
   agents: AgentInfo[];
   activeTab: EditorTab | null;
   editorAgentTrust: string;
@@ -52,19 +46,17 @@ export async function prepareOutboundPayload(
     content,
     composerMode,
     agents,
-    activeTab,
     editorAgentTrust,
     composerMetadata,
     api,
     repoPath,
     repoPaths,
-    ideEnabled = false,
   } = options;
 
   const slashCommand = isSlashCommandContent(content);
 
   let sendContent = content;
-  const effectiveMode = slashCommand ? 'agent' : resolveEffectiveComposerMode(content, composerMode);
+  const effectiveMode = composerMode;
   if (!slashCommand && effectiveMode === 'ask') {
     sendContent = applyIdeAskPrefix(content, 'ask');
   } else if (!slashCommand && effectiveMode === 'plan') {
@@ -74,23 +66,19 @@ export async function prepareOutboundPayload(
   const hasExplicitMention = /@\w/.test(content);
   const isDm = options.channelMeta?.type === 'dm';
   const dmPartner = resolveDmPartnerAgent(options.channel ?? '', options.channelMeta, agents);
-  let agentType = pickAgentTypeForImplementation(content, activeTab, agents);
-  if (isDm && dmPartner?.type) {
-    agentType = dmPartner.type;
-  } else if (!hasExplicitMention && hasBootFixRoutingSignals(content)) {
-    agentType = 'frontend';
-  }
 
   const metadata: Record<string, unknown> = slashCommand
     ? { ...(composerMetadata ?? {}) }
     : {
         ...(composerMetadata ?? {}),
-        ...(hasExplicitMention ? {} : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),
+        ...(isDm && !hasExplicitMention && dmPartner?.type
+          ? { [IDE_ROUTE_AGENT_TYPE_KEY]: dmPartner.type }
+          : {}),
         [EDITOR_MODE_KEY]: effectiveMode,
         [EDITOR_AGENT_TRUST_KEY]:
           effectiveMode === 'ask' || effectiveMode === 'plan'
             ? 'interactive'
-            : 'auto_apply_edits',
+            : editorAgentTrust,
       };
 
   const scopedPaths =
@@ -108,26 +96,9 @@ export async function prepareOutboundPayload(
   }
 
   if (effectiveMode === 'export') {
-    metadata[CONVERSATION_MODE_METADATA_KEY] = 'code';
     metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
-  } else if (
-    effectiveMode === 'agent' &&
-    ideEnabled &&
-    !hasCodeReviewSignals(content)
-  ) {
-    const implMeta = buildImplementationSessionMetadata({
-      content,
-      agents,
-      activeTab,
-      editorAgentMode: 'agent',
-      editorAgentTrust,
-      composerMetadata: metadata,
-      channelType: options.channelMeta?.type,
-      dmPartnerAgentType: dmPartner?.type,
-    });
-    if (implMeta[IMPLEMENTATION_SESSION_METADATA_KEY]) {
-      metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
-    }
+  } else {
+    delete metadata[IMPLEMENTATION_SESSION_METADATA_KEY];
   }
 
   if (api && scopedPaths.length > 0) {

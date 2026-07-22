@@ -64,6 +64,8 @@ func (l *ActionEvidenceLedger) recordToolEvent(ev ai.ToolStepEvent) {
 	switch ev.Name {
 	case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName:
 		l.Record(ActionEvidence{Kind: EvidenceEditProposed, Tool: ev.Name, Status: status, Detail: ev.Preview})
+	case createArtifactToolName, updateArtifactToolName:
+		l.Record(ActionEvidence{Kind: EvidenceArtifactCreated, Tool: ev.Name, Status: status, Detail: ev.Preview})
 	}
 }
 
@@ -129,6 +131,7 @@ func integerValue(v interface{}) (int, bool) {
 }
 
 var (
+	artifactClaimRE   = regexp.MustCompile(`(?i)\b(created|generated|posted|made|updated)\b.{0,48}\b(neural canvas|canvas|artifact|report|chart|timeline|diagram)\b|\b(neural canvas|canvas|artifact)\b.{0,48}\b(created|generated|posted|ready|updated)\b`)
 	imageClaimRE      = regexp.MustCompile(`(?i)\b(generated|created|posted|made)\b.{0,48}\b(image|picture|illustration|logo|visual)\b|\b(image|picture|illustration|logo|visual)\b.{0,48}\b(generated|created|posted|ready)\b`)
 	runClaimRE        = regexp.MustCompile(`(?i)\b(i|we)\s+(ran|executed|tested|built|linted)\b|\b(command|tests?|build|lint)\s+(ran|completed|finished)\b`)
 	passClaimRE       = regexp.MustCompile(`(?i)\b(tests?|build|lint|checks?)\s+(all\s+)?(pass|passed|succeeded|green)\b|\bpasses\b`)
@@ -141,16 +144,20 @@ var (
 type responseValidationIssue string
 
 const (
-	issueUnsupportedImage responseValidationIssue = "unsupported_image_claim"
-	issueUnsupportedRun   responseValidationIssue = "unsupported_run_claim"
-	issueUnsupportedPass  responseValidationIssue = "unsupported_pass_claim"
-	issueUnsupportedEdit  responseValidationIssue = "unsupported_edit_claim"
-	issueActionDeflection responseValidationIssue = "action_deflection"
-	issueDirectness       responseValidationIssue = "direct_answer_failure"
+	issueUnsupportedArtifact responseValidationIssue = "unsupported_artifact_claim"
+	issueUnsupportedImage    responseValidationIssue = "unsupported_image_claim"
+	issueUnsupportedRun      responseValidationIssue = "unsupported_run_claim"
+	issueUnsupportedPass     responseValidationIssue = "unsupported_pass_claim"
+	issueUnsupportedEdit     responseValidationIssue = "unsupported_edit_claim"
+	issueActionDeflection    responseValidationIssue = "action_deflection"
+	issueDirectness          responseValidationIssue = "direct_answer_failure"
 )
 
 func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger, msg *protocol.Message, response string, history []*protocol.Message) []responseValidationIssue {
 	var issues []responseValidationIssue
+	if artifactClaimRE.MatchString(response) && !ledger.Has(EvidenceArtifactCreated) {
+		issues = append(issues, issueUnsupportedArtifact)
+	}
 	if imageClaimRE.MatchString(response) && !ledger.Has(EvidenceImagePosted) {
 		issues = append(issues, issueUnsupportedImage)
 	}
@@ -204,13 +211,29 @@ func uniqueValidationIssues(in []responseValidationIssue) []responseValidationIs
 
 func safeActionFailure(goal TurnGoal, ledger *ActionEvidenceLedger) string {
 	switch goal.Action {
+	case ActionArtifact:
+		return "I couldn't create the requested Neural Canvas artifact in this turn."
 	case ActionImage:
 		return "I couldn't generate or post the requested image in this turn."
 	case ActionRun:
 		return "I wasn't able to run the requested command in this turn."
+	case ActionDebug:
+		if ledger.Has(EvidenceCommandPass) {
+			return "I ran the workspace diagnostic, but it passed and did not reproduce the reported failure. Which command or screen fails?"
+		}
+		if ledger.Has(EvidenceCommandRun) {
+			return "I reproduced the workspace failure, but I couldn't complete a grounded repair in this turn."
+		}
+		return "I wasn't able to run the requested workspace diagnosis in this turn."
 	case ActionEdit, ActionContinue:
 		if ledger.Has(EvidenceEditProposed) {
 			return "I submitted the file changes as proposals; they have not been applied yet."
+		}
+		if ledger.Has(EvidenceCommandPass) {
+			return "I ran the workspace diagnostic, but it passed and did not reproduce the reported failure. Which command or screen fails when you try to start the app?"
+		}
+		if ledger.Has(EvidenceCommandRun) {
+			return "I reproduced the workspace failure, but I couldn't produce a grounded file change in this turn."
 		}
 		return "I wasn't able to make or propose the requested changes in this turn."
 	case ActionAskUser:

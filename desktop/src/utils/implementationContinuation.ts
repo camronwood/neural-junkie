@@ -8,7 +8,7 @@ const WEAK_AFFIRMATION_ONLY_RE =
 
 /** Coding/build asks where the user expects file changes, not generic chat. */
 const IMPLEMENTATION_REQUEST_RE =
-  /\b(settings modal|font size|pick up where|finish (?:that |the )?work|theme support|dark[/ ]light|light[/ ]dark|dark mode|light mode|settings page|wire up|hook up|not working|does(?:n't| not) work|not booting|won't boot|broken|debug this|blank screen|white screen|can you fix)\b/i;
+  /\b(settings modal|font size|pick up where|finish (?:that |the )?work|theme support|dark[/ ]light|light[/ ]dark|dark mode|light mode|settings page|wire up|hook up|not working|does(?:n't| not) work|not booting|won't boot|will not boot|cannot boot|can't boot|fails? to boot|broken|debug this|blank screen|white screen|can you fix)\b/i;
 
 /** Short status check after a fix attempt in the same thread. */
 const IMPLEMENTATION_STATUS_CHECK_RE =

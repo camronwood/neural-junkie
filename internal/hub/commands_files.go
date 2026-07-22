@@ -428,6 +428,7 @@ func (ch *CommandHandler) handleRejectFile(ctx context.Context, msg *protocol.Me
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to reject file change: %v", err)), nil
 	}
+	ch.hub.NotifyFileChangeRejected(change)
 
 	return ch.systemResponse(msg.Channel,
 		fmt.Sprintf("❌ File change rejected!\n\n"+

@@ -23,7 +23,9 @@ const (
 	FileChangeStatusPending  FileChangeStatus = "pending"
 	FileChangeStatusApproved FileChangeStatus = "approved"
 	FileChangeStatusRejected FileChangeStatus = "rejected"
+	FileChangeStatusStale    FileChangeStatus = "stale"
 	FileChangeStatusExpired  FileChangeStatus = "expired"
+	FileChangeStatusFailed   FileChangeStatus = "failed"
 )
 
 // FileChange represents a proposed file change

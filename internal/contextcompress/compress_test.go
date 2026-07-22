@@ -115,6 +115,19 @@ func TestCompressSection(t *testing.T) {
 	}
 }
 
+func TestCompressSection_withoutRetrievalReturnsDeterministicExcerpt(t *testing.T) {
+	raw := strings.Repeat("summary ", 5000)
+	store := NewStore(10, 60, "")
+	first := CompressSectionWithRetrieval(store, "summary", "ch", "s1", raw, 2000, DefaultOptions(), false)
+	second := CompressSectionWithRetrieval(store, "summary", "ch", "s2", raw, 2000, DefaultOptions(), false)
+	if first.Ref != "" || first.Stored || strings.Contains(first.Text, "nj_retrieve_context") {
+		t.Fatalf("unexpected CCR capability marker: %+v", first)
+	}
+	if first.Text != second.Text || !strings.Contains(first.Text, "retrieval unavailable") {
+		t.Fatalf("excerpt must be deterministic: first=%q second=%q", first.Text, second.Text)
+	}
+}
+
 func TestStore_eviction(t *testing.T) {
 	s := NewStore(2, 60, "")
 	r1 := s.Put("a", "1", "t", []byte("one"))

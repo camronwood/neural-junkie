@@ -91,7 +91,6 @@ export interface LayoutSettings {
   editorPanelVisible: boolean;
   terminalPanelVisible: boolean;
   myAgentsPanelVisible: boolean;
-  pendingChangesPanelVisible: boolean;
   /** IDE composer: ask (read-only) vs agent (may propose edits) */
   editorAgentMode: 'ask' | 'plan' | 'agent';
   /** When false, agent shortcuts under Direct Messages are hidden (existing DM rows stay). */
@@ -205,7 +204,6 @@ const defaultLayoutSettings: LayoutSettings = {
   editorPanelVisible: false,
   terminalPanelVisible: false,
   myAgentsPanelVisible: false,
-  pendingChangesPanelVisible: false,
   editorAgentMode: 'agent',
   sidebarAgentsVisible: true,
   inlineCompletionEnabled: true,

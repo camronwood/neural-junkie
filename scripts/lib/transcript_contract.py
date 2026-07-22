@@ -24,6 +24,11 @@ METRIC_NAMES = (
     "correction_recovery_rate",
     "tool_follow_through_rate",
     "unsupported_claim_rate",
+    "instruction_retention_rate",
+    "correction_latency_turns",
+    "stale_plan_rate",
+    "truthful_completion_rate",
+    "edit_precision_rate",
 )
 
 _ABSOLUTE_PATH = re.compile(r"(?<![\w.])(?:/Users|/home)/[^\s`\"']+")
@@ -135,6 +140,7 @@ def extract_transcript(
     *,
     source: str = "live",
     cases: list[dict[str, Any]] | None = None,
+    telemetry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Convert hub messages to the small, safe contract used by fixtures and metrics."""
     turns: list[dict[str, Any]] = []
@@ -163,8 +169,48 @@ def extract_transcript(
         "turns": turns,
         "cases": cases or [],
     }
+    if telemetry:
+        contract["telemetry"] = sanitize_telemetry(telemetry)
     validate_contract(contract)
     return contract
+
+
+def sanitize_telemetry(raw: dict[str, Any]) -> dict[str, Any]:
+    """Retain only aggregate evaluation telemetry; never provider payloads."""
+    text_fields = ("actual_provider", "actual_model")
+    int_fields = (
+        "attempts",
+        "retry_count",
+        "nudge_count",
+        "repair_attempts",
+        "tool_calls",
+        "escalation_count",
+    )
+    number_fields = ("wall_duration_ms", "ttft_ms")
+    bool_fields = ("passed_at_1", "eventual_pass")
+    list_fields = (
+        "retry_reasons",
+        "nudge_reasons",
+        "validation_failures",
+        "escalation_reasons",
+    )
+    clean: dict[str, Any] = {}
+    for key in text_fields:
+        if raw.get(key) not in (None, ""):
+            clean[key] = sanitize_text(raw[key])[:200]
+    for key in int_fields:
+        if isinstance(raw.get(key), (int, float)) and not isinstance(raw.get(key), bool):
+            clean[key] = int(raw[key])
+    for key in number_fields:
+        if isinstance(raw.get(key), (int, float)) and not isinstance(raw.get(key), bool):
+            clean[key] = round(float(raw[key]), 3)
+    for key in bool_fields:
+        if isinstance(raw.get(key), bool):
+            clean[key] = raw[key]
+    for key in list_fields:
+        if isinstance(raw.get(key), list):
+            clean[key] = [sanitize_text(item)[:240] for item in raw[key][:20] if sanitize_text(item)]
+    return clean
 
 
 def validate_contract(contract: dict[str, Any]) -> None:
@@ -174,6 +220,12 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise ContractError("turns must be a list")
     if not isinstance(contract.get("cases", []), list):
         raise ContractError("cases must be a list")
+    telemetry = contract.get("telemetry")
+    if telemetry is not None:
+        if not isinstance(telemetry, dict):
+            raise ContractError("telemetry must be an object")
+        if sanitize_telemetry(telemetry) != telemetry:
+            raise ContractError("telemetry contains unsupported or unsanitized fields")
     for index, turn in enumerate(contract["turns"]):
         if not isinstance(turn, dict):
             raise ContractError(f"turns[{index}] must be an object")
@@ -316,6 +368,83 @@ def evaluate_contract(contract: dict[str, Any]) -> dict[str, Any]:
             unsupported = claim_index is not None and not supported
             passed = not unsupported
             counts["unsupported_claim_bad"] += int(unsupported)
+        elif kind == "instruction_retention":
+            counts["instruction_retention_total"] += 1
+            instruction_index = _find(turns, "user", user)
+            after_pattern = str(case.get("after_user_match") or ".*")
+            after_index = (
+                _find(turns, "user", after_pattern, instruction_index + 1)
+                if instruction_index is not None
+                else None
+            )
+            answer_index = (
+                _find(turns, "assistant", assistant, after_index + 1)
+                if after_index is not None
+                else None
+            )
+            passed = answer_index is not None
+            counts["instruction_retention_good"] += int(passed)
+        elif kind == "correction_latency":
+            counts["correction_latency_total"] += 1
+            correction_index = _find(turns, "user", user)
+            answer_index = (
+                _find(turns, "assistant", assistant, correction_index + 1)
+                if correction_index is not None
+                else None
+            )
+            assistant_turns = (
+                sum(1 for turn in turns[correction_index + 1 : answer_index + 1] if turn["role"] == "assistant")
+                if correction_index is not None and answer_index is not None
+                else len(turns) + 1
+            )
+            passed = answer_index is not None
+            counts["correction_latency_sum"] += assistant_turns
+            counts["correction_latency_good"] += int(passed)
+        elif kind == "stale_plan":
+            counts["stale_plan_total"] += 1
+            correction_index = _find(turns, "user", user)
+            stale_pattern = str(case.get("stale_match") or assistant)
+            stale = (
+                _find(turns, "assistant", stale_pattern, correction_index + 1) is not None
+                if correction_index is not None
+                else False
+            )
+            passed = not stale
+            counts["stale_plan_bad"] += int(stale)
+        elif kind == "truthful_completion":
+            counts["truthful_completion_total"] += 1
+            claim_index = _find(turns, "assistant", assistant)
+            evidence = str(case.get("evidence_match") or "")
+            evidence_label = str(case.get("evidence_label") or "")
+            evidence_role = str(case.get("evidence_role") or "")
+            supported = bool(evidence or evidence_label) and claim_index is not None and any(
+                (not evidence_role or turn["role"] == evidence_role)
+                and (not evidence or _matches(turn["content"], evidence))
+                and (not evidence_label or evidence_label in turn.get("labels", []))
+                for turn in turns[: claim_index + 1]
+            )
+            passed = claim_index is not None and supported
+            counts["truthful_completion_good"] += int(passed)
+        elif kind == "edit_precision":
+            counts["edit_precision_total"] += 1
+            expected = str(case.get("expected_edit_match") or assistant)
+            forbidden = str(case.get("forbidden_edit_match") or "")
+            expected_index = _find_evidence(
+                turns,
+                start=0,
+                role=str(case.get("evidence_role") or ""),
+                pattern=expected,
+                label=str(case.get("evidence_label") or ""),
+            )
+            forbidden_index = _find_evidence(
+                turns,
+                start=0,
+                role=str(case.get("evidence_role") or ""),
+                pattern=forbidden,
+                label="",
+            ) if forbidden else None
+            passed = expected_index is not None and forbidden_index is None
+            counts["edit_precision_good"] += int(passed)
         else:
             raise ContractError(f"cases[{index}].metric is invalid: {kind!r}")
         details.append({"index": index, "metric": kind, "passed": passed})
@@ -330,6 +459,17 @@ def evaluate_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "correction_recovery_rate": rate("correction_recovery_good", "correction_recovery_total"),
         "tool_follow_through_rate": rate("tool_follow_through_good", "tool_follow_through_total"),
         "unsupported_claim_rate": rate("unsupported_claim_bad", "unsupported_claim_total"),
+        "instruction_retention_rate": rate("instruction_retention_good", "instruction_retention_total"),
+        "correction_latency_turns": round(
+            counts["correction_latency_sum"] / counts["correction_latency_total"], 6
+        ) if counts["correction_latency_total"] else 0.0,
+        "stale_plan_rate": (
+            rate("stale_plan_bad", "stale_plan_total")
+            if counts["stale_plan_total"]
+            else 0.0
+        ),
+        "truthful_completion_rate": rate("truthful_completion_good", "truthful_completion_total"),
+        "edit_precision_rate": rate("edit_precision_good", "edit_precision_total"),
     }
     return {"metrics": metrics, "counts": dict(counts), "cases": details}
 
@@ -341,7 +481,12 @@ def check_thresholds(result: dict[str, Any], thresholds: dict[str, Any]) -> list
         if name not in METRIC_NAMES:
             raise ContractError(f"unknown threshold metric: {name}")
         value = float(metrics[name])
-        if name.endswith("_rate") and name in ("repeated_question_rate", "unsupported_claim_rate"):
+        if name in (
+            "repeated_question_rate",
+            "unsupported_claim_rate",
+            "stale_plan_rate",
+            "correction_latency_turns",
+        ):
             if value > float(raw):
                 failures.append(f"{name}={value:.3f} exceeds {float(raw):.3f}")
         elif value < float(raw):

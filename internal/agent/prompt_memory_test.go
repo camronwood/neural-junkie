@@ -45,3 +45,23 @@ func TestAppendMemoryForMessage_closureSkips(t *testing.T) {
 		t.Fatalf("closure should skip memory injection, count=%d body=%q", pr.Count, sb.String())
 	}
 }
+
+func TestBuildMemoryPromptContext_recoversThreadGoalAndCorrections(t *testing.T) {
+	user := protocol.AgentInfo{ID: "u", Name: "U", Type: "human"}
+	prior := protocol.NewMessage(protocol.MessageTypeQuestion, "ch1", user, "Use the legacy provider")
+	prior.ID = "prior"
+	correction := protocol.NewMessage(protocol.MessageTypeQuestion, "ch1", user, "No, use the configured provider instead")
+	correction.ID = "correction"
+	correction.ThreadID = "thread-1"
+	correction.Metadata["original_goal_id"] = "goal-1"
+	correction.Metadata["supersedes_message_ids"] = []interface{}{"older-prior"}
+
+	pctx := buildMemoryPromptContext(correction, []*protocol.Message{prior}, routing.PlanKnowledgeRoute(correction.Content))
+	if pctx.ThreadID != "thread-1" || pctx.GoalID != "goal-1" || !pctx.IsCorrection {
+		t.Fatalf("context did not recover turn scope: %+v", pctx)
+	}
+	got := strings.Join(pctx.SupersededMessageIDs, ",")
+	if !strings.Contains(got, "prior") || !strings.Contains(got, "older-prior") {
+		t.Fatalf("superseded ids=%v", pctx.SupersededMessageIDs)
+	}
+}

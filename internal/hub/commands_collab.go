@@ -546,6 +546,7 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
+	ch.hub.resolvePlanApproval(collabID, msg.From.ID)
 	snapPre, _ := cm.GetCollaborationSnapshot(collabID)
 	if snapPre != nil && snapPre.PlanningRecapStatus == collaboration.RecapStatusFailed {
 		log.Printf("[Collaboration] Approving %s after failed planning recap (user override)", collabID[:8])

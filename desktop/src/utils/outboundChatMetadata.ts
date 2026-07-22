@@ -10,10 +10,8 @@ import {
 import {
   CONTEXT_SCOPE_KEY,
   CONTEXT_SCOPE_REASON_KEY,
-  CONVERSATION_MODE_METADATA_KEY,
   EDITOR_MODE_KEY,
   EDITOR_AGENT_TRUST_KEY,
-  IDE_ROUTE_AGENT_TYPE_KEY,
   IMPLEMENTATION_SESSION_METADATA_KEY,
   type ContextScope,
   type ConversationModeSetting,
@@ -28,25 +26,9 @@ import { concentrationAt, validationAt, isScanAnalysisResultsPath, scanAnalysisD
 import { scanAnalysisDirFromCsvPath } from './scanAnalysisCsv';
 import {
   channelNameToKind,
-  resolveContextScope,
-  messageReferencesOpenEditor,
-  messageRequestsScanTool,
-  messageAsksWorkspaceVisibility,
   type ChannelKind,
 } from './inferContextScope';
-import { hasCodeTaskSignals, resolveConversationMode } from './conversationMode';
-import {
-  hasContentDeliverySignals,
-  hasFileExportSignals,
-  hasErrorLogFollowUpSignals,
-  hasImplementationContinuationSignals,
-  hasImplementationRequestSignals,
-  hasImplementationStatusCheckSignals,
-  hasPriorReferenceExportSignals,
-  channelHasImplementationThread,
-  type ChannelMessageRef,
-} from './implementationContinuation';
-import { hasCodeReviewSignals } from './codeReviewSignals';
+import type { ChannelMessageRef } from './implementationContinuation';
 import type { EffectiveComposerMode } from '../constants/composerMode';
 import {
   attachTurnCapabilitiesMetadata,
@@ -294,6 +276,7 @@ export function trimWorkspaceContext(
     }
     const ideOn = usePacksStore.getState().ideEnabled();
     const sel = ideOn ? useEditorStore.getState().activeSelection : null;
+    const activeTabId = useEditorStore.getState().activeTabId;
     const activePath = activeTabPath ?? files.find((t) => t.is_active)?.path;
     base.open_files = files.map((tab) => {
       const row = {
@@ -303,6 +286,7 @@ export function trimWorkspaceContext(
       if (
         ideOn &&
         sel &&
+        sel.tabId === activeTabId &&
         activePath &&
         tab.path === activePath &&
         tab.is_active
@@ -393,48 +377,10 @@ function loadFullWorkspaceContext(): WorkspaceContext {
   return loadScopedWorkspaceContext().primary;
 }
 
-function messageRequestsCADWorkspace(message: string): boolean {
-  return (
-    /\b(create|write|save|make|generate|add|update|edit|render|export)\b/i.test(message) &&
-    /\b(\.scad|openscad|cad|stl|3d|model|mesh|ball|cube|sphere|part)\b/i.test(message)
-  );
-}
-
 /** True for dm-{user}-assistant channels (personal assistant only). */
 export function isPersonalAssistantDmChannel(channel: string): boolean {
   const name = (channel ?? '').trim().toLowerCase();
   return name.endsWith('-assistant') && name.startsWith('dm-');
-}
-
-const EXPLICIT_WORKSPACE_PATH_RE =
-  /(?:^|[\s"'`(])(?:[./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+|[a-zA-Z0-9_-]+\.(?:go|rs|py|js|jsx|ts|tsx|java|c|cpp|h|hpp|cs|rb|php|swift|kt|kts|scala|sh|sql|html|css|scss|json|ya?ml|toml|md))\b/i;
-
-/** Custom experts are non-engineering; preset engineering specialists have concrete agent types. */
-function isCustomExpertDm(
-  specialistDm: boolean,
-  composerMetadata?: Record<string, unknown>
-): boolean {
-  return (
-    specialistDm &&
-    String(composerMetadata?.[IDE_ROUTE_AGENT_TYPE_KEY] ?? '').trim().toLowerCase() === 'expert'
-  );
-}
-
-/** High-confidence requests where a custom expert intentionally needs editor/file context. */
-function hasExplicitWorkspaceRequest(message: string): boolean {
-  const text = (message ?? '').trim();
-  if (!text) return false;
-  return (
-    EXPLICIT_WORKSPACE_PATH_RE.test(text) ||
-    /@codebase\b/i.test(text) ||
-    messageReferencesOpenEditor(text) ||
-    messageRequestsScanTool(text) ||
-    messageAsksWorkspaceVisibility(text) ||
-    hasCodeReviewSignals(text) ||
-    hasFileExportSignals(text) ||
-    hasPriorReferenceExportSignals(text) ||
-    hasImplementationRequestSignals(text)
-  );
 }
 
 /**
@@ -462,7 +408,6 @@ export function buildHumanOutboundMetadata(options: {
     messageOverride,
     channelType,
     ideCoding,
-    recentChannelMessages,
   } = options;
   const meta: Record<string, unknown> = { ...(composerMetadata ?? {}) };
 
@@ -471,254 +416,55 @@ export function buildHumanOutboundMetadata(options: {
     meta[USER_RULES_METADATA_KEY] = rules;
   }
 
-  const channelKind = options.channelKind ?? channelNameToKind(channel, channelType);
-  const personalAssistantDm = channelKind === 'dm' && isPersonalAssistantDmChannel(channel);
-  const specialistDm = channelKind === 'dm' && !personalAssistantDm;
-  const implementationThreadActive =
-    specialistDm && channelHasImplementationThread(recentChannelMessages);
-  const implementationThreadFollowUp =
-    implementationThreadActive &&
-    (hasErrorLogFollowUpSignals(message) ||
-      hasImplementationStatusCheckSignals(message) ||
-      hasImplementationContinuationSignals(message));
   const activeTab = useEditorStore.getState().tabs.find(
     (t) => t.id === useEditorStore.getState().activeTabId
   );
   const activeTabPath = activeTab?.path;
-  const hasOpenTab = Boolean(activeTabPath);
-  const hasScanViewerTab =
-    activeTab?.viewMode === 'scan-analysis' || activeTab?.viewMode === 'scan-summary';
-  const customExpertDm = isCustomExpertDm(specialistDm, composerMetadata);
-  const explicitWorkspaceRequest = hasExplicitWorkspaceRequest(message);
+  const channelKind = options.channelKind ?? channelNameToKind(channel, channelType);
+  const composerModeRaw = meta[EDITOR_MODE_KEY];
+  const composerMode: EffectiveComposerMode =
+    composerModeRaw === 'ask' ||
+    composerModeRaw === 'plan' ||
+    composerModeRaw === 'agent' ||
+    composerModeRaw === 'export'
+      ? composerModeRaw
+      : 'agent';
 
-  const conversationModeSetting = options.conversationMode ?? 'auto';
-  const resolvedConversationMode = resolveConversationMode(conversationModeSetting, message, {
-    ideCoding: customExpertDm ? false : ideCoding,
-    channelKind,
-    hasOpenTab,
-  });
-  meta[CONVERSATION_MODE_METADATA_KEY] = resolvedConversationMode;
-
-  let { scope, reason } = resolveContextScope({
-    message,
-    mode: contextMode,
-    channelKind,
-    messageOverride,
-    activeTabPath,
-    ideCoding,
-  });
-
-  // Ambiguous Auto: keep context light until the agent clarifies chat vs code.
-  if (resolvedConversationMode === 'clarify' && contextMode !== 'always' && contextMode !== 'off') {
-    if (scope === 'full' || scope === 'outline' || scope === 'focus') {
-      scope = 'hint';
-      reason = 'clarify mode — wait for chat vs code';
-    }
+  let scope: ContextScope;
+  let reason: string;
+  if (messageOverride) {
+    scope = messageOverride;
+    reason = 'manual override';
+  } else if (contextMode === 'off') {
+    scope = 'none';
+    reason = 'workspace mode off';
+  } else if (contextMode === 'always') {
+    scope = 'full';
+    reason = 'workspace mode always';
+  } else if (ideCoding || composerMode === 'export') {
+    scope = activeTabPath ? 'focus' : 'outline';
+    reason = activeTabPath ? 'active editor context' : 'workspace outline';
+  } else if (channelKind === 'collaboration') {
+    scope = 'hint';
+    reason = 'collaboration workspace hint';
+  } else {
+    scope = 'hint';
+    reason = 'workspace mode auto';
   }
 
-  let explicitEditorMode =
-    typeof composerMetadata?.[EDITOR_MODE_KEY] === 'string'
-      ? String(composerMetadata[EDITOR_MODE_KEY]).trim()
-      : '';
-
-  // Personal-assistant DMs should stay read-only unless the message is clearly a code/export task.
-  if (
-    personalAssistantDm &&
-    explicitEditorMode !== 'ask' &&
-    !hasFileExportSignals(message) &&
-    !hasPriorReferenceExportSignals(message) &&
-    !hasImplementationRequestSignals(message) &&
-    !hasImplementationContinuationSignals(message) &&
-    !hasCodeTaskSignals(message)
-  ) {
-    meta[EDITOR_MODE_KEY] = 'ask';
+  meta[EDITOR_MODE_KEY] = composerMode;
+  if (composerMode === 'ask' || composerMode === 'plan') {
+    meta[EDITOR_AGENT_TRUST_KEY] = 'interactive';
     delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
-    explicitEditorMode = 'ask';
+  } else if (composerMode === 'export') {
+    meta[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
+  } else {
+    delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
   }
-
-  if (explicitEditorMode === 'export' && contextMode !== 'off') {
-    scope = activeTabPath ? 'focus' : 'outline';
-    reason = 'composer mode: export';
-    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-  } else if (
-    explicitEditorMode === 'agent' &&
-    contextMode !== 'off' &&
-    composerMetadata?.[IMPLEMENTATION_SESSION_METADATA_KEY] === true
-  ) {
-    if (scope === 'none' || scope === 'hint') {
-      scope = activeTabPath ? 'focus' : 'outline';
-      reason = 'composer mode: agent';
-    }
-    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-  }
-
-  const asksAboutOpenFile =
-    messageReferencesOpenEditor(message) ||
-    (/\bwhat\b/i.test(message) && /\bsee\b/i.test(message) && /\b(open|file)\b/i.test(message));
-
-  const needsOpenEditorContext =
-    contextMode !== 'off' &&
-    (messageRequestsScanTool(message) || asksAboutOpenFile);
-
-  if (needsOpenEditorContext) {
-    scope = activeTabPath || hasScanViewerTab ? 'focus' : 'hint';
-    reason = 'open editor or scan tool request';
-    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-  } else if (implementationThreadFollowUp && contextMode !== 'off') {
-    if (scope === 'none' || scope === 'hint') {
-      scope = activeTabPath ? 'focus' : 'outline';
-      reason = 'implementation thread continuation';
-    }
-    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-    if (meta[EDITOR_MODE_KEY] === 'ask' || !meta[EDITOR_MODE_KEY]) {
-      meta[EDITOR_MODE_KEY] = 'agent';
-      meta[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
-    }
-    meta[EDITOR_AGENT_TRUST_KEY] = 'auto_apply_edits';
-  } else if (
-    specialistDm &&
-    hasErrorLogFollowUpSignals(message) &&
-    contextMode !== 'off'
-  ) {
-    if (scope === 'none' || scope === 'hint') {
-      scope = activeTabPath ? 'focus' : 'outline';
-      reason = 'error log follow-up';
-    }
-    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-  } else if (hasImplementationContinuationSignals(message) && contextMode !== 'off') {
-    if (scope === 'none' || scope === 'hint') {
-      scope = activeTabPath ? 'focus' : 'outline';
-      reason = 'implementation continuation';
-    }
-    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-  } else if (
-    channelKind === 'dm' &&
-    contextMode !== 'off' &&
-    hasImplementationRequestSignals(message)
-  ) {
-    if (scope === 'full' || scope === 'outline' || scope === 'none' || scope === 'hint') {
-      scope = activeTabPath ? 'focus' : 'outline';
-      reason = 'DM implementation request';
-    }
-    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-  } else if (messageAsksWorkspaceVisibility(message) && contextMode !== 'off') {
-    if (scope === 'none' || scope === 'hint') {
-      scope = activeTabPath ? 'focus' : 'outline';
-      reason = 'workspace visibility question';
-    }
-  } else if (hasCodeReviewSignals(message) && contextMode !== 'off') {
-    if (scope === 'none' || scope === 'hint') {
-      scope = activeTabPath ? 'focus' : 'outline';
-      reason = 'project code review';
-    }
-  } else if (hasContentDeliverySignals(message) && contextMode !== 'off') {
-    if (scope === 'none' || scope === 'hint') {
-      const sharedChannel = channelKind === 'general' || channelType === 'public';
-      if (sharedChannel && !activeTabPath) {
-        scope = 'hint';
-        reason = 'content delivery on shared channel (path only)';
-      } else {
-        scope = activeTabPath ? 'focus' : 'outline';
-        reason = 'content delivery needs project context';
-      }
-    }
-  } else if (hasFileExportSignals(message) && contextMode !== 'off') {
-    scope = activeTabPath ? 'focus' : 'outline';
-    reason = 'file export to workspace';
-    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-  } else if (messageRequestsCADWorkspace(message) && contextMode !== 'off') {
-    if (scope === 'none' || scope === 'hint') {
-      scope = 'hint';
-      reason = 'CAD file operation needs workspace path';
-    }
-  } else if (
-    (resolvedConversationMode === 'chat' || resolvedConversationMode === 'clarify') &&
-    contextMode !== 'always'
-  ) {
-    // Knowledge Graph / codebase questions still need workspace_path for semantic_search
-    // even when the conversation-mode setting is Chat.
-    if (hasCodeTaskSignals(message) && resolvedConversationMode !== 'clarify') {
-      if (scope === 'none' || scope === 'hint') {
-        scope = 'outline';
-        reason = 'code/graph question needs workspace path';
-      }
-    } else {
-      scope = resolvedConversationMode === 'clarify' ? 'hint' : 'none';
-      reason =
-        resolvedConversationMode === 'clarify'
-          ? 'clarify mode — wait for chat vs code'
-          : 'conversation mode: chat';
-    }
-  } else if (resolvedConversationMode === 'collab') {
-    // scope follows collab / inferContextScope rules
-  } else if (
-    contextMode !== 'off' &&
-    hasScanViewerTab &&
-    (messageRequestsScanTool(message) || messageReferencesOpenEditor(message))
-  ) {
-    scope = 'focus';
-    reason = 'active scan viewer tab in editor';
-  }
+  delete meta.conversation_mode;
 
   meta[CONTEXT_SCOPE_KEY] = scope;
   meta[CONTEXT_SCOPE_REASON_KEY] = reason;
-
-  // Personal Assistant DMs: no project workspace unless the user asked for code/export work.
-  if (
-    personalAssistantDm &&
-    meta[EDITOR_MODE_KEY] === 'ask' &&
-    !hasFileExportSignals(message) &&
-    !hasPriorReferenceExportSignals(message) &&
-    !hasImplementationRequestSignals(message) &&
-    !hasImplementationContinuationSignals(message) &&
-    !hasCodeTaskSignals(message) &&
-    !hasContentDeliverySignals(message) &&
-    !messageAsksWorkspaceVisibility(message)
-  ) {
-    scope = 'none';
-    reason = 'personal assistant DM';
-    meta[CONTEXT_SCOPE_KEY] = scope;
-    meta[CONTEXT_SCOPE_REASON_KEY] = reason;
-    meta[CONVERSATION_MODE_METADATA_KEY] = 'chat';
-    delete meta.workspace_context;
-  }
-
-  // Custom non-engineering experts (for example Writing) are chat-first only
-  // while conversation mode is Auto. Explicit Chat/Code selections remain
-  // authoritative; Code receives focused context rather than every open file.
-  if (customExpertDm) {
-    if (conversationModeSetting === 'code') {
-      meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-      if (contextMode === 'off') {
-        scope = 'none';
-        reason = 'explicit code mode with workspace off';
-        delete meta.workspace_context;
-      } else {
-        scope = 'focus';
-        reason = 'explicit code mode for custom expert';
-      }
-    } else if (
-      conversationModeSetting === 'auto' &&
-      explicitWorkspaceRequest &&
-      contextMode !== 'off'
-    ) {
-      scope = 'focus';
-      reason = 'custom expert explicit file/editor request';
-      meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
-    } else {
-      scope = 'none';
-      reason =
-        conversationModeSetting === 'chat'
-          ? 'explicit chat mode for custom expert'
-          : 'custom non-engineering expert DM';
-      meta[CONVERSATION_MODE_METADATA_KEY] = 'chat';
-      meta[EDITOR_MODE_KEY] = 'ask';
-      delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
-      delete meta.workspace_context;
-    }
-    meta[CONTEXT_SCOPE_KEY] = scope;
-    meta[CONTEXT_SCOPE_REASON_KEY] = reason;
-  }
 
   const collabMode = composerMetadata?.[COLLAB_SOURCE_MODE_KEY];
   const collabPath = composerMetadata?.[COLLAB_SOURCE_PATH_KEY];
@@ -781,16 +527,6 @@ export function buildHumanOutboundMetadata(options: {
     }
   }
 
-  const composerModeRaw = meta[EDITOR_MODE_KEY];
-  const composerMode: EffectiveComposerMode =
-    composerModeRaw === 'ask' || composerModeRaw === 'plan' || composerModeRaw === 'agent' || composerModeRaw === 'export'
-      ? composerModeRaw
-      : 'agent';
-  if (composerMode === 'ask' || composerMode === 'plan') {
-    meta[EDITOR_AGENT_TRUST_KEY] = 'interactive';
-  } else {
-    meta[EDITOR_AGENT_TRUST_KEY] = 'auto_apply_edits';
-  }
   return attachTurnCapabilitiesMetadata(
     meta,
     resolveTurnCapabilities({

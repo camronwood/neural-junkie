@@ -20,8 +20,11 @@ const (
 )
 
 const (
-	rulesSectionStart = "=== USER-CONFIGURED RULES ==="
-	rulesSectionEnd   = "=== END USER-CONFIGURED RULES ==="
+	rulesSectionStart                 = "=== USER-CONFIGURED RULES ==="
+	rulesSectionEnd                   = "=== END USER-CONFIGURED RULES ==="
+	contextRetrieveCapabilityMetadata = "context_retrieval_available"
+	contextRetrieveToolName           = "nj_retrieve_context"
+	contextBudgetStatsMetadata        = "context_budget_stats"
 )
 
 // ContextBudgetStats records truncation applied to a prompt.
@@ -30,6 +33,16 @@ type ContextBudgetStats struct {
 	FinalBytes         int      `json:"final_bytes"`
 	Truncated          bool     `json:"truncated"`
 	CompressedSections []string `json:"compressed_sections,omitempty"`
+}
+
+func stampContextBudgetStats(msg *protocol.Message, stats ContextBudgetStats) {
+	if msg == nil {
+		return
+	}
+	if msg.Metadata == nil {
+		msg.Metadata = map[string]any{}
+	}
+	msg.Metadata[contextBudgetStatsMetadata] = stats
 }
 
 func performanceFromHub() config.PerformanceConfig {
@@ -57,15 +70,17 @@ func implSessionBudgetLimit(msg *protocol.Message) int {
 
 // applyContextBudget trims non-essential system sections when the prompt exceeds the budget.
 func applyContextBudget(prompt string) (string, ContextBudgetStats) {
-	return applyContextBudgetWithLimit(prompt, contextBudgetLimit(), maxBudgetWorkspaceOutline, "")
+	return applyContextBudgetWithLimit(prompt, contextBudgetLimit(), maxBudgetWorkspaceOutline, "", false)
 }
 
 func applyContextBudgetForMessage(msg *protocol.Message, prompt string) (string, ContextBudgetStats) {
 	limit := contextBudgetLimit()
 	outline := maxBudgetWorkspaceOutline
 	channelID := ""
+	canRetrieve := false
 	if msg != nil {
 		channelID = msg.Channel
+		canRetrieve, _ = msg.Metadata[contextRetrieveCapabilityMetadata].(bool)
 	}
 	if msg != nil && (msg.ImplementationSession() || (agentRuntimeV2ForMessage(msg) && msg.IdeEditorMode() == "agent")) {
 		limit = implSessionBudgetLimit(msg)
@@ -75,7 +90,7 @@ func applyContextBudgetForMessage(msg *protocol.Message, prompt string) (string,
 		outline = ideWorkspaceOutlineBytes
 	}
 	prompt = cacheStableSystemOrder(prompt)
-	return applyContextBudgetWithLimit(prompt, limit, outline, channelID)
+	return applyContextBudgetWithLimit(prompt, limit, outline, channelID, canRetrieve)
 }
 
 // cacheStableSystemOrder keeps semi-stable sections before volatile workspace blocks for prefix caching.
@@ -137,29 +152,29 @@ func reorderSystemSections(system string) string {
 	return b.String()
 }
 
-func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int, channelID string) (string, ContextBudgetStats) {
+func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int, channelID string, canRetrieve bool) (string, ContextBudgetStats) {
 	stats := ContextBudgetStats{OriginalBytes: len(prompt)}
 
 	systemPart, userPart, hasSep := strings.Cut(prompt, ai.SystemPromptSeparator)
 	if hasSep {
 		callID := uuid.NewString()
 		systemPart, rulesBlock := peelProtectedRulesSection(systemPart)
-		systemPart, label := compressMarkedSection(systemPart, "=== SESSION SUMMARY ===", channelID, callID+"-summary", maxBudgetSessionSummary)
+		systemPart, label := compressMarkedSection(systemPart, "=== SESSION SUMMARY ===", channelID, callID+"-summary", maxBudgetSessionSummary, canRetrieve)
 		if label != "" {
 			stats.CompressedSections = append(stats.CompressedSections, label)
 			stats.Truncated = true
 		}
-		systemPart, label = compressMarkedSection(systemPart, "=== RELEVANT PAST CONTEXT ===", channelID, callID+"-memory", maxBudgetRelevantMemory)
+		systemPart, label = compressMarkedSection(systemPart, "=== RELEVANT PAST CONTEXT ===", channelID, callID+"-memory", maxBudgetRelevantMemory, canRetrieve)
 		if label != "" {
 			stats.CompressedSections = append(stats.CompressedSections, label)
 			stats.Truncated = true
 		}
-		systemPart, label = compressMarkedSection(systemPart, "=== WORKSPACE CONTEXT ===", channelID, callID+"-workspace", workspaceOutlineCap)
+		systemPart, label = compressMarkedSection(systemPart, "=== WORKSPACE CONTEXT ===", channelID, callID+"-workspace", workspaceOutlineCap, canRetrieve)
 		if label != "" {
 			stats.CompressedSections = append(stats.CompressedSections, label)
 			stats.Truncated = true
 		}
-		systemPart, label = compressMarkedSection(systemPart, "Grounding requirement:", channelID, callID+"-grounding", workspaceOutlineCap)
+		systemPart, label = compressMarkedSection(systemPart, "Grounding requirement:", channelID, callID+"-grounding", workspaceOutlineCap, canRetrieve)
 		if label != "" {
 			stats.CompressedSections = append(stats.CompressedSections, label)
 			stats.Truncated = true
@@ -289,7 +304,7 @@ func truncateRulesBlock(rules string, maxBytes int) string {
 	return prefix + body + suffix
 }
 
-func compressMarkedSection(body, marker, channelID, callID string, maxBytes int) (string, string) {
+func compressMarkedSection(body, marker, channelID, callID string, maxBytes int, canRetrieve bool) (string, string) {
 	idx := strings.Index(body, marker)
 	if idx < 0 {
 		return body, ""
@@ -308,7 +323,7 @@ func compressMarkedSection(body, marker, channelID, callID string, maxBytes int)
 		replacement := section[:maxBytes] + "\n…(section truncated)\n"
 		return body[:idx] + replacement + body[sectionEnd:], marker
 	}
-	r := contextcompress.CompressSection(
+	r := contextcompress.CompressSectionWithRetrieval(
 		contextcompress.DefaultStore(),
 		marker,
 		channelID,
@@ -316,6 +331,7 @@ func compressMarkedSection(body, marker, channelID, callID string, maxBytes int)
 		section,
 		maxBytes,
 		opts,
+		canRetrieve,
 	)
 	return body[:idx] + r.Text + body[sectionEnd:], marker
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -42,11 +43,19 @@ func (h *Hub) persistMessage(msg *protocol.Message) {
 	if msg.Type == protocol.MessageTypeStreamDelta || msg.Type == protocol.MessageTypeStreamEnd || msg.Type == protocol.MessageTypeAgentStatus {
 		return
 	}
-	if err := h.persistentStore.InsertMessage(msg); err != nil {
+	persisted, err := protocol.CloneMessage(msg)
+	if err != nil || persisted == nil {
+		log.Printf("[hub] clone message for persistence: %v", err)
+		return
+	}
+	if persisted.Metadata != nil {
+		delete(persisted.Metadata, agent.MetadataAmbientState)
+	}
+	if err := h.persistentStore.InsertMessage(persisted); err != nil {
 		log.Printf("[hub] persist message: %v", err)
 		return
 	}
-	memory.IndexMessage(msg)
+	memory.IndexMessage(persisted)
 }
 
 // GetMessagesPage returns channel messages with optional cursor pagination.

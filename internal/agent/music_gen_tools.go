@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -105,7 +106,16 @@ func agentTypeSupportsHubMusicGen(t protocol.AgentType) bool {
 
 // tryHubMusicGenerationShortcut posts hub-generated audio when the user asked for a song.
 func (a *Agent) tryHubMusicGenerationShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
-	if msg == nil || a.Hub == nil || protocol.IsGeneratedAudioDelivery(msg) || !UserRequestsGeneratedMusic(msg.Content) {
+	explicitMusicIntent := msg != nil && UserRequestsGeneratedMusic(msg.Content)
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		switch decision.Action {
+		case semantic.ActionAnswer, semantic.ActionAskUser:
+			// Music remains a specialized path until it joins the typed ontology.
+		default:
+			explicitMusicIntent = false
+		}
+	}
+	if msg == nil || a.Hub == nil || protocol.IsGeneratedAudioDelivery(msg) || !explicitMusicIntent {
 		return "", false
 	}
 	if !a.musicGenerationToolsEnabledForMessage(msg) {

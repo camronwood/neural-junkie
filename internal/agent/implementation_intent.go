@@ -19,7 +19,7 @@ var (
 	themeImplementationRE       = regexp.MustCompile(`(?i)(?:\b(theme|themes|dark[/ ]?light|dark mode|light mode|ui theme)\b.{0,64}\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|toggle|finish)\b|\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|finish)\b.{0,64}\b(theme|themes|ui theme|dark mode|light mode|font size)\b)`)
 	implementTypoRE             = regexp.MustCompile(`(?i)\bimpl[e]?ment\b`)
 	workspaceDirectiveRE        = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
-	bootErrorIntentRE           = regexp.MustCompile(`(?i)(not booting|won't boot|does not boot|failed to scan|esbuild|✘\s*\[ERROR\]|\[ERROR\].*Expected|make start-all|vite dev|syntax error|white screen|blank screen|exit_code=)`)
+	bootErrorIntentRE           = regexp.MustCompile(`(?i)(not booting|won't boot|will not boot|cannot boot|can't boot|fails? to boot|does not boot|failed to scan|esbuild|✘\s*\[ERROR\]|\[ERROR\].*Expected|make start-all|vite dev|syntax error|white screen|blank screen|exit_code=)`)
 	implementationStatusCheckRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:is it fixed|did (?:that|it) fix|does it work(?: now)?|is it working(?: now)?|still broken|still not (?:booting|working)|working now)\??[!.?\s]*$`)
 	destructiveCommandRE        = regexp.MustCompile(`(?i)\brm\s+-rf\b|\brm\s+-r\b|\brmdir\s+/\b|>\s*/dev/`)
 	contentDeliveryRE           = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
@@ -27,6 +27,7 @@ var (
 	bareWorkspaceWrapperRE      = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
 	advisoryHypotheticalRE      = regexp.MustCompile(`(?i)\b(how would you|how could you|how should i|what would you|in one short paragraph|can you explain how)\b`)
 	advisoryPlacementRE         = regexp.MustCompile(`(?i)\b(where should .{0,80} live|where would you put)\b`)
+	advisoryPrerequisiteRE      = regexp.MustCompile(`(?i)\b(?:do|does|would|should)\s+(?:we|i|you)\s+(?:need to\s+)?(?:fix|change|update|implement)\b`)
 )
 
 var workspaceDirectiveDocSeeds = []string{"README.md", "DOCS.md", "docs/README.md"}
@@ -56,6 +57,9 @@ func isAdvisoryImplementationQuestion(content string) bool {
 		return false
 	}
 	if advisoryHypotheticalRE.MatchString(lower) {
+		return true
+	}
+	if advisoryPrerequisiteRE.MatchString(lower) {
 		return true
 	}
 	if advisoryPlacementRE.MatchString(lower) {
@@ -407,12 +411,28 @@ func channelHasPendingImplementationPlan(history []*protocol.Message, skipMsgID,
 			return false
 		}
 		if strings.Contains(body, "[file_change]") ||
-			strings.Contains(body, "i will ") ||
+			strings.Contains(body, "proposals submitted for approval") {
+			return true
+		}
+		promisesAction := strings.Contains(body, "i will ") ||
 			strings.Contains(body, "i'll ") ||
-			strings.Contains(body, "plan:") {
+			strings.Contains(body, "plan:")
+		if promisesAction && agentMessagePromisesWorkspaceEdit(body) {
 			return true
 		}
 		return false
+	}
+	return false
+}
+
+func agentMessagePromisesWorkspaceEdit(content string) bool {
+	for _, marker := range []string{
+		" edit ", " modify ", " update ", " implement ", " fix ", " patch ",
+		" refactor ", " apply ", " file", " code", " source", " component",
+	} {
+		if strings.Contains(" "+strings.ToLower(content)+" ", marker) {
+			return true
+		}
 	}
 	return false
 }
@@ -560,6 +580,13 @@ func channelHasRecentImplementationAsk(history []*protocol.Message, skipMsgID st
 // userRequestsImplementationForMessage includes affirmation follow-ups in the same channel thread.
 func userRequestsImplementationForMessage(a *Agent, msg *protocol.Message) bool {
 	if msg == nil {
+		return false
+	}
+	if UserRequestsArtifact(msg.Content) {
+		return false
+	}
+	if a != nil && userAffirmsPendingImplementation(msg.Content) &&
+		channelHasPendingArtifactRequest(a.channelHistory(msg.Channel), msg.ID) {
 		return false
 	}
 	if userRequestsImplementation(msg.Content) || userRequestsFileExportForMessage(msg) {

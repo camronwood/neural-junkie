@@ -115,6 +115,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	if isDMInbound {
 		h.normalizeDMMentionRouting(msg, mentionStrings, msg.Mentions)
 	}
+	h.resolveSemanticTurn(context.Background(), msg)
 
 	// Slash commands: persist the human command line, then the system response (if any).
 	if h.commandHandler != nil && len(msg.Content) > 0 && msg.Content[0] == '/' {
@@ -1307,6 +1308,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 	}
 	ch := snap.Channel
 	sent := 0
+	cacheCompleted := 0
 	h.annotateCollaborationTaskRouting(snap)
 	for _, task := range snap.Tasks {
 		if include != nil && !include(task) {
@@ -1346,11 +1348,36 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			break
 		}
 
+		if cached, ok := h.cachedOrchestrationTaskResult(context.Background(), snap, task); ok {
+			if _, err := h.collabManager.UpdateTaskStatusWithEffects(
+				collabID, task.ID, collaboration.TaskCompleted, string(cached),
+			); err != nil {
+				log.Printf("[Orchestration] apply cached task result %s: %v", shortOrchestrationID(task.ID), err)
+			} else {
+				cacheCompleted++
+			}
+			continue
+		}
+
+		attempt, claimErr := h.claimOrchestrationTask(context.Background(), snap, task)
+		if claimErr != nil && forceRedispatch {
+			attempt, claimErr = h.activeOrchestrationAttempt(context.Background(), collabID, task.ID)
+		}
+		if claimErr != nil {
+			if h.durableOrchestrationEnforced() {
+				log.Printf("[Orchestration] task claim blocked %s: %v", shortOrchestrationID(task.ID), claimErr)
+				continue
+			}
+			log.Printf("[Orchestration] shadow claim mismatch %s: %v", shortOrchestrationID(task.ID), claimErr)
+			attempt = nil
+		}
+
 		// Action tasks: execute on hub then mark complete (wave continues via status handler).
 		if task.EffectiveKind() == collaboration.TaskKindAction && task.Action != nil {
 			if h.executeCollabActionTask(snap, task) {
 				sent++
 			}
+			h.syncOrchestrationState(context.Background())
 			continue
 		}
 
@@ -1441,6 +1468,11 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		taskMsg.Metadata["execution_timeout_seconds"] = timeoutSec
 		dispatchToken := uuid.New().String()
 		taskMsg.Metadata[protocol.MetadataDispatchToken] = dispatchToken
+		if attempt != nil {
+			taskMsg.Metadata["orchestration_attempt_id"] = attempt.ID
+			taskMsg.Metadata["orchestration_lease_token"] = attempt.LeaseToken
+			taskMsg.Metadata["orchestration_attempt_number"] = attempt.Number
+		}
 		if policy.RequiresImplementationSession() {
 			taskMsg.Metadata[protocol.IdeMetaImplementationSession] = true
 		}
@@ -1451,6 +1483,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		}
 		if err := h.SendMessage(taskMsg); err != nil {
 			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
+			h.orchestrationDispatchFailed(context.Background(), attempt, err, task)
 			continue
 		}
 		workflow.LogTaskDispatched(collabID, task.ID, dispatchToken)
@@ -1463,6 +1496,11 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 	}
 	if sent > 0 && h.collabManager != nil {
 		_ = h.collabManager.MarkTasksDispatched(collabID)
+	}
+	if cacheCompleted > 0 && h.collabManager != nil {
+		if fresh, err := h.collabManager.GetCollaborationSnapshot(collabID); err == nil {
+			sent += h.dispatchReadyCollabTasks(fresh, inheritFrom, false)
+		}
 	}
 	return sent
 }
@@ -1805,6 +1843,11 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	if err := h.fileChangeManager.BindExecutionContext(change.ID, wsRoot, workspaceIO); err != nil {
 		return fmt.Errorf("bind proposal execution context: %w", err)
 	}
+	if change.Metadata == nil {
+		change.Metadata = make(map[string]interface{})
+	}
+	change.Metadata["workspace_root"] = wsRoot
+	h.persistFileChange(change)
 
 	// Update the message metadata with the registered change ID so the UI can link them
 	msg.Metadata["registered_change_id"] = change.ID
@@ -1814,12 +1857,28 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 
 	h.maybeAutoApproveCollabFileChange(msg, change, operation, wsRoot)
 	h.maybeAutoApproveIDEFileChange(msg, change, operation, wsRoot)
-	if refreshed, err := h.fileChangeManager.GetFileChange(change.ID); err == nil &&
-		refreshed.Status != filechange.FileChangeStatusPending {
+	refreshed, _ := h.fileChangeManager.GetFileChange(change.ID)
+	if refreshed == nil {
+		refreshed = change
+	}
+	if refreshed.Status != filechange.FileChangeStatusPending {
 		if msg.Metadata == nil {
 			msg.Metadata = map[string]interface{}{}
 		}
 		msg.Metadata[protocol.MetaFileChangeAutoApproved] = true
+	}
+	msg.Metadata[protocol.MetaChangeProposal] = protocol.ChangeProposalCard{
+		Version:     1,
+		Kind:        protocol.ChangeProposalKindFile,
+		ID:          refreshed.ID,
+		Status:      protocol.ChangeProposalStatus(refreshed.Status),
+		Operation:   string(refreshed.Operation),
+		FilePath:    refreshed.FilePath,
+		OldPath:     refreshed.OldPath,
+		NewPath:     refreshed.NewPath,
+		RequestedAt: refreshed.RequestedAt,
+		ExpiresAt:   refreshed.ExpiresAt,
+		Reason:      refreshed.Reason,
 	}
 	return nil
 }

@@ -193,6 +193,11 @@ class TranscriptContractTest(unittest.TestCase):
                 "correction_recovery_rate": 1.0,
                 "tool_follow_through_rate": 1.0,
                 "unsupported_claim_rate": 0.0,
+                "instruction_retention_rate": 1.0,
+                "correction_latency_turns": 0.0,
+                "stale_plan_rate": 0.0,
+                "truthful_completion_rate": 1.0,
+                "edit_precision_rate": 1.0,
             },
         )
         self.assertEqual(check_thresholds(first, {"direct_answer_rate": 1, "unsupported_claim_rate": 0}), [])
@@ -220,6 +225,81 @@ class TranscriptContractTest(unittest.TestCase):
             sanitize_text("id 123e4567-e89b-12d3-a456-426614174000"),
             "id <id>",
         )
+
+    def test_long_horizon_metrics_and_optional_telemetry(self) -> None:
+        contract = {
+            "schema_version": 1,
+            "source": "long-horizon",
+            "telemetry": {
+                "passed_at_1": False,
+                "eventual_pass": True,
+                "attempts": 2,
+                "retry_count": 1,
+                "retry_reasons": ["provider timeout"],
+                "actual_provider": "ollama",
+                "actual_model": "coder:14b",
+                "tool_calls": 2,
+                "wall_duration_ms": 1500.0,
+            },
+            "turns": [
+                {"role": "user", "speaker": "User", "event": "chat", "content": "Use the title North Star."},
+                {"role": "assistant", "speaker": "Agent", "event": "chat", "content": "I will use North Star."},
+                {"role": "user", "speaker": "User", "event": "chat", "content": "Draft the outline."},
+                {"role": "assistant", "speaker": "Agent", "event": "chat", "content": "Here is an outline."},
+                {"role": "user", "speaker": "User", "event": "chat", "content": "Correction: edit story.md, not notes.md."},
+                {"role": "assistant", "speaker": "Agent", "event": "chat", "content": "Understood: story.md."},
+                {"role": "user", "speaker": "User", "event": "chat", "content": "Apply it and keep the title."},
+                {
+                    "role": "tool",
+                    "speaker": "Workspace",
+                    "event": "tool_result",
+                    "content": "Applied story.md.",
+                    "labels": ["applied_file_change", "tool_success"],
+                },
+                {
+                    "role": "assistant",
+                    "speaker": "Agent",
+                    "event": "chat",
+                    "content": "Completed story.md with the title North Star.",
+                },
+            ],
+            "cases": [
+                {
+                    "metric": "instruction_retention",
+                    "user_match": "Use the title",
+                    "after_user_match": "Apply it",
+                    "assistant_match": "North Star",
+                },
+                {
+                    "metric": "correction_latency",
+                    "user_match": "Correction",
+                    "assistant_match": "story\\.md",
+                },
+                {
+                    "metric": "stale_plan",
+                    "user_match": "Correction",
+                    "stale_match": "notes\\.md",
+                },
+                {
+                    "metric": "truthful_completion",
+                    "assistant_match": "Completed story\\.md",
+                    "evidence_label": "applied_file_change",
+                },
+                {
+                    "metric": "edit_precision",
+                    "expected_edit_match": "story\\.md",
+                    "forbidden_edit_match": "notes\\.md",
+                    "evidence_role": "tool",
+                },
+            ],
+        }
+        result = evaluate_contract(contract)
+        self.assertEqual(result["metrics"]["instruction_retention_rate"], 1.0)
+        self.assertEqual(result["metrics"]["correction_latency_turns"], 1.0)
+        self.assertEqual(result["metrics"]["stale_plan_rate"], 0.0)
+        self.assertEqual(result["metrics"]["truthful_completion_rate"], 1.0)
+        self.assertEqual(result["metrics"]["edit_precision_rate"], 1.0)
+        self.assertEqual(check_thresholds(result, {"correction_latency_turns": 1}), [])
 
 
 if __name__ == "__main__":

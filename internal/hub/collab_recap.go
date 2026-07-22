@@ -38,6 +38,7 @@ func (h *Hub) onCollaborationEnterReviewing(collabID string) {
 	if err != nil || snap == nil {
 		return
 	}
+	h.persistPlanApproval(snap)
 	if snap.PlanningRecapStatus == collaboration.RecapStatusComplete ||
 		(snap.PlanningRecapStatus == collaboration.RecapStatusPending && snap.PlanningRecapAgentID != "") {
 		return

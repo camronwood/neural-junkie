@@ -2,6 +2,7 @@ import type {
   RoutingGovernanceMeta,
   RoutingMeta,
   RoutingTelemetryPayload,
+  TurnTraceContextSelection,
   TurnTraceResponse,
 } from '../types/protocol';
 
@@ -89,6 +90,45 @@ export function formatToolTelemetrySubline(payload: Record<string, unknown>): st
   const max = typeof payload.max_iterations === 'number' ? payload.max_iterations : undefined;
   if (max && max > 0) return `max iterations: ${max}`;
   return '';
+}
+
+export function formatContextSelectionSummary(selection?: TurnTraceContextSelection): string {
+  if (!selection) return '';
+  const sections = selection.selected_sections?.filter(Boolean) ?? [];
+  const selected = selection.selected_context_ids?.length ?? 0;
+  const dropped = selection.dropped_context_ids?.length ?? 0;
+  const parts = sections.length > 0 ? [sections.join(', ')] : [];
+  if (selected > 0) parts.push(`${selected} selected`);
+  if (dropped > 0) parts.push(`${dropped} omitted`);
+  if ((selection.digest_version ?? 0) > 0) parts.push(`digest v${selection.digest_version}`);
+  return parts.join(' · ');
+}
+
+export function formatRoutingAttempt(attempt: {
+  model?: string;
+  provider_id?: string;
+  tier?: string;
+  reason?: string;
+  failure_reason?: string;
+}): string {
+  const target = attempt.model || attempt.provider_id || 'provider';
+  const tier = attempt.tier ? ` · ${attempt.tier}` : '';
+  const outcome = attempt.failure_reason
+    ? ` · failed: ${attempt.failure_reason}`
+    : attempt.reason
+      ? ` · ${attempt.reason}`
+      : '';
+  return `${target}${tier}${outcome}`;
+}
+
+export function formatOmissionReasons(selection?: TurnTraceContextSelection): string[] {
+  if (!selection) return [];
+  return Object.entries({
+    ...(selection.omission_reasons ?? {}),
+    ...(selection.budget_omission_reasons ?? {}),
+  })
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([id, reason]) => `${id}: ${reason}`);
 }
 
 export { formatUsageTelemetryHeadline, formatUsageTelemetrySubline } from './inferenceUsageFormat';

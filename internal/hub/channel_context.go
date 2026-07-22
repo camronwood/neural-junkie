@@ -2,6 +2,8 @@ package hub
 
 import (
 	"time"
+
+	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 // ChannelSummaryGenerator produces a rolling session summary from a transcript string.
@@ -9,9 +11,11 @@ type ChannelSummaryGenerator func(transcript string) (summary string, err error)
 
 // ChannelContextState holds per-channel session summary metadata (hub-owned).
 type ChannelContextState struct {
-	Summary   string
-	UpdatedAt time.Time
-	UserTurns int
+	Summary                string
+	SummaryVersion         int
+	LastCompactedMessageID string
+	UpdatedAt              time.Time
+	UserTurns              int
 }
 
 func (h *Hub) ensureChannelContextLocked(channel string) *ChannelContextState {
@@ -46,6 +50,24 @@ func (h *Hub) GetChannelSessionSummary(channel string) string {
 		return ""
 	}
 	return st.Summary
+}
+
+// GetChannelSummaryCheckpoint returns an isolated typed summary checkpoint.
+func (h *Hub) GetChannelSummaryCheckpoint(channel string) *protocol.ConversationSummary {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	st := h.channelContext[channel]
+	if st == nil || st.Summary == "" {
+		return nil
+	}
+	version := st.SummaryVersion
+	if version < 1 {
+		version = 1
+	}
+	return &protocol.ConversationSummary{
+		Version: version, Digest: st.Summary,
+		LastCompactedMessageID: st.LastCompactedMessageID, UpdatedAt: st.UpdatedAt,
+	}
 }
 
 func (h *Hub) clearChannelContextLocked(channel string) {

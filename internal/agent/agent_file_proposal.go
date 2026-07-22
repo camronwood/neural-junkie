@@ -62,7 +62,7 @@ func isAskModeReadOnly(sourceMsg *protocol.Message) bool {
 		return false
 	}
 	caps := protocol.ResolveTurnCapabilities(sourceMsg)
-	return !caps.CanProposeFiles && (caps.ComposerMode == "ask" || caps.ComposerMode == "plan")
+	return !caps.CanProposeFiles
 }
 
 func sanitizeInternalToolNames(response string) string {

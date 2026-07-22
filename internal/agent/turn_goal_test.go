@@ -19,6 +19,7 @@ func TestDeriveTurnGoalActions(t *testing.T) {
 	}{
 		{name: "answer", content: "Explain dependency injection.", want: ActionAnswer, evidence: EvidenceAnswer},
 		{name: "image", content: "Generate an image of a blue ship.", want: ActionImage, evidence: EvidenceImagePosted},
+		{name: "indirect image", content: "Let's see what a sample cover art image will look like.", want: ActionImage, evidence: EvidenceImagePosted},
 		{name: "edit", content: "Implement the login form in src/App.tsx.", want: ActionEdit, evidence: EvidenceEditProposed},
 		{name: "run", content: "Run the test suite.", want: ActionRun, evidence: EvidenceCommandRun},
 		{name: "continue", content: "Yes, continue.", replyTo: "prior-goal", want: ActionContinue, evidence: EvidenceEditProposed},
