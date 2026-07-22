@@ -135,7 +135,12 @@ describe('workspaceFileDrag', () => {
     document.elementFromPoint = vi.fn(() => child);
 
     expect(dispatchWorkspaceFileDropEventAtPoint(10, 20)).toBe(true);
-    expect(received).toEqual([{ payload: { workspaceId: 'ws-1', path: 'src/main.go' } }]);
+    expect(received).toEqual([
+      {
+        payload: { workspaceId: 'ws-1', path: 'src/main.go' },
+        payloads: [{ workspaceId: 'ws-1', path: 'src/main.go' }],
+      },
+    ]);
 
     document.elementFromPoint = originalElementFromPoint;
     dropZone.remove();
@@ -166,9 +171,43 @@ describe('workspaceFileDrag', () => {
     document.elementFromPoint = vi.fn(() => null);
 
     expect(dispatchWorkspaceFileDropEventAtPoint(0, 0)).toBe(true);
-    expect(received).toEqual([{ payload: { workspaceId: 'ws-1', path: 'run/A1' } }]);
+    expect(received).toEqual([{ payload: { workspaceId: 'ws-1', path: 'run/A1' }, payloads: [{ workspaceId: 'ws-1', path: 'run/A1' }] }]);
 
     document.elementFromPoint = originalElementFromPoint;
     dropZone.remove();
+  });
+
+  it('round-trips multi-file payload via DataTransfer', () => {
+    const store: Record<string, string> = {};
+    const dt = {
+      setData(type: string, value: string) {
+        store[type] = value;
+      },
+      getData(type: string) {
+        return store[type] ?? '';
+      },
+      effectAllowed: '',
+    } as unknown as DataTransfer;
+
+    setWorkspaceFileDragData(dt, [
+      { workspaceId: 'ws-1', path: 'src/a.ts' },
+      { workspaceId: 'ws-1', path: 'src/b.ts' },
+    ]);
+    expect(parseWorkspaceFileDrag(dt)).toEqual([
+      { workspaceId: 'ws-1', path: 'src/a.ts' },
+      { workspaceId: 'ws-1', path: 'src/b.ts' },
+    ]);
+  });
+
+  it('still parses legacy single-object MIME payloads', () => {
+    const dt = {
+      getData(type: string) {
+        if (type === WORKSPACE_FILE_DRAG_MIME) {
+          return JSON.stringify({ workspaceId: 'ws-1', path: 'src/main.go' });
+        }
+        return '';
+      },
+    } as unknown as DataTransfer;
+    expect(parseWorkspaceFileDrag(dt)).toEqual([{ workspaceId: 'ws-1', path: 'src/main.go' }]);
   });
 });

@@ -63,7 +63,10 @@ func agentRespondedToUser(history []*protocol.Message, userIdx int, agentID, age
 		case protocol.MessageTypeChat, protocol.MessageTypeAnswer, protocol.MessageTypeCollabDiscussion:
 			return true
 		case protocol.MessageTypeSystemInfo:
-			if userMsgID != "" && m.ReplyTo == userMsgID {
+			// Count any post-user system_info from this agent. ReplyTo is preferred, but
+			// SQLite historically dropped reply_to on reload — missing ReplyTo must not
+			// trigger catch-up replay of already-failed turns.
+			if userMsgID == "" || m.ReplyTo == "" || m.ReplyTo == userMsgID {
 				return true
 			}
 		}

@@ -201,6 +201,20 @@ func appendConversationModeClarifyPrompt(system *strings.Builder) {
 	system.WriteString("Do not call tools or propose file edits until they choose.\n\n")
 }
 
+func appendGitInspectPrompt(system *strings.Builder, msg *protocol.Message) {
+	if msg == nil || !semantic.LooksLikeGitInspectRequest(msg.Content) {
+		return
+	}
+	decision, ok := protocol.ExtractTurnDecision(msg)
+	if ok && decision.Action != semantic.ActionInspect && decision.Action != semantic.ActionDebug {
+		return
+	}
+	system.WriteString("=== GIT INSPECTION (required this turn) ===\n")
+	system.WriteString("The user asked to use git (status/history/diff/known-good). Do NOT speculate from memory.\n")
+	system.WriteString("Before answering, call run_command with read-only git (start with `git status --short`, then `git log --oneline -n 20` and/or `git diff` / `git show` as needed).\n")
+	system.WriteString("Ground the reply in that command output. Chat-only guesses about working configs or history are a failure.\n\n")
+}
+
 func ContextScopeFromMessage(msg *protocol.Message) string {
 	if msg == nil || msg.Metadata == nil {
 		return ""

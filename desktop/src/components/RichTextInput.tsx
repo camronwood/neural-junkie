@@ -360,12 +360,21 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       const node = dropZoneRef.current;
       if (!node) return;
       const onWorkspaceFileDrop = (event: Event) => {
-        const payload = (event as CustomEvent<{ payload?: WorkspaceFileDragPayload }>).detail?.payload;
-        if (!payload) return;
+        const detail = (event as CustomEvent<{
+          payloads?: WorkspaceFileDragPayload[];
+          payload?: WorkspaceFileDragPayload;
+        }>).detail;
+        const payloads =
+          Array.isArray(detail?.payloads) && detail.payloads.length > 0
+            ? detail.payloads
+            : detail?.payload
+              ? [detail.payload]
+              : [];
+        if (payloads.length === 0) return;
         setDragActive(false);
         dropZoneDepthRef.current = 0;
         setActiveWorkspaceFileDropZone(null);
-        void ingestWorkspaceRefs([payload]).finally(clearWorkspaceFileDragData);
+        void ingestWorkspaceRefs(payloads).finally(clearWorkspaceFileDragData);
       };
       node.addEventListener(WORKSPACE_FILE_DROP_EVENT, onWorkspaceFileDrop);
       return () => node.removeEventListener(WORKSPACE_FILE_DROP_EVENT, onWorkspaceFileDrop);
@@ -407,6 +416,8 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
 
       sendingRef.current = true;
       void (async () => {
+        const previousMessage = message;
+        const previousAttachments = pendingAttachments;
         try {
           const composerMeta: Record<string, unknown> = {};
           if (pendingAttachments.length > 0) {
@@ -432,15 +443,19 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
               textOut = '(see attached files)';
             }
           }
+          // Clear immediately so send feels instant while hub classifies.
+          updateMessage('');
+          setPendingAttachments([]);
+          clearPendingImages();
+          setShowMentionMenu(false);
+
           const sent = await Promise.resolve(
             onSend(textOut, Object.keys(composerMeta).length > 0 ? composerMeta : undefined)
           );
-          if (sent !== false) {
-            updateMessage('');
-            setPendingAttachments([]);
-            clearPendingImages();
+          if (sent === false) {
+            updateMessage(previousMessage);
+            setPendingAttachments(previousAttachments);
           }
-          setShowMentionMenu(false);
         } finally {
           sendingRef.current = false;
         }

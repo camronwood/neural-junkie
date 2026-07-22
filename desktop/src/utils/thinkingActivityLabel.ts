@@ -27,6 +27,8 @@ export function formatThinkingActivityLabel(activity?: string, detail?: string):
       return d ? `is proposing edit to ${d}` : 'is proposing a file edit';
     case THINKING_ACTIVITY_IMPLEMENTATION:
       return d ? `is implementing — ${d}` : 'is running an implementation session';
+    case 'routing':
+      return d ? d : 'is delivering your message';
     default:
       if (activity && d) return `${activity}: ${d}`;
       if (activity) return `is ${activity.replace(/_/g, ' ')}`;

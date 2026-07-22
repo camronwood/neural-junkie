@@ -9,10 +9,12 @@ import (
 
 func TestIsDevServerCommand(t *testing.T) {
 	cases := map[string]bool{
-		"make start-all":  true,
-		"npm run build":   false,
-		"npm run dev":     true,
-		"./node_modules/.bin/tsc --noEmit": false,
+		"make start-all":                     true,
+		"npm run build":                      false,
+		"npm run dev":                        true,
+		"npm run tauri:dev -- --verbose":     true,
+		"npx tauri dev":                      true,
+		"./node_modules/.bin/tsc --noEmit":   false,
 	}
 	for cmd, want := range cases {
 		if got := IsDevServerCommand(cmd); got != want {

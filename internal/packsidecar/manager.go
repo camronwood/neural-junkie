@@ -445,6 +445,9 @@ func resolveMCPSidecarBinary(packDir, binaryRel string) (string, error) {
 		return "", err
 	}
 	if _, err := os.Stat(path); err == nil {
+		if err := rejectMCPSidecarStub(path); err != nil {
+			return "", err
+		}
 		return path, nil
 	}
 	// Try platform-specific suffix: sd-mcp-server-darwin-arm64
@@ -455,16 +458,46 @@ func resolveMCPSidecarBinary(packDir, binaryRel string) (string, error) {
 	alt := base + "-" + runtime.GOOS + "-" + runtime.GOARCH + extName(path)
 	if altPath, err := packs.ResolvePackRelativePath(packDir, strings.TrimPrefix(alt, packDir+"/")); err == nil {
 		if _, err := os.Stat(altPath); err == nil {
+			if err := rejectMCPSidecarStub(altPath); err != nil {
+				return "", err
+			}
 			return altPath, nil
 		}
 	}
 	altRel := strings.TrimSuffix(binaryRel, extName(binaryRel)) + "-" + runtime.GOOS + "-" + runtime.GOARCH + extName(binaryRel)
 	if altPath, err := packs.ResolvePackRelativePath(packDir, altRel); err == nil {
 		if _, err := os.Stat(altPath); err == nil {
+			if err := rejectMCPSidecarStub(altPath); err != nil {
+				return "", err
+			}
 			return altPath, nil
 		}
 	}
 	return path, fmt.Errorf("mcp sidecar binary not found at %s (also tried %s)", binaryRel, altRel)
+}
+
+// rejectMCPSidecarStub refuses health-only test fixtures that look like a real MCP binary.
+func rejectMCPSidecarStub(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	// Real sd-mcp-server is multi-MB Mach-O/ELF; fixture stubs are tiny shell scripts.
+	if info.Size() > 32*1024 {
+		return nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	buf := make([]byte, 512)
+	n, _ := f.Read(buf)
+	head := string(buf[:n])
+	if strings.HasPrefix(head, "#!") && (strings.Contains(head, "Test fixture stub") || strings.Contains(head, "health-port")) {
+		return fmt.Errorf("mcp sidecar at %s is a health-only test stub; build/sync the real binary (make build-mcp in the pack repo, or make sync-sd-pack)", path)
+	}
+	return nil
 }
 
 func filepathBase(path string) string {

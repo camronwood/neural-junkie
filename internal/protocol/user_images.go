@@ -211,10 +211,18 @@ func SanitizeUserImagesMetadata(msg *Message) {
 }
 
 // CloneMessage returns a deep copy via JSON round-trip (adequate for protocol.Message).
-func CloneMessage(m *Message) (*Message, error) {
+// Callers that persist asynchronously must clone while the message is stable (e.g. under
+// the hub write lock); concurrent Metadata mutation during Marshal panics.
+func CloneMessage(m *Message) (out *Message, err error) {
 	if m == nil {
 		return nil, nil
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("clone message panic: %v", r)
+			out = nil
+		}
+	}()
 	b, err := json.Marshal(m)
 	if err != nil {
 		return nil, err

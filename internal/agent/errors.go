@@ -89,6 +89,12 @@ func classifyUserFacingError(err error) (message, code string, retryable bool) {
 			return "Claude CLI error: " + msg, "provider_error", true
 		}
 	}
+	if strings.Contains(lower, "tool loop exceeded") || strings.Contains(lower, "maximum tool loop iterations") {
+		return "I hit the tool-use step limit while investigating. Ask me to continue from where I left off, or narrow the request.", "tool_loop_limit", true
+	}
+	if strings.Contains(lower, "xml syntax") || (strings.Contains(lower, "closed by") && strings.Contains(lower, "function")) {
+		return "The model produced a broken tool call. Retrying with a different tool strategy usually helps — please send your message again.", "provider_error", true
+	}
 	if strings.Contains(lower, "cli agent error:") || strings.Contains(lower, "cli agent failed:") {
 		msg := strings.TrimSpace(err.Error())
 		if len(msg) > 220 {

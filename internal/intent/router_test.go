@@ -184,3 +184,95 @@ func TestSemanticConsistencyDerivesArtifactMutationAndRecipient(t *testing.T) {
 		t.Fatalf("debug=%+v", debug)
 	}
 }
+
+func TestPolicyUpgradesLookCueToInspect(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "ok go ahead and have a look",
+		ComposerMode: "agent",
+		HasWorkspace: true,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionAnswer,
+		MutationRequested: MutationNone,
+		Confidence:        0.9,
+	}, SourceLocalModel)
+	if decision.Action != ActionInspect {
+		t.Fatalf("action=%s, want inspect", decision.Action)
+	}
+	if !containsRetrievalTarget(decision.Retrieval, RetrievalCodebase) {
+		t.Fatalf("retrieval=%v, want codebase", decision.Retrieval)
+	}
+	found := false
+	for _, o := range decision.PolicyOverrides {
+		if o == "workspace_inspect_cue" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("overrides=%v, want workspace_inspect_cue", decision.PolicyOverrides)
+	}
+}
+
+func TestPolicyUpgradesGitHistoryCueToInspect(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "check the current state against git history to see if we can restore something that broke",
+		HasWorkspace: true,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionAnswer,
+		MutationRequested: MutationNone,
+		Confidence:        0.88,
+	}, SourceLocalModel)
+	if decision.Action != ActionInspect {
+		t.Fatalf("action=%s, want inspect", decision.Action)
+	}
+}
+
+func TestLooksLikeWorkspaceInspectRequest(t *testing.T) {
+	if !looksLikeWorkspaceInspectRequest("ok go ahead and have a look") {
+		t.Fatal("expected inspect cue")
+	}
+	if !looksLikeWorkspaceInspectRequest("yeah please check git and see if we can find it") {
+		t.Fatal("expected check git cue")
+	}
+	if !looksLikeWorkspaceInspectRequest("can we use git to find what the working config was?") {
+		t.Fatal("expected use git cue")
+	}
+	if !LooksLikeGitInspectRequest("yeah please check git and see if we can find it") {
+		t.Fatal("expected LooksLikeGitInspectRequest")
+	}
+	if LooksLikeGitInspectRequest("ok go ahead and have a look") {
+		t.Fatal("generic look cue should not force git tools")
+	}
+	if looksLikeWorkspaceInspectRequest("thanks, that helps") {
+		t.Fatal("did not expect inspect cue")
+	}
+}
+
+func TestSafeFallbackStillUpgradesGitInspectCue(t *testing.T) {
+	decision := safeFallback(TurnFeatures{
+		Text:              "yeah please check git and see if we can find it",
+		HasWorkspace:      true,
+		ExplicitRecipient: "frontend",
+		ComposerMode:      "agent",
+	}, "classifier_error")
+	if decision.Action != ActionInspect {
+		t.Fatalf("action=%s, want inspect after classifier fallback", decision.Action)
+	}
+	foundCodebase := false
+	for _, r := range decision.Retrieval {
+		if r == RetrievalCodebase {
+			foundCodebase = true
+			break
+		}
+	}
+	if !foundCodebase {
+		t.Fatalf("retrieval=%v, want codebase", decision.Retrieval)
+	}
+	if decision.Source != SourceSafeFallback {
+		t.Fatalf("source=%s, want safe_fallback", decision.Source)
+	}
+}

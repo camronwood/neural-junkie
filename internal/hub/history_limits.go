@@ -1,6 +1,10 @@
 package hub
 
-import "github.com/camronwood/neural-junkie/internal/protocol"
+import (
+	"log"
+
+	"github.com/camronwood/neural-junkie/internal/protocol"
+)
 
 const (
 	// MaxHubChannelHistory is the maximum persisted channel messages per channel
@@ -47,15 +51,30 @@ func (h *Hub) appendChannelMessageLocked(channelName string, msg *protocol.Messa
 				msgs[i] = msg
 				h.messages[channelName] = msgs
 				h.enforceMaxChannelHistoryLocked(channelName)
+				h.queuePersistLocked(msg)
 				return
 			}
 		}
 	}
 	h.messages[channelName] = append(msgs, msg)
 	h.enforceMaxChannelHistoryLocked(channelName)
-	if h.persistentStore != nil {
-		go h.persistMessage(msg)
+	h.queuePersistLocked(msg)
+}
+
+// queuePersistLocked snapshots msg and persists asynchronously. Caller must hold h.mu.
+func (h *Hub) queuePersistLocked(msg *protocol.Message) {
+	if h.persistentStore == nil || msg == nil {
+		return
 	}
+	snap, err := protocol.CloneMessage(msg)
+	if err != nil {
+		log.Printf("[hub] clone message for persistence: %v", err)
+		return
+	}
+	if snap == nil {
+		return
+	}
+	go h.persistMessage(snap)
 }
 
 // enforceMaxThreadHistoryLocked drops oldest thread messages if over the cap.

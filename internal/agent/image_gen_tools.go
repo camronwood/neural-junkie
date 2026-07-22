@@ -337,8 +337,27 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 			return "ERROR: " + blockErr.Error(), nil
 		}
 	}
+	if name == "run_command" {
+		cmd := parseRunCommandToolInput(input)
+		if cached, ok := lookupOrStoreRunCommandResult(ctx, cmd, "", false); ok {
+			log.Printf("[%s] Skipping duplicate run_command this turn: %s", a.Info.Name, truncateImplLog(cmd, 120))
+			return cached + "\n\n[Note: identical run_command already executed this turn; reused prior result.]", nil
+		}
+		toolCtx = shared.ContextWithRunCommandExtraAllows(toolCtx, mcpAppConfig().RunCommandAllowExtra())
+		var allowErr error
+		toolCtx, allowErr = a.maybeApproveRunCommand(toolCtx, msg, cmd)
+		if allowErr != nil {
+			errMsg := "ERROR: " + allowErr.Error()
+			storeRunCommandTurnResult(ctx, cmd, errMsg)
+			return errMsg, nil
+		}
+	}
 	result, err := executeMCPTool(toolCtx, mcpServer, name, input)
 	if name == "run_command" {
+		cmd := parseRunCommandToolInput(input)
+		if err == nil {
+			storeRunCommandTurnResult(ctx, cmd, result)
+		}
 		if ledger := actionEvidenceFromContext(ctx); ledger != nil {
 			code, _, _ := parseRunCommandMCPResult(result)
 			status := "succeeded"
@@ -351,12 +370,10 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 			}
 		}
 		if policy != nil {
-			cmd := parseRunCommandToolInput(input)
 			exitCode, _, _ := parseRunCommandMCPResult(result)
 			policy.RecordCommandRun(cmd, exitCode, result)
 		}
 		if err == nil {
-			cmd := parseRunCommandToolInput(input)
 			if !shouldSkipDuplicateCommandBroadcast(msg.Channel, a.Info.ID, cmd, result) {
 				a.broadcastAgentRunCommandOutput(msg, cmd, result)
 			}
@@ -635,6 +652,7 @@ func (a *Agent) generateWithAgentTools(
 	history []*protocol.Message,
 	eff ai.AIProvider,
 ) (string, error) {
+	ctx = ai.EnsureToolLoopMaxIterations(ctx, chatToolLoopMaxIterations())
 	histMsgs := historyToMessages(history)
 	tools := a.agentToolDefinitions(msg)
 	if len(tools) == 0 {
@@ -698,11 +716,23 @@ func (a *Agent) runAgentToolLoop(
 	}
 
 	toolCtx := withAskUserTurnState(withWebSearchGuard(ctx))
+	toolCtx = withRunCommandTurnDedupe(toolCtx)
 	text, err := toolProvider.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools, onToolUse)
 	if errors.Is(err, ai.ErrNativeToolsUnsupported) {
 		if react := wrapReActProvider(a, chatEff, chatEff.GetModel()); react != nil {
 			a.broadcastRoutingTelemetry(msg)
 			if tp, ok := react.(ai.ToolCapableProvider); ok {
+				return tp.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools, onToolUse)
+			}
+		}
+		if fb := a.ollamaToolSwapProvider(ctx, chatEff); fb != nil {
+			if tp, ok := fb.(ai.ToolCapableProvider); ok && tp.SupportsTools() {
+				log.Printf("[%s] Native tools failed (%v); using swap model", a.Info.Name, err)
+				a.RecordRoutingSnapshot(RoutingSnapshot{
+					Reason: "native_tools_fallback_swap",
+					Source: "rules",
+				})
+				a.broadcastRoutingTelemetry(msg)
 				return tp.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools, onToolUse)
 			}
 		}

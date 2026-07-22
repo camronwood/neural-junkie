@@ -104,7 +104,14 @@ const Toast: React.FC<ToastProps> = ({ toast }) => {
       <ToastIcon type={toast.type} variant={toast.variant} />
 
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold leading-snug text-slack-text">{toast.title}</div>
+        <div className="flex items-start gap-2">
+          <div className="text-sm font-semibold leading-snug text-slack-text">{toast.title}</div>
+          {(toast.count ?? 1) > 1 ? (
+            <span className="shrink-0 rounded-full bg-slack-accent/25 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-slack-accent ring-1 ring-slack-accent/40">
+              ×{toast.count}
+            </span>
+          ) : null}
+        </div>
         {toast.message && (
           <div className="mt-1 line-clamp-3 text-xs leading-relaxed text-slack-textMuted">{toast.message}</div>
         )}
@@ -145,15 +152,31 @@ export const ToastContainer: React.FC = () => {
 
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-[60] flex max-h-[min(70vh,28rem)] w-[min(100vw-2rem,24rem)] flex-col-reverse gap-2 overflow-y-auto"
+      className="pointer-events-none fixed bottom-4 right-4 z-[60] flex max-h-[min(70vh,28rem)] w-[min(100vw-2rem,24rem)] flex-col-reverse gap-1.5 overflow-y-auto"
       aria-live="polite"
       aria-relevant="additions"
     >
-      {toasts.map((toast) => (
-        <div key={toast.id} className="pointer-events-auto">
+      {toasts.map((toast, index) => (
+        <div
+          key={toast.id}
+          className="pointer-events-auto transition-transform"
+          style={{
+            // Slight stack offset so bursts read as one pile, not a wall.
+            transform: `translateY(${Math.min(index, 3) * -2}px)`,
+          }}
+        >
           <Toast toast={toast} />
         </div>
       ))}
+      {toasts.length > 1 ? (
+        <button
+          type="button"
+          className="pointer-events-auto self-end rounded-md px-2 py-1 text-[11px] text-slack-textMuted hover:bg-slack-bgHover hover:text-slack-text"
+          onClick={() => useToastStore.getState().clearAllToasts()}
+        >
+          Dismiss all ({toasts.length})
+        </button>
+      ) : null}
     </div>
   );
 };

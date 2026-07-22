@@ -20,6 +20,7 @@ func ResolveRelWithinRoot(root, rel string) (absClean string, err error) {
 	if rel == "" || rel == "." {
 		return WithinRoot(rootAbs, rootAbs)
 	}
+	rel = stripEmbeddedRootPrefix(rootAbs, rel)
 	if filepath.IsAbs(rel) {
 		return WithinRoot(rootAbs, rel)
 	}
@@ -52,4 +53,30 @@ func ResolveRelWithinRoot(root, rel string) (absClean string, err error) {
 	}
 
 	return WithinRoot(rootAbs, filepath.Join(rootAbs, rel))
+}
+
+// stripEmbeddedRootPrefix removes a workspace root that was incorrectly baked
+// into a relative path (e.g. Users/.../dickory-docs/Makefile when root is that repo).
+func stripEmbeddedRootPrefix(rootAbs, rel string) string {
+	rootAbs = filepath.Clean(rootAbs)
+	rel = filepath.Clean(rel)
+	sep := string(filepath.Separator)
+	if filepath.IsAbs(rel) {
+		if rel == rootAbs {
+			return "."
+		}
+		prefix := rootAbs + sep
+		if strings.HasPrefix(rel, prefix) {
+			return strings.TrimPrefix(rel, prefix)
+		}
+		return rel
+	}
+	rootNoLead := strings.TrimPrefix(rootAbs, sep)
+	if rel == rootNoLead {
+		return "."
+	}
+	if strings.HasPrefix(rel, rootNoLead+sep) {
+		return strings.TrimPrefix(rel, rootNoLead+sep)
+	}
+	return rel
 }

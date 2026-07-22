@@ -1278,6 +1278,24 @@ func (ch *CommandHandler) RegisterRuntimeAgent(agentInstance *agent.Agent) {
 	ch.agentsMu.Unlock()
 }
 
+// RuntimeAgentsListeningStats reports how many registered runtime agents have at
+// least one active channel subscription (used by the desktop loading gate).
+func (ch *CommandHandler) RuntimeAgentsListeningStats() (listening, expected int, ready bool) {
+	if ch == nil {
+		return 0, 0, true
+	}
+	ch.agentsMu.RLock()
+	defer ch.agentsMu.RUnlock()
+	expected = len(ch.runtimeAgents)
+	for _, ra := range ch.runtimeAgents {
+		if ra != nil && ra.ListeningChannelCount() > 0 {
+			listening++
+		}
+	}
+	ready = expected == 0 || listening >= expected
+	return listening, expected, ready
+}
+
 // AbortAgentGenerations cancels in-flight LLM work for a single agent across all channels.
 
 // AbortAgentGenerations cancels in-flight LLM work for a single agent across all channels.

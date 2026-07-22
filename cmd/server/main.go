@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -38,6 +39,7 @@ var (
 	lspManager               *lspserver.Manager
 	appConfig                *config.Config
 	serverStartTime          time.Time
+	hubStartupComplete       atomic.Bool
 	ollamaMgr                *ollamaManager.Manager
 	globalProviderCache      *ai.ProviderCache
 	apiRateLimiter           = hub.NewRateLimiter()
@@ -188,7 +190,7 @@ func main() {
 		} else if !os.IsNotExist(err) {
 			log.Printf("⚠️  Failed to stat previous session file %s: %v", sessionPath, err)
 		}
-		log.Printf("💾 Previous session restore is disabled by default; starting with a fresh session (enable in Settings → Server & network)")
+		log.Printf("💾 Previous session restore is off; starting with a fresh session (enable in Settings → Server & network)")
 	} else if fi, err := os.Stat(sessionPath); err == nil {
 		log.Printf("💾 Session file on disk: %.1f MiB", float64(fi.Size())/(1024*1024))
 		if fi.Size() > 200*1024*1024 {
@@ -253,6 +255,17 @@ func main() {
 		ensurePackLoRAs(ctx, "")
 	}()
 
+	// Pack sidecars (and GlobalManager) must be up before specialists attach MCP.
+	registerRoutes()
+	initMusicSidecarGenerator()
+	initBrowserSidecarClient()
+	initIncidentSidecarClient()
+	initAWSSidecarClient()
+	initCADSidecarClient()
+	initBiologySidecarClient()
+	initArenaSidecarClient()
+	syncPackSidecars()
+
 	// Initialize specialist agents from config (replaces standalone processes)
 	initializeConfiguredAgents()
 	reconcileHiddenRepoAgentsOnStartup()
@@ -271,15 +284,7 @@ func main() {
 		log.Printf("♻️  Previous session restored (if available)")
 	}
 
-	registerRoutes()
-	initMusicSidecarGenerator()
-	initBrowserSidecarClient()
-	initIncidentSidecarClient()
-	initAWSSidecarClient()
-	initCADSidecarClient()
-	initBiologySidecarClient()
-	initArenaSidecarClient()
-	syncPackSidecars()
+	hubStartupComplete.Store(true)
 
 	log.Printf("Chat Hub Server starting on %s", *addr)
 	log.Printf("WebSocket endpoint: ws://%s/ws", hubPublicHost(*addr))

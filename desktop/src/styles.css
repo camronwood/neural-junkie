@@ -777,3 +777,27 @@ input {
   background-color: var(--nj-bg);
 }
 
+/* Typing indicator dots — slower than Tailwind bounce so the wall clock feels steadier */
+.thinking-dots {
+  display: inline-flex;
+  gap: 0;
+}
+.thinking-dot {
+  display: inline-block;
+  color: var(--nj-accent, #4a90e2);
+  font-weight: 700;
+  animation: thinking-dot-bounce 1.4s ease-in-out infinite;
+}
+@keyframes thinking-dot-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+

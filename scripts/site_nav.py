@@ -11,6 +11,8 @@ DOCS = ROOT / "docs"
 GITHUB_REPO = "https://github.com/camronwood/neural-junkie"
 SITE_BASE_URL = "https://camronwood.github.io/neural-junkie"
 SITE_CUSTOM_DOMAIN_URL = "https://www.neuraljunkie.com"
+CONTACT_EMAIL = "neuraljunkie.app@gmail.com"
+CONTACT_MAILTO = f"mailto:{CONTACT_EMAIL}"
 DEFAULT_OG_IMAGE_PATH = "/assets/icon/og-image.png"
 DEFAULT_SITE_DESCRIPTION = (
     "Neural Junkie — open-source multi-agent AI workspace. Local-first specialists, "
@@ -65,6 +67,7 @@ FOOTER_EXPLORE_ITEMS: tuple[dict, ...] = (
         "label": "Architecture",
         "href": f"{GITHUB_REPO}/blob/main/docs/ARCHITECTURE.md",
     },
+    {"id": "contact", "label": "Contact", "href": CONTACT_MAILTO},
 )
 
 
@@ -105,7 +108,7 @@ def render_dev_banner(*, prefix: str, version: str) -> str:
     return f"""  <div class="dev-banner" role="status">
     <div class="wrap dev-banner-inner">
       <strong>v{version} open beta</strong>
-      <span><a href="{prefix}download.html">Download</a> · <a href="{prefix}start-here.html">Start here</a> — multi-agent workspace with IDE v4 (full LSP, remote SSH). macOS bundles Ollama; Win/Linux wizard installs it. <a href="{prefix}features/ide-v4.html">IDE v4</a> · <a href="{prefix}known-issues.html">Known issues</a> · <a href="{GITHUB_REPO}/issues">Issues</a> welcome.</span>
+      <span><a href="{prefix}download.html">Download</a> · <a href="{prefix}start-here.html">Start here</a> — multi-agent workspace with IDE v4 (full LSP, remote SSH). macOS bundles Ollama; Win/Linux wizard installs it. <a href="{prefix}features/ide-v4.html">IDE v4</a> · <a href="{prefix}known-issues.html">Known issues</a> · <a href="{GITHUB_REPO}/issues">Issues</a> · <a href="{CONTACT_MAILTO}">Contact</a> welcome.</span>
     </div>
   </div>"""
 
@@ -596,7 +599,17 @@ def render_json_ld(
             "url": SITE_BASE_URL,
             "downloadUrl": f"{SITE_BASE_URL}/download.html",
             "license": "https://opensource.org/licenses/MIT",
-            "author": {"@type": "Organization", "name": "Neural Junkie"},
+            "author": {
+                "@type": "Organization",
+                "name": "Neural Junkie",
+                "email": CONTACT_EMAIL,
+                "url": SITE_CUSTOM_DOMAIN_URL,
+            },
+            "contactPoint": {
+                "@type": "ContactPoint",
+                "email": CONTACT_EMAIL,
+                "contactType": "customer support",
+            },
         }
     elif is_article_page(html_path):
         headline = title.removesuffix(" — Neural Junkie").strip() or title

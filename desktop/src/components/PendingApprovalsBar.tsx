@@ -86,10 +86,10 @@ export function PendingApprovalsBar({
   );
 
   const approveTool = useCallback(
-    async (approvalId: string) => {
+    async (approvalId: string, scope: 'once' | 'always' = 'once') => {
       setBusyKey(`tool:${approvalId}`);
       try {
-        await api.approveToolCall(approvalId);
+        await api.approveToolCall(approvalId, scope);
         removePendingTool(approvalId);
       } finally {
         setBusyKey(null);
@@ -255,11 +255,21 @@ export function PendingApprovalsBar({
               <button
                 type="button"
                 disabled={busyKey === active.key}
-                onClick={() => void approveTool(activeTool.id)}
+                onClick={() => void approveTool(activeTool.id, 'once')}
                 className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50"
               >
-                {busyKey === active.key ? '…' : 'Approve'}
+                {busyKey === active.key ? '…' : isShell ? 'Allow once' : 'Approve'}
               </button>
+              {isShell && (
+                <button
+                  type="button"
+                  disabled={busyKey === active.key}
+                  onClick={() => void approveTool(activeTool.id, 'always')}
+                  className="px-2.5 py-1 text-[11px] font-medium rounded bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-50"
+                >
+                  Always allow
+                </button>
+              )}
             </>
           ) : activeCommand ? (
             <>

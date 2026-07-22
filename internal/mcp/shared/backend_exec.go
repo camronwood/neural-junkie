@@ -10,6 +10,8 @@ import (
 
 type backendKey struct{}
 type implementationSessionKey struct{}
+type runCommandUserAllowKey struct{}
+type runCommandExtraAllowsKey struct{}
 
 // ContextWithImplementationSession marks tool calls that may use broader run_command allowlists.
 func ContextWithImplementationSession(ctx context.Context, enabled bool) context.Context {
@@ -25,6 +27,51 @@ func ImplementationSessionFromContext(ctx context.Context) bool {
 		return false
 	}
 	v, _ := ctx.Value(implementationSessionKey{}).(bool)
+	return v
+}
+
+// ContextWithRunCommandUserAllow grants a one-shot allow for a normalized command after user approval.
+func ContextWithRunCommandUserAllow(ctx context.Context, command string) context.Context {
+	command = strings.Join(strings.Fields(strings.TrimSpace(command)), " ")
+	if command == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, runCommandUserAllowKey{}, strings.ToLower(command))
+}
+
+// RunCommandUserAllowFromContext returns a one-shot user-approved command, if any.
+func RunCommandUserAllowFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	v, _ := ctx.Value(runCommandUserAllowKey{}).(string)
+	return v
+}
+
+// ContextWithRunCommandExtraAllows attaches persisted user allowlist prefixes.
+func ContextWithRunCommandExtraAllows(ctx context.Context, prefixes []string) context.Context {
+	if len(prefixes) == 0 {
+		return ctx
+	}
+	out := make([]string, 0, len(prefixes))
+	for _, p := range prefixes {
+		p = strings.Join(strings.Fields(strings.TrimSpace(p)), " ")
+		if p != "" {
+			out = append(out, strings.ToLower(p))
+		}
+	}
+	if len(out) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, runCommandExtraAllowsKey{}, out)
+}
+
+// RunCommandExtraAllowsFromContext returns persisted user allowlist prefixes.
+func RunCommandExtraAllowsFromContext(ctx context.Context) []string {
+	if ctx == nil {
+		return nil
+	}
+	v, _ := ctx.Value(runCommandExtraAllowsKey{}).([]string)
 	return v
 }
 

@@ -174,6 +174,10 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 	case ActionInspect:
 		goal.RequiredCapabilities = []string{"workspace_read"}
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
+		if intent.LooksLikeGitInspectRequest(request) {
+			goal.RequiredCapabilities = append(goal.RequiredCapabilities, "run_command")
+			goal.ExpectedEvidence = []EvidenceKind{EvidenceCommandRun}
+		}
 	case ActionPlan:
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
 	case ActionDebug:
@@ -257,7 +261,18 @@ func turnIntentFromSemantic(interaction intent.InteractionKind) TurnIntent {
 }
 
 func (g TurnGoal) RequiresActionEvidence() bool {
-	return g.Action != "" && g.Action != ActionAnswer && g.Action != ActionInspect && g.Action != ActionPlan
+	if g.Action == "" || g.Action == ActionAnswer || g.Action == ActionPlan {
+		return false
+	}
+	if g.Action == ActionInspect {
+		for _, kind := range g.ExpectedEvidence {
+			if kind == EvidenceCommandRun {
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 func turnGoalRunsImplementationSession(goal TurnGoal) bool {

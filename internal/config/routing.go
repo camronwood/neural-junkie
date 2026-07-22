@@ -8,6 +8,13 @@ type RoutingConfig struct {
 	ClassifierModel string  `json:"classifier_model,omitempty"`
 	RulesFallback   bool    `json:"rules_fallback"`
 	MinConfidence   float64 `json:"min_confidence"`
+	// SemanticClassifierModel is the Ollama tag used only for per-turn semantic
+	// intent (SendMessage path). Defaults to a small/fast model so classify stays
+	// inside the timeout budget; task routing keeps ClassifierModel.
+	SemanticClassifierModel string `json:"semantic_classifier_model,omitempty"`
+	// SemanticClassifierTimeoutMS bounds semantic classify wait before policy
+	// fallback. UI echo happens first, but HTTP send still waits here.
+	SemanticClassifierTimeoutMS int `json:"semantic_classifier_timeout_ms,omitempty"`
 	// ModelCapabilityRoutingEnabled selects Ollama models from benchmark-derived profiles.
 	ModelCapabilityRoutingEnabled bool `json:"model_capability_routing_enabled"`
 	// CapabilityProfilesPath overrides the default model-capability-profiles.json path.
@@ -31,6 +38,8 @@ func DefaultRoutingConfig() RoutingConfig {
 		ClassifierModel:               UtilityOllamaModel,
 		RulesFallback:                 true,
 		MinConfidence:                 0.6,
+		SemanticClassifierModel:       SemanticClassifierOllamaModel,
+		SemanticClassifierTimeoutMS:   8000,
 		ModelCapabilityRoutingEnabled: true,
 		LocalEscalationEnabled:        true,
 	}
@@ -47,6 +56,12 @@ func (r RoutingConfig) Normalized() RoutingConfig {
 	}
 	if out.MinConfidence <= 0 {
 		out.MinConfidence = 0.6
+	}
+	if strings.TrimSpace(out.SemanticClassifierModel) == "" {
+		out.SemanticClassifierModel = SemanticClassifierOllamaModel
+	}
+	if out.SemanticClassifierTimeoutMS <= 0 {
+		out.SemanticClassifierTimeoutMS = 8000
 	}
 	return out
 }

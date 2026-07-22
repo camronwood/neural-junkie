@@ -115,6 +115,12 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	if isDMInbound {
 		h.normalizeDMMentionRouting(msg, mentionStrings, msg.Mentions)
 	}
+
+	// Echo eligible user turns to the UI before semantic classification. The
+	// classifier can take seconds (Ollama); without this, /api/send and the
+	// WebSocket echo both stall until Resolve returns.
+	uiEchoed := h.echoUserTurnToUI(msg)
+
 	h.resolveSemanticTurn(context.Background(), msg)
 
 	// Slash commands: persist the human command line, then the system response (if any).
@@ -229,6 +235,15 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 
 		// ALSO broadcast to channel subscribers (so agents can see mentions)
 		h.broadcast(msg.Channel, msg)
+	} else if uiEchoed {
+		// History already has the pre-classify echo; replace with stamped metadata
+		// and deliver to agents only (UI already saw the message).
+		h.appendChannelMessageLocked(msg.Channel, msg)
+		if deliverToAgentTier(msg) {
+			h.deliverToSubscribers(h.subscribers[msg.Channel], msg)
+		}
+		// Refresh UI with stamped turn decision / governance.
+		h.deliverToSubscribers(h.uiSubscribers[msg.Channel], msg)
 	} else {
 		// Regular channel message
 		if h.shouldSkipHumanJoinAnnouncementLocked(msg.Channel, msg) {
@@ -244,6 +259,31 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	}
 
 	return nil
+}
+
+// echoUserTurnToUI persists and UI-broadcasts an eligible user message before
+// semantic classification so the chat timeline updates immediately.
+func (h *Hub) echoUserTurnToUI(msg *protocol.Message) bool {
+	if h == nil || msg == nil || !semanticTurnEligible(msg) {
+		return false
+	}
+	if strings.HasPrefix(strings.TrimSpace(msg.Content), "/") {
+		return false
+	}
+	if msg.IsInThread() {
+		return false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if _, ok := h.channels[msg.Channel]; !ok {
+		return false
+	}
+	if h.shouldSkipHumanJoinAnnouncementLocked(msg.Channel, msg) {
+		return false
+	}
+	h.appendChannelMessageLocked(msg.Channel, msg)
+	h.deliverToSubscribers(h.uiSubscribers[msg.Channel], msg)
+	return true
 }
 
 func (h *Hub) inheritCollaborationFromChannel(msg *protocol.Message) {

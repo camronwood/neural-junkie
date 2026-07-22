@@ -58,6 +58,7 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
 
     requestAnimationFrame(() => {
       fit.fit();
+      term.scrollToBottom();
     });
 
     const cols = term.cols;
@@ -93,10 +94,16 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
 
     let unlistenPty: (() => void) | null = null;
     terminalAPI.onPtyOutput((payload) => {
-      if (payload.id === sessionId) {
-        term.write(payload.data);
-        useTerminalStore.getState().recordOutput(sessionId, payload.data);
-      }
+      if (payload.id !== sessionId) return;
+      const buffer = term.buffer.active;
+      // Stick to bottom while the user hasn't scrolled up to read history.
+      const stickToBottom = buffer.viewportY >= buffer.baseY - 1;
+      term.write(payload.data, () => {
+        if (stickToBottom) {
+          term.scrollToBottom();
+        }
+      });
+      useTerminalStore.getState().recordOutput(sessionId, payload.data);
     }).then((unlisten) => {
       unlistenPty = unlisten;
     });
@@ -145,6 +152,11 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
             terminalAPI
               .resizePtySession(sessionId, termRef.current.cols, termRef.current.rows)
               .catch(() => {});
+            // Refit can leave the last row (cursor) clipped; snap back if we were following.
+            const buf = termRef.current.buffer.active;
+            if (buf.viewportY >= buf.baseY - 1) {
+              termRef.current.scrollToBottom();
+            }
           }
         }
       });
@@ -180,6 +192,7 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
     if (isActive && fitRef.current) {
       requestAnimationFrame(() => {
         fitRef.current?.fit();
+        termRef.current?.scrollToBottom();
         termRef.current?.focus();
       });
     }
@@ -196,8 +209,9 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
   return (
     <div
       ref={containerRef}
-      className="w-full h-full"
-      style={{ padding: '4px 0 0 8px' }}
+      className="w-full h-full min-h-0 overflow-hidden"
+      // Extra bottom padding so the cursor row isn't clipped under the panel edge.
+      style={{ padding: '4px 0 14px 8px', boxSizing: 'border-box' }}
     />
   );
 }

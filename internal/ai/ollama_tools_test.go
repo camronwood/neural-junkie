@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -108,6 +109,46 @@ func TestOllamaGenerateResponseWithToolsUnsupportedFallback(t *testing.T) {
 	}
 	if calls != 2 {
 		t.Fatalf("expected 2 calls (tools fail + plain), got %d", calls)
+	}
+}
+
+func TestOllamaToolCallMalformed(t *testing.T) {
+	body := []byte(`{"error":"XML syntax error on line 5: element <function> closed by </parameter>"}`)
+	if !ollamaToolCallMalformed(http.StatusInternalServerError, body) {
+		t.Fatal("expected malformed tool-call detection")
+	}
+	if ollamaToolCallMalformed(http.StatusInternalServerError, []byte(`{"error":"disk full"}`)) {
+		t.Fatal("did not expect unrelated 500 to count as tool-call malformed")
+	}
+}
+
+func TestOllamaGenerateResponseWithToolsXMLMalformedFallback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"XML syntax error on line 5: element <function> closed by </parameter>"}`))
+	}))
+	defer srv.Close()
+
+	p := NewOllamaProviderWithConfig(srv.URL, "flaky-tools:7b")
+	tools := []ClaudeToolDefinition{{
+		Name:        "read_file",
+		Description: "Read",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+	}}
+	_, err := p.GenerateResponseWithTools(context.Background(),
+		"system\n---SYSTEM_PROMPT_END---\nread Makefile",
+		nil,
+		tools,
+		func(context.Context, ToolUseRequest) (string, error) { return "", nil },
+	)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, ErrNativeToolsUnsupported) {
+		t.Fatalf("want ErrNativeToolsUnsupported, got %v", err)
+	}
+	if p.SupportsTools() {
+		t.Fatal("expected native tools marked unsupported after XML parse failure")
 	}
 }
 

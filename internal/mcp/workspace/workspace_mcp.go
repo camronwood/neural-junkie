@@ -136,19 +136,22 @@ func (w *tools) handleReadFile(ctx context.Context, request mcpgo.CallToolReques
 	if rel == "" {
 		return mcp.HandleToolError(fmt.Errorf("path is required"), "read_file"), nil
 	}
+	full, err := w.resolveRel(root, rel)
+	if err != nil {
+		return mcp.HandleToolError(err, "read_file"), nil
+	}
 	var content string
 	if b := shared.BackendFromContext(ctx); b != nil {
-		relPath := strings.TrimPrefix(rel, "/")
-		data, err := b.ReadFile(ctx, relPath)
+		relPath, relErr := filepath.Rel(root, full)
+		if relErr != nil {
+			return mcp.HandleToolError(relErr, "read_file"), nil
+		}
+		data, err := b.ReadFile(ctx, filepath.ToSlash(relPath))
 		if err != nil {
 			return mcp.HandleToolError(err, "read_file"), nil
 		}
 		content = string(data)
 	} else {
-		full, err := w.resolveRel(root, rel)
-		if err != nil {
-			return mcp.HandleToolError(err, "read_file"), nil
-		}
 		data, err := os.ReadFile(full)
 		if err != nil {
 			return mcp.HandleToolError(err, "read_file"), nil
@@ -320,8 +323,16 @@ func (w *tools) handleListDir(ctx context.Context, request mcpgo.CallToolRequest
 		return mcp.HandleToolError(err, "list_dir"), nil
 	}
 	rel := request.GetString("path", ".")
+	full, err := w.resolveRel(root, rel)
+	if err != nil {
+		return mcp.HandleToolError(err, "list_dir"), nil
+	}
 	if b := shared.BackendFromContext(ctx); b != nil {
-		entries, err := b.ReadDir(ctx, strings.TrimPrefix(rel, "/"))
+		relPath, relErr := filepath.Rel(root, full)
+		if relErr != nil {
+			return mcp.HandleToolError(relErr, "list_dir"), nil
+		}
+		entries, err := b.ReadDir(ctx, filepath.ToSlash(relPath))
 		if err != nil {
 			return mcp.HandleToolError(err, "list_dir"), nil
 		}
@@ -338,11 +349,7 @@ func (w *tools) handleListDir(ctx context.Context, request mcpgo.CallToolRequest
 		}
 		return mcp.HandleToolSuccess(strings.Join(lines, "\n")), nil
 	}
-	dir, err := w.resolveRel(root, rel)
-	if err != nil {
-		return mcp.HandleToolError(err, "list_dir"), nil
-	}
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir(full)
 	if err != nil {
 		return mcp.HandleToolError(err, "list_dir"), nil
 	}
@@ -401,6 +408,14 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 	if cmdStr == "" {
 		return mcp.HandleToolError(fmt.Errorf("command is required"), "run_command"), nil
 	}
+	// Long-running dev servers hang the agent tool loop. Boot-fix diagnostics may still probe
+	// them with a short timeout; normal chat must not start them via run_command.
+	if shared.IsDevServerCommand(cmdStr) && !shared.BootFixDiagnosticFromContext(ctx) {
+		return mcp.HandleToolError(fmt.Errorf(
+			"refusing long-running dev server command %q — run it yourself in a terminal (e.g. make start-all / npm run tauri:dev). For agent diagnostics use short commands like npm run build, tsc --noEmit, or git status",
+			cmdStr,
+		), "run_command"), nil
+	}
 	if p := shared.CommandPolicyFromContext(ctx); p != nil {
 		if err := p.ShouldBlockRunCommand(cmdStr); err != nil {
 			return mcp.HandleToolError(err, "run_command"), nil
@@ -413,14 +428,23 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 	if b := shared.BackendFromContext(ctx); b != nil {
 		if relCwd == "" {
 			relCwd = "."
+		} else {
+			fullCwd, err := w.resolveRel(root, relCwd)
+			if err != nil {
+				return mcp.HandleToolError(err, "run_command"), nil
+			}
+			relCwd, err = filepath.Rel(root, fullCwd)
+			if err != nil {
+				return mcp.HandleToolError(err, "run_command"), nil
+			}
 		}
 		cmdTimeout := shared.RunCommandTimeoutFromContext(ctx)
 		runCtx, cancel := context.WithTimeout(ctx, cmdTimeout)
 		defer cancel()
 		res, err := b.Exec(runCtx, workspacebackend.ExecRequest{
 			Command: "sh",
-			Args:    []string{"-c", cmdStr},
-			RelCwd:  strings.TrimPrefix(relCwd, "/"),
+			Args:    []string{"-c", withGitSafeShellPrefix(cmdStr)},
+			RelCwd:  filepath.ToSlash(relCwd),
 			Timeout: cmdTimeout,
 		})
 		text := res.Stdout
@@ -437,6 +461,13 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 		if err != nil && exitCode == 0 {
 			exitCode = 1
 		}
+		if strings.TrimSpace(text) == "" && exitCode != 0 {
+			if err != nil {
+				text = err.Error()
+			} else {
+				text = "(no output; command failed)"
+			}
+		}
 		summary := fmt.Sprintf("exit_code=%d\n%s", exitCode, text)
 		if p := shared.CommandPolicyFromContext(ctx); p != nil {
 			p.RecordCommandRun(cmdStr, exitCode, summary)
@@ -451,12 +482,19 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 		}
 		cwd = resolved
 	}
-	shellRes, err := shared.RunShellCommand(ctx, cwd, cmdStr)
+	shellRes, err := shared.RunShellCommand(ctx, cwd, withGitSafeShellPrefix(cmdStr))
 	text := shellRes.Output
 	if len(text) > maxReadBytes {
 		text = text[:maxReadBytes] + "\n...(truncated)"
 	}
 	exitCode := shellRes.ExitCode
+	if strings.TrimSpace(text) == "" && exitCode != 0 {
+		if err != nil {
+			text = err.Error()
+		} else {
+			text = "(no output; command failed)"
+		}
+	}
 	summary := fmt.Sprintf("exit_code=%d\n%s", exitCode, text)
 	if p := shared.CommandPolicyFromContext(ctx); p != nil {
 		p.RecordCommandRun(cmdStr, exitCode, summary)
@@ -465,6 +503,16 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 		return mcp.HandleToolSuccess(summary), nil
 	}
 	return mcp.HandleToolSuccess(summary), nil
+}
+
+// withGitSafeShellPrefix disables interactive git prompts/pagers that can yield
+// empty exit-1 failures when stdout is a pipe under MCP run_command.
+func withGitSafeShellPrefix(cmdStr string) string {
+	fields := strings.Fields(strings.TrimSpace(cmdStr))
+	if len(fields) == 0 || strings.ToLower(fields[0]) != "git" {
+		return cmdStr
+	}
+	return "GIT_PAGER=cat GIT_TERMINAL_PROMPT=0 PAGER=cat " + cmdStr
 }
 
 func parseIntDefault(s string, def int) int {

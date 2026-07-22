@@ -97,14 +97,42 @@ func handleApproveToolCall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req struct {
+		Scope string `json:"scope"` // once | always
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	scope := strings.ToLower(strings.TrimSpace(req.Scope))
+	if scope == "" {
+		scope = "once"
+	}
+	if scope != "once" && scope != "always" {
+		http.Error(w, "scope must be once or always", http.StatusBadRequest)
+		return
+	}
+
 	tam := chatHub.GetToolApprovalManager()
-	if err := tam.Approve(approvalID); err != nil {
+	approval := tam.GetApproval(approvalID)
+	if err := tam.ApproveScoped(approvalID, scope); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
+	if scope == "always" && approval != nil && approval.ToolName == "run_command" && appConfig != nil {
+		if cmd, _ := approval.ToolInput["command"].(string); strings.TrimSpace(cmd) != "" {
+			if added, err := appConfig.AddRunCommandAllowExtra(cmd); err != nil {
+				log.Printf("[ToolApproval] persist allowlist %q: %v", cmd, err)
+			} else if added {
+				if err := appConfig.Save(); err != nil {
+					log.Printf("[ToolApproval] save allowlist: %v", err)
+				} else {
+					log.Printf("[ToolApproval] added run_command allow: %s", cmd)
+				}
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "approved"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "approved", "scope": scope})
 }
 
 // handleRejectToolCall rejects a pending tool call

@@ -536,6 +536,9 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     }
 
     if (multi && !file.is_dir) {
+      e?.preventDefault();
+      // Cmd/Ctrl+click toggles multi-select without opening. Do this before any
+      // await so an in-flight single-click open cannot wipe the selection.
       toggleSelectedPath(file.path, true);
       return;
     }
@@ -561,6 +564,10 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
       
       setSelectedPath(file.path);
     } else {
+      // Select immediately (before awaits) so Cmd/Ctrl+click can extend while
+      // content loads. Never call setSelectedPath after awaits — that collapses
+      // multi-select back to one file.
+      setSelectedPath(file.path);
       const activeWorkspace = getActiveWorkspace();
       if (activeWorkspace) {
         const declaredViewer = usePacksStore.getState().getFileViewerForPath(file.path)?.viewer;
@@ -568,14 +575,12 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           const content = await api.fetchFileContent(activeWorkspace.id, file.path);
           openStructureWorkbench(activeWorkspace.id, file.path, content);
           if (onFileOpen) onFileOpen();
-          setSelectedPath(file.path);
           return;
         }
         if (declaredViewer === NJ_VIEWER.CAD) {
           const content = await api.fetchFileContent(activeWorkspace.id, file.path);
           openCadWorkbench(activeWorkspace.id, file.path, content);
           if (onFileOpen) onFileOpen();
-          setSelectedPath(file.path);
           return;
         }
         if (declaredViewer === NJ_VIEWER.MUSIC) {
@@ -584,44 +589,37 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
             : '';
           openMusicWorkbench(activeWorkspace.id, file.path, content);
           if (onFileOpen) onFileOpen();
-          setSelectedPath(file.path);
           return;
         }
         if (declaredViewer === NJ_VIEWER.ARENA) {
           openArenaWorkbench(activeWorkspace.id, file.path);
           if (onFileOpen) onFileOpen();
-          setSelectedPath(file.path);
           return;
         }
         const openedAnalysis = await tryOpenScanAnalysisFile(activeWorkspace.id, file.path);
         if (openedAnalysis) {
-          setSelectedPath(file.path);
           return;
         }
         const opened = await tryOpenScanSummaryFile(activeWorkspace.id, file.path);
         if (opened) {
-          setSelectedPath(file.path);
           return;
         }
         if (hasCadWorkbench && !file.is_dir && file.path.toLowerCase().endsWith('.scad')) {
           const content = await api.fetchFileContent(activeWorkspace.id, file.path);
           openCadWorkbench(activeWorkspace.id, file.path, content);
           if (onFileOpen) onFileOpen();
-          setSelectedPath(file.path);
           return;
         }
         if (hasStructureWorkbench && !file.is_dir && /\.(pdb|cif|mmcif)$/i.test(file.path)) {
           const content = await api.fetchFileContent(activeWorkspace.id, file.path);
           openStructureWorkbench(activeWorkspace.id, file.path, content);
           if (onFileOpen) onFileOpen();
-          setSelectedPath(file.path);
           return;
         }
         if (hasHtmlBrowserWorkbench && !file.is_dir && /\.html?$/i.test(file.path)) {
           const content = await api.fetchFileContent(activeWorkspace.id, file.path);
           openHtmlBrowser(activeWorkspace.id, file.path, content);
           if (onFileOpen) onFileOpen();
-          setSelectedPath(file.path);
           return;
         }
         if (hasMusicWorkbench && !file.is_dir && (/\.(wav|mp3|flac|aiff?)$/i.test(file.path) || /\.nj-music\.json$/i.test(file.path) || file.path.endsWith('project.nj-music.json'))) {
@@ -631,13 +629,11 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           }
           openMusicWorkbench(activeWorkspace.id, file.path, content);
           if (onFileOpen) onFileOpen();
-          setSelectedPath(file.path);
           return;
         }
         if (hasArenaWorkbench && !file.is_dir && /\.nj-arena\.json$/i.test(file.path)) {
           openArenaWorkbench(activeWorkspace.id, file.path);
           if (onFileOpen) onFileOpen();
-          setSelectedPath(file.path);
           return;
         }
       }
@@ -681,17 +677,19 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           setError(error instanceof Error ? error.message : 'Failed to open file');
         }
       }
-      setSelectedPath(file.path);
     }
   };
 
   const handleFileDragStart = (e: React.DragEvent, file: FileNode) => {
     if (file.is_dir || !activeWorkspaceId || !file.path) return;
     e.stopPropagation();
-    setWorkspaceFileDragData(e.dataTransfer, {
-      workspaceId: activeWorkspaceId,
-      path: file.path,
-    });
+    const selected = useFileExplorerStore.getState().selectedPaths;
+    const paths =
+      selected.includes(file.path) && selected.length > 1 ? selected : [file.path];
+    setWorkspaceFileDragData(
+      e.dataTransfer,
+      paths.map((path) => ({ workspaceId: activeWorkspaceId, path }))
+    );
   };
 
   const handleFileDragEnd = (e: React.DragEvent) => {
@@ -1235,7 +1233,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           title={
             file.is_dir
               ? undefined
-              : 'Click to preview · double-click to keep open · drag to chat for context'
+              : 'Click to preview · Cmd/Ctrl+click to multi-select · drag selection to chat'
           }
         >
           <span className="text-sm">{renderFileIcon(file)}</span>

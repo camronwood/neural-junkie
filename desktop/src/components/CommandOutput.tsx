@@ -8,9 +8,9 @@ interface CommandOutputProps {
 export function CommandOutput({ output }: CommandOutputProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // Format duration from nanoseconds to human-readable
-  const formatDuration = (nanoseconds: number): string => {
-    const milliseconds = nanoseconds / 1000000;
+  // Format duration: protocol stores Go time.Duration nanoseconds; tolerate ms payloads.
+  const formatDuration = (duration: number): string => {
+    const milliseconds = duration >= 1_000_000 ? duration / 1_000_000 : duration;
     if (milliseconds < 1000) {
       return `${milliseconds.toFixed(0)}ms`;
     }

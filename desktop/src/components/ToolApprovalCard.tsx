@@ -11,11 +11,17 @@ const toolIcons: Record<string, string> = {
   write_file: '📝',
   edit_file: '✏️',
   list_directory: '📁',
+  list_dir: '📁',
   search_files: '🔍',
   run_shell_command: '💻',
   shell: '💻',
+  run_command: '💻',
   read_many_files: '📚',
 };
+
+function isRunCommandTool(toolName: string): boolean {
+  return toolName === 'run_command' || toolName === 'run_shell_command' || toolName === 'shell';
+}
 
 export function ToolApprovalCard({ message }: ToolApprovalCardProps) {
   const [loading, setLoading] = useState(false);
@@ -26,17 +32,18 @@ export function ToolApprovalCard({ message }: ToolApprovalCardProps) {
   const toolInput = message.metadata?.tool_input as Record<string, any> | undefined;
   const status = message.metadata?.status as string;
   const reason = message.metadata?.reason as string | undefined;
+  const allowlistPrompt = Boolean(message.metadata?.allowlist_prompt) || isRunCommandTool(toolName);
 
   const isPending = status === 'pending';
   const isApproved = status === 'approved';
   const isRejected = status === 'rejected' || status === 'expired';
   const icon = toolIcons[toolName] || '🔧';
 
-  const handleApprove = async () => {
+  const handleApprove = async (scope: 'once' | 'always' = 'once') => {
     if (!approvalId) return;
     setLoading(true);
     try {
-      await apiRef.current.approveToolCall(approvalId);
+      await apiRef.current.approveToolCall(approvalId, scope);
     } catch (err) {
       console.error('Failed to approve tool call:', err);
     } finally {
@@ -62,10 +69,10 @@ export function ToolApprovalCard({ message }: ToolApprovalCardProps) {
     if (toolName === 'read_file' || toolName === 'write_file' || toolName === 'edit_file') {
       return toolInput.path as string;
     }
-    if (toolName === 'run_shell_command' || toolName === 'shell') {
+    if (isRunCommandTool(toolName)) {
       return toolInput.command as string;
     }
-    if (toolName === 'list_directory') {
+    if (toolName === 'list_directory' || toolName === 'list_dir') {
       return toolInput.path as string;
     }
     if (toolName === 'search_files') {
@@ -93,16 +100,16 @@ export function ToolApprovalCard({ message }: ToolApprovalCardProps) {
             <span className="text-sm font-semibold text-slack-text">{toolName}</span>
             {isPending && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 animate-pulse">
-                awaiting approval
+                {allowlistPrompt ? 'not allowlisted' : 'awaiting approval'}
               </span>
             )}
             {isApproved && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">
-                approved
+              <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-400">
+                {reason === 'always' ? 'always allowed' : 'approved'}
               </span>
             )}
             {isRejected && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">
+              <span className="text-xs px-1.5 py-0.5 rounded bg-red-600/20 text-red-400">
                 {status === 'expired' ? 'expired' : 'rejected'}
               </span>
             )}
@@ -114,22 +121,37 @@ export function ToolApprovalCard({ message }: ToolApprovalCardProps) {
             </code>
           )}
 
+          {allowlistPrompt && isPending && (
+            <p className="text-xs text-slack-textMuted mt-1">
+              Allow once for this run, or always add it to your command allowlist.
+            </p>
+          )}
+
           {reason && isRejected && (
             <p className="text-xs text-red-400 mt-1">{reason}</p>
           )}
         </div>
 
         {isPending && (
-          <div className="flex gap-1.5 flex-shrink-0">
+          <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-end">
             <button
-              onClick={handleApprove}
+              onClick={() => void handleApprove('once')}
               disabled={loading}
               className="px-3 py-1 text-xs font-medium rounded bg-green-600 hover:bg-green-500 text-white disabled:opacity-50 transition-colors"
             >
-              {loading ? '...' : 'Approve'}
+              {loading ? '...' : allowlistPrompt ? 'Allow once' : 'Approve'}
             </button>
+            {allowlistPrompt && (
+              <button
+                onClick={() => void handleApprove('always')}
+                disabled={loading}
+                className="px-3 py-1 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors"
+              >
+                {loading ? '...' : 'Always allow'}
+              </button>
+            )}
             <button
-              onClick={handleReject}
+              onClick={() => void handleReject()}
               disabled={loading}
               className="px-3 py-1 text-xs font-medium rounded bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-colors"
             >

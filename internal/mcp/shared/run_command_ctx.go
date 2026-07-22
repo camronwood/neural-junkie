@@ -77,18 +77,37 @@ func IsDevServerCommand(cmd string) bool {
 	if cmd == "" {
 		return false
 	}
+	// Substring markers for common forever-running tooling.
+	for _, needle := range []string{
+		"tauri:dev",
+		"tauri dev",
+		"cargo tauri",
+		"vite --",
+		"webpack-dev-server",
+		"next dev",
+		"react-scripts start",
+	} {
+		if strings.Contains(cmd, needle) {
+			return true
+		}
+	}
 	prefixes := []string{
 		"make start-all",
 		"make dev",
 		"npm run dev",
 		"npm start",
+		"npm run tauri",
+		"npm run start",
 		"yarn dev",
+		"yarn start",
 		"pnpm dev",
 		"pnpm start",
-		"tauri dev",
+		"pnpm run dev",
 		"vite",
 		"./scripts/start-all.sh",
 		"bash scripts/start-all.sh",
+		"npx vite",
+		"npx tauri",
 	}
 	for _, p := range prefixes {
 		if strings.HasPrefix(cmd, p) {

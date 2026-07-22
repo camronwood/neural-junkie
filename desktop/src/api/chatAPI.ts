@@ -3210,10 +3210,11 @@ export class ChatAPI {
     return response.json();
   }
 
-  async approveToolCall(approvalId: string): Promise<void> {
+  async approveToolCall(approvalId: string, scope: 'once' | 'always' = 'once'): Promise<void> {
     const response = await this.hubFetch(`/api/tool-approvals/approve/${approvalId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope }),
     });
 
     if (!response.ok) {

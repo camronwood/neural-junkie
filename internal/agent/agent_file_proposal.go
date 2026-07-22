@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 )
@@ -48,11 +49,13 @@ func stripFileChangeBlocksFromResponse(response string) string {
 
 var askModeFileChangeMentionRE = regexp.MustCompile(`(?i)\[file_change\]|propose_file_edit|search_replace|apply_patch`)
 var askModeLooseFileChangeRE = regexp.MustCompile(`(?is)\[FILE_CHANGE\][\s\S]*?(?:\n\n|$)`)
+var parenFileChangeRE = regexp.MustCompile("(?is)\\[FILE_CHANGE\\([^\\]\\n]*\\)\\][^\\n]*(?:\\n```[\\s\\S]*?```)?")
 
 // sanitizeAskModeResponse strips file-edit mechanisms from ask-mode advisory replies.
 func sanitizeAskModeResponse(response string) string {
 	out := stripFileChangeBlocksFromResponse(response)
 	out = askModeLooseFileChangeRE.ReplaceAllString(out, "")
+	out = parenFileChangeRE.ReplaceAllString(out, "")
 	out = askModeFileChangeMentionRE.ReplaceAllString(out, "")
 	return strings.TrimSpace(out)
 }
@@ -60,6 +63,13 @@ func sanitizeAskModeResponse(response string) string {
 func isAskModeReadOnly(sourceMsg *protocol.Message) bool {
 	if sourceMsg == nil {
 		return false
+	}
+	// Canonical semantic decision is authoritative: only workspace mutation may
+	// emit file proposals, even if composer mode is agent.
+	if decision, ok := protocol.ExtractTurnDecision(sourceMsg); ok {
+		if decision.Mutation != semantic.MutationWorkspace {
+			return true
+		}
 	}
 	caps := protocol.ResolveTurnCapabilities(sourceMsg)
 	return !caps.CanProposeFiles
@@ -103,10 +113,11 @@ func (a *Agent) refuseInactiveCollabProposal(sourceMsg *protocol.Message) error 
 
 func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response, channel string, sourceMsg *protocol.Message) (string, bool, error) {
 	if isAskModeReadOnly(sourceMsg) {
-		if fileChangeBlockRegex.MatchString(response) {
-			log.Printf("[%s] ask_mode_file_change_stripped", a.Info.Name)
+		if fileChangeBlockRegex.MatchString(response) || parenFileChangeRE.MatchString(response) ||
+			askModeLooseFileChangeRE.MatchString(response) {
+			log.Printf("[%s] mutation_none_file_change_stripped", a.Info.Name)
 		}
-		return stripFileChangeBlocksFromResponse(response), false, nil
+		return sanitizeAskModeResponse(response), false, nil
 	}
 	if err := ctx.Err(); err != nil {
 		return response, false, err

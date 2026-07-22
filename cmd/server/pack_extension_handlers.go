@@ -99,6 +99,7 @@ func syncPackSidecars() {
 	if appConfig == nil || packSidecarMgr == nil {
 		return
 	}
+	packsidecar.SetGlobalManager(packSidecarMgr)
 	envs := appConfig.CollectPackSidecarEnvs()
 	_ = packSidecarMgr.Sync(appConfig.ContextOrBackground(), envs)
 }

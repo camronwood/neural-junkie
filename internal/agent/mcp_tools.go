@@ -252,6 +252,8 @@ func (a *Agent) generateWithMCPTools(
 			"",
 		),
 	)
+	toolCtx = ai.EnsureToolLoopMaxIterations(toolCtx, chatToolLoopMaxIterations())
+	toolCtx = withRunCommandTurnDedupe(toolCtx)
 
 	return toolProvider.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools,
 		func(ctx context.Context, req ai.ToolUseRequest) (string, error) {
@@ -275,8 +277,10 @@ func (a *Agent) generateWithMCPTools(
 				}
 			}
 			callCtx := ctx
+			var lastMsg *protocol.Message
 			if len(history) > 0 {
 				last := history[len(history)-1]
+				lastMsg = last
 				callCtx = a.contextWithWorkspaceBackend(ctx, last)
 				if ws := a.resolveWorkspacePath(last); ws != "" {
 					callCtx = shared.ContextWithWorkspaceRoot(callCtx, ws)
@@ -290,9 +294,31 @@ func (a *Agent) generateWithMCPTools(
 				channelID,
 				uuid.NewString(),
 			)
+			if req.Name == "run_command" {
+				callCtx = shared.ContextWithRunCommandExtraAllows(callCtx, mcpAppConfig().RunCommandAllowExtra())
+				cmd := parseRunCommandToolInput(req.Input)
+				if cached, ok := lookupOrStoreRunCommandResult(ctx, cmd, "", false); ok {
+					log.Printf("[%s] Skipping duplicate run_command this turn: %s", a.Info.Name, truncateImplLog(cmd, 120))
+					return cached + "\n\n[Note: identical run_command already executed this turn; reused prior result.]", nil
+				}
+				msg := lastMsg
+				if msg == nil {
+					msg = &protocol.Message{Channel: channelID}
+				}
+				var allowErr error
+				callCtx, allowErr = a.maybeApproveRunCommand(callCtx, msg, cmd)
+				if allowErr != nil {
+					errMsg := "ERROR: " + allowErr.Error()
+					storeRunCommandTurnResult(ctx, cmd, errMsg)
+					return errMsg, nil
+				}
+			}
 			result, err := executeMCPTool(callCtx, mcpServer, req.Name, req.Input)
 			if err != nil {
 				return result, err
+			}
+			if req.Name == "run_command" {
+				storeRunCommandTurnResult(ctx, parseRunCommandToolInput(req.Input), result)
 			}
 			result = guardWebSearchToolResult(ctx, req.Name, result)
 			if ai.OutputShapingEnabled() && readOnlyToolNames[req.Name] {

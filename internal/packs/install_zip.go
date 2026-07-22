@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const maxPackZipBytes = 10 << 20 // 10 MiB
+const maxPackZipBytes = 64 << 20 // 64 MiB (sidecar binaries can exceed 10 MiB)
 
 var installHTTPClient = &http.Client{Timeout: 120 * time.Second}
 

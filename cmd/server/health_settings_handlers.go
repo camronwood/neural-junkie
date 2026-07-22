@@ -18,13 +18,24 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	agents := chatHub.ListAgents()
+	listening, expected, agentsReady := 0, 0, true
+	if chatHub != nil {
+		if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok && ch != nil {
+			listening, expected, agentsReady = ch.RuntimeAgentsListeningStats()
+		}
+	}
+	startupComplete := hubStartupComplete.Load()
 	health := map[string]interface{}{
-		"status":      "ok",
-		"uptime_secs": int(time.Since(serverStartTime).Seconds()),
-		"agent_count": len(agents),
-		"version":     "1.0.0",
-		"snapshot":    chatHub.GetSessionSaveHealth(),
-		"features":    []string{"hub_data_read"},
+		"status":            "ok",
+		"uptime_secs":       int(time.Since(serverStartTime).Seconds()),
+		"agent_count":       len(agents),
+		"agents_listening":  listening,
+		"agents_expected":   expected,
+		"agents_ready":      startupComplete && agentsReady,
+		"startup_complete":  startupComplete,
+		"version":           "1.0.0",
+		"snapshot":          chatHub.GetSessionSaveHealth(),
+		"features":          []string{"hub_data_read"},
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -87,6 +87,43 @@ func TestSemanticAskModePolicyPreventsFileChanges(t *testing.T) {
 	}
 }
 
+func TestSemanticGitInspectRequiresCommandEvidence(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-user-frontend",
+		protocol.AgentInfo{ID: "user", Name: "Camron", Type: "human"},
+		"yeah please check git and see if we can find the working config",
+	)
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionQuestion,
+		RequestedAction: intent.ActionInspect, Action: intent.ActionInspect,
+		Retrieval: []intent.RetrievalTarget{intent.RetrievalCodebase},
+		Mutation:  intent.MutationNone, Confidence: 0.9, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	goal := deriveTurnGoal(nil, msg, IntentSubstantive)
+	if goal.Action != ActionInspect {
+		t.Fatalf("action=%s, want inspect", goal.Action)
+	}
+	if !goal.RequiresActionEvidence() {
+		t.Fatal("git inspect should require command evidence")
+	}
+	foundRun := false
+	for _, capName := range goal.RequiredCapabilities {
+		if capName == "run_command" {
+			foundRun = true
+			break
+		}
+	}
+	if !foundRun {
+		t.Fatalf("capabilities=%v, want run_command", goal.RequiredCapabilities)
+	}
+	if len(goal.ExpectedEvidence) != 1 || goal.ExpectedEvidence[0] != EvidenceCommandRun {
+		t.Fatalf("evidence=%v, want command_run", goal.ExpectedEvidence)
+	}
+}
+
 func TestStampedAnswerDecisionIgnoresArtifactPhrases(t *testing.T) {
 	a := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), nil)
 	msg := protocol.NewMessage(

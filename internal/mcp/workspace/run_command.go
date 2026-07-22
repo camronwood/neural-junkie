@@ -114,6 +114,12 @@ func CommandAllowed(cmd string) bool {
 	return readOnlyGitCommandAllowed(cmd) || commandHasAllowedPrefix(cmd, allowedCommandPrefixes)
 }
 
+// CommandHardDenied reports whether cmd is blocked even with user approval
+// (destructive / network exfil patterns).
+func CommandHardDenied(cmd string) bool {
+	return commandDenied(normalizeCommand(cmd))
+}
+
 func implementationSessionCommandAllowed(cmd string) bool {
 	cmd = normalizeCommand(cmd)
 	if cmd == "" || commandDenied(cmd) {
@@ -125,13 +131,37 @@ func implementationSessionCommandAllowed(cmd string) bool {
 	return commandHasAllowedPrefix(cmd, implementationSessionCommandPrefixes)
 }
 
+func userAllowMatches(ctx context.Context, cmd string) bool {
+	cmd = strings.ToLower(normalizeCommand(cmd))
+	if cmd == "" {
+		return false
+	}
+	if allow := shared.RunCommandUserAllowFromContext(ctx); allow != "" &&
+		(cmd == allow || strings.HasPrefix(cmd, allow+" ")) {
+		return true
+	}
+	return commandHasAllowedPrefix(cmd, shared.RunCommandExtraAllowsFromContext(ctx))
+}
+
 // CommandAllowedForContext applies the implementation-session allowlist when ctx is marked.
 func CommandAllowedForContext(ctx context.Context, cmd string) bool {
 	if CommandAllowed(cmd) {
+		return true
+	}
+	if userAllowMatches(ctx, cmd) {
 		return true
 	}
 	if shared.ImplementationSessionFromContext(ctx) {
 		return implementationSessionCommandAllowed(cmd)
 	}
 	return false
+}
+
+// CommandNeedsUserApproval is true when the command is safe-to-prompt but not yet allowlisted.
+func CommandNeedsUserApproval(ctx context.Context, cmd string) bool {
+	cmd = normalizeCommand(cmd)
+	if cmd == "" || CommandHardDenied(cmd) {
+		return false
+	}
+	return !CommandAllowedForContext(ctx, cmd)
 }

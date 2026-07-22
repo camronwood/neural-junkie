@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -172,8 +173,13 @@ func (tam *ToolApprovalManager) WaitForDecision(approvalID string, timeout time.
 	}
 }
 
-// Approve resolves a pending approval as approved.
+// Approve resolves a pending approval as approved (once).
 func (tam *ToolApprovalManager) Approve(approvalID string) error {
+	return tam.ApproveScoped(approvalID, "once")
+}
+
+// ApproveScoped resolves a pending approval. scope is "once" or "always".
+func (tam *ToolApprovalManager) ApproveScoped(approvalID, scope string) error {
 	tam.mu.Lock()
 	defer tam.mu.Unlock()
 
@@ -188,6 +194,12 @@ func (tam *ToolApprovalManager) Approve(approvalID string) error {
 	now := time.Now()
 	approval.Status = ToolApprovalApproved
 	approval.ResolvedAt = &now
+	scope = strings.ToLower(strings.TrimSpace(scope))
+	if scope == "always" {
+		approval.Reason = "always"
+	} else {
+		approval.Reason = "once"
+	}
 
 	if waiters, ok := tam.waiters[approvalID]; ok {
 		for _, ch := range waiters {
@@ -198,9 +210,32 @@ func (tam *ToolApprovalManager) Approve(approvalID string) error {
 
 	tam.broadcastApprovalUpdate(approval)
 	if tam.hub != nil {
-		tam.hub.resolveDurableInput(approvalID, "user", map[string]any{"status": ToolApprovalApproved})
+		tam.hub.resolveDurableInput(approvalID, "user", map[string]any{
+			"status": ToolApprovalApproved, "scope": approval.Reason,
+		})
 	}
 	return nil
+}
+
+// GetApproval returns a copy of an approval by id, or nil.
+func (tam *ToolApprovalManager) GetApproval(approvalID string) *ToolApproval {
+	if tam == nil {
+		return nil
+	}
+	tam.mu.Lock()
+	defer tam.mu.Unlock()
+	a, ok := tam.approvals[approvalID]
+	if !ok || a == nil {
+		return nil
+	}
+	copyApproval := *a
+	if a.ToolInput != nil {
+		copyApproval.ToolInput = make(map[string]interface{}, len(a.ToolInput))
+		for k, v := range a.ToolInput {
+			copyApproval.ToolInput[k] = v
+		}
+	}
+	return &copyApproval
 }
 
 // Reject resolves a pending approval as rejected.
@@ -274,6 +309,10 @@ func (tam *ToolApprovalManager) broadcastApproval(a *ToolApproval) {
 			"tool_input":  a.ToolInput,
 			"status":      string(a.Status),
 		},
+	}
+	if a.ToolName == "run_command" {
+		msg.Content = fmt.Sprintf("**%s** wants to run a command that is not on the allowlist: %s", a.AgentName, inputSummary)
+		msg.Metadata["allowlist_prompt"] = true
 	}
 
 	if err := tam.hub.SendMessage(msg); err != nil {
@@ -362,11 +401,11 @@ func formatToolInput(toolName string, input map[string]interface{}) string {
 		if p, ok := input["path"].(string); ok {
 			return fmt.Sprintf("`%s`", p)
 		}
-	case "run_shell_command", "shell":
+	case "run_shell_command", "shell", "run_command":
 		if cmd, ok := input["command"].(string); ok {
 			return fmt.Sprintf("`%s`", cmd)
 		}
-	case "list_directory":
+	case "list_directory", "list_dir":
 		if p, ok := input["path"].(string); ok {
 			return fmt.Sprintf("`%s`", p)
 		}

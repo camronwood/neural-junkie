@@ -75,6 +75,9 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if isSocialOrStatusPing(msg.Content) {
 		appendHereOrSocialPingPrompt(&system)
 	}
+	if includeTooling {
+		appendGitInspectPrompt(&system, msg)
+	}
 	if askModeReadOnly {
 		system.WriteString("=== ASK MODE (READ-ONLY) ===\n")
 		system.WriteString("Explain and advise only. Do NOT propose file edits, call propose_file_edit, or emit [FILE_CHANGE] blocks.\n\n")

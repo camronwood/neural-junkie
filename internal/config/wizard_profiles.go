@@ -27,6 +27,9 @@ const (
 	BioOllamaToolModel = "qwen3.5:9b"
 	// UtilityOllamaModel is the hub utility tier for routing classifier and similar background tasks.
 	UtilityOllamaModel = "qwen3.5:9b"
+	// SemanticClassifierOllamaModel is the fast local model for per-turn semantic intent JSON.
+	// Keep this smaller than UtilityOllamaModel so SendMessage stays within the classify budget.
+	SemanticClassifierOllamaModel = "qwen2.5:3b"
 	// SessionSummaryOllamaModel is the dedicated local model for async channel session summaries.
 	SessionSummaryOllamaModel = "qwen2.5:3b"
 	// BioOllamaTag is the canonical Ollama model name for OpenBioLLM (import via HF GGUF).

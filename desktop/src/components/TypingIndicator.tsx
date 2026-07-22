@@ -14,13 +14,6 @@ interface TypingIndicatorProps {
   stopDisabled?: boolean;
 }
 
-const LONG_RUNNING_ACTIVITIES = new Set([
-  THINKING_ACTIVITY_GENERATING_IMAGE,
-  THINKING_ACTIVITY_GENERATING_MUSIC,
-  'implementation',
-  'verifying',
-]);
-
 /** Collapse when more than this many agents are thinking at once. */
 const COLLAPSE_THRESHOLD = 2;
 
@@ -38,26 +31,18 @@ function AgentActivityHistory({ steps }: { steps: NonNullable<ThinkingAgent['too
   );
 }
 
-function elapsedLabel(startedAt?: number): string | null {
+function elapsedLabel(startedAt?: number, nowMs: number = Date.now()): string | null {
   if (!startedAt) return null;
-  const sec = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const sec = Math.max(0, Math.floor((nowMs - startedAt) / 1000));
   if (sec < 5) return null;
-  return `${sec}s`;
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rem = sec % 60;
+  return `${min}m ${rem.toString().padStart(2, '0')}s`;
 }
 
-function AgentTypingRow({ agent }: { agent: ThinkingAgent }) {
-  const [, tick] = useState(0);
-  const showElapsed =
-    agent.startedAt &&
-    (LONG_RUNNING_ACTIVITIES.has(agent.activity ?? '') || (agent.toolSteps?.length ?? 0) > 0);
-
-  useEffect(() => {
-    if (!showElapsed) return;
-    const id = window.setInterval(() => tick((n) => n + 1), 1000);
-    return () => window.clearInterval(id);
-  }, [showElapsed, agent.startedAt]);
-
-  const elapsed = showElapsed ? elapsedLabel(agent.startedAt) : null;
+function AgentTypingRow({ agent, nowMs }: { agent: ThinkingAgent; nowMs: number }) {
+  const elapsed = elapsedLabel(agent.startedAt, nowMs);
   const suppressDots =
     agent.activity === THINKING_ACTIVITY_GENERATING_IMAGE ||
     agent.activity === THINKING_ACTIVITY_GENERATING_MUSIC;
@@ -80,14 +65,12 @@ function AgentTypingRow({ agent }: { agent: ThinkingAgent }) {
             <span className="text-xs text-slack-textMuted font-mono tabular-nums">({elapsed})</span>
           ) : null}
           {!suppressDots && (
-            <span className="inline-flex">
-              <span className="animate-bounce text-slack-accent font-bold" style={{ animationDelay: '0ms' }}>
+            <span className="inline-flex thinking-dots" aria-hidden>
+              <span className="thinking-dot">.</span>
+              <span className="thinking-dot" style={{ animationDelay: '200ms' }}>
                 .
               </span>
-              <span className="animate-bounce text-slack-accent font-bold" style={{ animationDelay: '150ms' }}>
-                .
-              </span>
-              <span className="animate-bounce text-slack-accent font-bold" style={{ animationDelay: '300ms' }}>
+              <span className="thinking-dot" style={{ animationDelay: '400ms' }}>
                 .
               </span>
             </span>
@@ -127,7 +110,17 @@ function collapsedSummary(agents: ThinkingAgent[]): string {
 
 export function TypingIndicator({ agents, showStop, onStop, stopDisabled }: TypingIndicatorProps) {
   const [expanded, setExpanded] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const multi = agents.length >= COLLAPSE_THRESHOLD;
+
+  // One shared 1s tick for all rows so wall-clock labels stay real-time accurate
+  // without stacking per-row intervals (which can appear to jump).
+  useEffect(() => {
+    if (agents.length === 0) return;
+    setNowMs(Date.now());
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [agents.length]);
 
   // Collapse again when the crowd clears so the next @here starts compact.
   useEffect(() => {
@@ -159,14 +152,12 @@ export function TypingIndicator({ agents, showStop, onStop, stopDisabled }: Typi
                 <span className="text-sm font-medium text-slack-text truncate">
                   {collapsedSummary(agents)}
                 </span>
-                <span className="inline-flex" aria-hidden>
-                  <span className="animate-bounce text-slack-accent font-bold" style={{ animationDelay: '0ms' }}>
+                <span className="inline-flex thinking-dots" aria-hidden>
+                  <span className="thinking-dot">.</span>
+                  <span className="thinking-dot" style={{ animationDelay: '200ms' }}>
                     .
                   </span>
-                  <span className="animate-bounce text-slack-accent font-bold" style={{ animationDelay: '150ms' }}>
-                    .
-                  </span>
-                  <span className="animate-bounce text-slack-accent font-bold" style={{ animationDelay: '300ms' }}>
+                  <span className="thinking-dot" style={{ animationDelay: '400ms' }}>
                     .
                   </span>
                 </span>
@@ -194,7 +185,7 @@ export function TypingIndicator({ agents, showStop, onStop, stopDisabled }: Typi
                 </div>
               ) : null}
               {agents.map((agent) => (
-                <AgentTypingRow key={agent.id} agent={agent} />
+                <AgentTypingRow key={agent.id} agent={agent} nowMs={nowMs} />
               ))}
             </div>
           ) : null}

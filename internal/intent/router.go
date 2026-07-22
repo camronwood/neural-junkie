@@ -27,7 +27,10 @@ func NewRouter(classifier Classifier, minConfidence float64) *Router {
 	return &Router{
 		Classifier:    classifier,
 		MinConfidence: minConfidence,
-		Timeout:       20 * time.Second,
+		// Keep this short: SendMessage waits on Resolve before agents see the turn.
+		// UI echo happens first, but HTTP send and agent start still wait here.
+		// Production semanticTurnRouter overrides from RoutingConfig (default 8s).
+		Timeout: 8 * time.Second,
 	}
 }
 
@@ -254,6 +257,20 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			decision.PolicyOverrides = append(decision.PolicyOverrides, "continuation_target_missing")
 		}
 	}
+	// Workspace look/check/git cues must not stay chat-only (Answer + memory).
+	// Upgrade to inspect so tooling lands in the prompt and codebase retrieval is required.
+	if features.HasWorkspace && looksLikeWorkspaceInspectRequest(features.Text) {
+		switch decision.Action {
+		case ActionAnswer, ActionAskUser, ActionPlan, "":
+			decision.Action = ActionInspect
+			decision.RequestedAction = ActionInspect
+			decision.Mutation = MutationNone
+			if decision.Interaction == InteractionQuestion || decision.Interaction == InteractionCasual || decision.Interaction == "" {
+				decision.Interaction = InteractionTask
+			}
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_inspect_cue")
+		}
+	}
 	if features.HasWorkspace {
 		switch decision.Action {
 		case ActionInspect, ActionDebug, ActionEdit, ActionRun, ActionContinue:
@@ -265,6 +282,78 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	}
 	decision.PolicyOverrides = normalizeStrings(decision.PolicyOverrides)
 	return decision
+}
+
+// looksLikeWorkspaceInspectRequest detects user asks to examine workspace/git state
+// without necessarily using the word "inspect".
+func looksLikeWorkspaceInspectRequest(text string) bool {
+	t := strings.ToLower(strings.TrimSpace(text))
+	if t == "" {
+		return false
+	}
+	cues := []string{
+		"have a look",
+		"take a look",
+		"go look",
+		"go ahead and look",
+		"look at the",
+		"look into",
+		"restore something that broke",
+		"see what broke",
+		"see what's wrong",
+		"see whats wrong",
+		"investigate",
+		"inspect the",
+		"desktop app",
+		"app itself is not",
+		"app itself does not",
+		"tauri",
+		"window does not",
+		"won't boot",
+		"will not boot",
+		"does not boot",
+	}
+	for _, cue := range cues {
+		if strings.Contains(t, cue) {
+			return true
+		}
+	}
+	return LooksLikeGitInspectRequest(text)
+}
+
+// LooksLikeGitInspectRequest reports user asks that should be answered with live
+// git tool output (status/log/diff/history), not chat speculation.
+func LooksLikeGitInspectRequest(text string) bool {
+	t := strings.ToLower(strings.TrimSpace(text))
+	if t == "" {
+		return false
+	}
+	cues := []string{
+		"check git",
+		"use git",
+		"via git",
+		"from git",
+		"git to find",
+		"git history",
+		"git log",
+		"git diff",
+		"git status",
+		"git show",
+		"against git",
+		"compare with git",
+		"known-good",
+		"known good",
+		"working config",
+		"last known good",
+		"what changed in git",
+		"what did git",
+	}
+	for _, cue := range cues {
+		if strings.Contains(t, cue) {
+			return true
+		}
+	}
+	return false
 }
 
 func containsRetrievalTarget(values []RetrievalTarget, target RetrievalTarget) bool {
@@ -296,19 +385,25 @@ func safeFallback(features TurnFeatures, reason string) TurnDecision {
 	if recipient == "" {
 		recipient = "assistant"
 	}
-	return TurnDecision{
-		SchemaVersion:    SchemaVersion,
-		Interaction:      InteractionQuestion,
-		RequestedAction:  ActionAnswer,
-		Action:           ActionAnswer,
-		RecipientType:    recipient,
-		Retrieval:        []RetrievalTarget{RetrievalMemory},
-		Mutation:         MutationNone,
-		Confidence:       0,
-		Source:           SourceSafeFallback,
-		ReasonCodes:      []string{reason},
-		AbstentionReason: reason,
+	// Still run policy so workspace inspect/git cues are not lost when the classifier
+	// times out or fails — otherwise every failed classify stays chat-only memory.
+	semantic := SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionAnswer,
+		MutationRequested: MutationNone,
+		Confidence:        0,
+		ReasonCodes:       []string{reason},
+		RecipientType:     recipient,
+		Retrieval:         []RetrievalTarget{RetrievalMemory},
 	}
+	decision := ResolvePolicy(features, semantic, SourceSafeFallback)
+	decision.Confidence = 0
+	decision.AbstentionReason = reason
+	if reason != "" && !containsString(decision.ReasonCodes, reason) {
+		decision.ReasonCodes = append([]string{reason}, decision.ReasonCodes...)
+	}
+	return decision
 }
 
 func classifierFallback(features TurnFeatures, reason string) TurnDecision {
@@ -326,4 +421,13 @@ func classifierFallback(features TurnFeatures, reason string) TurnDecision {
 	decision := ResolvePolicy(features, semantic, SourceStructural)
 	decision.AbstentionReason = reason
 	return decision
+}
+
+func containsString(values []string, want string) bool {
+	for _, v := range values {
+		if v == want {
+			return true
+		}
+	}
+	return false
 }

@@ -35,7 +35,7 @@ func (s *Store) SearchWithOptions(opts SearchOptions) ([]*protocol.Message, erro
 
 	sqlText := `
 SELECT m.id, m.channel, m.thread_id, m.sender_id, m.sender_name, m.sender_type,
-       m.content, m.msg_type, m.metadata_json, m.created_at
+       m.content, m.msg_type, m.metadata_json, m.created_at, m.reply_to
 FROM messages_fts f
 JOIN messages m ON m.id = f.message_id
 WHERE messages_fts MATCH ?
@@ -86,9 +86,47 @@ func buildFTSQuery(q string) string {
 }
 
 func (s *Store) indexMessageFTS(msgID, channel, content, senderName string) error {
-	_, err := s.db.Exec(`INSERT OR REPLACE INTO messages_fts(message_id, channel, content, sender_name)
+	if err := s.deleteFTSMessage(msgID); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`INSERT INTO messages_fts(message_id, channel, content, sender_name)
 VALUES (?, ?, ?, ?)`, msgID, channel, content, senderName)
 	return err
+}
+
+func (s *Store) deleteFTSMessage(msgID string) error {
+	_, err := s.db.Exec(`DELETE FROM messages_fts WHERE message_id = ?`, msgID)
+	return err
+}
+
+func (s *Store) ftsRowCount() (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM messages_fts`).Scan(&n)
+	return n, err
+}
+
+// ensureFTSBackfill rebuilds the FTS index when empty. Rows are loaded first so we never
+// write to FTS while a SELECT cursor is open on the same connection (SQLITE_BUSY).
+func (s *Store) ensureFTSBackfill() error {
+	ftsCount, err := s.ftsRowCount()
+	if err != nil {
+		return err
+	}
+	if ftsCount > 0 {
+		return nil
+	}
+	var msgCount int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM messages`).Scan(&msgCount); err != nil {
+		return err
+	}
+	if msgCount == 0 {
+		return nil
+	}
+	return s.backfillFTS()
+}
+
+type ftsRow struct {
+	id, channel, content, sender string
 }
 
 func (s *Store) backfillFTS() error {
@@ -96,15 +134,26 @@ func (s *Store) backfillFTS() error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	batch := make([]ftsRow, 0, 1024)
 	for rows.Next() {
-		var id, channel, content, sender string
-		if err := rows.Scan(&id, &channel, &content, &sender); err != nil {
+		var row ftsRow
+		if err := rows.Scan(&row.id, &row.channel, &row.content, &row.sender); err != nil {
+			rows.Close()
 			return err
 		}
-		if err := s.indexMessageFTS(id, channel, content, sender); err != nil {
+		batch = append(batch, row)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, row := range batch {
+		if err := s.indexMessageFTS(row.id, row.channel, row.content, row.sender); err != nil {
 			return err
 		}
 	}
-	return rows.Err()
+	return nil
 }

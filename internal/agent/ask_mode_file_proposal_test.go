@@ -9,6 +9,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -31,6 +32,36 @@ func TestMaybeSubmitFileChangeFromResponse_askModeStripsBlocks(t *testing.T) {
 	}
 	if strings.Contains(cleaned, "[FILE_CHANGE]") {
 		t.Fatalf("expected stripped response, got %q", cleaned)
+	}
+}
+
+func TestMaybeSubmitFileChangeFromResponse_mutationNoneStripsParenBlocks(t *testing.T) {
+	t.Parallel()
+	a := &Agent{Info: protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "will not boot")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode": "agent",
+		"composer_mode": "agent",
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionQuestion,
+		RequestedAction: intent.ActionAnswer, Action: intent.ActionAnswer,
+		Mutation: intent.MutationNone, Confidence: 0.9, Source: intent.SourceSafeFallback,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	resp := "Grounding: loaded files.\n[FILE_CHANGE(src/components/WorkspaceTabBar.tsx)] ```tsx\nexport const X = 1\n```"
+	cleaned, proposed, err := a.maybeSubmitFileChangeFromResponse(context.Background(), resp, "dm-test", msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proposed {
+		t.Fatal("mutation=none must not propose file changes")
+	}
+	if strings.Contains(cleaned, "FILE_CHANGE") {
+		t.Fatalf("expected paren FILE_CHANGE stripped, got %q", cleaned)
 	}
 }
 

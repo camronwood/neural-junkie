@@ -111,6 +111,16 @@ func (a *Agent) RemoveChannel(channel string) {
 	a.AbortChannel(channel)
 }
 
+// ListeningChannelCount returns how many channel listeners this agent currently holds.
+func (a *Agent) ListeningChannelCount() int {
+	if a == nil {
+		return 0
+	}
+	a.channelMu.Lock()
+	defer a.channelMu.Unlock()
+	return len(a.activeChannels)
+}
+
 // shouldAbortInFlightForUserMessage reports whether a new user line should cancel
 // in-flight generations on the same channel. Limited to conversational closure so
 // collab recaps and hub slash commands are not disrupted.

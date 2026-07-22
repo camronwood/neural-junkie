@@ -9,7 +9,19 @@ interface LoadingScreenProps {
   onContinueWithoutHub?: () => void;
 }
 
+interface HubHealth {
+  status?: string;
+  agents_ready?: boolean;
+  agents_listening?: number;
+  agents_expected?: number;
+  startup_complete?: boolean;
+  agent_count?: number;
+  uptime_secs?: number;
+}
+
 const HUB_WAIT_MS = 50_000;
+/** After hub is up, keep waiting for agents to listen before revealing the UI. */
+const AGENTS_WAIT_MS = 45_000;
 
 export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: LoadingScreenProps) {
   const [status, setStatus] = useState('Connecting to hub…');
@@ -17,6 +29,7 @@ export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: Loadin
   const [retryToken, setRetryToken] = useState(0);
   const hubUrl = getHubBaseURL();
   const finishedRef = useRef(false);
+  const hubOkSinceRef = useRef<number | null>(null);
 
   const markConnected = () => {
     if (finishedRef.current) {
@@ -30,9 +43,11 @@ export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: Loadin
 
   useEffect(() => {
     finishedRef.current = false;
+    hubOkSinceRef.current = null;
 
     const unlisten1 = listen<boolean>('server-ready', () => {
-      markConnected();
+      // Tauri may fire early; still require agents_ready via health poll.
+      setStatus('Hub process ready — waiting for agents…');
     });
 
     const unlisten2 = listen<string>('server-error', event => {
@@ -45,14 +60,37 @@ export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: Loadin
       try {
         const resp = await fetch(`${hubUrl}/api/health`);
         if (!resp.ok) return;
-        const data = (await resp.json()) as { status?: string };
+        const data = (await resp.json()) as HubHealth;
         if (data.status !== 'ok') return;
-        clearInterval(pollInterval);
-        markConnected();
+
+        if (hubOkSinceRef.current == null) {
+          hubOkSinceRef.current = Date.now();
+        }
+
+        const listening = data.agents_listening ?? 0;
+        const expected = data.agents_expected ?? data.agent_count ?? 0;
+        const agentsReady = data.agents_ready === true;
+        const startupComplete = data.startup_complete !== false;
+        const waitedMs = Date.now() - (hubOkSinceRef.current ?? Date.now());
+
+        if (!agentsReady && startupComplete && expected > 0) {
+          setStatus(`Loading agents (${listening}/${expected})…`);
+        } else if (!startupComplete) {
+          setStatus('Starting hub…');
+        } else {
+          setStatus('Loading agents…');
+        }
+
+        // Proceed when agents are listening, or after a settle timeout so a stuck
+        // specialist cannot block the UI forever.
+        if (agentsReady || waitedMs >= AGENTS_WAIT_MS) {
+          clearInterval(pollInterval);
+          markConnected();
+        }
       } catch {
         /* hub still starting or wrong host/port */
       }
-    }, 1000);
+    }, 500);
 
     const timeoutId = window.setTimeout(() => {
       if (!finishedRef.current) {
@@ -74,6 +112,7 @@ export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: Loadin
 
   const handleRetry = () => {
     finishedRef.current = false;
+    hubOkSinceRef.current = null;
     setHasError(false);
     setStatus('Retrying connection…');
     setRetryToken(t => t + 1);

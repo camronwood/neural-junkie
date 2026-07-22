@@ -28,6 +28,11 @@ import {
 } from '../utils/outboundChatMetadata';
 import { attachAmbientStateMetadata } from '../utils/ambientState';
 import {
+  clearPendingSendThinking,
+  markPendingSendThinking,
+  NJ_PENDING_SEND_AGENT_ID,
+} from '../utils/pendingSendThinking';
+import {
   formatContextIndicator,
   loadConversationModeSetting,
   resolveConversationMode,
@@ -169,6 +174,8 @@ import { ideRoutingChipLabel } from '../utils/ideComposer';
 import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
 import { registerRestartBlocker } from '../utils/restartSafety';
 import {
+  messageForPendingChangeId,
+  oldestPendingChangeNavTarget,
   oldestPendingProposalMessage,
   pendingProposalCount,
 } from '../utils/pendingChangeNavigation';
@@ -1595,30 +1602,80 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     ],
   );
 
-  const jumpToOldestPendingChange = useCallback(() => {
+  const jumpToOldestPendingChange = useCallback(async () => {
+    if (pendingChangeCount === 0) {
+      addToast({
+        type: 'info',
+        title: 'No pending changes',
+        message: 'All proposed file and Git changes have been resolved.',
+      });
+      return;
+    }
+
     const pendingIds = new Set([
       ...pendingChanges.map((change) => change.id),
       ...pendingGitChanges.map((change) => change.id),
     ]);
-    const target = oldestPendingProposalMessage(
-      useChatStore.getState().messages,
-      pendingIds,
-    );
-    if (target) {
+    const navTarget = oldestPendingChangeNavTarget([
+      ...pendingChanges,
+      ...pendingGitChanges,
+    ]);
+
+    const focusProposal = (messages: Message[]) => {
+      const byId = navTarget
+        ? messageForPendingChangeId(messages, navTarget.id)
+        : null;
+      const target =
+        byId ?? oldestPendingProposalMessage(messages, pendingIds);
+      if (!target) return false;
       const store = useChatStore.getState();
       store.setPendingScrollToMessageId(target.id);
       store.setHighlightMessageId(target.id);
+      return true;
+    };
+
+    if (focusProposal(useChatStore.getState().messages)) {
       return;
     }
+
+    if (!navTarget?.channel) {
+      addToast({
+        type: 'info',
+        title: 'Pending change unavailable',
+        message: 'A change is pending but its chat channel is unknown.',
+      });
+      return;
+    }
+
+    await handleSwitchChannel(navTarget.channel);
+
+    let messages = useChatStore.getState().messages;
+    if (!focusProposal(messages)) {
+      try {
+        messages = await api.fetchMessages(navTarget.channel, 200);
+        useChatStore.getState().setMessages(messages);
+      } catch {
+        // Fall through to toast below.
+      }
+    }
+
+    if (focusProposal(messages)) {
+      return;
+    }
+
     addToast({
       type: 'info',
-      title: pendingChangeCount > 0 ? 'Pending change is in another chat' : 'No pending changes',
-      message:
-        pendingChangeCount > 0
-          ? 'Open the chat where the change was proposed to review it.'
-          : 'All proposed file and Git changes have been resolved.',
+      title: `Opened #${navTarget.channel}`,
+      message: 'Switched to the chat with the pending change. Scroll to find the approval card.',
     });
-  }, [addToast, pendingChangeCount, pendingChanges, pendingGitChanges]);
+  }, [
+    addToast,
+    api,
+    handleSwitchChannel,
+    pendingChangeCount,
+    pendingChanges,
+    pendingGitChanges,
+  ]);
 
   const scrollToApproval = useCallback((approvalId: string) => {
     const el = document.querySelector(`[data-approval-id="${approvalId}"]`);
@@ -1757,6 +1814,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
               activity,
               activityDetail
             );
+            if (message.from.id !== NJ_PENDING_SEND_AGENT_ID) {
+              clearPendingSendThinking(msgChannel);
+            }
             if (
               msgChannel !== activeChannel &&
               msgChannel.startsWith('collab-')
@@ -1769,6 +1829,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 activity,
                 activityDetail
               );
+              if (message.from.id !== NJ_PENDING_SEND_AGENT_ID) {
+                clearPendingSendThinking(activeChannel);
+              }
             }
             appendTurnTelemetryFromAgentStatus(msgChannel, message);
             }
@@ -2068,8 +2131,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       ) {
         const ch = message.channel || activeChannel;
         st.removeThinkingAgent(ch, message.from.id);
+        clearPendingSendThinking(ch);
         if (ch !== activeChannel) {
           st.removeThinkingAgent(activeChannel, message.from.id);
+          clearPendingSendThinking(activeChannel);
         }
       }
       
@@ -2292,11 +2357,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             );
 
       useChatStore.getState().setIsTyping(true);
+      markPendingSendThinking(channel);
       try {
         const trimmed = sendContent.trimStart();
         const slashCommand = trimmed.startsWith('/');
         if (trimmed.startsWith('/collaborate')) {
           if (!confirmStartCollaborationWhileExecuting(executingCollaborationForChannel)) {
+            clearPendingSendThinking(channel);
             return false;
           }
         }
@@ -2312,6 +2379,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         );
         let timelineChannel = channel;
         if (sendResult.collaboration_channel) {
+          clearPendingSendThinking(channel);
+          markPendingSendThinking(sendResult.collaboration_channel);
           await loadChannels();
           await handleSwitchChannel(sendResult.collaboration_channel);
           timelineChannel = sendResult.collaboration_channel;
@@ -2338,7 +2407,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           }
         }
         if (sendResult.dm_channel) {
+          clearPendingSendThinking(channel);
           const dmName = sendResult.dm_channel;
+          markPendingSendThinking(dmName);
           await loadAgents();
           await loadChannels();
           const channelList = useChatStore.getState().channels;
@@ -2371,9 +2442,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             console.error('[dispatchMessage] post-command refresh failed:', e);
           }
         }
+        // Keep the pending row briefly after HTTP returns — classify may finish before
+        // the agent emits thinking_status. Clear when real thinking arrives (below) or
+        // after this safety timeout.
+        // Keep the pending row briefly after HTTP returns — classify may finish before
+        // the agent emits thinking_status. Clear when real thinking arrives or timeout.
+        window.setTimeout(() => {
+          clearPendingSendThinking(timelineChannel);
+        }, 20_000);
         return true;
       } catch (error) {
         console.error('Failed to send message:', error);
+        clearPendingSendThinking(channel);
         addToast({
           type: 'error',
           title: 'Message not sent',

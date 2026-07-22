@@ -136,9 +136,11 @@ func (b *LocalBackend) Kind() string { return KindLocal }
 func (b *LocalBackend) Root() string { return b.root }
 
 func (b *LocalBackend) abs(rel string) (string, error) {
-	rel = strings.TrimPrefix(filepath.ToSlash(rel), "/")
-	full := filepath.Join(b.root, filepath.FromSlash(rel))
-	return pathutil.WithinRoot(b.root, full)
+	if b == nil {
+		return "", errors.New("nil local backend")
+	}
+	// ResolveRelWithinRoot strips embedded workspace roots (models often pass abs paths).
+	return pathutil.ResolveRelWithinRoot(b.root, rel)
 }
 
 func (b *LocalBackend) ReadDir(ctx context.Context, rel string) ([]Entry, error) {

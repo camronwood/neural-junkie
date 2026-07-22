@@ -29,6 +29,11 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		delete(msg.Metadata, protocol.MetadataTurnDecision)
 		delete(msg.Metadata, protocol.TurnMetaGovernance)
 	}
+	// Join announcements, system_info, approvals, and other non-chat traffic must
+	// not invoke the classifier or stamp implementation/continuation authority.
+	if !semanticTurnEligible(msg) {
+		return
+	}
 	h.mu.RLock()
 	router := h.semanticTurnRouter
 	h.mu.RUnlock()
@@ -48,24 +53,39 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 	if len(msg.Mentions) == 0 && !features.IsDirectMessage && decision.RecipientType != "" {
 		msg.Metadata[protocol.IdeMetaRouteAgentType] = decision.RecipientType
 	}
-	switch decision.Action {
-	case intent.ActionDebug, intent.ActionEdit, intent.ActionContinue:
+	wantsImpl := decision.Mutation == intent.MutationWorkspace &&
+		(decision.Action == intent.ActionDebug || decision.Action == intent.ActionEdit ||
+			decision.Action == intent.ActionContinue || decision.Action == intent.ActionRun)
+	if wantsImpl {
 		msg.Metadata[protocol.IdeMetaImplementationSession] = true
-		msg.Metadata[protocol.TurnMetaCanProposeFiles] = decision.Mutation == intent.MutationWorkspace
+		msg.Metadata[protocol.TurnMetaCanProposeFiles] = true
 		msg.Metadata[protocol.TurnMetaCanRunImplSession] = true
 		msg.Metadata[protocol.TurnMetaRequiresWorkspace] = true
 	}
 	governance, _ := protocol.ExtractTurnGovernance(msg)
-	governance.RequiresWorkspace = decision.Action == intent.ActionDebug ||
-		decision.Action == intent.ActionEdit || decision.Action == intent.ActionContinue
+	governance.RequiresWorkspace = wantsImpl
 	governance.CanProposeFiles = decision.Mutation == intent.MutationWorkspace
-	governance.CanRunImplSession = governance.RequiresWorkspace
+	governance.CanRunImplSession = wantsImpl
 	if governance.ComposerMode == "ask" || governance.ComposerMode == "plan" {
 		governance.CanProposeFiles = false
 		governance.CanRunImplSession = false
 		governance.RequiresWorkspace = false
 	}
 	protocol.StampTurnGovernance(msg, governance)
+}
+
+// semanticTurnEligible reports whether a message is a real user turn that should
+// receive a canonical semantic decision.
+func semanticTurnEligible(msg *protocol.Message) bool {
+	if msg == nil || !protocol.IsUserLikeSender(msg.From) || msg.IsFromSystem() {
+		return false
+	}
+	switch msg.Type {
+	case protocol.MessageTypeChat, protocol.MessageTypeQuestion:
+		return strings.TrimSpace(msg.Content) != ""
+	default:
+		return false
+	}
 }
 
 func stampCanonicalGovernance(msg *protocol.Message) {

@@ -11,7 +11,7 @@ export interface WorkspaceFileDragPayload {
   path: string;
 }
 
-let activeWorkspaceFileDrag: { payload: WorkspaceFileDragPayload; startedAt: number } | null = null;
+let activeWorkspaceFileDrag: { payloads: WorkspaceFileDragPayload[]; startedAt: number } | null = null;
 let clearTimer: ReturnType<typeof setTimeout> | null = null;
 let activeDropZone: Element | null = null;
 
@@ -28,25 +28,56 @@ function validPayload(payload: WorkspaceFileDragPayload | null | undefined): Wor
   return null;
 }
 
+function normalizePayloadList(
+  input: WorkspaceFileDragPayload | WorkspaceFileDragPayload[] | null | undefined
+): WorkspaceFileDragPayload[] {
+  const list = Array.isArray(input) ? input : input ? [input] : [];
+  const out: WorkspaceFileDragPayload[] = [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    const normalized = validPayload(item);
+    if (!normalized) continue;
+    const key = `${normalized.workspaceId}::${normalized.path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function parseStoredPayloads(raw: string): WorkspaceFileDragPayload[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      return normalizePayloadList(parsed as WorkspaceFileDragPayload[]);
+    }
+    // Backward compatible: single object payload.
+    return normalizePayloadList(parsed as WorkspaceFileDragPayload);
+  } catch {
+    return [];
+  }
+}
+
 export function setWorkspaceFileDragData(
   dataTransfer: DataTransfer,
-  payload: WorkspaceFileDragPayload
+  payload: WorkspaceFileDragPayload | WorkspaceFileDragPayload[]
 ): void {
-  const normalized = validPayload(payload);
-  if (!normalized) return;
+  const normalized = normalizePayloadList(payload);
+  if (normalized.length === 0) return;
 
   if (clearTimer) {
     clearTimeout(clearTimer);
     clearTimer = null;
   }
-  activeWorkspaceFileDrag = { payload: normalized, startedAt: Date.now() };
+  activeWorkspaceFileDrag = { payloads: normalized, startedAt: Date.now() };
   try {
+    // Always store an array so multi-file drops round-trip cleanly.
     dataTransfer.setData(WORKSPACE_FILE_DRAG_MIME, JSON.stringify(normalized));
   } catch {
     /* Some WebKit-backed runtimes reject custom drag MIME types. */
   }
   try {
-    dataTransfer.setData('text/plain', normalized.path);
+    dataTransfer.setData('text/plain', normalized.map((p) => p.path).join('\n'));
   } catch {
     /* ignore */
   }
@@ -62,18 +93,23 @@ export function clearWorkspaceFileDragData(): void {
   activeDropZone = null;
 }
 
-export function getActiveWorkspaceFileDragPayload(): WorkspaceFileDragPayload | null {
-  if (!activeWorkspaceFileDrag) return null;
+export function getActiveWorkspaceFileDragPayloads(): WorkspaceFileDragPayload[] {
+  if (!activeWorkspaceFileDrag) return [];
   if (Date.now() - activeWorkspaceFileDrag.startedAt > FALLBACK_TTL_MS) {
     clearWorkspaceFileDragData();
-    return null;
+    return [];
   }
-  return activeWorkspaceFileDrag.payload;
+  return activeWorkspaceFileDrag.payloads;
+}
+
+/** @deprecated Prefer getActiveWorkspaceFileDragPayloads — kept for single-file callers. */
+export function getActiveWorkspaceFileDragPayload(): WorkspaceFileDragPayload | null {
+  return getActiveWorkspaceFileDragPayloads()[0] ?? null;
 }
 
 export function dispatchWorkspaceFileDropEventAtPoint(clientX: number, clientY: number): boolean {
-  const payload = getActiveWorkspaceFileDragPayload();
-  if (!payload || typeof document === 'undefined') return false;
+  const payloads = getActiveWorkspaceFileDragPayloads();
+  if (payloads.length === 0 || typeof document === 'undefined') return false;
 
   const target = document.elementFromPoint(clientX, clientY);
   const dropZone =
@@ -84,7 +120,11 @@ export function dispatchWorkspaceFileDropEventAtPoint(clientX: number, clientY: 
   dropZone.dispatchEvent(
     new CustomEvent(WORKSPACE_FILE_DROP_EVENT, {
       bubbles: true,
-      detail: { payload },
+      detail: {
+        payloads,
+        // Backward compatible single-file field (first path).
+        payload: payloads[0],
+      },
     })
   );
   return true;
@@ -115,21 +155,25 @@ function readDataTransferText(dataTransfer: DataTransfer, type: string): string 
 export function parseWorkspaceFileDrag(dataTransfer: DataTransfer): WorkspaceFileDragPayload[] {
   const raw = readDataTransferText(dataTransfer, WORKSPACE_FILE_DRAG_MIME);
   if (raw) {
-    try {
-      const parsed = validPayload(JSON.parse(raw) as WorkspaceFileDragPayload);
-      if (parsed) {
-        return [parsed];
-      }
-    } catch {
-      /* ignore */
+    const fromMime = parseStoredPayloads(raw);
+    if (fromMime.length > 0) {
+      return fromMime;
     }
   }
 
-  const activePayload = getActiveWorkspaceFileDragPayload();
-  if (activePayload) {
+  const activePayloads = getActiveWorkspaceFileDragPayloads();
+  if (activePayloads.length > 0) {
     const plain = readDataTransferText(dataTransfer, 'text/plain').trim();
-    if (!plain || plain === activePayload.path) {
-      return [activePayload];
+    if (!plain) {
+      return activePayloads;
+    }
+    const plainPaths = plain
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const activePaths = new Set(activePayloads.map((p) => p.path));
+    if (plainPaths.length === 0 || plainPaths.every((p) => activePaths.has(p))) {
+      return activePayloads;
     }
   }
 

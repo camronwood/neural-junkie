@@ -126,3 +126,51 @@ func TestResolveSemanticTurnPhraseMismatchCannotOverrideAction(t *testing.T) {
 		t.Fatalf("recipient route=%q, want assistant", msg.IdeRouteAgentType())
 	}
 }
+
+func TestResolveSemanticTurnSkipsSystemInfoJoin(t *testing.T) {
+	h := NewHub()
+	h.CreateChannelWithType("semantic-join", "", "", protocol.ChannelTypePublic, "user")
+	called := false
+	h.SetSemanticTurnRouter(semanticRouterFunc(func(context.Context, intent.TurnFeatures) intent.TurnDecision {
+		called = true
+		return intent.TurnDecision{
+			SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionContinuation,
+			RequestedAction: intent.ActionContinue, Action: intent.ActionContinue,
+			Mutation: intent.MutationNone, Confidence: 1, Source: intent.SourceLocalModel,
+		}
+	}))
+	msg := protocol.NewMessage(protocol.MessageTypeSystemInfo, "semantic-join", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "Camron has joined the chat")
+	h.resolveSemanticTurn(context.Background(), msg)
+	if called {
+		t.Fatal("classifier must not run for system_info join announcements")
+	}
+	if _, ok := protocol.ExtractTurnDecision(msg); ok {
+		t.Fatal("system_info must not receive a stamped turn decision")
+	}
+	if msg.ImplementationSession() {
+		t.Fatal("system_info must not stamp implementation_session")
+	}
+}
+
+func TestResolveSemanticTurnContinueWithoutWorkspaceMutationSkipsImplSession(t *testing.T) {
+	h := NewHub()
+	h.CreateChannelWithType("semantic-continue", "", "", protocol.ChannelTypePublic, "user")
+	h.SetSemanticTurnRouter(semanticRouterFunc(func(context.Context, intent.TurnFeatures) intent.TurnDecision {
+		return intent.TurnDecision{
+			SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionContinuation,
+			RequestedAction: intent.ActionContinue, Action: intent.ActionContinue,
+			RecipientType: "assistant", Mutation: intent.MutationNone,
+			Confidence: 1, Source: intent.SourceLocalModel,
+		}
+	}))
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "semantic-continue", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "ok continue")
+	msg.Metadata = map[string]interface{}{protocol.TurnMetaComposerMode: "agent"}
+	h.resolveSemanticTurn(context.Background(), msg)
+	if msg.ImplementationSession() {
+		t.Fatal("continue with mutation=none must not stamp implementation_session")
+	}
+}

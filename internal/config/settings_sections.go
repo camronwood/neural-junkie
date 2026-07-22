@@ -4,15 +4,16 @@ import "strings"
 
 // SecurityConfig holds hub auth and rate-limit settings (Settings → Security).
 type SecurityConfig struct {
-	AuthRequired        bool   `json:"auth_required"`
-	RelaxedLocal        bool   `json:"relaxed_local"`
-	ListenAll           bool   `json:"listen_all"`
-	SessionTTLHours     int    `json:"session_ttl_hours,omitempty"`
-	RateLimitEnabled    *bool  `json:"rate_limit_enabled,omitempty"` // nil = enabled
-	RateReadPerMinute   int    `json:"rate_read_per_minute,omitempty"`
-	RateMutatePerMinute int    `json:"rate_mutate_per_minute,omitempty"`
-	HubToken            string `json:"hub_token,omitempty"`
-	FullMetadataSecret  string `json:"full_metadata_secret,omitempty"`
+	AuthRequired           bool     `json:"auth_required"`
+	RelaxedLocal           bool     `json:"relaxed_local"`
+	ListenAll              bool     `json:"listen_all"`
+	SessionTTLHours        int      `json:"session_ttl_hours,omitempty"`
+	RateLimitEnabled       *bool    `json:"rate_limit_enabled,omitempty"` // nil = enabled
+	RateReadPerMinute      int      `json:"rate_read_per_minute,omitempty"`
+	RateMutatePerMinute    int      `json:"rate_mutate_per_minute,omitempty"`
+	HubToken               string   `json:"hub_token,omitempty"`
+	FullMetadataSecret     string   `json:"full_metadata_secret,omitempty"`
+	RunCommandAllowExtra   []string `json:"run_command_allow_extra,omitempty"` // user-approved run_command prefixes
 }
 
 func DefaultSecurityConfig() SecurityConfig {
@@ -33,7 +34,7 @@ type SessionConfig struct {
 }
 
 func DefaultSessionConfig() SessionConfig {
-	return SessionConfig{}
+	return SessionConfig{RestoreOnStartup: true}
 }
 
 // SessionSummaryConfig configures async hub session summaries.

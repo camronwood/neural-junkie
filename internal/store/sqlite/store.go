@@ -31,10 +31,15 @@ func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", path)
+	// busy_timeout avoids immediate SQLITE_BUSY; single writer connection is required for
+	// modernc + FTS safety (no concurrent writers on one file handle pool).
+	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", path)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
 		db.Close()
@@ -70,7 +75,40 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 	if err != nil {
 		return err
 	}
-	return s.backfillFTS()
+	if err := s.ensureReplyToColumn(); err != nil {
+		return err
+	}
+	return s.ensureFTSBackfill()
+}
+
+func (s *Store) ensureReplyToColumn() error {
+	rows, err := s.db.Query(`PRAGMA table_info(messages)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	hasReplyTo := false
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == "reply_to" {
+			hasReplyTo = true
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if hasReplyTo {
+		return nil
+	}
+	_, err = s.db.Exec(`ALTER TABLE messages ADD COLUMN reply_to TEXT NOT NULL DEFAULT ''`)
+	return err
 }
 
 func (s *Store) Close() error {
@@ -91,10 +129,10 @@ func (s *Store) InsertMessage(msg *protocol.Message) error {
 		created = time.Now().UnixMilli()
 	}
 	_, err := s.db.Exec(`INSERT OR REPLACE INTO messages
-(id, channel, thread_id, sender_id, sender_name, sender_type, content, msg_type, metadata_json, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+(id, channel, thread_id, sender_id, sender_name, sender_type, content, msg_type, metadata_json, created_at, reply_to)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		msg.ID, msg.Channel, threadID, msg.From.ID, msg.From.Name, string(msg.From.Type),
-		msg.Content, string(msg.Type), string(meta), created)
+		msg.Content, string(msg.Type), string(meta), created, msg.ReplyTo)
 	if err != nil {
 		return err
 	}
@@ -108,7 +146,7 @@ func (s *Store) ListChannelMessages(channel string, limit int, beforeID string) 
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	query := `SELECT id, channel, thread_id, sender_id, sender_name, sender_type, content, msg_type, metadata_json, created_at
+	query := `SELECT id, channel, thread_id, sender_id, sender_name, sender_type, content, msg_type, metadata_json, created_at, reply_to
 FROM messages WHERE channel = ? AND thread_id = ''`
 	args := []any{channel}
 	if beforeID != "" {
@@ -145,9 +183,9 @@ type rowScanner interface {
 }
 
 func scanMessage(rows rowScanner) (*protocol.Message, error) {
-	var id, channel, threadID, senderID, senderName, senderType, content, msgType, metaJSON string
+	var id, channel, threadID, senderID, senderName, senderType, content, msgType, metaJSON, replyTo string
 	var created int64
-	if err := rows.Scan(&id, &channel, &threadID, &senderID, &senderName, &senderType, &content, &msgType, &metaJSON, &created); err != nil {
+	if err := rows.Scan(&id, &channel, &threadID, &senderID, &senderName, &senderType, &content, &msgType, &metaJSON, &created, &replyTo); err != nil {
 		return nil, err
 	}
 	msg := &protocol.Message{
@@ -161,6 +199,7 @@ func scanMessage(rows rowScanner) (*protocol.Message, error) {
 			Type: protocol.AgentType(senderType),
 		},
 		Timestamp: time.UnixMilli(created),
+		ReplyTo:   replyTo,
 	}
 	if threadID != "" {
 		msg.ThreadID = threadID
@@ -181,8 +220,37 @@ func (s *Store) LoadRecentChannel(channel string, limit int) ([]*protocol.Messag
 func (s *Store) ClearChannelMessages(channel string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, err := s.db.Exec(`DELETE FROM messages WHERE channel = ?`, channel)
-	return err
+	ids, err := s.messageIDsForChannel(channel)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`DELETE FROM messages WHERE channel = ?`, channel)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := s.deleteFTSMessage(id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) messageIDsForChannel(channel string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT id FROM messages WHERE channel = ?`, channel)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // DeleteChannel removes all messages for a channel.
@@ -193,7 +261,7 @@ func (s *Store) DeleteChannel(channel string) error {
 // Stats returns message count for a channel.
 func (s *Store) Stats(channel string) (int, error) {
 	s.mu.RLock()
-	defer s.mu.Unlock()
+	defer s.mu.RUnlock()
 	var n int
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM messages WHERE channel = ?`, channel).Scan(&n)
 	return n, err

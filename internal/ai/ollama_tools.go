@@ -90,6 +90,11 @@ func (o *OllamaProvider) GenerateResponseWithTools(
 				log.Printf("Ollama model %q does not support native tool calling; using plain chat", o.Model)
 				return o.GenerateResponse(ctx, prompt, conversationHistory)
 			}
+			if ollamaToolCallMalformed(resp.StatusCode, body) {
+				o.MarkNativeToolsUnsupported()
+				log.Printf("Ollama model %q returned malformed tool-call XML; falling back from native tools", o.Model)
+				return "", fmt.Errorf("%w: %s", ErrNativeToolsUnsupported, truncateOllamaErrBody(body))
+			}
 			return "", fmt.Errorf("Ollama API status %d: %s", resp.StatusCode, string(body))
 		}
 
@@ -98,6 +103,11 @@ func (o *OllamaProvider) GenerateResponseWithTools(
 			return "", fmt.Errorf("decode ollama response: %w", err)
 		}
 		if chatResp.Error != "" {
+			if ollamaToolCallMalformed(http.StatusOK, []byte(chatResp.Error)) {
+				o.MarkNativeToolsUnsupported()
+				log.Printf("Ollama model %q returned malformed tool-call XML; falling back from native tools", o.Model)
+				return "", fmt.Errorf("%w: %s", ErrNativeToolsUnsupported, chatResp.Error)
+			}
 			return "", fmt.Errorf("Ollama API error: %s", chatResp.Error)
 		}
 
@@ -150,4 +160,27 @@ func ollamaToolsUnsupported(status int, body []byte) bool {
 	lower := strings.ToLower(string(body))
 	return strings.Contains(lower, "does not support tools") ||
 		strings.Contains(lower, "does not support tool")
+}
+
+// ollamaToolCallMalformed detects Ollama 500s (and similar) where the model emitted
+// broken tool-call XML such as "<function> closed by </parameter>".
+func ollamaToolCallMalformed(status int, body []byte) bool {
+	lower := strings.ToLower(string(body))
+	if !strings.Contains(lower, "xml syntax") &&
+		!strings.Contains(lower, "closed by") &&
+		!strings.Contains(lower, "malformed") {
+		return false
+	}
+	return strings.Contains(lower, "function") ||
+		strings.Contains(lower, "parameter") ||
+		strings.Contains(lower, "tool") ||
+		status == http.StatusInternalServerError
+}
+
+func truncateOllamaErrBody(body []byte) string {
+	s := strings.TrimSpace(string(body))
+	if len(s) > 240 {
+		return s[:240] + "…"
+	}
+	return s
 }

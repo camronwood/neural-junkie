@@ -11,7 +11,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-const maxToolLoopIterations = 8 // default; override via WithToolLoopMaxIterations
+const maxToolLoopIterations = defaultToolLoopMaxIterations // default; override via WithToolLoopMaxIterations
 
 // claudeToolResponseContent supports text and tool_use blocks from Claude.
 type claudeToolResponseContent struct {

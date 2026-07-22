@@ -41,7 +41,7 @@ export function ServerNetworkSettingsTab({ hubHttp, isActive }: SettingsTabProps
     ws_origins: '',
   });
   const [session, setSession] = useState<SessionForm>({
-    restore_on_startup: false,
+    restore_on_startup: true,
     skip_restore_once: false,
     force_restore_large: false,
   });

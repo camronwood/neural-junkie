@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -47,5 +48,25 @@ func TestLocalBackendPathContainment(t *testing.T) {
 	}
 	if _, err := b.Stat(ctx, "nested/a.go"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLocalBackendStripsEmbeddedRoot(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("all:\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	b := NewLocal(dir)
+	rootAbs, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	embedded := strings.TrimPrefix(rootAbs, string(filepath.Separator)) + "/Makefile"
+	data, err := b.ReadFile(context.Background(), embedded)
+	if err != nil {
+		t.Fatalf("ReadFile embedded root: %v", err)
+	}
+	if string(data) != "all:\n" {
+		t.Fatalf("got %q", data)
 	}
 }

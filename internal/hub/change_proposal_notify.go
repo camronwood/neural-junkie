@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"log"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -52,7 +53,12 @@ func (h *Hub) UpdateChangeProposalStatus(
 			h.messages[name] = messages
 			h.broadcast(name, &updated)
 			if h.persistentStore != nil {
-				go h.persistMessage(&updated)
+				snap, err := protocol.CloneMessage(&updated)
+				if err != nil {
+					log.Printf("[hub] clone change proposal for persistence: %v", err)
+				} else if snap != nil {
+					go h.persistMessage(snap)
+				}
 			}
 			return
 		}

@@ -54,6 +54,16 @@ func TestAgentRespondedToUser(t *testing.T) {
 	if agentRespondedToUser(history3, 0, "bio1", "BiologyExpert", "u1") {
 		t.Fatal("expected no response")
 	}
+
+	// Persisted error replies historically lost ReplyTo after SQLite reload.
+	history4 := []*protocol.Message{user, &protocol.Message{
+		ID: "e2", Type: protocol.MessageTypeSystemInfo, ReplyTo: "",
+		Content: "Sorry, I encountered an error while generating a response. Please try again.",
+		From:    protocol.AgentInfo{ID: "bio1", Name: "BiologyExpert"},
+	}}
+	if !agentRespondedToUser(history4, 0, "bio1", "BiologyExpert", "u1") {
+		t.Fatal("system_info without reply_to should still count as responded")
+	}
 }
 
 func TestHistoryForGenerationExcludesCurrentAndTrims(t *testing.T) {

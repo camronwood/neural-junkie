@@ -71,3 +71,24 @@ func TestLLMClassifierRejectsInvalidEnumsAfterRepair(t *testing.T) {
 		t.Fatal("invalid semantic output accepted")
 	}
 }
+
+func TestParseSemanticIntentMapsWorkspaceRetrievalAlias(t *testing.T) {
+	raw := `{
+  "schema_version":1,
+  "interaction":"task",
+  "requested_action":"debug",
+  "domain":"frontend",
+  "recipient_type":"frontend",
+  "retrieval":["workspace","codebase","bogus"],
+  "mutation_requested":"workspace",
+  "confidence":0.91,
+  "reason_codes":["startup_failure"]
+}`
+	got, err := parseSemanticIntent(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Retrieval) != 1 || got.Retrieval[0] != RetrievalCodebase {
+		t.Fatalf("retrieval=%v, want [codebase]", got.Retrieval)
+	}
+}

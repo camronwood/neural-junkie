@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
@@ -64,11 +65,13 @@ func semanticTurnRouter(cfg *config.Config) *intent.Router {
 		return nil
 	}
 	rc := cfg.Routing.Normalized()
-	provider := routingClassifierProvider(cfg, rc.ClassifierModel)
-	if provider == nil {
-		return intent.NewRouter(nil, rc.MinConfidence)
+	provider := routingClassifierProvider(cfg, rc.SemanticClassifierModel)
+	router := intent.NewRouter(nil, rc.MinConfidence)
+	if provider != nil {
+		router = intent.NewRouter(intent.NewLLMClassifier(semanticAIGenerator{provider: provider}), rc.MinConfidence)
 	}
-	return intent.NewRouter(intent.NewLLMClassifier(semanticAIGenerator{provider: provider}), rc.MinConfidence)
+	router.Timeout = time.Duration(rc.SemanticClassifierTimeoutMS) * time.Millisecond
+	return router
 }
 
 type semanticAIGenerator struct {

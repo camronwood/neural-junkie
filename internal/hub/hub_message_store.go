@@ -40,9 +40,16 @@ func (h *Hub) persistMessage(msg *protocol.Message) {
 	if h == nil || h.persistentStore == nil || msg == nil {
 		return
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[hub] persist message panic: %v", r)
+		}
+	}()
 	if msg.Type == protocol.MessageTypeStreamDelta || msg.Type == protocol.MessageTypeStreamEnd || msg.Type == protocol.MessageTypeAgentStatus {
 		return
 	}
+	// msg should already be an exclusive snapshot; clone again so callers that pass
+	// a live pointer still get a private copy for SQLite + memory index.
 	persisted, err := protocol.CloneMessage(msg)
 	if err != nil || persisted == nil {
 		log.Printf("[hub] clone message for persistence: %v", err)
@@ -59,16 +66,63 @@ func (h *Hub) persistMessage(msg *protocol.Message) {
 }
 
 // GetMessagesPage returns channel messages with optional cursor pagination.
+// When the SQLite archive is available, pages are served from disk and merged with
+// any newer in-memory rows so post-restart history is visible without requiring
+// last-session restore.
 func (h *Hub) GetMessagesPage(channelName string, limit int, beforeID string) ([]*protocol.Message, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	if h.persistentStore != nil {
-		if beforeID != "" || h.isChannelDurable(channelName) {
-			return h.persistentStore.ListChannelMessages(channelName, limit, beforeID)
-		}
+	if h.persistentStore == nil {
+		return h.GetMessages(channelName, limit)
 	}
-	return h.GetMessages(channelName, limit)
+	if beforeID != "" || h.isChannelDurable(channelName) {
+		return h.persistentStore.ListChannelMessages(channelName, limit, beforeID)
+	}
+	persisted, err := h.persistentStore.ListChannelMessages(channelName, limit, "")
+	if err != nil {
+		log.Printf("[hub] list persisted messages for %q: %v", channelName, err)
+		return h.GetMessages(channelName, limit)
+	}
+	mem, memErr := h.GetMessages(channelName, limit)
+	if memErr != nil || len(mem) == 0 {
+		return persisted, nil
+	}
+	if len(persisted) == 0 {
+		return mem, nil
+	}
+	return mergeMessagePages(mem, persisted, limit), nil
+}
+
+func mergeMessagePages(mem, persisted []*protocol.Message, limit int) []*protocol.Message {
+	byID := make(map[string]*protocol.Message, len(mem)+len(persisted))
+	order := make([]string, 0, len(mem)+len(persisted))
+	for _, msg := range persisted {
+		if msg == nil || msg.ID == "" {
+			continue
+		}
+		if _, ok := byID[msg.ID]; !ok {
+			order = append(order, msg.ID)
+		}
+		byID[msg.ID] = msg
+	}
+	for _, msg := range mem {
+		if msg == nil || msg.ID == "" {
+			continue
+		}
+		if _, ok := byID[msg.ID]; !ok {
+			order = append(order, msg.ID)
+		}
+		byID[msg.ID] = msg // in-memory wins (newer card status / content)
+	}
+	out := make([]*protocol.Message, 0, len(order))
+	for _, id := range order {
+		out = append(out, byID[id])
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[len(out)-limit:]
+	}
+	return out
 }
 
 // SearchMessages searches persisted archive when store supports it.

@@ -5,7 +5,9 @@ import (
 	"strings"
 )
 
-const defaultToolLoopMaxIterations = 8
+// defaultToolLoopMaxIterations is the chat-path tool-use cap when no override is set.
+// Inspect/debug turns routinely need more than a handful of read_file/list_dir steps.
+const defaultToolLoopMaxIterations = 24
 
 type toolLoopMaxIterationsKey struct{}
 
@@ -15,6 +17,16 @@ func WithToolLoopMaxIterations(ctx context.Context, max int) context.Context {
 		return ctx
 	}
 	return context.WithValue(ctx, toolLoopMaxIterationsKey{}, max)
+}
+
+// EnsureToolLoopMaxIterations sets the cap only when the context has no explicit override.
+func EnsureToolLoopMaxIterations(ctx context.Context, max int) context.Context {
+	if ctx != nil {
+		if v, ok := ctx.Value(toolLoopMaxIterationsKey{}).(int); ok && v > 0 {
+			return ctx
+		}
+	}
+	return WithToolLoopMaxIterations(ctx, max)
 }
 
 // ToolLoopMaxIterationsFromContext returns the configured cap or defaultToolLoopMaxIterations.

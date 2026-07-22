@@ -238,6 +238,8 @@ func safeActionFailure(goal TurnGoal, ledger *ActionEvidenceLedger) string {
 		return "I wasn't able to make or propose the requested changes in this turn."
 	case ActionAskUser:
 		return "I wasn't able to open the requested question prompt in this turn."
+	case ActionInspect:
+		return "I wasn't able to run the requested git/workspace inspection in this turn."
 	default:
 		return "I couldn't complete the requested action in this turn."
 	}

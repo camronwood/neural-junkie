@@ -3,7 +3,11 @@ import type { CommandSuggestion } from '../stores/terminalStore';
 
 export function formatToolApprovalSummary(approval: PendingToolApproval): string {
   const input = approval.toolInput ?? {};
-  if (approval.toolName === 'run_shell_command' || approval.toolName === 'shell') {
+  if (
+    approval.toolName === 'run_shell_command' ||
+    approval.toolName === 'shell' ||
+    approval.toolName === 'run_command'
+  ) {
     const cmd = typeof input.command === 'string' ? input.command : '';
     return cmd || approval.toolName;
   }
@@ -11,7 +15,8 @@ export function formatToolApprovalSummary(approval: PendingToolApproval): string
     approval.toolName === 'read_file' ||
     approval.toolName === 'write_file' ||
     approval.toolName === 'edit_file' ||
-    approval.toolName === 'list_directory'
+    approval.toolName === 'list_directory' ||
+    approval.toolName === 'list_dir'
   ) {
     const path = typeof input.path === 'string' ? input.path : '';
     return path || approval.toolName;
@@ -28,5 +33,9 @@ export function formatCommandSuggestionSummary(suggestion: CommandSuggestion): s
 }
 
 export function isShellToolApproval(approval: PendingToolApproval): boolean {
-  return approval.toolName === 'run_shell_command' || approval.toolName === 'shell';
+  return (
+    approval.toolName === 'run_shell_command' ||
+    approval.toolName === 'shell' ||
+    approval.toolName === 'run_command'
+  );
 }

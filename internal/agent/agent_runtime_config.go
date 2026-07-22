@@ -32,6 +32,15 @@ func agentRuntimeV2Enabled() bool {
 	return true
 }
 
+// chatToolLoopMaxIterations is the default tool-use loop cap for normal chat/MCP turns.
+func chatToolLoopMaxIterations() int {
+	maxIter := agentRuntimeMaxToolIterations
+	if n := performanceFromHub().AgentMaxStepsOrDefault(); n > 0 && n < maxIter {
+		maxIter = n
+	}
+	return maxIter
+}
+
 func agentRuntimeV2ForMessage(msg *protocol.Message) bool {
 	if msg != nil && msg.Metadata != nil {
 		if v, ok := msg.Metadata["agent_runtime_v2"].(bool); ok && !v {

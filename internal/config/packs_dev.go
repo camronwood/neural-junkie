@@ -42,6 +42,7 @@ func (c *Config) ValidatePackYAML(yamlText, assetRoot string) (*packs.Validation
 }
 
 // DevLinkPack syncs a local folder into installed packs and records dev_sources (does not enable).
+// Official catalog pack ids are allowed when linking the real pack repo (not a customer pack).
 func (c *Config) DevLinkPack(srcDir string) (*packs.Manifest, error) {
 	srcDir = strings.TrimSpace(srcDir)
 	if srcDir == "" {
@@ -51,16 +52,25 @@ func (c *Config) DevLinkPack(srcDir string) (*packs.Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	report, err := c.ValidatePackDir(abs)
+	pre, err := packs.LoadManifest(abs)
 	if err != nil {
-		return nil, err
+		// Manifest may live one level down; SyncPackFromDir finds it — validate after sync path.
+		pre = nil
 	}
-	if report != nil && !report.Valid {
-		msg := "pack validation failed"
-		if len(report.Errors) > 0 {
-			msg = report.Errors[0]
+	if pre == nil || !packs.IsOfficialPackID(pre.ID) {
+		report, err := c.ValidatePackDir(abs)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("%s", msg)
+		if report != nil && !report.Valid {
+			msg := "pack validation failed"
+			if len(report.Errors) > 0 {
+				msg = report.Errors[0]
+			}
+			return nil, fmt.Errorf("%s", msg)
+		}
+	} else if pre.IsCustomerPack() {
+		return nil, fmt.Errorf("pack id %q collides with an official catalog pack", pre.ID)
 	}
 	m, err := packs.SyncPackFromDir(abs)
 	if err != nil {
