@@ -88,6 +88,7 @@ func (a *Agent) runTurnPipeline(ctx context.Context, msg *protocol.Message, clea
 		if st.genCancel != nil {
 			st.genCancel()
 		}
+		a.endTurnRouting(msg.ID)
 	}()
 
 	steps := a.defaultTurnPipeline(st)
@@ -235,7 +236,8 @@ func (st *turnState) stepPrepareTurn(ctx context.Context) error {
 
 	a := st.agent
 	msg := st.msg
-	a.resetRoutingSnapshot()
+	a.beginTurnRouting(msg.ID)
+	st.ctx = contextWithTurnRouting(st.ctx, msg.ID)
 	a.resetCompressSnapshot()
 	a.syncWorkspaceFromMessage(msg)
 
@@ -364,17 +366,17 @@ func (st *turnState) stepProviderRoute(ctx context.Context) error {
 				source = "capabilities"
 			}
 		}
-		a.RecordRoutingFromProvider(eff, reason, source)
+		a.RecordRoutingFromProviderFor(msg.ID, eff, reason, source)
 		a.recordClassifierRouting(msg)
 	} else if msg.Type == protocol.MessageTypeCollabTask {
-		snap := a.LastRoutingSnapshot()
+		snap := a.LastRoutingSnapshotFor(msg.ID)
 		if snap.Reason != "" {
 			reason = snap.Reason
 		}
 		if snap.Source != "" {
 			source = snap.Source
 		}
-		a.RecordRoutingFromProvider(eff, reason, source)
+		a.RecordRoutingFromProviderFor(msg.ID, eff, reason, source)
 	} else if turnGoalRunsImplementationSession(st.goal) {
 		a.recordClassifierRouting(msg)
 	}
@@ -846,7 +848,7 @@ func (st *turnState) stepStampMetadata(ctx context.Context) error {
 	if decision, ok := protocol.ExtractTurnDecision(st.msg); ok {
 		_ = protocol.StampTurnDecision(responseMsg, decision)
 	}
-	a.ApplyRoutingMetadataToResponse(responseMsg)
+	a.ApplyRoutingMetadataToResponseFor(st.msg.ID, responseMsg)
 	a.ApplyCompressMetadataToResponse(responseMsg)
 	st.stampContextObservability(responseMsg)
 	a.ApplyTraceMetadataToResponse(responseMsg, st.traceRecorder, st.toolSteps)

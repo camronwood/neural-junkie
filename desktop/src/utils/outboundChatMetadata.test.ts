@@ -107,7 +107,10 @@ describe('buildHumanOutboundMetadata explicit turn metadata', () => {
     });
     expect(meta?.editor_mode).toBe('export');
     expect(meta?.composer_mode).toBe('export');
-    expect(meta?.can_run_impl_session).toBe(true);
+    expect((meta?.turn_governance as { can_run_impl_session?: boolean })?.can_run_impl_session).toBe(
+      true
+    );
+    expect(meta?.can_run_impl_session).toBeUndefined();
     expect(meta?.implementation_session).toBe(true);
     expect(meta?.conversation_mode).toBeUndefined();
   });
@@ -124,7 +127,9 @@ describe('buildHumanOutboundMetadata explicit turn metadata', () => {
       },
     });
     expect(meta?.editor_mode).toBe('export');
-    expect(meta?.can_run_impl_session).toBe(true);
+    expect((meta?.turn_governance as { can_run_impl_session?: boolean })?.can_run_impl_session).toBe(
+      true
+    );
   });
 
   it('does not change agent mode from personal-assistant message wording', () => {
@@ -190,8 +195,12 @@ describe('buildHumanOutboundMetadata explicit turn metadata', () => {
     });
     expect(meta?.editor_mode).toBe('agent');
     expect(meta?.implementation_session).toBeUndefined();
-    expect(meta?.can_propose_files).toBe(true);
-    expect(meta?.can_run_impl_session).toBe(false);
+    expect(meta?.can_propose_files).toBeUndefined();
+    expect(meta?.can_run_impl_session).toBeUndefined();
+    expect((meta?.turn_governance as { can_propose_files?: boolean; can_run_impl_session?: boolean })).toMatchObject({
+      can_propose_files: true,
+      can_run_impl_session: false,
+    });
   });
 
   it('attaches workspace for knowledge-graph relate questions even in chat mode', () => {

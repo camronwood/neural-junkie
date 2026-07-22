@@ -94,6 +94,29 @@ func TestPolicyRequiresWorkspaceForEdit(t *testing.T) {
 	}
 }
 
+func TestPolicyAddsCodebaseRetrievalForWorkspaceEdits(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		ComposerMode:         "agent",
+		HasWorkspace:         true,
+		CanProposeFiles:      true,
+		CanRunImplementation: true,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionTask,
+		RequestedAction:   ActionEdit,
+		Domain:            "frontend",
+		RecipientType:     "frontend",
+		MutationRequested: MutationWorkspace,
+		Confidence:        0.95,
+	}, SourceLocalModel)
+	if decision.Action != ActionEdit || decision.Mutation != MutationWorkspace {
+		t.Fatalf("decision=%+v, want workspace edit", decision)
+	}
+	if !containsRetrievalTarget(decision.Retrieval, RetrievalCodebase) {
+		t.Fatalf("retrieval=%v, want codebase", decision.Retrieval)
+	}
+}
+
 func TestLowConfidenceAbstainsSafely(t *testing.T) {
 	classifier := &testClassifier{intent: SemanticIntent{
 		SchemaVersion:     SchemaVersion,

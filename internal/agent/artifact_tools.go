@@ -62,6 +62,17 @@ func pendingArtifactRequestID(history []*protocol.Message, skipMsgID string) str
 			return ""
 		}
 		if protocol.IsUserLikeSender(msg.From) {
+			if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+				switch decision.Action {
+				case semantic.ActionArtifact:
+					return msg.ID
+				case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue, semantic.ActionRun:
+					return ""
+				default:
+					// Canonical non-artifact decisions must not re-enter via phrases.
+					continue
+				}
+			}
 			if UserRequestsArtifact(msg.Content) {
 				return msg.ID
 			}
@@ -130,13 +141,8 @@ func artifactToolsEnabledForMessage(msg *protocol.Message) bool {
 		return true
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		if decision.Action == semantic.ActionArtifact {
-			return true
-		}
-		if decision.Action == semantic.ActionDebug || decision.Action == semantic.ActionEdit ||
-			decision.Action == semantic.ActionContinue {
-			return false
-		}
+		// Stamped decisions are authoritative — never fall back to canvas/visual phrases.
+		return decision.Action == semantic.ActionArtifact
 	}
 	if msg.ImplementationSession() && !UserRequestsArtifact(msg.Content) && !messageHasArtifactAction(msg) {
 		return false

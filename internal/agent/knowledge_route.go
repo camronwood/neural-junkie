@@ -12,7 +12,7 @@ func (a *Agent) recordKnowledgeRoute(msg *protocol.Message, intent TurnIntent) {
 		return
 	}
 	if skipKnowledgeRetrievalForMessage(msg) {
-		a.RecordRoutingSnapshot(RoutingSnapshot{
+		a.RecordRoutingSnapshotFor(msg.ID, RoutingSnapshot{
 			KnowledgeRoute:  "collab_turn",
 			KnowledgeReason: "collab_turn",
 		})
@@ -25,7 +25,7 @@ func (a *Agent) recordKnowledgeRoute(msg *protocol.Message, intent TurnIntent) {
 		skipDefault := intent == IntentClosure || intent == IntentLowSignal
 		plan = routing.PlanKnowledgeRouteForTurn(msg.Content, skipDefault)
 	}
-	a.RecordRoutingSnapshot(RoutingSnapshot{
+	a.RecordRoutingSnapshotFor(msg.ID, RoutingSnapshot{
 		KnowledgeRoute:   string(plan.Primary()),
 		KnowledgeReason:  plan.Reason,
 		KnowledgeTargets: routeTargetsToStrings(plan.Targets),

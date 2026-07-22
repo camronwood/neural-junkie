@@ -62,6 +62,9 @@ func (a *Agent) ClassifyConversationTrust(msg *protocol.Message) ConversationTru
 		if semanticDecision.Interaction == semantic.InteractionCorrection {
 			decision.Reasons = append(decision.Reasons, ConversationReasonUserCorrection)
 		}
+		if semanticDecision.Interaction == semantic.InteractionContinuation {
+			decision.Reasons = appendUniqueString(decision.Reasons, ConversationReasonRepeatedRequest)
+		}
 	} else if explicitToolActionRE.MatchString(msg.Content) {
 		decision.Reasons = append(decision.Reasons, ConversationReasonExplicitToolAction)
 	}
@@ -71,7 +74,12 @@ func (a *Agent) ClassifyConversationTrust(msg *protocol.Message) ConversationTru
 	if !hasSemanticDecision && userCorrectionRE.MatchString(msg.Content) {
 		decision.Reasons = append(decision.Reasons, ConversationReasonUserCorrection)
 	}
-	if repeatedRequestRE.MatchString(msg.Content) || a.matchesPriorUserRequest(msg) {
+	if hasSemanticDecision {
+		// Phrase-based "again/retry" matchers are rollback-only when no decision is stamped.
+		if a.matchesPriorUserRequest(msg) {
+			decision.Reasons = appendUniqueString(decision.Reasons, ConversationReasonRepeatedRequest)
+		}
+	} else if repeatedRequestRE.MatchString(msg.Content) || a.matchesPriorUserRequest(msg) {
 		decision.Reasons = appendUniqueString(decision.Reasons, ConversationReasonRepeatedRequest)
 	}
 	if metadataBool(msg.Metadata, conversationQualityFailureKey) {
@@ -90,6 +98,10 @@ func (a *Agent) ClassifyConversationTrust(msg *protocol.Message) ConversationTru
 }
 
 func (a *Agent) recordConversationTrust(provider ai.AIProvider, decision ConversationTrustDecision) {
+	a.recordConversationTrustFor("", provider, decision)
+}
+
+func (a *Agent) recordConversationTrustFor(msgID string, provider ai.AIProvider, decision ConversationTrustDecision) {
 	snap := RoutingSnapshot{
 		ConversationTier:          string(decision.Tier),
 		ConversationReasons:       append([]string(nil), decision.Reasons...),
@@ -99,7 +111,7 @@ func (a *Agent) recordConversationTrust(provider ai.AIProvider, decision Convers
 		snap.ProviderID = providerIDFromAI(provider)
 		snap.ChatModel = strings.TrimSpace(provider.GetModel())
 	}
-	a.RecordRoutingSnapshot(snap)
+	a.RecordRoutingSnapshotFor(msgID, snap)
 }
 
 func (a *Agent) matchesPriorUserRequest(msg *protocol.Message) bool {

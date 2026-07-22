@@ -58,7 +58,11 @@ func (a *Agent) effectiveKnowledgePlan(msg *protocol.Message, intent TurnIntent)
 	if skipKnowledgeRetrievalForMessage(msg) {
 		return routing.KnowledgePlan{Reason: "collab_turn"}
 	}
-	snap := a.LastRoutingSnapshot()
+	msgID := ""
+	if msg != nil {
+		msgID = msg.ID
+	}
+	snap := a.LastRoutingSnapshotFor(msgID)
 	if len(snap.KnowledgeTargets) > 0 || snap.KnowledgeReason != "" {
 		return knowledgePlanFromSnapshot(snap)
 	}
@@ -116,17 +120,14 @@ func MemorySourceFilter(plan routing.KnowledgePlan) []memory.SourceType {
 }
 
 func (a *Agent) recordKnowledgeExecuted(path string) {
+	a.recordKnowledgeExecutedFor("", path)
+}
+
+func (a *Agent) recordKnowledgeExecutedFor(msgID, path string) {
 	if a == nil || path == "" {
 		return
 	}
-	a.routingSnap.mu.Lock()
-	defer a.routingSnap.mu.Unlock()
-	for _, p := range a.routingSnap.snap.KnowledgeExecuted {
-		if p == path {
-			return
-		}
-	}
-	a.routingSnap.snap.KnowledgeExecuted = append(a.routingSnap.snap.KnowledgeExecuted, path)
+	a.RecordRoutingSnapshotFor(msgID, RoutingSnapshot{KnowledgeExecuted: []string{path}})
 }
 
 func knowledgeExecutedPathForMemory(plan routing.KnowledgePlan) string {

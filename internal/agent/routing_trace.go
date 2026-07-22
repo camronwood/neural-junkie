@@ -10,7 +10,7 @@ func (a *Agent) recordTurnGovernance(msg *protocol.Message) {
 		return
 	}
 	caps := protocol.ResolveTurnCapabilities(msg)
-	a.RecordRoutingSnapshot(RoutingSnapshot{
+	a.RecordRoutingSnapshotFor(msg.ID, RoutingSnapshot{
 		ComposerMode: caps.ComposerMode,
 		ContextScope: caps.ContextTier,
 		ImplSession:  caps.CanRunImplSession,
@@ -40,5 +40,5 @@ func (a *Agent) recordClassifierRouting(msg *protocol.Message) {
 		ClassifierConfidence: dec.Confidence,
 		ClassifierLoRATag:    dec.LoRATag,
 	}
-	a.RecordRoutingSnapshot(snap)
+	a.RecordRoutingSnapshotFor(msg.ID, snap)
 }

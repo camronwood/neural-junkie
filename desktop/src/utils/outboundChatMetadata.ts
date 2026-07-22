@@ -533,7 +533,13 @@ export function buildHumanOutboundMetadata(options: {
       composerMode,
       contextScope: scope,
       implementationSession: meta[IMPLEMENTATION_SESSION_METADATA_KEY] === true,
-    })
+    }),
+    {
+      trustPreference:
+        typeof meta[EDITOR_AGENT_TRUST_KEY] === 'string'
+          ? (meta[EDITOR_AGENT_TRUST_KEY] as string)
+          : undefined,
+    }
   );
 }
 

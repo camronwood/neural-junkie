@@ -61,9 +61,9 @@ func (a *Agent) EffectiveAIProvider(ctx context.Context, msg *protocol.Message) 
 		if chatEff := globalChatRouting.EffectiveAI(ctx, eff, a.Info, msg, trust); chatEff != nil {
 			eff = chatEff
 		}
-		a.recordConversationTrust(eff, trust)
+		a.recordConversationTrustFor(msg.ID, eff, trust)
 		routeMeta := protocol.ExtractRoutingMeta(msg)
-		a.RecordRoutingSnapshot(RoutingSnapshot{
+		a.RecordRoutingSnapshotFor(msg.ID, RoutingSnapshot{
 			Attempts:        routeMeta.Attempts,
 			FailureEvidence: routeMeta.FailureEvidence,
 		})
@@ -96,7 +96,7 @@ func (a *Agent) EffectiveAIProvider(ctx context.Context, msg *protocol.Message) 
 				snap.ChatModel = m
 			}
 		}
-		a.RecordRoutingSnapshot(snap)
+		a.RecordRoutingSnapshotFor(msg.ID, snap)
 	}
 	return eff
 }

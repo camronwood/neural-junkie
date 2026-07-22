@@ -118,8 +118,8 @@ func TestEscalateConversationProviderAllowsOneReliableReroute(t *testing.T) {
 	SetGlobalChatRouting(router)
 
 	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), nil)
-	a.RecordRoutingSnapshot(RoutingSnapshot{ConversationTier: string(ConversationTierElevated)})
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{ID: "user", Name: "Camron"}, "Please fix the answer")
+	a.RecordRoutingSnapshotFor(msg.ID, RoutingSnapshot{ConversationTier: string(ConversationTierElevated)})
 
 	got, ok := a.EscalateConversationProvider(context.Background(), msg)
 	if !ok || got != reliable {
@@ -134,7 +134,7 @@ func TestEscalateConversationProviderAllowsOneReliableReroute(t *testing.T) {
 	if router.calls != 2 {
 		t.Fatalf("router calls = %d, want 2 ladder lookups with duplicate tier rejected", router.calls)
 	}
-	snap := a.LastRoutingSnapshot()
+	snap := a.LastRoutingSnapshotFor(msg.ID)
 	if snap.ConversationTier != string(ConversationTierReliable) ||
 		snap.ConversationEscalatedFrom != string(ConversationTierElevated) {
 		t.Fatalf("snapshot = %+v", snap)
@@ -157,7 +157,7 @@ func TestEffectiveAIProviderAppliesConversationTrust(t *testing.T) {
 		!conversationContainsString(router.got.Reasons, ConversationReasonExplicitToolAction) {
 		t.Fatalf("router trust = %+v", router.got)
 	}
-	snap := a.LastRoutingSnapshot()
+	snap := a.LastRoutingSnapshotFor(msg.ID)
 	if snap.ConversationTier != string(ConversationTierElevated) {
 		t.Fatalf("snapshot tier = %q", snap.ConversationTier)
 	}

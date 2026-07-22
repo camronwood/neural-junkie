@@ -92,7 +92,7 @@ func appendWorkspaceReviewGuidance(prompt *strings.Builder, msg *protocol.Messag
 		prompt.WriteString("\n")
 	case (scope == ContextScopeOutline || scope == ContextScopeFocus || scope == ContextScopeFull) &&
 		messageHasWorkspaceContext(msg) && ResolveContextScope(msg) != ContextScopeNone:
-		if userRequestsCodeReview(msg.Content) {
+		if userRequestsCodeReviewForMessage(msg) {
 			prompt.WriteString("\n=== PROJECT CODE REVIEW (this turn) ===\n")
 			prompt.WriteString("The user asked for a project-wide code review and shared workspace context (file tree). ")
 			prompt.WriteString("Use read_file, grep, glob_file_search, and run_typescript_check on key paths under the project root. ")

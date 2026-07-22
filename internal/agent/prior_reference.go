@@ -153,7 +153,7 @@ func (a *Agent) appendPriorReferenceGuidance(prompt string, msg *protocol.Messag
 		content,
 	)
 	if runPrior {
-		a.recordKnowledgeExecuted("prior_reference")
+		a.recordKnowledgeExecutedFor(msg.ID, "prior_reference")
 	}
 	return prompt + block
 }

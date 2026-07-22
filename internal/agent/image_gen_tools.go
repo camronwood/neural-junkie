@@ -68,14 +68,8 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 		return false
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		if decision.Action == semantic.ActionImage {
-			return false
-		}
-		if decision.Action == semantic.ActionDebug || decision.Action == semantic.ActionEdit ||
-			decision.Action == semantic.ActionContinue || decision.Action == semantic.ActionRun ||
-			decision.Action == semantic.ActionArtifact {
-			return true
-		}
+		// Stamped decisions are authoritative — image phrases must not override.
+		return decision.Action != semantic.ActionImage
 	}
 	explicitImageIntent := UserRequestsGeneratedImage(msg.Content)
 	if msg.ImplementationSession() {

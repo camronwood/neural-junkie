@@ -23,6 +23,7 @@ from site_nav import render_footer_explore, render_site_chrome  # noqa: E402
 ARTICLE_ORDER = [
     "beta-6",
     "beta-5",
+    "semantic-turn-routing",
     "hardware",
     "hub",
     "model-layering",
@@ -49,6 +50,7 @@ ARTICLE_ORDER = [
 SOURCE_BY_SLUG = {
     "beta-6": "campaigns/beta26/BETA26-LINKEDIN.md",
     "beta-5": "campaigns/beta25/BETA25-LINKEDIN.md",
+    "semantic-turn-routing": "campaigns/semantic-turn-routing/SEMANTIC-TURN-ROUTING-LINKEDIN.md",
     "hardware": "campaigns/hardware/HARDWARE-LINKEDIN.md",
     "hub": "campaigns/hub/HUB-LINKEDIN.md",
     "model-layering": "campaigns/model-layering/MODEL-LAYERING-LINKEDIN.md",
@@ -89,6 +91,15 @@ META_OVERRIDES: dict[str, dict[str, object]] = {
         ),
         "tags": ["ai", "localai", "multiagent", "opensource", "developertools", "release", "knowledgegraph"],
     },
+    "semantic-turn-routing": {
+        "title": "One Decision Per Turn: Meaning Over Phrases",
+        "teaser": (
+            "Neural Junkie replaces distributed phrase matching with one server-authoritative semantic "
+            "decision per turn — local structured classification for meaning, deterministic policy for "
+            "writes, recipients, retrieval, and Ask/Plan safety."
+        ),
+        "tags": ["ai", "localai", "multiagent", "opensource", "developertools", "architecture", "routing"],
+    },
     "beta-5": {
         "title": "v1.2.0-beta.5: The Release Where the Loops Close",
         "teaser": (
@@ -128,6 +139,7 @@ META_OVERRIDES: dict[str, dict[str, object]] = {
 TOPIC_BY_SLUG = {
     "beta-6": "release",
     "beta-5": "release",
+    "semantic-turn-routing": "architecture",
     "hardware": "hardware",
     "hub": "architecture",
     "model-layering": "architecture",

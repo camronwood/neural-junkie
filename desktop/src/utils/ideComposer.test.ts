@@ -6,7 +6,7 @@ import {
 } from './ideComposer';
 
 describe('buildIdeDispatchPayload', () => {
-  it('sets implementation_session for agent mode code tasks', () => {
+  it('does not infer implementation_session from natural language', () => {
     const { metadata } = buildIdeDispatchPayload({
       content: 'please implement theme support',
       agents: [],
@@ -14,7 +14,7 @@ describe('buildIdeDispatchPayload', () => {
       editorAgentMode: 'agent',
       editorAgentTrust: 'auto_apply_edits',
     });
-    expect(metadata.implementation_session).toBe(true);
+    expect(metadata.implementation_session).toBeUndefined();
     expect(metadata.editor_mode).toBe('agent');
   });
 
@@ -31,15 +31,15 @@ describe('buildIdeDispatchPayload', () => {
 });
 
 describe('buildImplementationSessionMetadata', () => {
-  it('sets session metadata for team-channel style sends', () => {
+  it('sets explicit editor metadata and tab-based route without semantic inference', () => {
     const metadata = buildImplementationSessionMetadata({
       content: 'implement light/dark theme toggle in the sidebar',
       agents: [{ name: 'FrontendEngineer', type: 'frontend' } as never],
-      activeTab: null,
+      activeTab: { path: 'src/App.tsx', language: 'typescript' } as never,
       editorAgentMode: 'agent',
       editorAgentTrust: 'auto_apply_edits',
     });
-    expect(metadata.implementation_session).toBe(true);
+    expect(metadata.implementation_session).toBeUndefined();
     expect(metadata.editor_mode).toBe('agent');
     expect(metadata.ide_route_agent_type).toBe('frontend');
   });
@@ -53,47 +53,25 @@ describe('buildImplementationSessionMetadata', () => {
       editorAgentTrust: 'interactive',
     });
     expect(metadata.ide_route_agent_type).toBeUndefined();
-    expect(metadata.implementation_session).toBe(true);
+    expect(metadata.implementation_session).toBeUndefined();
   });
 
-  it('sets implementation_session for agent mode continuation affirmations', () => {
+  it('preserves explicit implementation_session from composer metadata', () => {
     const metadata = buildImplementationSessionMetadata({
       content: 'approved',
       agents: [{ name: 'FrontendEngineer', type: 'frontend' } as never],
       activeTab: null,
       editorAgentMode: 'agent',
       editorAgentTrust: 'interactive',
+      composerMetadata: { implementation_session: true },
     });
     expect(metadata.implementation_session).toBe(true);
-    expect(metadata.editor_mode).toBe('agent');
   });
 
-  it('does not set implementation_session for weak-only affirmations', () => {
+  it('does not set implementation_session for affirmations without explicit flag', () => {
     const metadata = buildImplementationSessionMetadata({
-      content: 'looks good',
+      content: 'approved',
       agents: [{ name: 'FrontendEngineer', type: 'frontend' } as never],
-      activeTab: null,
-      editorAgentMode: 'agent',
-      editorAgentTrust: 'interactive',
-    });
-    expect(metadata.implementation_session).toBeUndefined();
-  });
-
-  it('does not set implementation_session for bare workspace directives', () => {
-    const metadata = buildImplementationSessionMetadata({
-      content: 'use the workspace',
-      agents: [{ name: 'CodeReviewer', type: 'code-review' } as never],
-      activeTab: null,
-      editorAgentMode: 'agent',
-      editorAgentTrust: 'interactive',
-    });
-    expect(metadata.implementation_session).toBeUndefined();
-  });
-
-  it('does not set implementation_session for content delivery tasks', () => {
-    const metadata = buildImplementationSessionMetadata({
-      content: 'Can you create a linkedin article about this app for me?',
-      agents: [{ name: 'CodeReviewer', type: 'code-review' } as never],
       activeTab: null,
       editorAgentMode: 'agent',
       editorAgentTrust: 'interactive',

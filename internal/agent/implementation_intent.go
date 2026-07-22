@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -148,10 +149,15 @@ func userRequestsContentDelivery(content string) bool {
 
 // userRequestsFileExportForMessage includes explicit composer export mode.
 func userRequestsFileExportForMessage(msg *protocol.Message) bool {
-	if msg != nil && msg.IdeEditorModeIsExport() {
+	if msg == nil {
+		return false
+	}
+	// Composer export mode is structural metadata (not a phrase list).
+	if msg.IdeEditorModeIsExport() {
 		return true
 	}
-	if msg == nil {
+	if _, ok := protocol.ExtractTurnDecision(msg); ok {
+		// Canonical decisions must not re-enter export via natural-language phrases.
 		return false
 	}
 	return userRequestsFileExport(msg.Content)
@@ -582,6 +588,14 @@ func userRequestsImplementationForMessage(a *Agent, msg *protocol.Message) bool 
 	if msg == nil {
 		return false
 	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		switch decision.Action {
+		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue, semantic.ActionRun:
+			return true
+		default:
+			return false
+		}
+	}
 	if UserRequestsArtifact(msg.Content) {
 		return false
 	}
@@ -649,6 +663,17 @@ func ShouldForceSessionSummaryRefreshForMessage(msg *protocol.Message) bool {
 	}
 	if msg == nil {
 		return false
+	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		switch decision.Action {
+		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue, semantic.ActionRun:
+			return true
+		case semantic.ActionInspect:
+			return decision.Domain == "code_review" || decision.RecipientType == "code-review"
+		default:
+			return decision.Interaction == semantic.InteractionContinuation ||
+				decision.Interaction == semantic.InteractionCorrection
+		}
 	}
 	return ShouldForceSessionSummaryRefresh(msg.Content)
 }

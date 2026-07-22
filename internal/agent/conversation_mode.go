@@ -138,6 +138,8 @@ func hasCodeTaskSignals(content string) bool {
 }
 
 func inferConversationModeFromMessage(msg *protocol.Message, channelType protocol.ChannelType) string {
+	// Phrase/inference path is emergency rollback when no stamped turn decision exists.
+	// Callers must prefer EffectiveConversationMode, which short-circuits on ExtractTurnDecision.
 	if msg == nil {
 		return ConversationModeChat
 	}

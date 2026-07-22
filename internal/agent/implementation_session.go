@@ -152,6 +152,14 @@ func assistantAllowsImplementationSession(a *Agent, msg *protocol.Message) bool 
 	if msg == nil {
 		return false
 	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		switch decision.Action {
+		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue, semantic.ActionRun:
+			return true
+		default:
+			return false
+		}
+	}
 	if ConversationModeFromMessage(msg) == ConversationModeChat {
 		if isAdvisoryImplementationQuestion(msg.Content) {
 			return false
@@ -958,10 +966,12 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 	if state.DialogueSummary != "" {
 		outcome["dialogue_summary_used"] = true
 	}
-	if snap := a.LastRoutingSnapshot(); snap.Reason != "" {
-		outcome["routing_reason"] = snap.Reason
-		if snap.ToolModel != "" {
-			outcome["routing_tool_model"] = snap.ToolModel
+	if msg != nil {
+		if snap := a.LastRoutingSnapshotFor(msg.ID); snap.Reason != "" {
+			outcome["routing_reason"] = snap.Reason
+			if snap.ToolModel != "" {
+				outcome["routing_tool_model"] = snap.ToolModel
+			}
 		}
 	}
 	return outcome
@@ -1606,7 +1616,13 @@ func appendImplementationSessionToolGuidance(prompt *strings.Builder, a *Agent, 
 				strings.Join(applied, ", "),
 			))
 		}
-		if userAffirmsPendingImplementation(msg.Content) {
+		affirmed := false
+		if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+			affirmed = decision.Action == semantic.ActionContinue
+		} else {
+			affirmed = userAffirmsPendingImplementation(msg.Content)
+		}
+		if affirmed {
 			prompt.WriteString(
 				"User affirmed continuation — ship the NEXT file change for the prior implementation task. " +
 					"Do not re-propose already-applied paths or reply with advice only.\n",

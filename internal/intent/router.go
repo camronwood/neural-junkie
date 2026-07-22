@@ -254,8 +254,26 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			decision.PolicyOverrides = append(decision.PolicyOverrides, "continuation_target_missing")
 		}
 	}
+	if features.HasWorkspace {
+		switch decision.Action {
+		case ActionInspect, ActionDebug, ActionEdit, ActionRun, ActionContinue:
+			if !containsRetrievalTarget(decision.Retrieval, RetrievalCodebase) {
+				decision.Retrieval = append(decision.Retrieval, RetrievalCodebase)
+				decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_requires_codebase_retrieval")
+			}
+		}
+	}
 	decision.PolicyOverrides = normalizeStrings(decision.PolicyOverrides)
 	return decision
+}
+
+func containsRetrievalTarget(values []RetrievalTarget, target RetrievalTarget) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func mutationForAction(action Action) Mutation {

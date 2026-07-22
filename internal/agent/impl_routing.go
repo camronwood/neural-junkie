@@ -54,7 +54,11 @@ func (a *Agent) EffectiveImplementationProvider(ctx context.Context, msg *protoc
 	if m := eff.GetModel(); m != "" {
 		snap.ChatModel = m
 	}
-	prior := a.LastRoutingSnapshot()
+	msgID := ""
+	if msg != nil {
+		msgID = msg.ID
+	}
+	prior := a.LastRoutingSnapshotFor(msgID)
 	snap.Attempts = append([]protocol.RoutingAttempt(nil), prior.Attempts...)
 	hints := ImplementationRoutingHintsFromContext(ctx)
 	if hints.RepairAttempts > 0 && len(snap.Attempts) > 0 {
@@ -75,7 +79,7 @@ func (a *Agent) EffectiveImplementationProvider(ctx context.Context, msg *protoc
 	if plan.Reason == "reliable_local_repair_tier" || plan.Reason == "frontier_after_local_exhaustion" {
 		snap.CostTier = unified.CostPremium
 	}
-	a.RecordRoutingSnapshot(snap)
+	a.RecordRoutingSnapshotFor(msgID, snap)
 	a.broadcastRoutingTelemetry(msg)
 	return eff
 }

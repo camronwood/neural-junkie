@@ -8,16 +8,6 @@ import {
   IMPLEMENTATION_SESSION_METADATA_KEY,
   PROMPT_ATTACHMENTS_METADATA_KEY,
 } from '../constants/promptMetadata';
-import { hasCodeTaskSignals } from './conversationMode';
-import { hasBootFixRoutingSignals } from './bootFixRouting';
-import {
-  hasImplementationContinuationSignals,
-  hasImplementationStatusCheckSignals,
-  hasBareWorkspaceDirectiveOnly,
-  hasContentDeliverySignals,
-  hasFileExportSignals,
-} from './implementationContinuation';
-import { hasCodeReviewSignals } from './codeReviewSignals';
 
 export type EditorAgentMode = 'ask' | 'plan' | 'agent';
 
@@ -116,8 +106,8 @@ export function pickAgentTypeForImplementation(
 }
 
 /**
- * Metadata for implementation sessions (IDE layout or team channel with workspace shared).
- * Does not inject @mentions — routing uses `ide_route_agent_type` when the user did not @mention.
+ * Explicit IDE/dispatch metadata only. Semantic action selection and
+ * implementation_session inference belong to the server turn router.
  */
 export function buildImplementationSessionMetadata(options: {
   content: string;
@@ -126,7 +116,7 @@ export function buildImplementationSessionMetadata(options: {
   editorAgentMode: EditorAgentMode;
   editorAgentTrust: string;
   composerMetadata?: Record<string, unknown>;
-  /** When set, DM sends use the channel partner type — not tab/boot-fix routing. */
+  /** When set, DM sends use the channel partner type — not tab routing. */
   channelType?: string;
   dmPartnerAgentType?: string;
 }): Record<string, unknown> {
@@ -139,26 +129,21 @@ export function buildImplementationSessionMetadata(options: {
   const isDm = options.channelType === 'dm';
   if (isDm && options.dmPartnerAgentType) {
     agentType = options.dmPartnerAgentType;
-  } else if (!hasExplicitMention && hasBootFixRoutingSignals(options.content)) {
-    agentType = 'frontend';
   }
   const metadata: Record<string, unknown> = {
     ...(options.composerMetadata ?? {}),
-    ...(hasExplicitMention ? {} : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),
+    ...(hasExplicitMention || (!isDm && !options.activeTab)
+      ? {}
+      : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),
     [EDITOR_MODE_KEY]: options.editorAgentMode,
     [EDITOR_AGENT_TRUST_KEY]: options.editorAgentTrust,
   };
-  if (
-    options.editorAgentMode === 'agent' &&
-    !hasCodeReviewSignals(options.content) &&
-    !hasContentDeliverySignals(options.content) &&
-    !hasBareWorkspaceDirectiveOnly(options.content) &&
-    (hasCodeTaskSignals(options.content) ||
-      hasImplementationContinuationSignals(options.content) ||
-      hasImplementationStatusCheckSignals(options.content) ||
-      hasFileExportSignals(options.content))
-  ) {
+  // Only an explicit upstream flag may request an implementation session from the
+  // desktop. Natural-language task detection is server-authoritative.
+  if (options.composerMetadata?.[IMPLEMENTATION_SESSION_METADATA_KEY] === true) {
     metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
+  } else {
+    delete metadata[IMPLEMENTATION_SESSION_METADATA_KEY];
   }
   return metadata;
 }
@@ -176,7 +161,10 @@ export function buildIdeDispatchPayload(options: {
   editorAgentTrust: string;
   composerMetadata?: Record<string, unknown>;
 }): { content: string; metadata: Record<string, unknown> } {
-  const content = applyIdePlanPrefix(applyIdeAskPrefix(options.content, options.editorAgentMode), options.editorAgentMode);
+  const content = applyIdePlanPrefix(
+    applyIdeAskPrefix(options.content, options.editorAgentMode),
+    options.editorAgentMode
+  );
   const metadata = buildImplementationSessionMetadata(options);
   return { content, metadata };
 }
@@ -217,16 +205,15 @@ export async function mergeCodebaseAttachments(
       existing.push({
         type: 'codebase_chunk',
         path: ch.path,
+        start_line: ch.start_line,
+        end_line: ch.end_line,
         content: ch.content,
-        repo_path: ch.repo_path,
-        repo_name: ch.repo_name,
+        score: ch.score,
       });
     }
-    if (existing.length > 0) {
-      return { ...next, [PROMPT_ATTACHMENTS_METADATA_KEY]: existing };
-    }
-  } catch (e) {
-    console.error('[ide] @codebase search failed:', e);
+    next = { ...next, [PROMPT_ATTACHMENTS_METADATA_KEY]: existing };
+  } catch {
+    // Soft-fail: send without codebase chunks.
   }
   return next;
 }

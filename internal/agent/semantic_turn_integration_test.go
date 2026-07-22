@@ -86,3 +86,100 @@ func TestSemanticAskModePolicyPreventsFileChanges(t *testing.T) {
 		t.Fatalf("goal=%+v", goal)
 	}
 }
+
+func TestStampedAnswerDecisionIgnoresArtifactPhrases(t *testing.T) {
+	a := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), nil)
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-user-frontend",
+		protocol.AgentInfo{ID: "user", Name: "Camron", Type: "human"},
+		"please create a canvas of the architecture",
+	)
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode:         "agent",
+		protocol.IdeMetaImplementationSession: true,
+		MetadataConversationMode:              ConversationModeCode,
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionQuestion,
+		RequestedAction: intent.ActionAnswer, Action: intent.ActionAnswer,
+		Mutation: intent.MutationNone, Confidence: 0.95, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if !UserRequestsArtifact(msg.Content) {
+		t.Fatal("test fixture must phrase-match artifact so override is meaningful")
+	}
+	if artifactToolsEnabledForMessage(msg) {
+		t.Fatal("ActionAnswer must not enable artifact tools despite canvas phrases")
+	}
+	if shouldRunImplementationSession(a, msg) {
+		t.Fatal("ActionAnswer must not enter implementation session")
+	}
+	if userRequestsImplementationForMessage(a, msg) {
+		t.Fatal("ActionAnswer must not report implementation intent")
+	}
+	goal := deriveTurnGoal(a, msg, IntentSubstantive)
+	if goal.Action != ActionAnswer || goal.ImplementationSession {
+		t.Fatalf("goal=%+v, want answer without implementation", goal)
+	}
+	if EffectiveConversationMode(msg, protocol.ChannelTypeDM) != ConversationModeChat {
+		t.Fatalf("conversation mode=%q, want chat for ActionAnswer", EffectiveConversationMode(msg, protocol.ChannelTypeDM))
+	}
+}
+
+func TestStampedInspectDecisionIgnoresCodeReviewPhrases(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm",
+		protocol.AgentInfo{ID: "user", Type: "human"},
+		"code review this project please: /tmp/example-repo",
+	)
+	if !userRequestsCodeReview(msg.Content) {
+		t.Fatal("fixture must phrase-match code review")
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionQuestion,
+		RequestedAction: intent.ActionAnswer, Action: intent.ActionAnswer,
+		RecipientType: "assistant", Mutation: intent.MutationNone,
+		Confidence: 1, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if userRequestsCodeReviewForMessage(msg) {
+		t.Fatal("stamped ActionAnswer must not treat review phrases as code-review intent")
+	}
+}
+
+func TestStampedEditDecisionDrivesAssistantImplGateWithoutPhrases(t *testing.T) {
+	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), nil)
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-user-assistant",
+		protocol.AgentInfo{ID: "user", Type: "human"},
+		"please create a canvas after you fix the typo in the greeting",
+	)
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode:         "agent",
+		protocol.IdeMetaImplementationSession: true,
+		"workspace_context":                   map[string]interface{}{"workspace_path": "/tmp/project"},
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionEdit, Action: intent.ActionEdit,
+		RecipientType: "assistant", Mutation: intent.MutationWorkspace,
+		Confidence: 0.9, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !assistantAllowsImplementationSession(a, msg) {
+		t.Fatal("stamped ActionEdit must allow Assistant impl session without phrase match")
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("stamped ActionEdit must run implementation session")
+	}
+	if artifactToolsEnabledForMessage(msg) {
+		t.Fatal("ActionEdit must not enable artifact tools despite canvas phrases")
+	}
+}

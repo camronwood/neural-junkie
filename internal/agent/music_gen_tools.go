@@ -89,6 +89,23 @@ func (a *Agent) musicGenerationToolsEnabledForMessage(msg *protocol.Message) boo
 	if !agentTypeSupportsHubMusicGen(a.Info.Type) {
 		return false
 	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		switch decision.Action {
+		case semantic.ActionAnswer, semantic.ActionAskUser:
+			// Music remains a specialized path until it joins the typed ontology.
+			// Structural collab/impl suppression still applies without image phrase fallthrough.
+			if msg != nil && msg.ImplementationSession() {
+				return false
+			}
+			phase := strings.ToLower(strings.TrimSpace(msg.GetCollaborationPhase()))
+			if phase != "" || msg.GetCollaborationID() != "" || msg.Type == protocol.MessageTypeCollabDiscussion {
+				return false
+			}
+			return true
+		default:
+			return false
+		}
+	}
 	if messageSuppressesImageGeneration(msg) {
 		return false
 	}

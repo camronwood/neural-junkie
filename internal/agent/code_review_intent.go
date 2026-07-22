@@ -8,6 +8,7 @@ import (
 )
 
 // userRequestsCodeReview reports read-only review/audit asks (whole project or codebase).
+// Prefer userRequestsCodeReviewForMessage when a stamped turn decision may be present.
 func userRequestsCodeReview(content string) bool {
 	lower := strings.ToLower(strings.TrimSpace(content))
 	if lower == "" {
@@ -38,6 +39,18 @@ func userRequestsCodeReview(content string) bool {
 	return false
 }
 
+// userRequestsCodeReviewForMessage uses a stamped decision when present; phrases are
+// emergency rollback only when no canonical decision is stamped.
+func userRequestsCodeReviewForMessage(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		return decision.Domain == "code_review" || decision.RecipientType == "code-review"
+	}
+	return userRequestsCodeReview(msg.Content)
+}
+
 func repoPathFromMessage(content string) string {
 	result := protocol.DetectLocalPaths(content)
 	if !result.Found {
@@ -55,7 +68,7 @@ func messageDefersToRepoExpert(a *Agent, msg *protocol.Message) bool {
 	if a == nil || msg == nil || a.Info.Type == protocol.AgentTypeRepo {
 		return false
 	}
-	if !userRequestsCodeReview(msg.Content) {
+	if !userRequestsCodeReviewForMessage(msg) {
 		return false
 	}
 	repoPath := repoPathFromMessage(msg.Content)

@@ -1,0 +1,27 @@
+{
+  "name": "semantic-turn-decision-cutover",
+  "description": "Documents heuristic retirement: when hub stamps semantic_turn_decision, action/mutation/recipient come from the decision (optional assert if router is enabled).",
+  "tags": ["dm", "routing", "semantic", "cutover", "optional"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "Do we need to change the router before adding this feature?",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none", "composer_mode": "ask"}
+    },
+    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "120s"},
+    {
+      "action": "assert_messages",
+      "semantic_turn_decision": {
+        "optional": true,
+        "user_match": "Do we need to change the router",
+        "action": "answer",
+        "mutation": "none"
+      }
+    }
+  ],
+  "cleanup": "clear"
+}

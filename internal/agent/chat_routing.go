@@ -37,7 +37,7 @@ func (a *Agent) EscalateConversationProvider(ctx context.Context, msg *protocol.
 	msg.Metadata[conversationQualityFailureKey] = true
 	markLastRoutingAttemptFailed(msg, ConversationReasonQualityGateFailure)
 
-	previous := a.LastRoutingSnapshot().ConversationTier
+	previous := a.LastRoutingSnapshotFor(msg.ID).ConversationTier
 	trust := a.ClassifyConversationTrust(msg)
 	if previous == "" {
 		previous = string(ConversationTierStandard)
@@ -65,14 +65,18 @@ func (a *Agent) EscalateConversationProvider(ctx context.Context, msg *protocol.
 		a.recordRoutingEvidenceFromMessage(msg)
 		return nil, false
 	}
-	a.recordConversationTrust(eff, trust)
+	a.recordConversationTrustFor(msg.ID, eff, trust)
 	a.recordRoutingEvidenceFromMessage(msg)
 	return eff, eff != nil
 }
 
 func (a *Agent) recordRoutingEvidenceFromMessage(msg *protocol.Message) {
 	meta := protocol.ExtractRoutingMeta(msg)
-	a.RecordRoutingSnapshot(RoutingSnapshot{
+	msgID := ""
+	if msg != nil {
+		msgID = msg.ID
+	}
+	a.RecordRoutingSnapshotFor(msgID, RoutingSnapshot{
 		Attempts:        meta.Attempts,
 		FailureEvidence: meta.FailureEvidence,
 	})

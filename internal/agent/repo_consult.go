@@ -35,7 +35,7 @@ func (a *Agent) appendRepoConsultContext(ctx context.Context, msg *protocol.Mess
 	if multi, ok := ch.(CommandHandlerInterface); ok && len(refs) > 1 {
 		blocks, err := multi.ConsultReposForPaths(ctx, refs, subQ, msg.Channel)
 		if err == nil && len(blocks) > 0 {
-			a.recordKnowledgeExecuted("repo_consult")
+			a.recordKnowledgeExecutedFor(msg.ID, "repo_consult")
 			return appendRepoConsultBlocks(prompt, blocks, a, msg)
 		}
 	}
@@ -43,7 +43,7 @@ func (a *Agent) appendRepoConsultContext(ctx context.Context, msg *protocol.Mess
 	if err != nil || strings.TrimSpace(text) == "" {
 		return prompt
 	}
-	a.recordKnowledgeExecuted("repo_consult")
+	a.recordKnowledgeExecutedFor(msg.ID, "repo_consult")
 	label := refs[0].Name
 	if label == "" {
 		label = filepathBaseName(refs[0].Path)
@@ -142,7 +142,7 @@ func (a *Agent) shouldRunRepoConsult(ctx context.Context, msg *protocol.Message,
 	case IntentTask, IntentSubstantive:
 		return true
 	default:
-		return userRequestsCodeReview(msg.Content) || strings.Contains(strings.ToLower(msg.Content), "architecture")
+		return userRequestsCodeReviewForMessage(msg) || strings.Contains(strings.ToLower(msg.Content), "architecture")
 	}
 }
 

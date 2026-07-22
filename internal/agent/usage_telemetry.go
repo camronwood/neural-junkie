@@ -53,7 +53,7 @@ func (a *Agent) applyUsageTelemetry(st *turnState) {
 		return
 	}
 
-	snap := a.LastRoutingSnapshot()
+	snap := a.LastRoutingSnapshotFor(st.msg.ID)
 	if snap.ProviderID != "" {
 		usageMap["provider_id"] = snap.ProviderID
 	}

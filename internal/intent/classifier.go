@@ -38,6 +38,7 @@ Interpret meaning rather than matching words:
 - retrieval describes evidence needed to answer; do not grant permissions or choose frontier models.
 - use explicit_continuation only when pending_action_id is present and the user approves advancing it.
 - choose the specialist recipient matching the domain for inspect, debug, edit, and run actions.
+- when the user reports a product/app that fails before showing its UI, interface, screen, or frontend, prefer domain frontend and recipient_type frontend unless they clearly name a backend/API/service failure.
 - use stable reason codes such as startup_failure, build_failure, runtime_failure, explicit_continuation, correction, advisory_question, or durable_artifact.
 - use ask_user when a required target is genuinely ambiguous.`
 

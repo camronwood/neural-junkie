@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-17T15:09:56Z",
-  "count": 22,
+  "updated": "2026-07-22T12:07:43Z",
+  "count": 23,
   "items": [
     {
       "slug": "beta-6",
@@ -40,6 +40,26 @@
       "sourceFile": "BETA25-LINKEDIN.md",
       "sourcePath": "campaigns/beta25/BETA25-LINKEDIN.md",
       "href": "beta-5.html"
+    },
+    {
+      "slug": "semantic-turn-routing",
+      "title": "One Decision Per Turn: Meaning Over Phrases",
+      "teaser": "Neural Junkie replaces distributed phrase matching with one server-authoritative semantic decision per turn \u2014 local structured classification for meaning, deterministic policy for writes, recipients, retrieval, and Ask/Plan safety.",
+      "cover": "campaigns/semantic-turn-routing/creatives/neural-junkie-semantic-turn-routing-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-semantic-turn-routing-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "opensource",
+        "developertools",
+        "architecture",
+        "routing"
+      ],
+      "sourceFile": "SEMANTIC-TURN-ROUTING-LINKEDIN.md",
+      "sourcePath": "campaigns/semantic-turn-routing/SEMANTIC-TURN-ROUTING-LINKEDIN.md",
+      "href": "semantic-turn-routing.html"
     },
     {
       "slug": "hardware",

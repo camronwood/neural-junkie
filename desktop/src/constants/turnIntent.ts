@@ -15,6 +15,8 @@ export const TURN_META_CONTEXT_TIER = 'context_tier';
 export const TURN_META_CAN_PROPOSE_FILES = 'can_propose_files';
 export const TURN_META_CAN_RUN_IMPL_SESSION = 'can_run_impl_session';
 export const TURN_META_REQUIRES_WORKSPACE = 'requires_workspace';
+export const TURN_META_GOVERNANCE = 'turn_governance';
+export const TURN_GOVERNANCE_VERSION = 1;
 
 export function resolveTurnCapabilities(options: {
   composerMode: EffectiveComposerMode;
@@ -58,16 +60,33 @@ export function resolveTurnCapabilities(options: {
   }
 }
 
+/**
+ * Attach a versioned turn_governance envelope. Flat can_* keys are omitted —
+ * the server stamps canonical governance and capabilities at ingress.
+ * composer_mode remains as a compatibility reader for older ingress paths.
+ */
 export function attachTurnCapabilitiesMetadata(
   metadata: Record<string, unknown>,
-  caps: TurnCapabilities
+  caps: TurnCapabilities,
+  options?: { trustPreference?: string }
 ): Record<string, unknown> {
-  return {
+  const next: Record<string, unknown> = {
     ...metadata,
     [TURN_META_COMPOSER_MODE]: caps.composerMode,
-    [TURN_META_CONTEXT_TIER]: caps.contextTier,
-    [TURN_META_CAN_PROPOSE_FILES]: caps.canProposeFiles,
-    [TURN_META_CAN_RUN_IMPL_SESSION]: caps.canRunImplSession,
-    [TURN_META_REQUIRES_WORKSPACE]: caps.requiresWorkspace,
+    [TURN_META_GOVERNANCE]: {
+      version: TURN_GOVERNANCE_VERSION,
+      composer_mode: caps.composerMode,
+      context_tier: caps.contextTier,
+      trust_preference: options?.trustPreference ?? '',
+      can_propose_files: caps.canProposeFiles,
+      can_run_impl_session: caps.canRunImplSession,
+      requires_workspace: caps.requiresWorkspace,
+      provenance: 'desktop_explicit',
+    },
   };
+  delete next[TURN_META_CONTEXT_TIER];
+  delete next[TURN_META_CAN_PROPOSE_FILES];
+  delete next[TURN_META_CAN_RUN_IMPL_SESSION];
+  delete next[TURN_META_REQUIRES_WORKSPACE];
+  return next;
 }

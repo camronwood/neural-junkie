@@ -100,14 +100,14 @@ func newValidationLadderState(t *testing.T, router ChatRouting) (*turnState, *va
 	msg.Metadata[protocol.MetadataRoutingAttempts] = []protocol.RoutingAttempt{{
 		ProviderID: base.Model, Model: base.Model, Tier: string(ConversationTierStandard), Reason: "standard_route",
 	}}
-	a.RecordRoutingSnapshot(RoutingSnapshot{
+	a.RecordRoutingSnapshotFor(msg.ID, RoutingSnapshot{
 		ConversationTier: string(ConversationTierStandard),
 		ChatModel:        base.Model,
 		Attempts:         protocol.ExtractRoutingMeta(msg).Attempts,
 	})
 	responseMsg := protocol.NewMessage(protocol.MessageTypeChat, "dm", a.Info, "The user wants to know what a mutex does.")
 	recorder := trace.NewRecorder("turn", "dm", "assistant")
-	ctx := trace.WithRecorder(context.Background(), recorder)
+	ctx := contextWithTurnRouting(trace.WithRecorder(context.Background(), recorder), msg.ID)
 	st := &turnState{
 		agent: a, ctx: ctx, msg: msg, intent: IntentSubstantive,
 		goal: deriveTurnGoal(a, msg, IntentSubstantive),
@@ -139,12 +139,12 @@ func TestValidateResponseRetryUsesReliableProviderOnce(t *testing.T) {
 	SetGlobalChatRouting(router)
 
 	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, base, nil)
-	a.RecordRoutingSnapshot(RoutingSnapshot{ConversationTier: string(ConversationTierElevated), ChatModel: base.Model})
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{ID: "user", Name: "Camron"}, "What does a mutex do?")
+	a.RecordRoutingSnapshotFor(msg.ID, RoutingSnapshot{ConversationTier: string(ConversationTierElevated), ChatModel: base.Model})
 	responseMsg := protocol.NewMessage(protocol.MessageTypeChat, "dm", a.Info, "The user wants to know what a mutex does.")
 	st := &turnState{
 		agent:       a,
-		ctx:         context.Background(),
+		ctx:         contextWithTurnRouting(context.Background(), msg.ID),
 		msg:         msg,
 		intent:      IntentSubstantive,
 		goal:        deriveTurnGoal(a, msg, IntentSubstantive),
@@ -174,7 +174,7 @@ func TestValidateResponseRetryUsesReliableProviderOnce(t *testing.T) {
 		t.Fatalf("response=%q want %q", st.response, reliable.response)
 	}
 
-	a.ApplyRoutingMetadataToResponse(responseMsg)
+	a.ApplyRoutingMetadataToResponseFor(msg.ID, responseMsg)
 	meta := protocol.ExtractRoutingMeta(responseMsg)
 	if meta.Model != "reliable-model" || meta.ConversationTier != string(ConversationTierReliable) {
 		t.Fatalf("routing metadata=%+v", meta)
@@ -204,7 +204,7 @@ func TestValidateResponseCompletesFullLocalLadderSameTurn(t *testing.T) {
 	if !st.contextRecovered {
 		t.Fatal("expected one durable-context recovery")
 	}
-	st.agent.ApplyRoutingMetadataToResponse(responseMsg)
+	st.agent.ApplyRoutingMetadataToResponseFor(st.msg.ID, responseMsg)
 	meta := protocol.ExtractRoutingMeta(responseMsg)
 	if len(meta.Attempts) != 3 ||
 		meta.Attempts[0].FailureReason == "" ||
@@ -248,7 +248,7 @@ func TestValidateResponseExhaustsLocalsWithFrontierBlocked(t *testing.T) {
 	if st.response != "I couldn't produce a sufficiently grounded answer from the available context." {
 		t.Fatalf("response=%q", st.response)
 	}
-	st.agent.ApplyRoutingMetadataToResponse(responseMsg)
+	st.agent.ApplyRoutingMetadataToResponseFor(st.msg.ID, responseMsg)
 	meta := protocol.ExtractRoutingMeta(responseMsg)
 	if len(meta.Attempts) != 3 || meta.Attempts[2].FailureReason == "" {
 		t.Fatalf("routing attempts=%+v", meta.Attempts)
@@ -273,7 +273,7 @@ func TestValidateResponseUsesConsentedFrontierAfterLocalExhaustion(t *testing.T)
 	if st.response != frontier.response || st.validationAttempts != 3 || frontier.calls != 1 {
 		t.Fatalf("response=%q attempts=%d frontier calls=%d", st.response, st.validationAttempts, frontier.calls)
 	}
-	st.agent.ApplyRoutingMetadataToResponse(responseMsg)
+	st.agent.ApplyRoutingMetadataToResponseFor(st.msg.ID, responseMsg)
 	meta := protocol.ExtractRoutingMeta(responseMsg)
 	if len(meta.Attempts) != 4 ||
 		meta.Attempts[2].FailureReason == "" ||

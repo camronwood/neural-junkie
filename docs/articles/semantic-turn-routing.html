@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>One Decision Per Turn: Meaning Over Phrases — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie replaces distributed phrase matching with one server-authoritative semantic decision per turn — local structured classification for meaning, deterministic policy for writes, recipients, retrieval, and Ask/Plan safety." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/articles/semantic-turn-routing.html" />
+  <meta property="og:title" content="One Decision Per Turn: Meaning Over Phrases — Neural Junkie" />
+  <meta property="og:description" content="Neural Junkie replaces distributed phrase matching with one server-authoritative semantic decision per turn — local structured classification for meaning, deterministic policy for writes, recipients, retrieval, and Ask/Plan safety." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/articles/semantic-turn-routing.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-semantic-turn-routing-1200.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="627" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="One Decision Per Turn: Meaning Over Phrases — Neural Junkie" />
+  <meta name="twitter:description" content="Neural Junkie replaces distributed phrase matching with one server-authoritative semantic decision per turn — local structured classification for meaning, deterministic policy for writes, recipients, retrieval, and Ask/Plan safety." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-semantic-turn-routing-1200.png" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "One Decision Per Turn: Meaning Over Phrases",
+  "description": "Neural Junkie replaces distributed phrase matching with one server-authoritative semantic decision per turn \u2014 local structured classification for meaning, deterministic policy for writes, recipients, retrieval, and Ask/Plan safety.",
+  "url": "https://camronwood.github.io/neural-junkie/articles/semantic-turn-routing.html",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Neural Junkie"
+  },
+  "image": [
+    "https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-semantic-turn-routing-1200.png"
+  ]
+}
+  </script>
+<!-- NJ-SITE-SEO:END -->
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap site-header-bar">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+          <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+          <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+          <a class="btn btn-ghost" href="../packs.html">Packs</a>
+          <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+          <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+          <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+          <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+          <a class="btn btn-ghost" href="../security.html">Security</a>
+          <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+          <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+          <a class="btn btn-ghost" href="../download.html">Download</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · One Decision Per Turn: Meaning Over Phrases
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>One Decision Per Turn: Meaning Over Phrases</h1>
+      <p class="article-lead">Neural Junkie replaces distributed phrase matching with one server-authoritative semantic decision per turn — local structured classification for meaning, deterministic policy for writes, recipients, retrieval, and Ask/Plan safety.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">opensource</span><span class="article-tag">developertools</span><span class="article-tag">architecture</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-semantic-turn-routing-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>You tell the agent: <em>“Something is wrong — the application exits before showing its interface. Diagnose it and sort it out.”</em></p>
+<p>Or: <em>“Create a Neural Canvas beside this conversation that explains the architecture.”</em></p>
+<p>Or: <em>“Proceed with that.”</em></p>
+<p>Three different meanings. Three different actions. Same messy language.</p>
+<p>For a long time, Neural Junkie tried to catch those meanings with <strong>distributed phrase lists</strong> — on the desktop, in the agent, in knowledge routing, in trust signals, in implementation gates. Boot-fix regexes. Canvas detectors. Continuation affirmations. Code-review cues.</p>
+<p>It worked until it didn’t.</p>
+<p>“Will not boot” and “Neural Canvas” became the poster children: hard-coded phrases that misrouted turns, fought each other, and couldn’t survive a paraphrase. Every new product surface meant another list to keep in sync.</p>
+<p>So we replaced the lists with a single rule:</p>
+<p><strong>Resolve meaning once. Compile policy once. Stamp an immutable turn decision. Consume it everywhere.</strong></p>
+<h2>The bet in one sentence</h2>
+<p><strong>The model describes requested meaning. Deterministic policy grants permission.</strong></p>
+<p>A local classifier never gets to authorize writes, frontier access, destructive ops, or auto-apply. Those stay in code you can audit.</p>
+<h2>What broke</h2>
+<p>Phrase matching fails in predictable ways:</p>
+<ul>
+<li><strong>Paraphrase blindness</strong> — “won’t start,” “never reaches the UI,” and “exits before the interface” are the same job; regexes only catch the phrases you remembered to write</li>
+<li><strong>Homonym collisions</strong> — “canvas” as a durable chat artifact vs an HTML canvas component in source</li>
+<li><strong>Split brain</strong> — desktop picks an agent, server re-infers action, knowledge router rescans the raw text, trust layer runs its own regexes</li>
+<li><strong>Unsafe authority creep</strong> — if a phrase list can flip <code>implementation_session</code>, a clever wording can ask for more power than the UI mode allowed</li>
+</ul>
+<p>We didn’t need a smarter regex. We needed a <strong>typed contract</strong>.</p>
+<h2>One typed decision per turn</h2>
+<p>At hub ingress — after mentions and DMs are handled — Neural Junkie now builds bounded <code>TurnFeatures</code> and resolves a versioned <code>TurnDecision</code>:</p>
+<ul>
+<li><strong>Interaction</strong> — question, task, continuation, correction, closure, casual</li>
+<li><strong>Action</strong> — answer, inspect, plan, debug, edit, run, continue, artifact, image, ask-user</li>
+<li><strong>Domain / recipient</strong> — which specialist should own the turn when nobody was @mentioned</li>
+<li><strong>Retrieval</strong> — memory, codebase, graph, prior reference, collab artifact</li>
+<li><strong>Mutation</strong> — none, external, or workspace</li>
+<li><strong>Provenance</strong> — structural directive, local classifier, or safe fallback</li>
+</ul>
+<p>That decision is stamped on the message. Client-authored decisions are stripped. The turn pipeline, knowledge plan, model routing, trust classification, artifact/image gates, and implementation session all <strong>prefer the stamp</strong> over re-reading the user’s sentence.</p>
+<h2>How resolution works</h2>
+<pre><code>Desktop → explicit composer mode, trust, IDE context, mentions, reply IDs
+    ↓
+Hub ingress → structural features
+    ↓
+Fully determined? ──yes──► Deterministic policy
+    │
+    no (semantic ambiguity)
+    ↓
+Local structured classifier (utility model, temp 0, JSON schema)
+    ↓
+Deterministic policy → TurnDecision
+    ↓
+Recipient · TurnGoal · KnowledgePlan · model route · evidence contract
+</code></pre>
+<p>Structural facts still win without calling a model: Ask/Plan/Export mode, slash commands, explicit mentions, typed reply/action IDs, pending continuation targets, workspace presence, and capability flags.</p>
+<p>When the text is ambiguous, a <strong>local</strong> utility model classifies into the schema. One repair attempt on malformed JSON. Low confidence abstains into a safe fallback. Frontier models are never used for turn classification.</p>
+<h2>Policy owns the dangerous bits</h2>
+<p>Examples that matter in practice:</p>
+<ul>
+<li>Ask and Plan force <code>mutation: none</code> even if the classifier suggests edit</li>
+<li>Workspace mutation requires both capability flags and an actual workspace</li>
+<li>Debug / edit / run / continue with a workspace get codebase retrieval without re-scanning for “look in the repo”</li>
+<li>Continuation needs a durable pending action ID — “go ahead” alone is not enough to invent one</li>
+</ul>
+<p>The classifier can say <em>what the user asked for</em>. Policy decides <em>what the runtime is allowed to do</em>.</p>
+<h2>Desktop becomes a thin client</h2>
+<p>The send path no longer invents implementation sessions from “please implement…” or routes boot fixes to FrontendEngineer because a phrase matched.</p>
+<p>It transports:</p>
+<ul>
+<li>Composer mode and trust preference</li>
+<li>Active editor / workspace context</li>
+<li>Attachments and <code>@codebase</code> syntax</li>
+<li>Explicit mentions and reply/action IDs</li>
+<li>A versioned <code>turn_governance</code> envelope with explicit provenance</li>
+</ul>
+<p>Semantic authority lives on the server. That matches the hub thesis from the earlier architecture article: <strong>orchestration belongs in a server you control</strong>.</p>
+<h2>What we kept (and what we quarantined)</h2>
+<p>We kept narrow deterministic recognizers for <strong>syntax and safety</strong>: slash commands, mentions, paths, structured diagnostics, destructive command checks, and evidence-claim validation.</p>
+<p>Legacy phrase lists still exist behind an emergency rollback flag and as fallbacks when no decision is stamped. A repository guard test fails if new semantic phrase regexes appear outside the classifier package or the explicit quarantine list.</p>
+<p>Direct cutover — no shadow dual-run of live turns. Telemetry records schema version, source, classifier model, latency, confidence, abstention, and policy overrides without stuffing extra raw user text into the log.</p>
+<h2>Try the idea in one sentence</h2>
+<p>If two wordings mean the same job, they should produce the same <code>TurnDecision</code>.</p>
+<p>If a wording sounds like a write but Ask mode is on, policy must still refuse the write.</p>
+<p>That’s the upgrade: <strong>meaning over phrases, policy over vibes</strong>.</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/campaigns/semantic-turn-routing/SEMANTIC-TURN-ROUTING-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="../timeline.html">Timeline</a>
+        <a class="btn btn-ghost btn-sm" href="../thanks.html">Thank you</a>
+        <a class="btn btn-ghost btn-sm" href="../install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="semantic-turn-routing.html">One Decision Per Turn: Meaning Over Phrases</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

@@ -59,7 +59,7 @@ func (a *Agent) ExecuteKnowledgePlan(ctx context.Context, msg *protocol.Message,
 		}
 		span.End(map[string]any{"executed": res.Executed, "path": res.Path})
 		if res.Executed && res.Path != "" {
-			a.recordKnowledgeExecuted(res.Path)
+			a.recordKnowledgeExecutedFor(msg.ID, res.Path)
 		}
 	}
 }

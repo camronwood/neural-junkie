@@ -3,7 +3,7 @@ import { hasCodeReviewSignals } from './codeReviewSignals';
 import { buildImplementationSessionMetadata } from './ideComposer';
 
 describe('codeReviewSignals', () => {
-  it('detects project code review', () => {
+  it('detects project code review (legacy quarantine helper)', () => {
     expect(hasCodeReviewSignals('code review this project please')).toBe(true);
     expect(hasCodeReviewSignals('Can you review the code in the workspace?')).toBe(true);
     expect(hasCodeReviewSignals('please implement themes')).toBe(false);
@@ -12,7 +12,7 @@ describe('codeReviewSignals', () => {
 });
 
 describe('buildImplementationSessionMetadata code review', () => {
-  it('does not set implementation_session for project code review', () => {
+  it('never infers implementation_session from review wording', () => {
     const metadata = buildImplementationSessionMetadata({
       content: 'code review this project: /Users/me/app',
       agents: [{ name: 'FrontendEngineer', type: 'frontend' } as never],
@@ -23,7 +23,7 @@ describe('buildImplementationSessionMetadata code review', () => {
     expect(metadata.implementation_session).toBeUndefined();
   });
 
-  it('does not set implementation_session for workspace code review', () => {
+  it('never infers implementation_session from workspace review wording', () => {
     const metadata = buildImplementationSessionMetadata({
       content: 'Can you review the code in the workspace?',
       agents: [{ name: 'CodeReviewer', type: 'code-review' } as never],

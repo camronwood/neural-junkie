@@ -101,7 +101,7 @@ func (a *Agent) appendMemoryForMessage(system *strings.Builder, msg *protocol.Me
 	}
 	pr := appendMemoryPromptContext(system, msg, pctx)
 	if pr.Count > 0 {
-		a.recordKnowledgeExecuted(knowledgeExecutedPathForMemory(plan))
+		a.recordKnowledgeExecutedFor(msg.ID, knowledgeExecutedPathForMemory(plan))
 	}
 	return pr
 }

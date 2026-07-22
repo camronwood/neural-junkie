@@ -98,19 +98,31 @@ func TestResolveSemanticTurnRejectsClientAuthoredDecision(t *testing.T) {
 	}
 }
 
-func TestSemanticTurnFeaturesCarryTypedPendingAction(t *testing.T) {
+func TestResolveSemanticTurnPhraseMismatchCannotOverrideAction(t *testing.T) {
 	h := NewHub()
-	h.CreateChannelWithType("semantic-pending", "", "", protocol.ChannelTypePublic, "user")
-	h.RecordConversationActionPromise(
-		"semantic-pending", "goal-1", "goal-1", "edit", "Apply the approved repair", "promise-1",
-	)
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "semantic-pending", protocol.AgentInfo{
+	h.CreateChannelWithType("semantic-phrase", "", "", protocol.ChannelTypePublic, "user")
+	h.SetSemanticTurnRouter(semanticRouterFunc(func(context.Context, intent.TurnFeatures) intent.TurnDecision {
+		return intent.TurnDecision{
+			SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionQuestion,
+			RequestedAction: intent.ActionAnswer, Action: intent.ActionAnswer,
+			RecipientType: "assistant", Mutation: intent.MutationNone,
+			Confidence: 1, Source: intent.SourceLocalModel,
+		}
+	}))
+	// Canvas phrases would trigger artifact heuristics without a stamped decision.
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "semantic-phrase", protocol.AgentInfo{
 		ID: "user", Name: "Camron", Type: "human",
-	}, "Proceed.")
-	msg.ReplyTo = "promise-1"
-	features := h.semanticTurnFeatures(msg)
-	if features.PendingActionID != "goal-1" || features.PendingAction != intent.ActionEdit ||
-		features.PendingDescription != "Apply the approved repair" {
-		t.Fatalf("features=%+v", features)
+	}, "please create a canvas of the architecture")
+	msg.Metadata = map[string]interface{}{protocol.TurnMetaComposerMode: "agent"}
+	h.resolveSemanticTurn(context.Background(), msg)
+	decision, ok := protocol.ExtractTurnDecision(msg)
+	if !ok || decision.Action != intent.ActionAnswer || decision.Mutation != intent.MutationNone {
+		t.Fatalf("decision=%+v ok=%v", decision, ok)
+	}
+	if msg.ImplementationSession() {
+		t.Fatal("ActionAnswer must not stamp implementation_session")
+	}
+	if msg.IdeRouteAgentType() != "assistant" {
+		t.Fatalf("recipient route=%q, want assistant", msg.IdeRouteAgentType())
 	}
 }

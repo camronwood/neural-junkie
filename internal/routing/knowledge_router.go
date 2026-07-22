@@ -36,6 +36,8 @@ type KnowledgePlan struct {
 var codebaseSymbolRE = regexp.MustCompile(`[A-Z][a-zA-Z0-9]{3,}`)
 
 // PlanKnowledgeRoute picks one or more retrieval strategies from user text.
+// Prefer PlanKnowledgeRouteForDecision when a canonical turn decision is stamped;
+// this phrase path is emergency rollback only.
 func PlanKnowledgeRoute(text string) KnowledgePlan {
 	lower := strings.ToLower(strings.TrimSpace(text))
 	if lower == "" {

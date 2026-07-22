@@ -88,7 +88,7 @@ func (a *Agent) broadcastRoutingTelemetry(originalMsg *protocol.Message) {
 	if originalMsg == nil {
 		return
 	}
-	snap := a.LastRoutingSnapshot()
+	snap := a.LastRoutingSnapshotFor(originalMsg.ID)
 	detail := formatRoutingThinkingDetail(snap)
 	if detail == "" {
 		return

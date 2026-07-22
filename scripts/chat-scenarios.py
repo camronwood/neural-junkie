@@ -274,6 +274,47 @@ def step_assert_messages(ctx: ChatScenarioContext, step: dict) -> tuple[bool, st
             if len(body) > limit:
                 return False, f"reply exceeds max_chars {limit} (got {len(body)})"
 
+    # Optional cutover check: hub-stamped semantic_turn_decision on a matching user turn.
+    if want := step.get("semantic_turn_decision"):
+        user_match = (want.get("user_match") or step.get("user_match") or "").strip()
+        if not user_match:
+            return False, "semantic_turn_decision.user_match required"
+        matched = None
+        for m in reversed(msgs):
+            content = m.get("content") or ""
+            try:
+                content_hit = user_match in content or bool(re.search(user_match, content, re.I))
+            except re.error:
+                content_hit = user_match in content
+            if not content_hit:
+                continue
+            from_type = str((m.get("from") or {}).get("type") or "").lower()
+            if from_type and from_type not in ("human", "user"):
+                continue
+            matched = m
+            break
+        if matched is None:
+            if want.get("optional"):
+                return True, "semantic_turn_decision skipped (no matching user turn)"
+            return False, f"semantic_turn_decision: no user turn matching {user_match!r}"
+        decision = (matched.get("metadata") or {}).get("semantic_turn_decision") or {}
+        if not decision:
+            if want.get("optional"):
+                return True, "semantic_turn_decision skipped (not stamped; router may be off)"
+            return False, "semantic_turn_decision missing on matched user turn"
+        checks = {
+            "action": want.get("action"),
+            "mutation": want.get("mutation"),
+            "recipient_type": want.get("recipient_type") or want.get("recipient"),
+        }
+        for key, expect in checks.items():
+            if expect is None or expect == "":
+                continue
+            got = decision.get(key)
+            if got != expect:
+                return False, f"semantic_turn_decision.{key}: got {got!r} want {expect!r}"
+        return True, "semantic_turn_decision ok"
+
     return True, "message assertions ok"
 
 
