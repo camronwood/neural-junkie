@@ -81,6 +81,9 @@ func TestBackfillDoesNotLockWhileCursorOpen(t *testing.T) {
 }
 
 func TestOpenDefaultMessagesDB(t *testing.T) {
+	// Opens the real default path only as a smoke check. Skip when the DB is
+	// empty (fresh CI runners / new installs) — FTS backfill is covered by
+	// TestBackfillDoesNotLockWhileCursorOpen with an isolated temp DB.
 	path, err := PathDefault()
 	if err != nil {
 		t.Fatal(err)
@@ -90,11 +93,18 @@ func TestOpenDefaultMessagesDB(t *testing.T) {
 		t.Fatalf("open %s: %v", path, err)
 	}
 	defer store.Close()
+	var msgCount int
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM messages`).Scan(&msgCount); err != nil {
+		t.Fatal(err)
+	}
+	if msgCount == 0 {
+		t.Skipf("no messages in %s", path)
+	}
 	n, err := store.ftsRowCount()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if n == 0 {
-		t.Fatalf("expected FTS backfill on %s, got 0 rows", path)
+		t.Fatalf("expected FTS backfill on %s (%d messages), got 0 FTS rows", path, msgCount)
 	}
 }
