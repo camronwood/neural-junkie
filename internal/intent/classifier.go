@@ -31,6 +31,7 @@ Interpret meaning rather than matching words:
 - when the user asks you to have a look, check git/history, investigate workspace state, or examine what broke, prefer inspect (or debug if they report a failure) with codebase retrieval — not answer-only chat.
 - debug is the primary action for diagnosing a reported failure. When the user also asks to repair, fix, or sort out the failure, set mutation_requested to workspace and include startup_failure or runtime_failure reason codes.
 - edit is the primary action for creating or changing source files. run is only the primary action when the user asks to execute a command, test, build, or script; implementing code is never run.
+- writing fiction, stories, alternate endings, essays, poems, jokes, or other creative prose is answer — never edit, run, ask_user, or artifact.
 - continue advances one pending action. When interaction is continuation, requested_action must be continue and continuation_target must copy pending_action_id.
 - artifact creates a durable chat-side report/canvas; image creates image media. Neither means a source-code component with a similar name.
 - artifact and image require external mutation. edit requires workspace mutation. answer, inspect, plan, and ask_user require no mutation.

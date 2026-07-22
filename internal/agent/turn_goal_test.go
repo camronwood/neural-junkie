@@ -96,6 +96,26 @@ func TestValidateResponseRequiresPassingCommandEvidence(t *testing.T) {
 	}
 }
 
+func TestValidateResponseKeepsCreativeAnswerUnderMisclassifiedRunGoal(t *testing.T) {
+	goal := TurnGoal{Action: ActionRun, ExpectedEvidence: []EvidenceKind{EvidenceCommandRun}}
+	ledger := &ActionEvidenceLedger{}
+	answer := "Here is an alternate ending where Arya sails west and the throne dissolves into a council of cities."
+	issues := validateResponseAgainstEvidence(goal, ledger, &protocol.Message{}, answer, nil)
+	if shouldRewriteAsSafeFailure(issues, answer) {
+		t.Fatalf("creative answer under misclassified run goal should be kept; issues=%v", issues)
+	}
+}
+
+func TestValidateResponseStillRewritesUnsupportedRunClaim(t *testing.T) {
+	goal := TurnGoal{Action: ActionRun, ExpectedEvidence: []EvidenceKind{EvidenceCommandRun}}
+	ledger := &ActionEvidenceLedger{}
+	claim := "I ran the test suite and everything passed."
+	issues := validateResponseAgainstEvidence(goal, ledger, &protocol.Message{}, claim, nil)
+	if !shouldRewriteAsSafeFailure(issues, claim) {
+		t.Fatalf("unsupported run claim must soft-fail; issues=%v", issues)
+	}
+}
+
 func TestActionEvidenceRecordsToolOutcomes(t *testing.T) {
 	ledger := &ActionEvidenceLedger{}
 	ledger.recordToolEvent(ai.ToolStepEvent{Kind: "result", Name: proposeFileEditToolName, Preview: "proposal registered"})

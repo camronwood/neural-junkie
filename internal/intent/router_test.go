@@ -276,3 +276,43 @@ func TestSafeFallbackStillUpgradesGitInspectCue(t *testing.T) {
 		t.Fatalf("source=%s, want safe_fallback", decision.Source)
 	}
 }
+
+func TestPolicyDemotesCreativeWriteToAnswer(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:                 "Can you write me an alternet ending to game of thrones?",
+		ComposerMode:         "agent",
+		HasWorkspace:         true,
+		CanProposeFiles:      true,
+		CanRunImplementation: true,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionTask,
+		RequestedAction:   ActionEdit,
+		MutationRequested: MutationWorkspace,
+		Confidence:        0.95,
+		Retrieval:         []RetrievalTarget{RetrievalCodebase},
+	}, SourceLocalModel)
+	if decision.Action != ActionAnswer || decision.Mutation != MutationNone {
+		t.Fatalf("decision=%+v, want answer for creative write", decision)
+	}
+	if containsRetrievalTarget(decision.Retrieval, RetrievalCodebase) {
+		t.Fatalf("retrieval=%v, creative answer should drop codebase", decision.Retrieval)
+	}
+}
+
+func TestPolicyDemotesShortClarificationFromAskUser(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "what?",
+		ComposerMode: "agent",
+		HasWorkspace: true,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionContinuation,
+		RequestedAction:   ActionAskUser,
+		MutationRequested: MutationNone,
+		Confidence:        0.8,
+	}, SourceLocalModel)
+	if decision.Action != ActionAnswer {
+		t.Fatalf("action=%s, want answer for short clarification", decision.Action)
+	}
+}

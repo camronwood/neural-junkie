@@ -674,9 +674,13 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 	issues := validateResponseAgainstEvidence(st.goal, st.evidence, st.msg, st.response, history)
 	st.actionValidated = len(issues) == 0 && goalHasExpectedEvidence(st.goal, st.evidence)
 	if len(issues) > 0 {
-		if st.goal.RequiresActionEvidence() {
+		switch {
+		case st.goal.RequiresActionEvidence() && shouldRewriteAsSafeFailure(issues, st.response):
 			st.response = safeActionFailure(st.goal, st.evidence)
-		} else {
+		case st.goal.RequiresActionEvidence():
+			// Misclassified action goals often still get a good conversational answer.
+			// Keep it instead of replacing with a canned soft-fail.
+		default:
 			st.validationRetried = true
 			for st.validationAttempts < maxChatValidationEscalations {
 				retryProvider, ok := st.agent.EscalateConversationProvider(st.ctx, st.msg)

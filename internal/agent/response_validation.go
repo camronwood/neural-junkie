@@ -173,7 +173,10 @@ func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger
 		issues = append(issues, issueUnsupportedEdit)
 	}
 	if goal.RequiresActionEvidence() && !goalHasExpectedEvidence(goal, ledger) {
-		if deflectRE.MatchString(response) || len(issues) == 0 {
+		// Missing tool evidence alone is not a failure when the model answered
+		// without claiming the action (common under misclassified turn goals).
+		// Soft-fail only for empty replies or explicit "I can help you / you can run" deflection.
+		if deflectRE.MatchString(response) || strings.TrimSpace(response) == "" {
 			issues = append(issues, issueActionDeflection)
 		}
 	}
@@ -186,6 +189,27 @@ func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger
 		issues = append(issues, issueDirectness)
 	}
 	return uniqueValidationIssues(issues)
+}
+
+// shouldRewriteAsSafeFailure reports whether validation issues should replace the
+// model response with safeActionFailure. Unsupported action claims still rewrite;
+// a substantive answer under a misclassified goal is kept.
+func shouldRewriteAsSafeFailure(issues []responseValidationIssue, response string) bool {
+	if len(issues) == 0 {
+		return false
+	}
+	for _, issue := range issues {
+		switch issue {
+		case issueUnsupportedArtifact, issueUnsupportedImage, issueUnsupportedRun,
+			issueUnsupportedPass, issueUnsupportedEdit:
+			return true
+		case issueActionDeflection:
+			if deflectRE.MatchString(response) || strings.TrimSpace(response) == "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func goalHasExpectedEvidence(goal TurnGoal, ledger *ActionEvidenceLedger) bool {

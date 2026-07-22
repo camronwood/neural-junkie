@@ -226,6 +226,23 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		decision.Mutation = mutationForAction(decision.Action)
 	}
 
+	// Small local classifiers often map "write me a story/ending" onto edit/run.
+	// Demote clearly conversational/creative asks before workspace authorization
+	// rewrites them into ask_user soft-fails.
+	if looksLikeCreativeOrGeneralAnswerRequest(features.Text) {
+		switch decision.Action {
+		case ActionEdit, ActionRun, ActionContinue, ActionAskUser, ActionDebug, ActionInspect:
+			decision.Action = ActionAnswer
+			decision.RequestedAction = ActionAnswer
+			decision.Mutation = MutationNone
+			decision.Retrieval = filterRetrievalTargets(decision.Retrieval, RetrievalCodebase, RetrievalCodeGraph)
+			if len(decision.Retrieval) == 0 {
+				decision.Retrieval = []RetrievalTarget{RetrievalMemory}
+			}
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "creative_or_general_answer")
+		}
+	}
+
 	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))
 	if mode == "ask" || mode == "plan" {
 		if decision.Mutation != MutationNone || isMutatingAction(decision.Action) {
@@ -240,13 +257,25 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	}
 	if decision.Mutation == MutationWorkspace {
 		if !features.CanProposeFiles || !features.CanRunImplementation {
-			decision.Action = ActionAskUser
-			decision.Mutation = MutationNone
-			decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_mutation_not_authorized")
+			if looksLikeCreativeOrGeneralAnswerRequest(features.Text) {
+				decision.Action = ActionAnswer
+				decision.Mutation = MutationNone
+				decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_mutation_not_authorized_answer")
+			} else {
+				decision.Action = ActionAskUser
+				decision.Mutation = MutationNone
+				decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_mutation_not_authorized")
+			}
 		} else if !features.HasWorkspace {
-			decision.Action = ActionAskUser
-			decision.Mutation = MutationNone
-			decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_required")
+			if looksLikeCreativeOrGeneralAnswerRequest(features.Text) {
+				decision.Action = ActionAnswer
+				decision.Mutation = MutationNone
+				decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_required_answer")
+			} else {
+				decision.Action = ActionAskUser
+				decision.Mutation = MutationNone
+				decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_required")
+			}
 		}
 	}
 	if decision.Action == ActionContinue && decision.ContinuationTarget == "" {
@@ -359,6 +388,75 @@ func LooksLikeGitInspectRequest(text string) bool {
 func containsRetrievalTarget(values []RetrievalTarget, target RetrievalTarget) bool {
 	for _, value := range values {
 		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func filterRetrievalTargets(values []RetrievalTarget, drop ...RetrievalTarget) []RetrievalTarget {
+	if len(values) == 0 {
+		return nil
+	}
+	deny := map[RetrievalTarget]bool{}
+	for _, target := range drop {
+		deny[target] = true
+	}
+	out := make([]RetrievalTarget, 0, len(values))
+	for _, value := range values {
+		if deny[value] {
+			continue
+		}
+		out = append(out, value)
+	}
+	return out
+}
+
+// looksLikeCreativeOrGeneralAnswerRequest detects conversational/creative asks that
+// should stay ActionAnswer even when a small classifier maps "write" onto edit/run.
+func looksLikeCreativeOrGeneralAnswerRequest(text string) bool {
+	t := strings.ToLower(strings.TrimSpace(text))
+	if t == "" {
+		return false
+	}
+	if looksLikeEngineeringWorkRequest(t) {
+		return false
+	}
+	creative := []string{
+		"alternate ending", "alternative ending", "ending to", "fanfic", "fan fiction",
+		"write me a story", "write a story", "write me an", "write an essay", "write a poem",
+		"write me a poem", "write a song", "write lyrics", "game of thrones", "short story",
+		"tell me a joke", "tell me a story", "blog post", "linkedin post", "cover letter",
+	}
+	for _, cue := range creative {
+		if strings.Contains(t, cue) {
+			return true
+		}
+	}
+	// Ultra-short clarifications ("what?", "huh?", "why?") after a soft-fail must not
+	// stay on run/ask_user/continue and trigger another canned failure.
+	fields := strings.Fields(t)
+	if len(fields) > 0 && len(fields) <= 3 {
+		switch strings.Trim(fields[0], "?.!,") {
+		case "what", "huh", "why", "how", "who", "where", "when", "ok", "okay", "thanks", "thank":
+			return true
+		}
+	}
+	return false
+}
+
+func looksLikeEngineeringWorkRequest(text string) bool {
+	t := strings.ToLower(text)
+	cues := []string{
+		"src/", ".go", ".ts", ".tsx", ".js", ".py", ".rs", ".java",
+		"implement ", "refactor ", "unit test", "test suite", "run the test",
+		"run tests", "git status", "git log", "git diff", "pull request", " code ",
+		"codebase", "compile", "linter", "eslint", "cargo ", "npm ", "make ",
+		"deploy", "dockerfile", "kubernetes", "fix the bug", "stack trace",
+		"function ", "class ", "module ", "package.json", "cargo.toml",
+	}
+	for _, cue := range cues {
+		if strings.Contains(t, cue) {
 			return true
 		}
 	}
