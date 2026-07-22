@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -177,8 +178,16 @@ func NewGeminiCLIProvider(workDir string, opts ...CLIAgentOption) *CLIAgentProvi
 	return p
 }
 
-// IsCLIInstalled checks whether the configured CLI binary is available on PATH.
+// IsCLIInstalled checks whether the configured CLI binary is available.
+// Absolute paths (from EnhancedPATH resolution) are checked directly; otherwise PATH is searched.
 func (c *CLIAgentProvider) IsCLIInstalled() bool {
+	if c == nil || strings.TrimSpace(c.Command) == "" {
+		return false
+	}
+	if filepath.IsAbs(c.Command) {
+		fi, err := os.Stat(c.Command)
+		return err == nil && !fi.IsDir()
+	}
 	_, err := exec.LookPath(c.Command)
 	return err == nil
 }

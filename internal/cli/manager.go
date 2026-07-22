@@ -111,8 +111,11 @@ func (m *Manager) statusFor(cfg agent.CLIAgentConfig, pathEnv string, getAPIKey 
 	}
 
 	st.Installed = true
-	st.Binary = resolved.Command
-	if fullPath, err := pathutil.LookPathIn(resolved.Command, pathEnv); err == nil {
+	st.Binary = filepath.Base(resolved.Command)
+	if filepath.IsAbs(resolved.Command) {
+		st.BinaryPath = resolved.Command
+		st.Version = probeVersion(resolved.Command)
+	} else if fullPath, err := pathutil.LookPathIn(resolved.Command, pathEnv); err == nil {
 		st.BinaryPath = fullPath
 		st.Version = probeVersion(fullPath)
 	}
@@ -312,6 +315,9 @@ func ResolveBinaryPath(cfg agent.CLIAgentConfig) (string, bool) {
 	resolved, ok := agent.ResolveCLIWithPATH(cfg, pathEnv)
 	if !ok {
 		return "", false
+	}
+	if filepath.IsAbs(resolved.Command) {
+		return filepath.Clean(resolved.Command), true
 	}
 	full, err := pathutil.LookPathIn(resolved.Command, pathEnv)
 	if err != nil {

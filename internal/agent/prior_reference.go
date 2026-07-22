@@ -108,6 +108,11 @@ func (a *Agent) tryPriorReferenceResponse(msg *protocol.Message) (string, bool) 
 	if a == nil || msg == nil || !ShouldRunPriorReference(a.effectiveKnowledgePlanFromMessage(msg)) {
 		return "", false
 	}
+	// Semantic classifiers often stamp prior_reference on presence checks ("are you there?").
+	// Only soft-fail when the user actually pointed at earlier assistant content.
+	if !userReferencesPriorAssistantContent(msg.Content) {
+		return "", false
+	}
 	history := a.historyForPriorReference(msg.Channel)
 	if findPriorAssistantContent(history, msg.ID, a.Info.ID, priorReferenceMinChars) != "" {
 		return "", false

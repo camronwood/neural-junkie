@@ -59,16 +59,14 @@ export function ChatInputArea({
   );
 
   return (
-    <>
+    <div className="flex-shrink-0 flex flex-col min-h-0">
       <TurnTelemetryDrawer channel={channel} enabled={showTurnTelemetryDrawer} />
 
-      <div className="flex-shrink-0">
-        <TypingIndicator
-          agents={thinkingAgentsForChannel}
-          showStop={showAgentStop}
-          onStop={onChannelInterject}
-        />
-      </div>
+      <TypingIndicator
+        agents={thinkingAgentsForChannel}
+        showStop={showAgentStop}
+        onStop={onChannelInterject}
+      />
 
       {hasPendingUserQuestion && (
         <div
@@ -115,6 +113,6 @@ export function ChatInputArea({
           ) : null}
         </div>
       )}
-    </>
+    </div>
   );
 }

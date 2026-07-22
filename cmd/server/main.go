@@ -22,6 +22,7 @@ import (
 	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 	lspserver "github.com/camronwood/neural-junkie/internal/lsp/server"
 	ollamaManager "github.com/camronwood/neural-junkie/internal/ollama"
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/routing/capabilities"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/gorilla/websocket"
@@ -102,6 +103,9 @@ func checkWebSocketOrigin(r *http.Request) bool {
 func main() {
 	flag.Parse()
 	serverStartTime = time.Now()
+
+	// GUI-launched apps often get PATH=/usr/bin:/bin only. Augment before any CLI probes.
+	pathutil.ApplyEnhancedPATH()
 
 	// Load application config (falls back to defaults if no config.json exists)
 	var err error

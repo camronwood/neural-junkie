@@ -11,6 +11,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -425,7 +426,10 @@ func (ch *CommandHandler) SpawnCLIAgentForDM(_ context.Context, createdBy, cliTy
 		}
 	}
 
-	resolved, found := agent.ResolveCLI(cfg)
+	resolved, found := agent.ResolveCLIWithPATH(cfg, pathutil.EnhancedPATH())
+	if !found {
+		resolved, found = agent.ResolveCLI(cfg)
+	}
 	if !found {
 		return nil, fmt.Errorf("CLI binary not found on PATH (tried %s): %s", agent.CLIProbeLabel(cfg), cfg.InstallHint)
 	}

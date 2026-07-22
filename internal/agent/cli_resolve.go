@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/pathutil"
@@ -61,18 +62,17 @@ func ResolveCLI(cfg CLIAgentConfig) (ResolvedCLI, bool) {
 }
 
 // ResolveCLIWithPATH resolves PATH and base args using an optional PATH override.
+// Command is the absolute path when found via pathEnv so GUI apps with a stripped
+// PATH (e.g. /usr/bin:/bin) can still invoke Homebrew-installed CLIs.
 func ResolveCLIWithPATH(cfg CLIAgentConfig, pathEnv string) (ResolvedCLI, bool) {
 	cmdPath, ok := ResolveCLICommandWithPATH(cfg, pathEnv)
 	if !ok {
 		return ResolvedCLI{}, false
 	}
 	// EffectiveBaseArgs keys off binary name, not full path.
-	cmdName := cmdPath
-	if i := strings.LastIndex(cmdPath, "/"); i >= 0 {
-		cmdName = cmdPath[i+1:]
-	}
+	cmdName := filepath.Base(cmdPath)
 	return ResolvedCLI{
-		Command:  cmdName,
+		Command:  cmdPath,
 		BaseArgs: EffectiveBaseArgs(cfg, cmdName),
 	}, true
 }

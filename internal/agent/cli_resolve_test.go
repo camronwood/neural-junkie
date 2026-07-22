@@ -1,6 +1,10 @@
 package agent
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestCLICommandCandidates_dedupes(t *testing.T) {
 	cfg := CLIAgentConfig{
@@ -33,6 +37,25 @@ func TestEffectiveBaseArgs_codex(t *testing.T) {
 	}
 }
 
+func TestResolveCLIWithPATH_returnsAbsolutePath(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "fake-gemini")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := CLIAgentConfig{Command: "fake-gemini", BaseArgs: []string{"-p"}}
+	resolved, ok := ResolveCLIWithPATH(cfg, dir)
+	if !ok {
+		t.Fatal("expected resolve")
+	}
+	if resolved.Command != bin {
+		t.Fatalf("Command=%q, want absolute %q", resolved.Command, bin)
+	}
+	if len(resolved.BaseArgs) != 1 || resolved.BaseArgs[0] != "-p" {
+		t.Fatalf("BaseArgs=%v", resolved.BaseArgs)
+	}
+}
+
 func TestListCLIAgentTypes_includesCommonAgents(t *testing.T) {
 	types := ListCLIAgentTypes()
 	want := []string{"aider", "amazonq", "amp", "claude", "codex", "copilot", "crush", "cursor", "droid", "gemini", "kiro", "opencode"}
@@ -40,8 +63,8 @@ func TestListCLIAgentTypes_includesCommonAgents(t *testing.T) {
 		t.Fatalf("len(types) = %d, want %d: %v", len(types), len(want), types)
 	}
 	set := make(map[string]bool, len(types))
-	for _, t := range types {
-		set[t] = true
+	for _, typ := range types {
+		set[typ] = true
 	}
 	for _, w := range want {
 		if !set[w] {

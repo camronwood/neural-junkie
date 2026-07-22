@@ -66,6 +66,11 @@ func EnhancedPATH() string {
 	return strings.Join(dirs, string(os.PathListSeparator))
 }
 
+// ApplyEnhancedPATH sets process PATH so GUI-launched hubs can find Homebrew/npm CLIs.
+func ApplyEnhancedPATH() {
+	_ = os.Setenv("PATH", EnhancedPATH())
+}
+
 // ExpandHome replaces a leading ~ with the user home directory.
 func ExpandHome(path string) string {
 	if path == "" {

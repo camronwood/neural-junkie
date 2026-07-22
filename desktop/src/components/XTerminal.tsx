@@ -207,11 +207,11 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
   }, [clearBufferNonce, sessionId]);
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full min-h-0 overflow-hidden"
-      // Extra bottom padding so the cursor row isn't clipped under the panel edge.
-      style={{ padding: '4px 0 14px 8px', boxSizing: 'border-box' }}
-    />
+    // Padding lives on the outer shell so FitAddon measures the inner box only.
+    // Padding on the fit target made proposeDimensions() count one extra row that
+    // then got clipped (especially when the command helper footer was off-screen).
+    <div className="box-border flex h-full min-h-0 w-full flex-col overflow-hidden py-1 pl-2 pr-1">
+      <div ref={containerRef} className="min-h-0 w-full flex-1 overflow-hidden" />
+    </div>
   );
 }

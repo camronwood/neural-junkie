@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -44,6 +45,27 @@ func TestTryPriorReferenceResponse_missingHistory(t *testing.T) {
 	resp, ok := a.tryPriorReferenceResponse(msg)
 	if !ok || resp != priorReferenceMissingHistoryReply {
 		t.Fatalf("tryPriorReferenceResponse() = (%q, %v)", resp, ok)
+	}
+}
+
+func TestTryPriorReferenceResponse_presenceCheckDoesNotSoftFail(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{ID: "a1", Name: "Assistant", Type: protocol.AgentTypeAssistant}}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test", protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}, "are you there?")
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Interaction:     intent.InteractionQuestion,
+		RequestedAction: intent.ActionInspect,
+		Action:          intent.ActionInspect,
+		Retrieval:       []intent.RetrievalTarget{intent.RetrievalPriorReference},
+		Mutation:        intent.MutationNone,
+		Confidence:      0.95,
+		Source:          intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	resp, ok := a.tryPriorReferenceResponse(msg)
+	if ok || resp != "" {
+		t.Fatalf("presence check should not soft-fail prior_reference, got (%q, %v)", resp, ok)
 	}
 }
 

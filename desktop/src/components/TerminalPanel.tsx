@@ -9,13 +9,12 @@ import type { Collaboration } from '../types/protocol';
 import { registerRestartBlocker } from '../utils/restartSafety';
 
 interface TerminalPanelProps {
-  height: number;
   channel: string;
   api: import('../api/chatAPI').ChatAPI;
   collaboration?: Collaboration | null;
 }
 
-export function TerminalPanel({ height, channel, api, collaboration }: TerminalPanelProps) {
+export function TerminalPanel({ channel, api, collaboration }: TerminalPanelProps) {
   const {
     tabs,
     activeTabId,
@@ -72,7 +71,9 @@ export function TerminalPanel({ height, channel, api, collaboration }: TerminalP
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const delta = startY - moveEvent.clientY;
-      const newHeight = Math.min(Math.max(startHeight + delta, 150), window.innerHeight * 0.8);
+      // Leave room for the top toolbar so the command-helper footer stays visible.
+      const maxHeight = Math.max(150, window.innerHeight - 48);
+      const newHeight = Math.min(Math.max(startHeight + delta, 150), Math.min(window.innerHeight * 0.8, maxHeight));
       setPanelHeight(newHeight);
     };
 
@@ -87,10 +88,7 @@ export function TerminalPanel({ height, channel, api, collaboration }: TerminalP
   };
 
   return (
-    <div
-      className="bg-slack-bg border-t border-slack-border flex flex-col overflow-hidden"
-      style={{ height: `${height}px` }}
-    >
+    <div className="h-full min-h-0 bg-slack-bg border-t border-slack-border flex flex-col overflow-hidden">
       {/* Resize handle */}
       <div
         className={`h-1.5 cursor-ns-resize flex items-center justify-center transition-colors ${
@@ -160,7 +158,7 @@ export function TerminalPanel({ height, channel, api, collaboration }: TerminalP
       )}
 
       {/* Terminal instances - each tab gets its own xterm, hidden when not active */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 min-h-0 relative overflow-hidden">
         {tabs.map((tab) => (
           <div
             key={tab.id}
@@ -175,7 +173,7 @@ export function TerminalPanel({ height, channel, api, collaboration }: TerminalP
           </div>
         ))}
       </div>
-      <div className="shrink-0 px-2 py-0.5 border-t border-slack-border/50 text-[10px] text-slack-textMuted">
+      <div className="shrink-0 px-2 py-1 border-t border-slack-border/50 text-[10px] leading-tight text-slack-textMuted">
         Ctrl+C interrupt · Ctrl+L / {navigator.platform.toUpperCase().includes('MAC') ? 'Cmd' : 'Mod'}+K
         clear · links open in browser
       </div>

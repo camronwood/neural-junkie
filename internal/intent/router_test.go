@@ -316,3 +316,34 @@ func TestPolicyDemotesShortClarificationFromAskUser(t *testing.T) {
 		t.Fatalf("action=%s, want answer for short clarification", decision.Action)
 	}
 }
+
+func TestPolicyPresenceCheckStripsPriorReference(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "are you there?",
+		ComposerMode: "agent",
+		HasWorkspace: true,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionInspect,
+		MutationRequested: MutationNone,
+		Confidence:        0.95,
+		Retrieval:         []RetrievalTarget{RetrievalPriorReference},
+	}, SourceLocalModel)
+	if decision.Action != ActionAnswer {
+		t.Fatalf("action=%s, want answer for presence check", decision.Action)
+	}
+	if containsRetrievalTarget(decision.Retrieval, RetrievalPriorReference) {
+		t.Fatalf("retrieval=%v, presence check must drop prior_reference", decision.Retrieval)
+	}
+	found := false
+	for _, o := range decision.PolicyOverrides {
+		if o == "presence_check" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("overrides=%v, want presence_check", decision.PolicyOverrides)
+	}
+}

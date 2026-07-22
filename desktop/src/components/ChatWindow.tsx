@@ -3012,7 +3012,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   return (
     <ErrorBoundary>
-      <div className="flex flex-col h-screen bg-slack-bg">
+      <div className="flex flex-col h-full min-h-0 overflow-hidden bg-slack-bg">
       <CollaborationWorkspaceGate
         collaboration={workspaceGateCollab}
         busy={workspaceGateBusy}
@@ -3131,8 +3131,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       />
 
       {/* Main Content Area */}
-      <div className="flex flex-1 min-w-0 overflow-hidden" data-testid="chat-main-content-row">
-        <div ref={mainContentRef} className="flex flex-1 min-w-0 overflow-hidden" data-testid="chat-main-inner-column">
+      <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden" data-testid="chat-main-content-row">
+        <div ref={mainContentRef} className="flex flex-1 min-h-0 min-w-0 overflow-hidden" data-testid="chat-main-inner-column">
         {/* Channel Sidebar */}
         {channelSidebarOpen && (
           <ChannelSidebar
@@ -3496,13 +3496,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         )}
       </div>
 
-      {/* Terminal Panel - slides up from bottom */}
-      <div 
-        className="transition-all duration-300 ease-in-out overflow-hidden"
-        style={{ height: isPanelOpen ? `${panelHeight}px` : '0px' }}
+      {/* Terminal Panel - slides up from bottom.
+          maxHeight keeps the helper footer on-screen when the requested panel
+          height would otherwise overflow the window and clip the last rows. */}
+      <div
+        className="shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+        style={{
+          height: isPanelOpen ? `${panelHeight}px` : '0px',
+          maxHeight: isPanelOpen ? 'calc(100% - 2.75rem)' : '0px',
+        }}
       >
         <TerminalPanel
-          height={panelHeight}
           channel={channel}
           api={api}
           collaboration={collaborationForChannel}

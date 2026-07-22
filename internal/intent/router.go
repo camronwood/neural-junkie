@@ -235,12 +235,27 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			decision.Action = ActionAnswer
 			decision.RequestedAction = ActionAnswer
 			decision.Mutation = MutationNone
-			decision.Retrieval = filterRetrievalTargets(decision.Retrieval, RetrievalCodebase, RetrievalCodeGraph)
+			decision.Retrieval = filterRetrievalTargets(decision.Retrieval, RetrievalCodebase, RetrievalCodeGraph, RetrievalPriorReference)
 			if len(decision.Retrieval) == 0 {
 				decision.Retrieval = []RetrievalTarget{RetrievalMemory}
 			}
 			decision.PolicyOverrides = append(decision.PolicyOverrides, "creative_or_general_answer")
 		}
+	}
+
+	// Presence checks must never soft-fail via prior_reference missing-history.
+	if looksLikePresenceCheck(features.Text) {
+		decision.Action = ActionAnswer
+		decision.RequestedAction = ActionAnswer
+		decision.Mutation = MutationNone
+		if decision.Interaction == "" || decision.Interaction == InteractionClosure || decision.Interaction == InteractionQuestion {
+			decision.Interaction = InteractionCasual
+		}
+		decision.Retrieval = filterRetrievalTargets(
+			decision.Retrieval,
+			RetrievalPriorReference, RetrievalCodebase, RetrievalCodeGraph, RetrievalCollaboration,
+		)
+		decision.PolicyOverrides = append(decision.PolicyOverrides, "presence_check")
 	}
 
 	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))
@@ -422,6 +437,9 @@ func looksLikeCreativeOrGeneralAnswerRequest(text string) bool {
 	if looksLikeEngineeringWorkRequest(t) {
 		return false
 	}
+	if looksLikePresenceCheck(t) {
+		return true
+	}
 	creative := []string{
 		"alternate ending", "alternative ending", "ending to", "fanfic", "fan fiction",
 		"write me a story", "write a story", "write me an", "write an essay", "write a poem",
@@ -439,6 +457,37 @@ func looksLikeCreativeOrGeneralAnswerRequest(text string) bool {
 	if len(fields) > 0 && len(fields) <= 3 {
 		switch strings.Trim(fields[0], "?.!,") {
 		case "what", "huh", "why", "how", "who", "where", "when", "ok", "okay", "thanks", "thank":
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikePresenceCheck detects "are you there?" style pings that must not
+// retrieve prior_reference or soft-fail as missing history.
+func looksLikePresenceCheck(text string) bool {
+	t := strings.ToLower(strings.TrimSpace(text))
+	t = strings.TrimRight(t, "?.!,")
+	t = strings.Join(strings.Fields(t), " ")
+	if t == "" {
+		return false
+	}
+	exact := map[string]bool{
+		"hi": true, "hello": true, "hey": true, "ping": true,
+		"yo": true, "sup": true,
+	}
+	if exact[t] {
+		return true
+	}
+	cues := []string{
+		"are you there", "are you here", "you there", "you here",
+		"still there", "still here", "can you hear me", "are you online",
+		"you online", "are you up", "you up", "anyone there",
+		"just asking if you are here", "just checking if you are here",
+		"just asking if you're here", "just checking if you're here",
+	}
+	for _, cue := range cues {
+		if t == cue || strings.Contains(t, cue) {
 			return true
 		}
 	}
