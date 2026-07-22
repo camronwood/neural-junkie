@@ -244,7 +244,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	}
 
 	// Presence checks must never soft-fail via prior_reference missing-history.
-	if looksLikePresenceCheck(features.Text) {
+	if LooksLikePresenceCheck(features.Text) {
 		decision.Action = ActionAnswer
 		decision.RequestedAction = ActionAnswer
 		decision.Mutation = MutationNone
@@ -437,7 +437,7 @@ func looksLikeCreativeOrGeneralAnswerRequest(text string) bool {
 	if looksLikeEngineeringWorkRequest(t) {
 		return false
 	}
-	if looksLikePresenceCheck(t) {
+	if LooksLikePresenceCheck(t) {
 		return true
 	}
 	creative := []string{
@@ -463,9 +463,9 @@ func looksLikeCreativeOrGeneralAnswerRequest(text string) bool {
 	return false
 }
 
-// looksLikePresenceCheck detects "are you there?" style pings that must not
-// retrieve prior_reference or soft-fail as missing history.
-func looksLikePresenceCheck(text string) bool {
+// LooksLikePresenceCheck detects "are you there?" / "ready to help?" style pings
+// that must stay ActionAnswer (never prior_reference soft-fail or ask_user cards).
+func LooksLikePresenceCheck(text string) bool {
 	t := strings.ToLower(strings.TrimSpace(text))
 	t = strings.TrimRight(t, "?.!,")
 	t = strings.Join(strings.Fields(t), " ")
@@ -483,6 +483,7 @@ func looksLikePresenceCheck(text string) bool {
 		"are you there", "are you here", "you there", "you here",
 		"still there", "still here", "can you hear me", "are you online",
 		"you online", "are you up", "you up", "anyone there",
+		"ready to help", "ready to assist", "available and ready",
 		"just asking if you are here", "just checking if you are here",
 		"just asking if you're here", "just checking if you're here",
 	}

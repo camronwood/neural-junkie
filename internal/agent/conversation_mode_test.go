@@ -18,6 +18,9 @@ func TestIsSocialOrStatusPing(t *testing.T) {
 	if isSocialOrStatusPing("@here refactor cmd/server/main.go") {
 		t.Fatal("code task with @here should not be social-only")
 	}
+	if !isSocialOrStatusPing("are you here and ready to help?") {
+		t.Fatal("expected presence check as social ping")
+	}
 }
 
 func TestInferConversationMode_socialPing(t *testing.T) {

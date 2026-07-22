@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -54,6 +55,39 @@ func TestShouldOfferAskUserTool_generalQuestion(t *testing.T) {
 	msg := &protocol.Message{Content: "what is your favorite color?"}
 	if !shouldOfferAskUserTool(nil, msg) {
 		t.Fatal("expected ask_user available for general question")
+	}
+}
+
+func TestShouldOfferAskUserTool_presenceCheck(t *testing.T) {
+	t.Parallel()
+	for _, content := range []string{
+		"are you here and ready to help?",
+		"you still there?",
+		"are you there?",
+	} {
+		msg := &protocol.Message{Content: content}
+		if shouldOfferAskUserTool(nil, msg) {
+			t.Fatalf("expected ask_user suppressed for presence ping %q", content)
+		}
+	}
+}
+
+func TestShouldOfferAskUserTool_answerDecisionSuppresses(t *testing.T) {
+	t.Parallel()
+	msg := &protocol.Message{Content: "pick a color for the button"}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Interaction:     intent.InteractionQuestion,
+		RequestedAction: intent.ActionAnswer,
+		Action:          intent.ActionAnswer,
+		Mutation:        intent.MutationNone,
+		Confidence:      0.9,
+		Source:          intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if shouldOfferAskUserTool(nil, msg) {
+		t.Fatal("expected ask_user suppressed when turn decision is answer")
 	}
 }
 

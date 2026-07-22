@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/schema"
 )
@@ -25,6 +26,15 @@ func shouldOfferAskUserTool(a *Agent, msg *protocol.Message) bool {
 	content := strings.TrimSpace(msg.Content)
 	// Confused short follow-ups ("What?") need a plain chat clarification, not ask_user.
 	if shortConfusedFollowUp(content) {
+		return false
+	}
+	// Presence / vibe-check pings must be answered directly — never echoed as ask_user cards.
+	if isSocialOrStatusPing(content) || intent.LooksLikePresenceCheck(content) {
+		return false
+	}
+	// Canonical semantic decision: only expose ask_user when the turn is actually ask_user.
+	// Local models otherwise paraphrase presence checks into preference cards.
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok && decision.Action != intent.ActionAskUser {
 		return false
 	}
 	if a == nil {

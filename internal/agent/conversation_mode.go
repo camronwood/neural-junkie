@@ -76,6 +76,9 @@ func isSocialOrStatusPing(content string) bool {
 	if hasHereOrChannelMention(content) && len(stripped) <= 80 && !hasCodeTaskSignals(stripped) {
 		return true
 	}
+	if semantic.LooksLikePresenceCheck(content) || semantic.LooksLikePresenceCheck(stripped) {
+		return true
+	}
 	return false
 }
 

@@ -347,3 +347,20 @@ func TestPolicyPresenceCheckStripsPriorReference(t *testing.T) {
 		t.Fatalf("overrides=%v, want presence_check", decision.PolicyOverrides)
 	}
 }
+
+func TestPolicyPresenceCheckDemotesAskUser(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "are you here and ready to help?",
+		ComposerMode: "agent",
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionAskUser,
+		MutationRequested: MutationNone,
+		Confidence:        1,
+		ReasonCodes:       []string{"advisory_question"},
+	}, SourceLocalModel)
+	if decision.Action != ActionAnswer {
+		t.Fatalf("action=%s, want answer (not ask_user echo)", decision.Action)
+	}
+}
