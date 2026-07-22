@@ -74,7 +74,8 @@ func (h *Hub) queuePersistLocked(msg *protocol.Message) {
 	if snap == nil {
 		return
 	}
-	go h.persistMessage(snap)
+	epoch := h.channelPersistEpoch[msg.Channel]
+	go h.persistMessage(snap, epoch)
 }
 
 // enforceMaxThreadHistoryLocked drops oldest thread messages if over the cap.

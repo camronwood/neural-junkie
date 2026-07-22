@@ -57,7 +57,8 @@ func (h *Hub) UpdateChangeProposalStatus(
 				if err != nil {
 					log.Printf("[hub] clone change proposal for persistence: %v", err)
 				} else if snap != nil {
-					go h.persistMessage(snap)
+					epoch := h.channelPersistEpoch[name]
+					go h.persistMessage(snap, epoch)
 				}
 			}
 			return

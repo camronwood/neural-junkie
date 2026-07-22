@@ -41,7 +41,7 @@ func TestAmbientStateIsStrippedFromAllPersistence(t *testing.T) {
 	h.messages["dm-test"] = []*protocol.Message{msg}
 	h.mu.Unlock()
 	h.SetPersistentMessageStore(store)
-	h.persistMessage(msg)
+	h.persistMessage(msg, 0)
 	if store.inserted == nil {
 		t.Fatal("expected persistent insert")
 	}

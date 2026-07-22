@@ -38,11 +38,18 @@ func (h *Hub) ClearChannelHistory(channelName string) error {
 		delete(h.threadSubscribers, tid)
 	}
 	h.clearChannelContextLocked(channelName)
+	if h.channelPersistEpoch == nil {
+		h.channelPersistEpoch = make(map[string]uint64)
+	}
+	h.channelPersistEpoch[channelName]++
 	store := h.persistentStore
 	h.mu.Unlock()
 
 	if store != nil {
-		if err := store.ClearChannelMessages(channelName); err != nil {
+		h.persistMu.Lock()
+		err := store.ClearChannelMessages(channelName)
+		h.persistMu.Unlock()
+		if err != nil {
 			log.Printf("[hub] clear persistent messages for %q: %v", channelName, err)
 		}
 	}

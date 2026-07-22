@@ -36,7 +36,7 @@ func (h *Hub) SetPersistentMessageStore(store PersistentMessageStore) {
 	h.persistentStore = store
 }
 
-func (h *Hub) persistMessage(msg *protocol.Message) {
+func (h *Hub) persistMessage(msg *protocol.Message, epoch uint64) {
 	if h == nil || h.persistentStore == nil || msg == nil {
 		return
 	}
@@ -46,11 +46,6 @@ func (h *Hub) persistMessage(msg *protocol.Message) {
 		}
 	}()
 	if msg.Type == protocol.MessageTypeStreamDelta || msg.Type == protocol.MessageTypeStreamEnd || msg.Type == protocol.MessageTypeAgentStatus {
-		return
-	}
-	// Drop late async persists after clear-history emptied the in-memory channel.
-	// New sends append to memory before queuePersistLocked, so live messages still land.
-	if msg.Channel != "" && msg.ID != "" && !h.messagePresentInChannel(msg.Channel, msg.ID) {
 		return
 	}
 	// msg should already be an exclusive snapshot; clone again so callers that pass
@@ -63,6 +58,13 @@ func (h *Hub) persistMessage(msg *protocol.Message) {
 	if persisted.Metadata != nil {
 		delete(persisted.Metadata, agent.MetadataAmbientState)
 	}
+
+	// Serialize with clear-history so epoch checks cannot race InsertMessage.
+	h.persistMu.Lock()
+	defer h.persistMu.Unlock()
+	if msg.Channel != "" && !h.persistEpochCurrent(msg.Channel, epoch) {
+		return
+	}
 	if err := h.persistentStore.InsertMessage(persisted); err != nil {
 		log.Printf("[hub] persist message: %v", err)
 		return
@@ -70,15 +72,10 @@ func (h *Hub) persistMessage(msg *protocol.Message) {
 	memory.IndexMessage(persisted)
 }
 
-func (h *Hub) messagePresentInChannel(channelName, msgID string) bool {
+func (h *Hub) persistEpochCurrent(channelName string, epoch uint64) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	for _, m := range h.messages[channelName] {
-		if m != nil && m.ID == msgID {
-			return true
-		}
-	}
-	return false
+	return h.channelPersistEpoch[channelName] == epoch
 }
 
 // GetMessagesPage returns channel messages with optional cursor pagination.

@@ -87,9 +87,11 @@ type Hub struct {
 	// channelHolds: user interject (Stop) — agents defer new turns until a human message.
 	channelHolds map[string]ChannelHold
 
-	persistentStore PersistentMessageStore
-	durableChannels map[string]bool
-	handoffs        map[string]delegation.HandoffRecord
+	persistentStore       PersistentMessageStore
+	durableChannels       map[string]bool
+	channelPersistEpoch   map[string]uint64
+	persistMu             sync.Mutex // serializes durable inserts vs clear-history
+	handoffs              map[string]delegation.HandoffRecord
 
 	// Collaboration idle watchdog (in-memory, not persisted).
 	collabWatchdogMu              sync.Mutex
@@ -127,6 +129,7 @@ func NewHub() *Hub {
 		collabWatchdogAutoAckTried:    make(map[string]bool),
 		collabWatchdogPlanningHandoff: make(map[string]time.Time),
 		channelSummaryRefreshGen:      make(map[string]uint64),
+		channelPersistEpoch:           make(map[string]uint64),
 		handoffs:                      make(map[string]delegation.HandoffRecord),
 	}
 	hub.loadHandoffs()
