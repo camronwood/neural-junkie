@@ -36,6 +36,10 @@ func TestAmbientStateIsStrippedFromAllPersistence(t *testing.T) {
 
 	store := &ambientCaptureStore{}
 	h := NewHub()
+	h.CreateChannelWithType("dm-test", "test", "", protocol.ChannelTypeDM, "system")
+	h.mu.Lock()
+	h.messages["dm-test"] = []*protocol.Message{msg}
+	h.mu.Unlock()
 	h.SetPersistentMessageStore(store)
 	h.persistMessage(msg)
 	if store.inserted == nil {

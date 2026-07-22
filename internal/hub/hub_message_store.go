@@ -48,6 +48,11 @@ func (h *Hub) persistMessage(msg *protocol.Message) {
 	if msg.Type == protocol.MessageTypeStreamDelta || msg.Type == protocol.MessageTypeStreamEnd || msg.Type == protocol.MessageTypeAgentStatus {
 		return
 	}
+	// Drop late async persists after clear-history emptied the in-memory channel.
+	// New sends append to memory before queuePersistLocked, so live messages still land.
+	if msg.Channel != "" && msg.ID != "" && !h.messagePresentInChannel(msg.Channel, msg.ID) {
+		return
+	}
 	// msg should already be an exclusive snapshot; clone again so callers that pass
 	// a live pointer still get a private copy for SQLite + memory index.
 	persisted, err := protocol.CloneMessage(msg)
@@ -63,6 +68,17 @@ func (h *Hub) persistMessage(msg *protocol.Message) {
 		return
 	}
 	memory.IndexMessage(persisted)
+}
+
+func (h *Hub) messagePresentInChannel(channelName, msgID string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, m := range h.messages[channelName] {
+		if m != nil && m.ID == msgID {
+			return true
+		}
+	}
+	return false
 }
 
 // GetMessagesPage returns channel messages with optional cursor pagination.

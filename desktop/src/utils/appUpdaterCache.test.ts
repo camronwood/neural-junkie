@@ -29,6 +29,8 @@ describe('accepted update cache', () => {
   });
 
   it('hydrates accepted metadata without claiming installable bytes', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-21T12:00:00Z'));
     saveAcceptedUpdate(update);
     expect(loadAcceptedUpdate('1.2.0', 'stable')).toMatchObject({
       version: '1.3.0',
@@ -37,6 +39,8 @@ describe('accepted update cache', () => {
   });
 
   it('recomputes mandatory policy using the current clock', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-21T12:00:00Z'));
     saveAcceptedUpdate(update);
     vi.setSystemTime(new Date('2026-07-22T00:00:00Z'));
     expect(loadAcceptedUpdate('1.2.0', 'stable')?.mandatory).toBe(true);

@@ -200,6 +200,9 @@ describe('buildHumanOutboundMetadata continuation', () => {
     expect(meta?.conversation_mode).toBeUndefined();
     expect(['outline', 'focus']).toContain(meta?.context_scope);
     expect(meta?.composer_mode).toBe('export');
-    expect(meta?.can_run_impl_session).toBe(true);
+    expect((meta?.turn_governance as { can_run_impl_session?: boolean })?.can_run_impl_session).toBe(
+      true
+    );
+    expect(meta?.can_run_impl_session).toBeUndefined();
   });
 });
