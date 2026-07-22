@@ -1,11 +1,11 @@
 {
-  "version": "1.2.0-beta.10",
-  "notes": "See release notes at https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.10",
-  "pub_date": "2026-07-21T12:38:53Z",
+  "version": "1.2.0-beta.11",
+  "notes": "See release notes at https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.11",
+  "pub_date": "2026-07-22T18:56:09Z",
   "platforms": {
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUUTV0Y2R3enA0T0FpZkszaEc1MUxIN3JuWk41a0Jrc1VXd0tOZnFMZExTdmplSlhQVjB0MWh5bERwVGd5VWRONC9LajdCTGMwUzZqbDhucWdEQkcrNDNrNC9yd1ZwQXdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NjM3NDc4CWZpbGU6TmV1cmFsIEp1bmtpZS5hcHAudGFyLmd6CklOL0t3MGdBWmorUGpaWFBxYWJhL1JkNTBTRWlRSDlzeHV5SkpMWElrZ0w5T0NFNlN4akFzckc3MnM5dVVTTXg5YlBNa01ZY0J3UlZsWndjUWNRZUJBPT0K",
-      "url": "https://github.com/camronwood/neural-junkie/releases/download/v1.2.0-beta.10/Neural.Junkie_x64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUUTV0Y2R3enA0T1B2NERSLzhHaEtGQXBIM080azZHdVFiNEFaTllGY3pqRE1iQ1JjamxsbnM2b25GK3ZRajQwVlBzcjNuUG4zWmFOYUE1MUdnSWZvTkV6Tkp4M212L3dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzQ2NDk4CWZpbGU6TmV1cmFsIEp1bmtpZS5hcHAudGFyLmd6CjZlZmVlN25paU5WRCtOUXdRNndNTWl5TnVPanIyZHUrQ2puajBDa0dQVEpSRzYrMWJxczdQYVQ0STBYbkdmOFYvRG9iaEd1YzFYcHQ3UjBZQnVqVUR3PT0K",
+      "url": "https://github.com/camronwood/neural-junkie/releases/download/v1.2.0-beta.11/Neural.Junkie_x64.app.tar.gz"
     }
   },
   "policy": {
@@ -15,7 +15,7 @@
     "enforcement": "optional",
     "rollout": {
       "percentage": 100,
-      "seed": "v1.2.0-beta.10"
+      "seed": "v1.2.0-beta.11"
     },
     "availability": {
       "darwin-aarch64": "available",
