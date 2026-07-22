@@ -205,10 +205,9 @@ export async function mergeCodebaseAttachments(
       existing.push({
         type: 'codebase_chunk',
         path: ch.path,
-        start_line: ch.start_line,
-        end_line: ch.end_line,
         content: ch.content,
-        score: ch.score,
+        ...(ch.repo_path ? { repo_path: ch.repo_path } : {}),
+        ...(ch.repo_name ? { repo_name: ch.repo_name } : {}),
       });
     }
     next = { ...next, [PROMPT_ATTACHMENTS_METADATA_KEY]: existing };
