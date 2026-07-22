@@ -3,6 +3,8 @@ package hub
 import "github.com/camronwood/neural-junkie/internal/protocol"
 
 // GetChannelMessagesMerged returns the newest limit messages from SQLite+memory merge.
+// Uses a bounded ListChannelMessages page — never a full channel export — so agent
+// bootstrap stays fast even when ~/.neural-junkie/messages.db is large.
 func (h *Hub) GetChannelMessagesMerged(channelName string, limit int) ([]*protocol.Message, error) {
 	if h == nil || channelName == "" {
 		return nil, nil
@@ -10,14 +12,5 @@ func (h *Hub) GetChannelMessagesMerged(channelName string, limit int) ([]*protoc
 	if limit <= 0 {
 		limit = 50
 	}
-	all := h.ExportChannelMessages(channelName)
-	if len(all) == 0 {
-		return all, nil
-	}
-	if len(all) <= limit {
-		return all, nil
-	}
-	out := make([]*protocol.Message, limit)
-	copy(out, all[len(all)-limit:])
-	return out, nil
+	return h.GetMessagesPage(channelName, limit, "")
 }
