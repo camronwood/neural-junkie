@@ -29,7 +29,7 @@ func shouldOfferAskUserTool(a *Agent, msg *protocol.Message) bool {
 		return false
 	}
 	// Presence / vibe-check pings must be answered directly — never echoed as ask_user cards.
-	if isSocialOrStatusPing(content) || intent.LooksLikePresenceCheck(content) {
+	if isConversationalOnlyTurn(msg) {
 		return false
 	}
 	// Canonical semantic decision: only expose ask_user when the turn is actually ask_user.

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -93,6 +94,9 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 	}
 
 	if greetingRE.MatchString(content) {
+		return IntentLowSignal
+	}
+	if isSocialOrStatusPing(content) || intent.LooksLikePresenceCheck(content) {
 		return IntentLowSignal
 	}
 

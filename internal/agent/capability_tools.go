@@ -19,18 +19,33 @@ const activateCapabilityToolName = "activate_capability"
 const requestCapabilityHelpToolName = "request_capability_help"
 const activeCapabilitiesMetadataKey = "active_capabilities"
 
-// shouldOfferCapabilityTools reports whether activate_capability / request_capability_help
-// should be exposed. Presence pings must stay conversational — local models otherwise
-// open SwitchTarget handoffs for sd-mcp-sidecar on "are you here?".
-func shouldOfferCapabilityTools(msg *protocol.Message) bool {
+// isConversationalOnlyTurn reports presence / vibe-check messages that must stay
+// chat-only: no ask_user, capability handoffs, workspace MCP, or file tools.
+func isConversationalOnlyTurn(msg *protocol.Message) bool {
 	if msg == nil {
-		return true
+		return false
 	}
 	content := strings.TrimSpace(msg.Content)
 	if isSocialOrStatusPing(content) || intent.LooksLikePresenceCheck(content) {
-		return false
+		return true
 	}
-	return true
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		for _, o := range decision.PolicyOverrides {
+			if o == "presence_check" {
+				return true
+			}
+		}
+		if decision.Action == intent.ActionAnswer && decision.Interaction == intent.InteractionCasual {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldOfferCapabilityTools reports whether activate_capability / request_capability_help
+// should be exposed for this turn.
+func shouldOfferCapabilityTools(msg *protocol.Message) bool {
+	return !isConversationalOnlyTurn(msg)
 }
 
 func (a *Agent) capabilityState() config.AgentCapabilityState {

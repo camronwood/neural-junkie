@@ -214,12 +214,17 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 			tools = append(tools, helpTool)
 		}
 	}
-	if a.MCPServer != nil {
-		mcpTools := claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), effectiveMCPToolAllowlist(a, msg))
-		tools = append(tools, a.filterToolsForActiveCapabilities(msg, mcpTools)...)
-	}
-	if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
-		tools = append(tools, fileEditToolDefinitions()...)
+	// Presence / casual answer turns must not receive workspace MCP tools.
+	// Prompt tooling is already suppressed for IntentLowSignal, but the tool list
+	// previously still exposed read_file/run_command and local models used them.
+	if !isConversationalOnlyTurn(msg) {
+		if a.MCPServer != nil {
+			mcpTools := claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), effectiveMCPToolAllowlist(a, msg))
+			tools = append(tools, a.filterToolsForActiveCapabilities(msg, mcpTools)...)
+		}
+		if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
+			tools = append(tools, fileEditToolDefinitions()...)
+		}
 	}
 	if shouldOfferAskUserTool(a, msg) {
 		tools = append(tools, askUserToolDefinition())
