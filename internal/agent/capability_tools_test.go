@@ -50,6 +50,23 @@ func TestCapabilityToolsLazyActivationAndTurnIsolation(t *testing.T) {
 	}
 }
 
+func TestShouldOfferCapabilityTools_presencePing(t *testing.T) {
+	t.Parallel()
+	for _, content := range []string{
+		"are you here and ready to help?",
+		"are you here and ready to hlep?",
+		"you still there?",
+	} {
+		msg := &protocol.Message{Content: content}
+		if shouldOfferCapabilityTools(msg) {
+			t.Fatalf("expected capability tools suppressed for %q", content)
+		}
+	}
+	if !shouldOfferCapabilityTools(&protocol.Message{Content: "activate biology-api and analyze this FASTA"}) {
+		t.Fatal("expected capability tools for a real capability task")
+	}
+}
+
 func (a *Agent) executeRequestlessActivationForTest(_ context.Context, msg *protocol.Message, id string) (string, error) {
 	return a.executeActivateCapabilityTool(msg, []byte(`{"capability_id":"`+id+`"}`))
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/delegation"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/packs"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -17,6 +18,20 @@ import (
 const activateCapabilityToolName = "activate_capability"
 const requestCapabilityHelpToolName = "request_capability_help"
 const activeCapabilitiesMetadataKey = "active_capabilities"
+
+// shouldOfferCapabilityTools reports whether activate_capability / request_capability_help
+// should be exposed. Presence pings must stay conversational — local models otherwise
+// open SwitchTarget handoffs for sd-mcp-sidecar on "are you here?".
+func shouldOfferCapabilityTools(msg *protocol.Message) bool {
+	if msg == nil {
+		return true
+	}
+	content := strings.TrimSpace(msg.Content)
+	if isSocialOrStatusPing(content) || intent.LooksLikePresenceCheck(content) {
+		return false
+	}
+	return true
+}
 
 func (a *Agent) capabilityState() config.AgentCapabilityState {
 	return config.AppConfig().ResolveAgentCapabilities(a.Info.ID, string(a.Info.Type), a.Info.Name)

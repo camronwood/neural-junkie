@@ -206,11 +206,13 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 			arenaSubmitAnswerToolDefinition(),
 		)
 	}
-	if activationTool, ok := a.activationToolDefinition(msg); ok {
-		tools = append(tools, activationTool)
-	}
-	if helpTool, ok := a.capabilityHelpToolDefinition(msg); ok {
-		tools = append(tools, helpTool)
+	if shouldOfferCapabilityTools(msg) {
+		if activationTool, ok := a.activationToolDefinition(msg); ok {
+			tools = append(tools, activationTool)
+		}
+		if helpTool, ok := a.capabilityHelpToolDefinition(msg); ok {
+			tools = append(tools, helpTool)
+		}
 	}
 	if a.MCPServer != nil {
 		mcpTools := claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), effectiveMCPToolAllowlist(a, msg))
