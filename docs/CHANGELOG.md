@@ -10,6 +10,24 @@ All notable changes to Neural Junkie.
 - **Neural Canvas** — app-managed, revisioned agent artifacts with trusted Markdown, Mermaid, code, table, chart, timeline, image, and graph renderers; chat cards, workspace tabs, provenance, history, and approved workspace export.
 - **Declarative artifact renderers for packs** — packs can map media types and file globs to versioned host-owned renderers without executing pack UI code.
 
+## [1.2.0-beta.12] - 2026-07-22
+
+Packaged hub login hotfix for large local message archives.
+
+### Fixed
+- **Hub not reachable after install** — agent history bootstrap uses a bounded SQLite page instead of exporting entire channels, so `/api/health` stays responsive when `~/.neural-junkie/messages.db` is large.
+
+## [1.2.0-beta.11] - 2026-07-22
+
+Durable orchestration, semantic turn routing, and desktop polish.
+
+### Added
+- **Durable SQLite orchestration** — restart-safe claims and HITL gates.
+- **Semantic turn routing** — classifier-backed intent cutover with article and eval coverage.
+
+### Fixed
+- Desktop multi-select, toast stacking, terminal scroll, send-pending feedback, and related agent tooling UX.
+
 ## [1.2.0-beta.10] - 2026-07-21
 
 Automatic desktop updates, safer restarts, and more reliable agent questions.

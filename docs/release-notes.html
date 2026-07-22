@@ -122,11 +122,15 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.10">v1.2.0-beta.10</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.12">v1.2.0-beta.12</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.12">1.2.0-beta.12</a>
+      <span aria-hidden="true">·</span>
+      <a href="#v1-2-0-beta-11">1.2.0-beta.11</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-2-0-beta-10">1.2.0-beta.10</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-2-0-beta-7">1.2.0-beta.7</a>
@@ -244,6 +248,30 @@
       <h3>Known limitation</h3>
       <ul>
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
+      </ul>
+
+      <h2 id="v1.2.0-beta.12" class="release-version-heading">1.2.0-beta.12 <span class="release-date">— 2026-07-22</span></h2>
+
+      <p><strong>Packaged hub login hotfix.</strong> Agent startup no longer full-exports large SQLite message archives, which could wedge <code>/api/health</code> and block desktop sign-in after install. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.12">GitHub Releases</a>.</p>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Hub not reachable after install</strong> — history bootstrap uses a bounded message page instead of exporting entire channels from <code>~/.neural-junkie/messages.db</code>.</li>
+      </ul>
+
+      <h2 id="v1-2-0-beta-11" class="release-version-heading">1.2.0-beta.11 <span class="release-date">— 2026-07-22</span></h2>
+
+      <p><strong>Durable orchestration, semantic turn routing, and desktop polish.</strong> Restart-safe collab claims, semantic routing cutover, run_command approvals, and UI fixes for multi-select, toasts, terminal scroll, and send feedback. Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.11">GitHub Releases</a> (prefer <a href="#v1.2.0-beta.12">beta.12</a> if the hub hung on login).</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Durable SQLite orchestration</strong> — restart-safe claims and HITL gates.</li>
+        <li><strong>Semantic turn routing</strong> — classifier-backed intent cutover with article and eval coverage.</li>
+      </ul>
+
+      <h3>Known issue (fixed in beta.12)</h3>
+      <ul>
+        <li><strong>Large message archives</strong> — packaged hub could hang during agent history bootstrap; upgrade to beta.12.</li>
       </ul>
 
       <h2 id="v1-2-0-beta-10" class="release-version-heading">1.2.0-beta.10 <span class="release-date">— 2026-07-21</span></h2>
