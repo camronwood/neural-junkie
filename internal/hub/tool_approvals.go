@@ -115,11 +115,13 @@ func (tam *ToolApprovalManager) CreateApproval(agentID, agentName, sessionID, to
 	}
 
 	tam.approvals[approval.ID] = approval
+	persistApproval := *approval
+	expiresAt := approval.CreatedAt.Add(ToolApprovalTTL)
 
 	// Broadcast to chat so the frontend can render the approval card
 	tam.broadcastApproval(approval)
 	if tam.hub != nil {
-		tam.hub.persistToolApproval(approval, approval.CreatedAt.Add(ToolApprovalTTL))
+		tam.hub.persistToolApproval(&persistApproval, expiresAt)
 	}
 
 	return approval
@@ -131,14 +133,18 @@ func (tam *ToolApprovalManager) WaitForDecision(approvalID string, timeout time.
 	ch := make(chan ToolApprovalStatus, 1)
 	tam.mu.Lock()
 	approval, ok := tam.approvals[approvalID]
-	if ok && approval.Status == ToolApprovalPending {
-		tam.waiters[approvalID] = append(tam.waiters[approvalID], ch)
-	}
-	tam.mu.Unlock()
-
-	if !ok || approval.Status != ToolApprovalPending {
+	if !ok {
+		tam.mu.Unlock()
 		return ToolApprovalRejected, "approval not found"
 	}
+	if approval.Status != ToolApprovalPending {
+		status := approval.Status
+		reason := approval.Reason
+		tam.mu.Unlock()
+		return status, reason
+	}
+	tam.waiters[approvalID] = append(tam.waiters[approvalID], ch)
+	tam.mu.Unlock()
 
 	select {
 	case status := <-ch:

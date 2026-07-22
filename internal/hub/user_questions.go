@@ -151,6 +151,9 @@ func (uqm *UserQuestionManager) AskWithContext(agentID, agentName, channel, ques
 	uqm.waiters[q.ID] = []chan string{waiter}
 	broadcastQ := *q
 	broadcastQ.Options = append([]string(nil), q.Options...)
+	persistQ := *q
+	persistQ.Options = append([]string(nil), q.Options...)
+	expiresAt := q.CreatedAt.Add(timeout)
 	uqm.mu.Unlock()
 
 	// Pause peer agents before the question hits the timeline so they don't
@@ -161,7 +164,7 @@ func (uqm *UserQuestionManager) AskWithContext(agentID, agentName, channel, ques
 
 	uqm.broadcastQuestion(&broadcastQ)
 	if uqm.hub != nil {
-		uqm.hub.persistUserQuestion(q, q.CreatedAt.Add(timeout))
+		uqm.hub.persistUserQuestion(&persistQ, expiresAt)
 	}
 
 	return uqm.waitForAnswer(q.ID, waiter, timeout)
