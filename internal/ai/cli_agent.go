@@ -266,7 +266,7 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 		}
 
 		// Keep raw stderr in logs but return a user-safe summarized error.
-		stderrStr := strings.TrimSpace(stderr.String())
+		stderrStr := filterBenignCLIStderr(stderr.String())
 		if stderrStr != "" {
 			log.Printf("[CLIAgent/%s] stderr: %s", c.ProviderName, stderrStr)
 			return "", fmt.Errorf("CLI agent failed: %s", truncateError(stderrStr))
@@ -278,7 +278,7 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 	output := strings.TrimSpace(stdout.String())
 	if output == "" {
 		// Check stderr for any useful info
-		stderrStr := strings.TrimSpace(stderr.String())
+		stderrStr := filterBenignCLIStderr(stderr.String())
 		if stderrStr != "" {
 			log.Printf("[CLIAgent/%s] empty stdout, stderr: %s", c.ProviderName, stderrStr)
 			return "", fmt.Errorf("CLI agent returned empty output: %s", truncateError(stderrStr))
@@ -570,10 +570,15 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 				ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
 				return
 			}
-			stderrStr := strings.TrimSpace(stderrBuf.String())
+			stderrStr := filterBenignCLIStderr(stderrBuf.String())
 			if stderrStr != "" {
 				log.Printf("[CLIAgent/%s] stderr: %s", c.ProviderName, stderrStr)
 				ch <- StreamToken{Error: fmt.Errorf("CLI agent error: %s", truncateError(stderrStr)), Done: true}
+				return
+			}
+			if geminiEmitted {
+				// Non-zero exit with only benign WARN noise after a usable reply.
+				ch <- StreamToken{Done: true}
 				return
 			}
 			ch <- StreamToken{Error: fmt.Errorf("CLI agent error: %w", waitErr), Done: true}
@@ -582,7 +587,7 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 
 		// Gemini: capacity / auth failures often land on stderr while stdout is empty or only echo.
 		if c.ProviderName == "gemini-cli" && !geminiEmitted {
-			stderrStr := strings.TrimSpace(stderrBuf.String())
+			stderrStr := filterBenignCLIStderr(stderrBuf.String())
 			if stderrStr != "" {
 				log.Printf("[CLIAgent/%s] stderr: %s", c.ProviderName, stderrStr)
 				ch <- StreamToken{Error: fmt.Errorf("CLI agent error: %s", truncateError(stderrStr)), Done: true}
@@ -848,6 +853,27 @@ func truncateError(s string) string {
 		first = first[:200] + "..."
 	}
 	return first
+}
+
+// filterBenignCLIStderr drops known-harmless CLI noise (e.g. gemini-cli WARN when
+// skipping unreadable system directories) so it is not surfaced as a provider_error.
+func filterBenignCLIStderr(s string) string {
+	var keep []string
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "skipping unreadable directory") {
+			continue
+		}
+		if strings.Contains(lower, "eperm") && strings.Contains(lower, "scandir") {
+			continue
+		}
+		keep = append(keep, line)
+	}
+	return strings.Join(keep, "\n")
 }
 
 // truncateCLIPrompt shortens an oversized CLI prompt, keeping the tail (current task).

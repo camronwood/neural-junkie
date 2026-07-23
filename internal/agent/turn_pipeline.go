@@ -623,6 +623,23 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 		if st.implSessionOutcome != nil {
 			responseMsg.Metadata[protocol.IdeMetaImplementationOutcome] = st.implSessionOutcome
 		}
+	} else if msg != nil && msg.ImplementationSession() && !msg.IdeEditorModeIsAsk() && !msg.IdeEditorModeIsPlan() {
+		// Inbound requested an implementation session but the turn took a non-session
+		// path (e.g. conversational answer). Still emit a minimal outcome so harness
+		// assert_message_metadata(require_keys) can observe the decision.
+		if responseMsg.Metadata == nil {
+			responseMsg.Metadata = make(map[string]interface{})
+		}
+		if responseMsg.Metadata[protocol.IdeMetaImplementationOutcome] == nil {
+			responseMsg.Metadata[protocol.IdeMetaImplementationOutcome] = map[string]interface{}{
+				"outcome":             "no_changes",
+				"files_changed":       []string{},
+				"routing_reason":      "session_not_run",
+				"verify_failed":       false,
+				"implementation_skip": true,
+			}
+			responseMsg.Metadata[protocol.IdeMetaImplementationComplete] = false
+		}
 	}
 	if paths := a.takeCADWrittenPaths(); len(paths) > 0 {
 		if responseMsg.Metadata == nil {

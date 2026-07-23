@@ -1,18 +1,17 @@
-layer-climb status — 2026-07-19-1809
-updated=2026-07-19 22:45:33Z
+layer-climb status — 2026-07-22-2213
+updated=2026-07-23 12:00:00Z
 hub=http://127.0.0.1:18765
 continue_on_fail=true
-progress=8/8 layers finished · PASS=8 FAIL=0
+progress=6/8 layers finished · PASS=2 FAIL=4
 CURRENT (idle / finished)
 remaining=(none)
-note=done overall=PASS; rollup=/Users/camronwood/development/projects/neural-junkie/docs/testing/layer-climb-2026-07-19-1809.md
+note=ABORTED — manual kill during bundle; rollup=docs/testing/layer-climb-2026-07-22-2213.md
 
 scoreboard:
-  PASS  ci               1m49s  exit=0
-  PASS  implement        4m16s  exit=0
-  PASS  chat            20m13s  exit=0
-  PASS  collab           1h09m  exit=0
-  PASS  collab-core     20m39s  exit=0
-  PASS  collab-full      1h46m  exit=0
-  PASS  bundle          39m21s  exit=0
-  PASS  parity          13m57s  exit=0
+  PASS  ci               2m04s  exit=0
+  FAIL  implement        3h35m  exit=1
+  FAIL  chat            53m26s  exit=1
+  FAIL  collab           2h21m  exit=2
+  PASS  collab-core     28m39s  exit=0
+  FAIL  collab-full      2h25m  exit=2
+  FAIL  bundle           3h36m  exit=130

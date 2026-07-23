@@ -1,4 +1,7 @@
-import { openExternalLink as openExternalLinkImpl } from '../../utils/openExternalLink';
+import {
+  openExternalLink as openExternalLinkImpl,
+  openExternalLinkAsync as openExternalLinkAsyncImpl,
+} from '../../utils/openExternalLink';
 
 export async function mergeSettingsPut(
   hubHttp: string,
@@ -21,6 +24,10 @@ export async function mergeSettingsPut(
 
 export function openExternalLink(url: string): void {
   openExternalLinkImpl(url);
+}
+
+export async function openExternalLinkAsync(url: string): Promise<boolean> {
+  return openExternalLinkAsyncImpl(url);
 }
 
 export interface SettingsTabProps {

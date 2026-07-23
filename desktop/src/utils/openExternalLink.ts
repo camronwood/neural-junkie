@@ -13,22 +13,43 @@ export function isExternalHttpUrl(url: string): boolean {
   }
 }
 
-export function openExternalLink(url: string): void {
+/**
+ * Opens an http(s) URL in the OS browser.
+ * Returns true when a handoff was attempted successfully; false when the URL
+ * was invalid or every opener path failed (caller should show a copyable link).
+ */
+export async function openExternalLinkAsync(url: string): Promise<boolean> {
   const trimmed = (url ?? '').trim();
-  if (!trimmed || !isExternalHttpUrl(trimmed)) return;
-  void (async () => {
-    try {
-      const { isTauri } = await import('@tauri-apps/api/core');
-      if (isTauri()) {
+  if (!trimmed || !isExternalHttpUrl(trimmed)) return false;
+
+  try {
+    const { isTauri } = await import('@tauri-apps/api/core');
+    if (isTauri()) {
+      try {
         const { openUrl } = await import('@tauri-apps/plugin-opener');
         await openUrl(trimmed);
-        return;
+        return true;
+      } catch {
+        // Missing URL scope / older builds: fall through to Rust command.
       }
-    } catch {
-      /* fall through */
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('open_browser_window', { url: trimmed });
+        return true;
+      } catch {
+        // Fall through to window.open last resort.
+      }
     }
-    window.open(trimmed, '_blank', 'noopener,noreferrer');
-  })();
+  } catch {
+    /* not Tauri or core import failed */
+  }
+
+  const opened = window.open(trimmed, '_blank', 'noopener,noreferrer');
+  return opened != null;
+}
+
+export function openExternalLink(url: string): void {
+  void openExternalLinkAsync(url);
 }
 
 /** Capture-phase click handler: keep http(s) navigation out of the Tauri webview. */

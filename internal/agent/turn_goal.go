@@ -203,8 +203,14 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
 	}
 	caps := protocol.ResolveTurnCapabilities(msg)
+	// Respect explicit implementation_session metadata even when RequiresWorkspace
+	// was not stamped (semantic may classify as edit without setting the flag).
+	explicitSession := msg != nil && msg.ImplementationSession()
 	goal.ImplementationSession = (goal.Action == ActionDebug || goal.Action == ActionEdit || goal.Action == ActionContinue) &&
-		caps.CanRunImplSession && caps.RequiresWorkspace
+		caps.CanRunImplSession && (caps.RequiresWorkspace || explicitSession)
+	if msg != nil && (msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan()) {
+		goal.ImplementationSession = false
+	}
 	if goal.ImplementationSession {
 		goal.Intent = IntentTask
 	}

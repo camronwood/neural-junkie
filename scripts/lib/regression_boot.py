@@ -256,15 +256,15 @@ def boot_regression_stack(
         return False
     if hub and not pin_regression_models(hub_url, root):
         return False
-    if _env_truthy("NJ_REGRESSION_SLIM_ROSTER") or _env_truthy("NJ_REGRESSION_CLAUDE_CLOUD"):
-        from lib.regression_collab import apply_collab_regression_tuning
+    # Always route @Claude for regression (cloud preferred when auth works).
+    from lib.regression_collab import apply_collab_regression_tuning
 
-        print(">>> Collab regression tuning (slim roster / cloud Claude)...")
-        ok, detail = apply_collab_regression_tuning(hub_url)
-        if not ok:
-            print(f"FAIL: {detail}", file=sys.stderr)
-            return False
-        print(f"OK: {detail}")
+    print(">>> Collab regression tuning (Claude cloud-preferred / optional slim roster)...")
+    ok, detail = apply_collab_regression_tuning(hub_url)
+    if not ok:
+        print(f"FAIL: {detail}", file=sys.stderr)
+        return False
+    print(f"OK: {detail}")
     if hygiene and not hub_hygiene(root, hub_url, label=label):
         return False
     if ready_smoke and not run_release_prep_ready(root, hub_url):
@@ -293,15 +293,15 @@ def restart_hub_for_live_run(root: Path, hub_url: str, *, label: str = "live reg
         return False
     if not pin_regression_models(base, root):
         return False
-    if _env_truthy("NJ_REGRESSION_SLIM_ROSTER") or _env_truthy("NJ_REGRESSION_CLAUDE_CLOUD"):
-        from lib.regression_collab import apply_collab_regression_tuning
+    # Always route @Claude for regression (cloud preferred when auth works).
+    from lib.regression_collab import apply_collab_regression_tuning
 
-        print(">>> Collab regression tuning (slim roster / cloud Claude)...")
-        ok, detail = apply_collab_regression_tuning(base)
-        if not ok:
-            print(f"FAIL: {detail}", file=sys.stderr)
-            return False
-        print(f"OK: {detail}")
+    print(">>> Collab regression tuning (Claude cloud-preferred / optional slim roster)...")
+    ok, detail = apply_collab_regression_tuning(base)
+    if not ok:
+        print(f"FAIL: {detail}", file=sys.stderr)
+        return False
+    print(f"OK: {detail}")
     if not hub_hygiene(root, base, label=label):
         return False
     os.environ[BOOT_DONE_ENV] = "1"

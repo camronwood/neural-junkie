@@ -29,11 +29,7 @@ func syncCLIProviderModelsFromConfig() {
 // Each CLI agent is independent; if one binary is missing, the others still start.
 
 func initializeCLIAgents() {
-	defaultWorkDir, err := os.Getwd()
-	if err != nil {
-		log.Printf("⚠️  Failed to get working directory for CLI agents: %v", err)
-		return
-	}
+	defaultWorkDir := pathutil.DefaultCLIWorkDir()
 
 	for _, cliType := range agent.ListCLIAgentTypes() {
 		cfg, _ := agent.GetCLIAgentConfig(cliType)

@@ -64,6 +64,11 @@ func isAskModeReadOnly(sourceMsg *protocol.Message) bool {
 	if sourceMsg == nil {
 		return false
 	}
+	// Explicit ask/plan composer modes always block file proposals, even if a
+	// semantic decision requests workspace mutation.
+	if sourceMsg.IdeEditorModeIsAsk() || sourceMsg.IdeEditorModeIsPlan() {
+		return true
+	}
 	// Canonical semantic decision is authoritative: only workspace mutation may
 	// emit file proposals, even if composer mode is agent.
 	if decision, ok := protocol.ExtractTurnDecision(sourceMsg); ok {

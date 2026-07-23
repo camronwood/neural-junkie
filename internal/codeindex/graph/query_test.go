@@ -3,6 +3,7 @@ package graph
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -65,3 +66,34 @@ func TestCommunitiesFromNodesEmpty(t *testing.T) {
 		t.Fatalf("got %#v", got)
 	}
 }
+
+func TestSelectDenseViewRespectsMaxNodesWithImportExpansion(t *testing.T) {
+	nodes := []Node{
+		{ID: "repo:x", Kind: NodeRepo, Label: "x", Degree: 1},
+		{ID: "pkg:core", Kind: NodePackage, Label: "core", Degree: 100},
+	}
+	edges := []Edge{}
+	for i := 0; i < 500; i++ {
+		id := "file:f" + strconv.Itoa(i)
+		nodes = append(nodes, Node{ID: id, Kind: NodeFile, Label: id, Degree: 5})
+		edges = append(edges, Edge{
+			ID: "e" + strconv.Itoa(i), From: "pkg:core", To: id, Kind: EdgeImports, Provenance: ProvenanceExtracted,
+		})
+	}
+	const maxNodes = 50
+	outNodes, outEdges := selectDenseView(nodes, edges, maxNodes, 100)
+	if len(outNodes) > maxNodes {
+		t.Fatalf("selectDenseView returned %d nodes, want <= %d", len(outNodes), maxNodes)
+	}
+	if len(outEdges) > 100 {
+		t.Fatalf("selectDenseView returned %d edges, want <= 100", len(outEdges))
+	}
+	keep := map[string]bool{}
+	for _, n := range outNodes {
+		keep[n.ID] = true
+	}
+	if !keep["repo:x"] || !keep["pkg:core"] {
+		t.Fatalf("expected repo + package kept, got nodes=%d", len(outNodes))
+	}
+}
+

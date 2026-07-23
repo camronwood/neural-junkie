@@ -114,36 +114,51 @@ func selectDenseView(nodes []Node, edges []Edge, maxNodes, maxEdges int) ([]Node
 	sort.Slice(symbols, func(i, j int) bool { return symbols[i].Degree > symbols[j].Degree })
 	sort.Slice(files, func(i, j int) bool { return files[i].Degree > files[j].Degree })
 
-	for _, n := range packages {
+	addKeep := func(id string) bool {
+		if id == "" || keep[id] {
+			return keep[id]
+		}
 		if len(keep) >= maxNodes {
+			return false
+		}
+		keep[id] = true
+		return true
+	}
+
+	for _, n := range packages {
+		if !addKeep(n.ID) {
 			break
 		}
-		keep[n.ID] = true
 	}
 	for _, n := range symbols {
-		if len(keep) >= maxNodes {
+		if n.Degree < 1 {
+			continue
+		}
+		if !addKeep(n.ID) {
 			break
 		}
-		if n.Degree >= 1 {
-			keep[n.ID] = true
-		}
 	}
-	// Include files that participate in import/resolves edges among kept nodes.
+	// Include the other endpoint of import/resolves edges among kept nodes,
+	// without exceeding maxNodes (previously this loop ignored the cap and
+	// could return thousands of nodes for large repos).
 	for _, e := range edges {
 		if e.Kind != EdgeImports && e.Kind != EdgeResolvesTo {
 			continue
 		}
 		if keep[e.From] || keep[e.To] {
-			keep[e.From] = true
-			keep[e.To] = true
+			_ = addKeep(e.From)
+			_ = addKeep(e.To)
+			if len(keep) >= maxNodes {
+				break
+			}
 		}
 	}
 	for _, n := range files {
-		if len(keep) >= maxNodes {
-			break
+		if n.Degree < 3 {
+			continue
 		}
-		if n.Degree >= 3 {
-			keep[n.ID] = true
+		if !addKeep(n.ID) {
+			break
 		}
 	}
 
@@ -151,6 +166,36 @@ func selectDenseView(nodes []Node, edges []Edge, maxNodes, maxEdges int) ([]Node
 	for _, n := range nodes {
 		if keep[n.ID] {
 			outNodes = append(outNodes, n)
+		}
+	}
+	// Hard cap in case keep grew past maxNodes via the repo seed + expansion.
+	if len(outNodes) > maxNodes {
+		sort.Slice(outNodes, func(i, j int) bool {
+			if outNodes[i].Kind != outNodes[j].Kind {
+				// Prefer repo/package/symbol over file when trimming.
+				rank := func(k NodeKind) int {
+					switch k {
+					case NodeRepo:
+						return 0
+					case NodePackage:
+						return 1
+					case NodeSymbol:
+						return 2
+					default:
+						return 3
+					}
+				}
+				return rank(outNodes[i].Kind) < rank(outNodes[j].Kind)
+			}
+			if outNodes[i].Degree == outNodes[j].Degree {
+				return outNodes[i].Label < outNodes[j].Label
+			}
+			return outNodes[i].Degree > outNodes[j].Degree
+		})
+		outNodes = outNodes[:maxNodes]
+		keep = map[string]bool{}
+		for _, n := range outNodes {
+			keep[n.ID] = true
 		}
 	}
 	var outEdges []Edge

@@ -6,7 +6,7 @@ import type {
   GoogleMeetNotesStatus,
   WebSearchConfigResponse,
 } from '../../types/protocol';
-import { openExternalLink, type SettingsTabProps } from './settingsShared';
+import { openExternalLink, openExternalLinkAsync, type SettingsTabProps } from './settingsShared';
 
 export function AssistantToolsSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
   const { integrations, updateGoogleMeetNotesSettings } = useSettingsStore();
@@ -177,12 +177,14 @@ export function AssistantToolsSettingsTab({ hubHttp, isActive }: SettingsTabProp
       try {
         const api = new ChatAPI(hubHttp);
         const url = await api.getGoogleMeetNotesAuthURL();
-        openExternalLink(url);
+        const opened = await openExternalLinkAsync(url);
         setTestResults((prev) => ({
           ...prev,
           googleMeetNotes: {
             success: true,
-            message: 'Complete sign-in in your browser, then refresh status.',
+            message: opened
+              ? 'Complete sign-in in your browser, then refresh status.'
+              : `Browser did not open automatically. Open this URL manually, then refresh status:\n${url}`,
           },
         }));
       } catch (e) {
@@ -446,7 +448,7 @@ export function AssistantToolsSettingsTab({ hubHttp, isActive }: SettingsTabProp
       </div>
       {testResults.googleMeetNotes && (
         <div
-          className={`mb-4 p-3 rounded text-sm ${
+          className={`mb-4 p-3 rounded text-sm whitespace-pre-wrap break-all ${
             testResults.googleMeetNotes.success
               ? 'bg-green-100 text-green-800 border border-green-200'
               : 'bg-red-100 text-red-800 border border-red-200'

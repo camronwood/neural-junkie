@@ -132,3 +132,23 @@ func TestResolveCLIWorkDir_fallsBackToCwd(t *testing.T) {
 		t.Fatalf("workdir = %q, want cwd %q", got, cwd)
 	}
 }
+
+func TestResolveCLIWorkDir_rejectsFilesystemRoot(t *testing.T) {
+	t.Setenv("CURSOR_WORK_DIR", "")
+	t.Setenv("GEMINI_WORK_DIR", "")
+
+	provider := ai.NewGeminiCLIProvider("/")
+	ag := &Agent{
+		Info: protocol.AgentInfo{
+			Type:       protocol.AgentTypeCLI,
+			AIProvider: "gemini-cli",
+		},
+	}
+	ag.SetAIProvider(provider)
+
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-u-gemini", protocol.AgentInfo{ID: "u1", Name: "User"}, "are you here to help?")
+	got := ag.resolveCLIWorkDir(msg)
+	if got == "/" || got == "" {
+		t.Fatalf("workdir = %q, want safe non-root default", got)
+	}
+}

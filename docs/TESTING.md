@@ -285,7 +285,9 @@ Collab gates enable these automatically for `LAYER=collab` and `LAYER=collab-cor
 | `NJ_OLLAMA_MAX_CONCURRENCY=2` | Hub-wide Ollama slot cap (`make server-regression`) |
 | `NJ_REQUIRE_FULL_BOOT=1` | Ignore `SKIP_BOOT` / `NJ_BOOT_DONE` — always warm models + restart hub |
 | `NJ_REGRESSION_SLIM_ROSTER=1` | `/pause-agent` on specialists outside core roster |
-| `NJ_REGRESSION_CLAUDE_CLOUD=1` | Switch `@Claude` to cloud provider (not Ollama) |
+| `NJ_REGRESSION_CLAUDE_CLOUD=auto` | **Default.** Prefer cloud `@Claude` when Claude Code auth works; fall back to Ollama |
+| `NJ_REGRESSION_CLAUDE_CLOUD=1` | Require cloud `@Claude` (fail boot if auth/switch fails) |
+| `NJ_REGRESSION_CLAUDE_CLOUD=0` | Force `@Claude` onto Ollama (no cloud participant) |
 | `NJ_RESTART_HUB_BETWEEN_SCENARIOS=1` | Default for all batch collab sweeps |
 | `NJ_SCENARIO_PROFILE=core` | `@SoftwareArchitect @BackendEngineer @Claude` |
 

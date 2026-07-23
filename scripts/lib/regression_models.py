@@ -157,7 +157,12 @@ def apply_regression_model_env(env: dict[str, str], root: Path = ROOT) -> None:
     """Pin subprocess/hub env to ≤14B regression models (overrides oversized hub config)."""
     env.setdefault("NJ_REGRESSION", "1")
     env.setdefault("NJ_REGRESSION_MAX_PARAMS_B", str(int(MAX_REGRESSION_PARAMS_B)))
-    agent = resolve_regression_agent_model(root, env)
+    # Prefer an explicit climb/gate lock; otherwise resolve (never above 14B).
+    locked = (env.get("NJ_REGRESSION_AGENT_MODEL") or "").strip()
+    if locked and is_regression_allowed_model(locked):
+        agent = locked
+    else:
+        agent = resolve_regression_agent_model(root, env)
     utility = resolve_regression_utility_model(root, env)
     env["NJ_REGRESSION_AGENT_MODEL"] = agent
     env["OLLAMA_CODE_MODEL"] = agent
@@ -248,10 +253,37 @@ def unload_loaded_models_over_cap(*, max_b: float = MAX_REGRESSION_PARAMS_B) -> 
 
 def enforce_regression_agent_models(hub_url: str, root: Path = ROOT) -> tuple[bool, str]:
     """Switch all agents to the regression model and verify none exceed 14B."""
+    locked = (os.environ.get("NJ_REGRESSION_LOCK_MODEL") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     model = resolve_regression_agent_model(root)
+    if locked:
+        explicit = (os.environ.get("NJ_REGRESSION_AGENT_MODEL") or "").strip()
+        if explicit and is_regression_allowed_model(explicit):
+            model = explicit
     ok, detail = switch_all_agents_regression_model(hub_url, model)
     if not ok:
         return False, detail
+
+    # Verify every Ollama agent is on the pinned tag (no mid-run drift).
+    drifted = [
+        f"{name}={agent_model}"
+        for name, agent_model in list_hub_ollama_agent_models(hub_url)
+        if agent_model != model
+    ]
+    if drifted and locked:
+        ok2, detail2 = switch_all_agents_regression_model(hub_url, model)
+        if not ok2:
+            return False, f"model lock re-pin failed: {detail2}"
+        drifted = [
+            f"{name}={agent_model}"
+            for name, agent_model in list_hub_ollama_agent_models(hub_url)
+            if agent_model != model
+        ]
+        if drifted:
+            return False, f"agents drifted from pinned {model}: {', '.join(drifted[:8])}"
 
     over = agents_over_regression_cap(hub_url)
     if over:

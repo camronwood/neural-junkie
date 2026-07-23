@@ -29,6 +29,11 @@ func isConversationalOnlyTurn(msg *protocol.Message) bool {
 	if isSocialOrStatusPing(content) || intent.LooksLikePresenceCheck(content) {
 		return true
 	}
+	// Assistant meeting/email questions are casual conversation with prompt-injected
+	// personal context — never web_search / workspace MCP / ask_user cards.
+	if assistantPersonalContextQuery(msg) {
+		return true
+	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
 		for _, o := range decision.PolicyOverrides {
 			if o == "presence_check" {
@@ -36,6 +41,10 @@ func isConversationalOnlyTurn(msg *protocol.Message) bool {
 			}
 		}
 		if decision.Action == intent.ActionAnswer && decision.Interaction == intent.InteractionCasual {
+			return true
+		}
+		// Misclassified ask_user on a casual turn still must stay chat-only.
+		if decision.Interaction == intent.InteractionCasual && decision.Action == intent.ActionAskUser {
 			return true
 		}
 	}

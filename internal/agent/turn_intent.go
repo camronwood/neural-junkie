@@ -211,6 +211,18 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 	return b.String()
 }
 
+// assistantPersonalContextQuery is true for Assistant turns that need synced
+// meeting/email/app context. These stay casual conversation (LowSignal) but
+// must not use the minimal prompt that omits that context.
+func assistantPersonalContextQuery(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	return messageAsksAboutMeetings(msg.Content) ||
+		messageAsksAboutEmail(msg.Content) ||
+		messageAsksAboutNJApp(msg.Content)
+}
+
 func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) (prompt string) {
 	envelope := a.selectTurnContext(msg)
 	defer func() {
@@ -219,16 +231,17 @@ func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) (
 	if a.effectiveChannelType(msg.Channel) == protocol.ChannelTypeCollaboration {
 		return a.injectSessionSummary(a.buildPrompt(msg, intent), msg)
 	}
+	// Meeting/email/app questions are casual chat for Assistant, but still need
+	// enriched prompts even when the classifier marks the turn LowSignal/Meta.
+	if a.Info.Type == protocol.AgentTypeAssistant &&
+		assistantPersonalContextQuery(msg) &&
+		a.customPromptBuilder != nil {
+		return a.injectSessionSummary(a.customPromptBuilder(msg), msg)
+	}
 	switch intent {
 	case IntentLowSignal, IntentMeta:
 		return a.buildMinimalPrompt(msg)
 	default:
-		// Meeting/email turns need enriched prompts even on small Ollama models.
-		if a.Info.Type == protocol.AgentTypeAssistant &&
-			(messageAsksAboutMeetings(msg.Content) || messageAsksAboutEmail(msg.Content) || messageAsksAboutNJApp(msg.Content)) &&
-			a.customPromptBuilder != nil {
-			return a.injectSessionSummary(a.customPromptBuilder(msg), msg)
-		}
 		if a.useCompactAssistantOllamaPrompt(msg) {
 			return a.injectSessionSummary(a.buildCompactAssistantOllamaPrompt(msg), msg)
 		}

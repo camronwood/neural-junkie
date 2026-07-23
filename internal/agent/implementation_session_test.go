@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -400,5 +401,55 @@ func TestAppendUnique(t *testing.T) {
 	got := appendUnique([]string{"a"}, []string{"b", "a"})
 	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("got %v", got)
+	}
+}
+
+func TestShouldRunImplementationSession_planBeatsSemanticEdit(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBackend, Name: "BackendEngineer"}}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dev", protocol.AgentInfo{ID: "u1", Name: "User"}, "Plan how to add HelloWorld")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "plan",
+		"composer_mode":          "plan",
+		"implementation_session": true,
+	}
+	_ = protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion,
+		Action:        intent.ActionEdit,
+		Mutation:      intent.MutationWorkspace,
+		Interaction:   intent.InteractionTask,
+		Confidence:    1,
+		Source:        "test",
+	})
+	if shouldRunImplementationSession(a, msg) {
+		t.Fatal("plan mode must not run implementation session under semantic edit")
+	}
+	if !isAskModeReadOnly(msg) {
+		t.Fatal("plan mode must be read-only for file proposals")
+	}
+}
+
+func TestDeriveTurnGoalFromDecision_respectsExplicitImplementationSession(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dev", protocol.AgentInfo{ID: "u1", Name: "User"}, "fix the Multiply bug")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"composer_mode":          "agent",
+		"implementation_session": true,
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: false,
+		Provenance: "test",
+	})
+	decision := intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion,
+		Action:        intent.ActionEdit,
+		Mutation:      intent.MutationWorkspace,
+		Interaction:   intent.InteractionTask,
+		Confidence:    1,
+		Source:        "test",
+	}
+	_ = protocol.StampTurnDecision(msg, decision)
+	goal := deriveTurnGoalFromDecision(msg, decision)
+	if !goal.ImplementationSession {
+		t.Fatal("expected implementation session when metadata requests it and caps allow")
 	}
 }

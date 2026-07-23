@@ -1402,6 +1402,7 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 		prompt.WriteString("These are the best matching synced notes for the user's query:\n\n")
 	} else {
 		prompt.WriteString("No exact title/content match was found, so the most recent synced notes are included for context:\n\n")
+		prompt.WriteString("Meeting 1 is the chronologically latest synced note by Date. Treat it as the user's last/most recent meeting unless they named a different meeting.\n\n")
 	}
 
 	for i, note := range selectedNotes {
@@ -1466,7 +1467,17 @@ func selectMeetingNotesForPrompt(notes []*MeetingNote, query string, limit int) 
 		return sorted[i].MeetingDate.After(sorted[j].MeetingDate)
 	})
 
+	// "last/recent meeting" (no specific title) must use chronology — content tokens
+	// like "last", "most", or "summary" otherwise rank older notes that mention those words.
+	if meetingQueryAsksAboutLastOrRecent(query) {
+		return sorted[:minInt(limit, len(sorted))], false
+	}
+
 	tokens := meetingQueryTokens(query)
+	if len(tokens) == 0 {
+		return sorted[:minInt(limit, len(sorted))], false
+	}
+
 	type scoredNote struct {
 		note      *MeetingNote
 		score     int
@@ -1503,6 +1514,32 @@ func selectMeetingNotesForPrompt(notes []*MeetingNote, query string, limit int) 
 		}
 	}
 	return out, true
+}
+
+// meetingQueryAsksAboutLastOrRecent reports queries that want the chronologically
+// latest meeting(s), not a title/content keyword search.
+func meetingQueryAsksAboutLastOrRecent(query string) bool {
+	fields := strings.Fields(normalizeMeetingSearchText(query))
+	hasRecency := false
+	for _, f := range fields {
+		switch f {
+		case "last", "latest", "recent", "newest", "recently":
+			hasRecency = true
+		}
+	}
+	if !hasRecency {
+		return false
+	}
+	for _, tok := range meetingQueryTokens(query) {
+		switch tok {
+		case "last", "latest", "recent", "newest", "recently", "most",
+			"summary", "summarize", "summarise", "again", "checked", "give":
+			continue
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func assistantPromptTime(config *AssistantConfig) time.Time {
@@ -1597,12 +1634,14 @@ func meetingQueryTokens(query string) []string {
 	}
 	stop := map[string]bool{
 		"a": true, "about": true, "an": true, "and": true, "any": true, "are": true,
-		"can": true, "could": true, "do": true, "does": true, "for": true, "from": true,
-		"have": true, "i": true, "in": true, "is": true, "it": true, "me": true,
-		"meeting": true, "meetings": true, "note": true, "notes": true, "of": true,
-		"on": true, "please": true, "see": true, "that": true, "the": true,
-		"this": true, "today": true, "was": true, "we": true, "what": true, "with": true,
-		"you": true,
+		"again": true, "can": true, "checked": true, "could": true, "do": true, "does": true,
+		"for": true, "from": true, "give": true, "have": true, "i": true, "in": true,
+		"is": true, "it": true, "just": true, "last": true, "latest": true, "me": true,
+		"meeting": true, "meetings": true, "most": true, "my": true, "newest": true,
+		"note": true, "notes": true, "of": true, "on": true, "please": true,
+		"recent": true, "recently": true, "see": true, "summarise": true, "summarize": true,
+		"summary": true, "that": true, "the": true, "this": true, "today": true,
+		"was": true, "we": true, "what": true, "with": true, "you": true,
 	}
 	seen := map[string]bool{}
 	var tokens []string

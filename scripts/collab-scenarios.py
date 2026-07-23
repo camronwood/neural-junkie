@@ -224,8 +224,12 @@ def prepare_claude_for_collab(*, scenario_names: list[str], require: bool = Fals
         _claude_probe_ok = True
         return True
 
-    if os.environ.get("NJ_REGRESSION_CLAUDE_CLOUD", "").strip().lower() not in ("1", "true", "yes"):
+    # Ollama-routed Claude does not need cloud CLI auth.
+    route = (os.environ.get("NJ_REGRESSION_CLAUDE_ROUTE") or "").strip().lower()
+    mode = (os.environ.get("NJ_REGRESSION_CLAUDE_CLOUD") or "auto").strip().lower()
+    if route == "ollama" or mode in ("0", "false", "no", "ollama", "local"):
         _claude_probe_ok = True
+        _claude_probe_detail = "Claude on Ollama (cloud probe skipped)"
         return True
 
     from lib.claude_judge_auth import ensure_claude_for_testing  # noqa: E402
@@ -241,6 +245,12 @@ def prepare_claude_for_collab(*, scenario_names: list[str], require: bool = Fals
     _claude_probe_detail = sel.detail
     if sel.ok:
         print(f"OK: {sel.detail}", flush=True)
+        return True
+
+    # auto mode: boot may already have fallen back to Ollama; don't fail the sweep.
+    if mode in ("", "auto") and not require:
+        print(f"WARN: Claude cloud auth unavailable ({sel.detail}); continuing (expect Ollama Claude)", flush=True)
+        _claude_probe_ok = True
         return True
 
     msg = f"Claude not available for collab testing: {sel.detail}"

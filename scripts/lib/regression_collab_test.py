@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.regression_collab import (  # noqa: E402
     COLLAB_CORE_KEEP_AGENTS,
     COLLAB_EDGE_KEEP_AGENTS,
+    _claude_cloud_mode,
     apply_core_scenario_defaults,
     is_collab_core_scenario,
     resolve_preflight_roster,
@@ -87,6 +88,27 @@ class TestRegressionCollab(unittest.TestCase):
         self.assertTrue(wait.get("retry_on_generation_error"))
         self.assertTrue(assert_msg.get("allow_recovered_generation_errors"))
         self.assertTrue(assert_msg.get("deny_generation_errors"))
+
+    def test_claude_cloud_mode(self) -> None:
+        import os
+
+        prev = os.environ.get("NJ_REGRESSION_CLAUDE_CLOUD")
+        try:
+            os.environ.pop("NJ_REGRESSION_CLAUDE_CLOUD", None)
+            self.assertEqual(_claude_cloud_mode(), "auto")
+            os.environ["NJ_REGRESSION_CLAUDE_CLOUD"] = "auto"
+            self.assertEqual(_claude_cloud_mode(), "auto")
+            os.environ["NJ_REGRESSION_CLAUDE_CLOUD"] = "1"
+            self.assertEqual(_claude_cloud_mode(), "force_cloud")
+            os.environ["NJ_REGRESSION_CLAUDE_CLOUD"] = "0"
+            self.assertEqual(_claude_cloud_mode(), "force_ollama")
+            os.environ["NJ_REGRESSION_CLAUDE_CLOUD"] = "ollama"
+            self.assertEqual(_claude_cloud_mode(), "force_ollama")
+        finally:
+            if prev is None:
+                os.environ.pop("NJ_REGRESSION_CLAUDE_CLOUD", None)
+            else:
+                os.environ["NJ_REGRESSION_CLAUDE_CLOUD"] = prev
 
 
 if __name__ == "__main__":

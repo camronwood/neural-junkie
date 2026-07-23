@@ -122,12 +122,15 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
         env["NJ_DELIVERABLE_JUDGE_MODEL"] = DEFAULT_OLLAMA_JUDGE_MODEL
 
     env.setdefault("NJ_AGENT_TIMEOUT_MINUTES", DEFAULT_AGENT_TIMEOUT_MINUTES)
+    # Hard layer wall-clock = est_minutes * this multiplier (layer-climb / layer-gate).
+    env.setdefault("NJ_LAYER_TIMEOUT_MULT", "1.5")
 
-    # Collab gate tuning (slim roster + cloud Claude — see docs/TESTING.md).
+    # Collab gate tuning (slim roster + Claude cloud preference — see docs/TESTING.md).
     if os.environ.get("NJ_REGRESSION_SLIM_ROSTER", "").strip() == "":
         env.setdefault("NJ_REGRESSION_SLIM_ROSTER", "0")
+    # auto = prefer cloud Claude when auth works; 1 = require cloud; 0 = force Ollama.
     if os.environ.get("NJ_REGRESSION_CLAUDE_CLOUD", "").strip() == "":
-        env.setdefault("NJ_REGRESSION_CLAUDE_CLOUD", "0")
+        env.setdefault("NJ_REGRESSION_CLAUDE_CLOUD", "auto")
 
     try:
         from lib.hub_config import apply_automation_to_env

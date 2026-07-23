@@ -26,8 +26,50 @@ import type {
   KnowledgeNodeData,
 } from './types';
 
-const api = new ChatAPI(getHubBaseURL());
 const nodeTypes = { knowledgeNode: KnowledgeGraphNodeView };
+/** Client-side cap so an uncapped hub payload cannot freeze the whole WebView. */
+const MAX_RENDER_NODES = 400;
+const MAX_RENDER_EDGES = 800;
+
+function hubApi(): ChatAPI {
+  return new ChatAPI(getHubBaseURL());
+}
+
+function capGraphForRender(
+  nodes: KnowledgeGraphNode[],
+  edges: KnowledgeGraphEdge[],
+): { nodes: KnowledgeGraphNode[]; edges: KnowledgeGraphEdge[] } {
+  if (nodes.length <= MAX_RENDER_NODES && edges.length <= MAX_RENDER_EDGES) {
+    return { nodes, edges };
+  }
+  const ranked = [...nodes].sort((a, b) => {
+    const kindRank = (k: string | undefined) =>
+      k === 'repo' ? 0 : k === 'package' ? 1 : k === 'symbol' ? 2 : 3;
+    const kr = kindRank(a.kind) - kindRank(b.kind);
+    if (kr !== 0) return kr;
+    return (b.degree ?? 0) - (a.degree ?? 0);
+  });
+  const keep = new Set(ranked.slice(0, MAX_RENDER_NODES).map((n) => n.id));
+  const cappedNodes = nodes.filter((n) => keep.has(n.id));
+  const cappedEdges = edges
+    .filter((e) => keep.has(e.from) && keep.has(e.to))
+    .slice(0, MAX_RENDER_EDGES);
+  return { nodes: cappedNodes, edges: cappedEdges };
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 interface KnowledgeGraphWorkbenchProps {
   workspaceId: string;
@@ -39,17 +81,23 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
   const revealLine = useEditorStore((s) => s.revealLine);
   const requestComposerPrefill = useComposerPrefillStore((s) => s.requestPrefill);
   const workspaces = useFileExplorerStore((s) => s.workspaces);
-  const activeWorkspaceId = useFileExplorerStore((s) => s.activeWorkspaceId);
   const setActiveWorkspace = useFileExplorerStore((s) => s.setActiveWorkspace);
-  const activeWorkspace = useMemo(
-    () => workspaces.find((workspace) => workspace.id === activeWorkspaceId),
-    [activeWorkspaceId, workspaces],
+  // Pin to the tab's workspace; only the in-panel dropdown should switch graphs.
+  // (Following the global active workspace remounted/reloaded mid-fetch and left
+  // the UI stuck on "Loading…" when the explorer selection changed.)
+  const [viewWorkspaceId, setViewWorkspaceId] = useState(workspaceId);
+  useEffect(() => {
+    setViewWorkspaceId(workspaceId);
+  }, [workspaceId, repoPath]);
+  const viewWorkspace = useMemo(
+    () => workspaces.find((workspace) => workspace.id === viewWorkspaceId),
+    [viewWorkspaceId, workspaces],
   );
-  const graphWorkspaceId = activeWorkspace?.id ?? workspaceId;
-  const graphRepoPath = activeWorkspace?.path ?? repoPath;
+  const graphWorkspaceId = viewWorkspace?.id || workspaceId;
+  const graphRepoPath = (viewWorkspace?.path || repoPath || '').trim();
   const graphPathParts = graphRepoPath.split(/[\\/]/).filter(Boolean);
   const graphProjectName =
-    activeWorkspace?.name || graphPathParts[graphPathParts.length - 1] || 'Workspace';
+    viewWorkspace?.name || graphPathParts[graphPathParts.length - 1] || 'Workspace';
 
   const [meta, setMeta] = useState<KnowledgeGraphMeta | null>(null);
   const [communities, setCommunities] = useState<KnowledgeGraphCommunity[]>([]);
@@ -63,6 +111,7 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
   const [pathFrom, setPathFrom] = useState<string | null>(null);
   const [pathMode, setPathMode] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<KnowledgeNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -82,7 +131,8 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
         const ids = new Set(filtered.map((n) => n.id));
         filteredEdges = sourceEdges.filter((e) => ids.has(e.from) && ids.has(e.to));
       }
-      const laid = layoutKnowledgeGraph(filtered, filteredEdges, colorMap);
+      const capped = capGraphForRender(filtered, filteredEdges);
+      const laid = layoutKnowledgeGraph(capped.nodes, capped.edges, colorMap);
       setNodes(laid.nodes);
       setEdges(laid.edges);
     },
@@ -90,38 +140,63 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
   );
 
   const loadSummary = useCallback(async () => {
+    if (!graphRepoPath) {
+      setError('No repository path selected for the knowledge graph.');
+      setStatusMsg('Missing repo path');
+      setLoading(false);
+      return;
+    }
     setError(null);
+    setLoading(true);
+    setStatusMsg(`Loading ${graphProjectName}…`);
     try {
-      const summary = await api.repoGraph(graphRepoPath);
+      const summary = await withTimeout(
+        hubApi().repoGraph(graphRepoPath),
+        45_000,
+        'Knowledge graph request',
+      );
+      if (!summary?.meta) {
+        throw new Error('Knowledge graph response missing meta');
+      }
+      const capped = capGraphForRender(summary.nodes ?? [], summary.edges ?? []);
       setMeta(summary.meta);
       setCommunities(summary.communities ?? []);
       setGodNodes(summary.god_nodes ?? []);
-      setGraphNodes(summary.nodes ?? []);
-      setGraphEdges(summary.edges ?? []);
+      setGraphNodes(capped.nodes);
+      setGraphEdges(capped.edges);
       if (!summary.meta.ready) {
         setStatusMsg(summary.meta.building ? 'Building knowledge graph…' : 'Graph pending…');
         return;
       }
+      const cappedNote =
+        (summary.nodes?.length ?? 0) > capped.nodes.length
+          ? ` (showing ${capped.nodes.length})`
+          : '';
       setStatusMsg(
-        `${summary.meta.node_count} nodes · ${summary.meta.edge_count} edges`,
+        `${summary.meta.node_count} nodes · ${summary.meta.edge_count} edges${cappedNote}`,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const message = e instanceof Error ? e.message : String(e);
+      setError(message);
+      setStatusMsg('Failed to load knowledge graph');
+      setMeta(null);
+      setCommunities([]);
+      setGodNodes([]);
+      setGraphNodes([]);
+      setGraphEdges([]);
+    } finally {
+      setLoading(false);
     }
-  }, [graphRepoPath]);
+  }, [graphProjectName, graphRepoPath]);
 
   useEffect(() => {
-    setMeta(null);
-    setCommunities([]);
-    setGodNodes([]);
-    setGraphNodes([]);
-    setGraphEdges([]);
     setActiveCommunity(null);
     setExplain(null);
     setQuery('');
-    setStatusMsg(`Loading ${graphProjectName}…`);
+    setNodes([]);
+    setEdges([]);
     void loadSummary();
-  }, [graphProjectName, graphRepoPath, loadSummary]);
+  }, [graphProjectName, graphRepoPath, loadSummary, setEdges, setNodes]);
 
   useEffect(() => {
     applyGraph(graphNodes, graphEdges);
@@ -140,7 +215,11 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
       return;
     }
     try {
-      const sg = await api.repoGraphSubgraph(graphRepoPath, q, 2, 160);
+      const sg = await withTimeout(
+        hubApi().repoGraphSubgraph(graphRepoPath, q, 2, 160),
+        45_000,
+        'Graph search',
+      );
       applyGraph(sg.nodes ?? [], sg.edges ?? []);
       setStatusMsg(`Subgraph for “${q}”: ${sg.nodes?.length ?? 0} nodes`);
     } catch (e) {
@@ -157,7 +236,7 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
           return;
         }
         try {
-          const path = await api.repoGraphPath(graphRepoPath, pathFrom, node.id);
+          const path = await hubApi().repoGraphPath(graphRepoPath, pathFrom, node.id);
           setPathFrom(null);
           if (!path.found) {
             setStatusMsg('No path found');
@@ -171,9 +250,9 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
         return;
       }
       try {
-        const ex = await api.repoGraphExplain(graphRepoPath, node.id);
+        const ex = await hubApi().repoGraphExplain(graphRepoPath, node.id);
         setExplain(ex);
-        const sg = await api.repoGraphSubgraph(graphRepoPath, node.id, 1, 80);
+        const sg = await hubApi().repoGraphSubgraph(graphRepoPath, node.id, 1, 80);
         applyGraph(sg.nodes ?? [], sg.edges ?? []);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -187,7 +266,7 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
       const n = node.data.node;
       if (!n.path) return;
       try {
-        const content = await api.fetchFileContent(graphWorkspaceId, n.path);
+        const content = await hubApi().fetchFileContent(graphWorkspaceId, n.path);
         openFile(graphWorkspaceId, n.path, content ?? '', undefined);
         if (n.line && n.line > 0) {
           revealLine(graphWorkspaceId, n.path, n.line);
@@ -201,7 +280,7 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
 
   const rebuild = async () => {
     setStatusMsg('Rebuilding…');
-    await api.repoGraphStatus(graphRepoPath, true);
+    await hubApi().repoGraphStatus(graphRepoPath, true);
     void loadSummary();
   };
 
@@ -225,7 +304,11 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
           {workspaces.length > 1 && (
             <select
               value={graphWorkspaceId}
-              onChange={(event) => setActiveWorkspace(event.target.value)}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                setViewWorkspaceId(nextId);
+                setActiveWorkspace(nextId);
+              }}
               className="w-full mb-2 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-200"
               aria-label="Knowledge graph project"
             >
@@ -281,7 +364,7 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
                 className="block w-full text-left text-[11px] text-slate-300 hover:text-white truncate py-0.5"
                 onClick={() => {
                   setQuery(n.label);
-                  void api.repoGraphSubgraph(graphRepoPath, n.id, 1, 80).then((sg) => {
+                  void hubApi().repoGraphSubgraph(graphRepoPath, n.id, 1, 80).then((sg) => {
                     applyGraph(sg.nodes ?? [], sg.edges ?? []);
                   });
                 }}
@@ -365,9 +448,9 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
               maskColor="rgba(15,23,42,0.75)"
             />
           </ReactFlow>
-          {!meta?.ready && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0b1220]/80 text-sm text-slate-300">
-              {statusMsg || 'Building knowledge graph…'}
+          {(loading || !meta?.ready) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#0b1220]/80 text-sm text-slate-300 px-6 text-center">
+              {error || statusMsg || 'Building knowledge graph…'}
             </div>
           )}
         </div>
@@ -409,12 +492,14 @@ export function KnowledgeGraphWorkbench({ workspaceId, repoPath }: KnowledgeGrap
                 className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600"
                 onClick={() => {
                   if (!explain.node.path) return;
-                  void api.fetchFileContent(graphWorkspaceId, explain.node.path).then((content) => {
-                    openFile(graphWorkspaceId, explain.node.path!, content ?? '');
-                    if (explain.node.line) {
-                      revealLine(graphWorkspaceId, explain.node.path!, explain.node.line);
-                    }
-                  });
+                  void hubApi()
+                    .fetchFileContent(graphWorkspaceId, explain.node.path)
+                    .then((content) => {
+                      openFile(graphWorkspaceId, explain.node.path!, content ?? '');
+                      if (explain.node.line) {
+                        revealLine(graphWorkspaceId, explain.node.path!, explain.node.line);
+                      }
+                    });
                 }}
                 disabled={!explain.node.path}
               >

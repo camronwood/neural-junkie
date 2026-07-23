@@ -189,6 +189,11 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if a == nil || msg == nil {
 		return false
 	}
+	// Ask/plan composer modes are never implementation sessions — even when a
+	// semantic decision asks for workspace mutation.
+	if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() || msg.IdeEditorMode() == "ask" || msg.IdeEditorMode() == "plan" {
+		return false
+	}
 	if !channelAllowsImplementationSession(msg.Channel, msg) {
 		return false
 	}
@@ -218,9 +223,6 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	// Markdown/doc collab deliverables use the light path (propose FILE_CHANGE + status),
 	// not the full multi-iteration implementation session.
 	if msg.Type == protocol.MessageTypeCollabTask && collabTaskPrefersLightExecution(msg) {
-		return false
-	}
-	if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() || msg.IdeEditorMode() == "ask" || msg.IdeEditorMode() == "plan" {
 		return false
 	}
 	if isAskModeReadOnly(msg) {

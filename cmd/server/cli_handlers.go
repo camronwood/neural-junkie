@@ -186,10 +186,7 @@ func handleCLIAgentActivate(w http.ResponseWriter, r *http.Request, cliType stri
 		return
 	}
 
-	defaultWorkDir, err := os.Getwd()
-	if err != nil {
-		defaultWorkDir = "."
-	}
+	defaultWorkDir := pathutil.DefaultCLIWorkDir()
 
 	activated, activateErr := activateCLIAgentFromConfig(cfg, defaultWorkDir)
 	resp := map[string]interface{}{
@@ -245,6 +242,9 @@ func activateCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string)
 		if envDir := os.Getenv(cfg.WorkDirEnv); envDir != "" {
 			workDir = envDir
 		}
+	}
+	if !pathutil.IsSafeCLIWorkDir(workDir) {
+		workDir = pathutil.DefaultCLIWorkDir()
 	}
 
 	opts := []ai.CLIAgentOption{

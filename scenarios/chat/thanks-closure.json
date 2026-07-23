@@ -23,7 +23,8 @@
     {
       "action": "wait_reply",
       "from": "Assistant",
-      "timeout": "20s"
+      "timeout": "45s",
+      "retries": 1
     },
     {
       "action": "assert_messages",

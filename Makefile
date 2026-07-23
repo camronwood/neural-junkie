@@ -784,10 +784,16 @@ stop: ## Stop all running processes (server, agents, GUI)
 		lsof -ti :18765 2>/dev/null | xargs kill -9 2>/dev/null || true'
 	@lsof -ti :1420 2>/dev/null | xargs kill -9 2>/dev/null || true
 	@pkill -f "go run ./cmd/server" 2>/dev/null || pkill -f "cmd/server/main.go" 2>/dev/null || true
+	@pkill -f "go run -tags=slackvendor ./cmd/server" 2>/dev/null || true
+	@pkill -f "go run -tags=\"slackvendor\" ./cmd/server" 2>/dev/null || true
 	@pkill -x server 2>/dev/null || pkill -f "$(CURDIR)/bin/server" 2>/dev/null || true
 	@pkill -f "cmd/agent/main.go" 2>/dev/null || true
 	@pkill -f "tauri dev" 2>/dev/null || true
 	@pkill -f "Neural Junkie" 2>/dev/null || true
+	@# Pack sidecars + orphaned regression hub wrappers (start_new_session leaves these behind)
+	@pkill -f "packs/.*/assets/hub/server\.py" 2>/dev/null || true
+	@pkill -f "make server-regression" 2>/dev/null || true
+	@pkill -f "tee /tmp/nj-hub.log" 2>/dev/null || true
 	@echo "✅ All processes stopped!"
 
 refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fresh

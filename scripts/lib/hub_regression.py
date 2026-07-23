@@ -119,7 +119,44 @@ def wait_for_hub(base: str, timeout_s: float = 120.0) -> bool:
     return False
 
 
+HUB_PID_FILE = Path("/tmp/nj-regression-hub.pid")
+
+
+def _kill_process_group(pid: int, *, sig: int = 15) -> None:
+    """Best-effort kill of a process group started with start_new_session=True."""
+    try:
+        os.killpg(pid, sig)
+    except (ProcessLookupError, PermissionError, OSError):
+        try:
+            os.kill(pid, sig)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+
+
+def _read_tracked_hub_pid() -> int | None:
+    try:
+        raw = HUB_PID_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not raw.isdigit():
+        return None
+    return int(raw)
+
+
+def _clear_tracked_hub_pid() -> None:
+    try:
+        HUB_PID_FILE.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def stop_hub(repo_root: Path) -> None:
+    tracked = _read_tracked_hub_pid()
+    if tracked is not None:
+        _kill_process_group(tracked, sig=15)
+        time.sleep(0.5)
+        _kill_process_group(tracked, sig=9)
+        _clear_tracked_hub_pid()
     subprocess.run(
         ["make", "stop"],
         cwd=repo_root,
@@ -127,6 +164,18 @@ def stop_hub(repo_root: Path) -> None:
         stderr=subprocess.DEVNULL,
         check=False,
     )
+    # Belt-and-suspenders for session-orphaned wrappers make stop may miss.
+    for pattern in (
+        "make server-regression",
+        r"packs/.*/assets/hub/server\.py",
+        "tee /tmp/nj-hub.log",
+    ):
+        subprocess.run(
+            ["pkill", "-f", pattern],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
     time.sleep(2.0)
 
 
@@ -156,6 +205,10 @@ def start_regression_hub(
         )
     except OSError:
         return None
+    try:
+        HUB_PID_FILE.write_text(str(proc.pid), encoding="utf-8")
+    except OSError:
+        pass
     return proc
 
 

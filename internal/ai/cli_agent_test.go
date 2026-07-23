@@ -39,6 +39,18 @@ func TestSanitizeGeminiCLIPromptEcho(t *testing.T) {
 	})
 }
 
+func TestFilterBenignCLIStderr(t *testing.T) {
+	t.Parallel()
+	warn := "[WARN] Skipping unreadable directory: /Library/Bluetooth (EPERM: operation not permitted, scandir '/Library/Bluetooth')"
+	if got := filterBenignCLIStderr(warn); got != "" {
+		t.Fatalf("expected benign warn filtered, got %q", got)
+	}
+	mixed := warn + "\nERROR: authentication failed\n"
+	if got := filterBenignCLIStderr(mixed); !strings.Contains(got, "authentication failed") {
+		t.Fatalf("expected real error kept, got %q", got)
+	}
+}
+
 func TestStripCLILeadingNoiseLines(t *testing.T) {
 	s := "Loaded cached credentials.\n\ntype.googleapis.com/google.rpc\n\nHello"
 	got := stripCLILeadingNoiseLines(s)

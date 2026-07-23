@@ -24,7 +24,8 @@ func Open(graphDir string) (*Store, error) {
 		return nil, err
 	}
 	path := filepath.Join(graphDir, "graph.sqlite")
-	db, err := sql.Open("sqlite", path)
+	// busy_timeout avoids indefinite hangs when a rebuild holds the write lock.
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}

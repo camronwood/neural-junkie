@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 )
 
 // ProviderFromConfig builds an AIProvider from a persisted provider row.
@@ -42,8 +43,8 @@ func ProviderFromConfig(pcfg *config.ProviderConfig) (AIProvider, error) {
 
 	case "cursor-cli":
 		workDir := pcfg.WorkDir
-		if workDir == "" {
-			workDir, _ = os.Getwd()
+		if !pathutil.IsSafeCLIWorkDir(workDir) {
+			workDir = pathutil.DefaultCLIWorkDir()
 		}
 		var opts []CLIAgentOption
 		if pcfg.TimeoutSeconds > 0 {
@@ -71,8 +72,8 @@ func ProviderFromConfig(pcfg *config.ProviderConfig) (AIProvider, error) {
 
 	case "gemini-cli":
 		workDir := pcfg.WorkDir
-		if workDir == "" {
-			workDir, _ = os.Getwd()
+		if !pathutil.IsSafeCLIWorkDir(workDir) {
+			workDir = pathutil.DefaultCLIWorkDir()
 		}
 		var opts []CLIAgentOption
 		if pcfg.TimeoutSeconds > 0 {
@@ -90,8 +91,8 @@ func ProviderFromConfig(pcfg *config.ProviderConfig) (AIProvider, error) {
 
 	case "claude-cli", "codex-cli", "copilot-cli", "aider-cli", "opencode-cli":
 		workDir := pcfg.WorkDir
-		if workDir == "" {
-			workDir, _ = os.Getwd()
+		if !pathutil.IsSafeCLIWorkDir(workDir) {
+			workDir = pathutil.DefaultCLIWorkDir()
 		}
 		command := cliCommandForProviderType(pcfg.Type)
 		if command == "" {

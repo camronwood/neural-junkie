@@ -521,6 +521,22 @@ finishStream:
 			a.Hub.BroadcastDirect(msg.Channel, endMsg)
 			return "", "", "", context.Canceled
 		}
+		// Fail-fast: 0-byte deadline/timeouts must not look like a successful empty turn.
+		// Callers treat the error as generation_error and can retry/nudge.
+		if fullResponse.Len() == 0 && (errors.Is(streamErr, context.DeadlineExceeded) ||
+			strings.Contains(strings.ToLower(streamErr.Error()), "deadline exceeded") ||
+			strings.Contains(strings.ToLower(streamErr.Error()), "timeout")) {
+			log.Printf("[%s] Stream error with partial content (0 bytes): %v — failing turn", a.Info.Name, streamErr)
+			endMsg := protocol.NewMessage(protocol.MessageTypeStreamEnd, msg.Channel, a.Info, "")
+			endMsg.ID = streamMsgID
+			endMsg.ReplyTo = msg.ID
+			if msg.IsInThread() {
+				endMsg.ThreadID = msg.ThreadID
+				endMsg.IsThreadReply = true
+			}
+			a.Hub.BroadcastDirect(msg.Channel, endMsg)
+			return "", streamMsgID, "", streamErr
+		}
 		log.Printf("[%s] Stream error with partial content (%d bytes): %v", a.Info.Name, fullResponse.Len(), streamErr)
 		fullResponse.WriteString("\n\n[")
 		fullResponse.WriteString(truncationLabelForError(streamErr))

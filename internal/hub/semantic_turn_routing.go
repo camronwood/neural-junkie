@@ -56,20 +56,28 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 	wantsImpl := decision.Mutation == intent.MutationWorkspace &&
 		(decision.Action == intent.ActionDebug || decision.Action == intent.ActionEdit ||
 			decision.Action == intent.ActionContinue || decision.Action == intent.ActionRun)
-	if wantsImpl {
+	mode := protocol.ComposerModeFromMessage(msg)
+	planOrAsk := mode == "ask" || mode == "plan"
+	if wantsImpl && !planOrAsk {
 		msg.Metadata[protocol.IdeMetaImplementationSession] = true
 		msg.Metadata[protocol.TurnMetaCanProposeFiles] = true
 		msg.Metadata[protocol.TurnMetaCanRunImplSession] = true
 		msg.Metadata[protocol.TurnMetaRequiresWorkspace] = true
 	}
 	governance, _ := protocol.ExtractTurnGovernance(msg)
-	governance.RequiresWorkspace = wantsImpl
-	governance.CanProposeFiles = decision.Mutation == intent.MutationWorkspace
-	governance.CanRunImplSession = wantsImpl
+	if governance.ComposerMode == "" {
+		governance.ComposerMode = mode
+	}
+	governance.RequiresWorkspace = wantsImpl && !planOrAsk
+	governance.CanProposeFiles = decision.Mutation == intent.MutationWorkspace && !planOrAsk
+	governance.CanRunImplSession = wantsImpl && !planOrAsk
 	if governance.ComposerMode == "ask" || governance.ComposerMode == "plan" {
 		governance.CanProposeFiles = false
 		governance.CanRunImplSession = false
 		governance.RequiresWorkspace = false
+		delete(msg.Metadata, protocol.TurnMetaCanProposeFiles)
+		delete(msg.Metadata, protocol.TurnMetaCanRunImplSession)
+		delete(msg.Metadata, protocol.TurnMetaRequiresWorkspace)
 	}
 	protocol.StampTurnGovernance(msg, governance)
 }

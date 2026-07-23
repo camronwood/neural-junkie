@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/mcp"
 	biologymcp "github.com/camronwood/neural-junkie/internal/mcp/biology"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -92,4 +93,34 @@ func TestAgentToolDefinitions_presencePingOmitsWorkspaceTools(t *testing.T) {
 
 func (a *Agent) executeRequestlessActivationForTest(_ context.Context, msg *protocol.Message, id string) (string, error) {
 	return a.executeActivateCapabilityTool(msg, []byte(`{"capability_id":"`+id+`"}`))
+}
+
+func TestIsConversationalOnlyTurn_meetingNotesStayChatOnly(t *testing.T) {
+	t.Parallel()
+	msg := &protocol.Message{Content: "can you give me a summary of the notes from my last meeting/"}
+	if !isConversationalOnlyTurn(msg) {
+		t.Fatal("expected meeting-note questions to stay conversational-only")
+	}
+	if shouldOfferCapabilityTools(msg) {
+		t.Fatal("expected capability tools suppressed for meeting-note questions")
+	}
+}
+
+func TestIsConversationalOnlyTurn_casualAskUserStaysChatOnly(t *testing.T) {
+	t.Parallel()
+	msg := &protocol.Message{Content: "what should I prioritize today?"}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Interaction:     intent.InteractionCasual,
+		RequestedAction: intent.ActionAskUser,
+		Action:          intent.ActionAskUser,
+		Mutation:        intent.MutationNone,
+		Confidence:      1,
+		Source:          intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !isConversationalOnlyTurn(msg) {
+		t.Fatal("expected casual+ask_user misclassification to stay conversational-only")
+	}
 }

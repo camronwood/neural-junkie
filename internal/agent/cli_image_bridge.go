@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 )
@@ -42,7 +43,8 @@ func (a *Agent) isCLIAgent() bool {
 
 // resolveCLIWorkDir returns the subprocess working directory for CLI agents.
 // Priority: explicit WorkDirEnv override, then message/collaboration workspace,
-// then the provider default from hub startup, then process cwd.
+// then the provider default from hub startup, then a safe process default.
+// Filesystem roots (common when the macOS app launches with cwd "/") are rejected.
 func (a *Agent) resolveCLIWorkDir(msg *protocol.Message) string {
 	provider := strings.ToLower(strings.TrimSpace(a.Info.AIProvider))
 	for _, cfg := range cliAgentRegistry {
@@ -56,12 +58,11 @@ func (a *Agent) resolveCLIWorkDir(msg *protocol.Message) string {
 		return ws
 	}
 	if p, ok := a.GetAIProvider().(*ai.CLIAgentProvider); ok {
-		if wd := strings.TrimSpace(p.WorkDir); wd != "" {
+		if wd := strings.TrimSpace(p.WorkDir); pathutil.IsSafeCLIWorkDir(wd) {
 			return wd
 		}
 	}
-	wd, _ := os.Getwd()
-	return wd
+	return pathutil.DefaultCLIWorkDir()
 }
 
 // prepareCLIInvocation applies per-message workdir, approval mode, and optional judge model

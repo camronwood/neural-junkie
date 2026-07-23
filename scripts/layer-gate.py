@@ -7,6 +7,7 @@ import argparse
 import os
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,13 +29,23 @@ from lib.release_prep_layers import (  # noqa: E402
 )
 
 
-def run_cmd(cmd: list[str], *, env: dict | None = None, cwd: Path = ROOT) -> tuple[int, str]:
+def run_cmd(
+    cmd: list[str],
+    *,
+    env: dict | None = None,
+    cwd: Path = ROOT,
+    timeout_s: float | None = None,
+) -> tuple[int, str]:
     """Run a stage command, streaming stdout/stderr live and collecting a log buffer."""
+    from lib.proc_timeout import kill_process_tree, wait_with_timeout
+
     merged = release_prep_env(ROOT)
     if env:
         merged.update(env)
     merged["PYTHONUNBUFFERED"] = "1"
     print(f"\n>>> {' '.join(cmd)}", flush=True)
+    if timeout_s and timeout_s > 0:
+        print(f"[layer-gate] stage timeout={int(timeout_s)}s", flush=True)
     proc = subprocess.Popen(
         cmd,
         cwd=cwd,
@@ -43,14 +54,27 @@ def run_cmd(cmd: list[str], *, env: dict | None = None, cwd: Path = ROOT) -> tup
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
+        start_new_session=True,
     )
     chunks: list[str] = []
     assert proc.stdout is not None
-    for line in proc.stdout:
-        chunks.append(line)
-        sys.stdout.write(line)
+
+    def _drain() -> None:
+        for line in proc.stdout:
+            chunks.append(line)
+            sys.stdout.write(line)
+            sys.stdout.flush()
+
+    reader = threading.Thread(target=_drain, name="layer-gate-drain", daemon=True)
+    reader.start()
+    rc, timed_out = wait_with_timeout(proc, timeout_s if timeout_s and timeout_s > 0 else None)
+    reader.join(timeout=2)
+    if timed_out:
+        kill_process_tree(proc)
+        chunks.append(f"\n[layer-gate] STAGE TIMEOUT after {int(timeout_s)}s — killed process tree\n")
+        sys.stdout.write(chunks[-1])
         sys.stdout.flush()
-    rc = proc.wait()
+        rc = 124
     out = "".join(chunks)
     if out and not out.endswith("\n"):
         sys.stdout.write("\n")
@@ -224,7 +248,16 @@ def main() -> int:
         log_lines.append(f">>> {' '.join(cmd)}")
         log_lines.append("")
         t0 = time.time()
-        rc, out = run_cmd(cmd, env=stage_env, cwd=repo_cwd)
+        # Stage budget: layer est * 1.5 / stages, min 10m (env NJ_LAYER_TIMEOUT_MULT).
+        raw_mult = (os.environ.get("NJ_LAYER_TIMEOUT_MULT") or "1.5").strip()
+        try:
+            mult = float(raw_mult)
+        except ValueError:
+            mult = 1.5
+        stage_timeout = None
+        if mult > 0 and spec.est_minutes > 0:
+            stage_timeout = max(600.0, (spec.est_minutes * 60.0 * mult) / max(1, total_stages))
+        rc, out = run_cmd(cmd, env=stage_env, cwd=repo_cwd, timeout_s=stage_timeout)
         duration = time.time() - t0
         log_lines.append(out.rstrip())
         log_lines.append("")

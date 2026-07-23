@@ -113,6 +113,22 @@ def pause_excess_agents(hub_url: str, keep: tuple[str, ...] | list[str]) -> tupl
     return True, f"paused {len(paused)} agent(s): {', '.join(paused[:8])}{'…' if len(paused) > 8 else ''}"
 
 
+def _claude_cloud_mode() -> str:
+    """Return force_cloud | force_ollama | auto.
+
+    NJ_REGRESSION_CLAUDE_CLOUD:
+      1/true/yes  → force cloud (fail if switch fails)
+      0/false/no  → force Ollama
+      auto/unset  → prefer cloud when auth works, else Ollama
+    """
+    raw = (os.environ.get("NJ_REGRESSION_CLAUDE_CLOUD") or "auto").strip().lower()
+    if raw in ("1", "true", "yes", "cloud", "force"):
+        return "force_cloud"
+    if raw in ("0", "false", "no", "ollama", "local"):
+        return "force_ollama"
+    return "auto"
+
+
 def switch_claude_to_cloud(hub_url: str) -> tuple[bool, str]:
     """Route @Claude to cloud API during regression so collab gates do not queue on Ollama."""
     base = hub_url.rstrip("/")
@@ -152,6 +168,60 @@ def switch_claude_to_ollama(hub_url: str, model: str) -> tuple[bool, str]:
     return True, f"Claude → ollama ({tag})"
 
 
+def _fallback_claude_to_ollama(hub_url: str, *, reason: str) -> tuple[bool, str]:
+    from pathlib import Path
+
+    from lib.regression_models import resolve_regression_agent_model
+
+    root = Path(__file__).resolve().parents[2]
+    model = resolve_regression_agent_model(root)
+    ok, detail = switch_claude_to_ollama(hub_url, model)
+    if not ok:
+        return False, detail
+    os.environ["NJ_REGRESSION_CLAUDE_ROUTE"] = "ollama"
+    return True, f"{detail} (fallback: {reason})"
+
+
+def route_claude_for_regression(hub_url: str) -> tuple[bool, str]:
+    """Prefer cloud Claude when auth works; fall back to Ollama otherwise.
+
+    Keeps at least one cloud participant in collab when possible (Gemini judge
+    was abandoned for quota reasons; Claude agent is the cloud coverage path).
+    """
+    mode = _claude_cloud_mode()
+    if mode == "force_ollama":
+        from pathlib import Path
+
+        from lib.regression_models import resolve_regression_agent_model
+
+        root = Path(__file__).resolve().parents[2]
+        model = resolve_regression_agent_model(root)
+        ok, detail = switch_claude_to_ollama(hub_url, model)
+        if ok:
+            os.environ["NJ_REGRESSION_CLAUDE_ROUTE"] = "ollama"
+        return ok, detail
+
+    # force_cloud or auto: try cloud first.
+    try:
+        from lib.claude_judge_auth import ensure_claude_for_testing
+    except ImportError:
+        from claude_judge_auth import ensure_claude_for_testing  # type: ignore[no-redef]
+
+    sel = ensure_claude_for_testing(timeout_s=45.0, smoke=False)
+    if not sel.ok:
+        if mode == "force_cloud":
+            return False, f"Claude cloud required but auth failed: {sel.detail}"
+        return _fallback_claude_to_ollama(hub_url, reason=sel.detail)
+
+    ok, detail = switch_claude_to_cloud(hub_url)
+    if ok:
+        os.environ["NJ_REGRESSION_CLAUDE_ROUTE"] = "cloud"
+        return True, f"{detail}; auth={sel.detail}"
+    if mode == "force_cloud":
+        return False, detail
+    return _fallback_claude_to_ollama(hub_url, reason=detail)
+
+
 def slim_roster_keep_agents() -> list[str]:
     """Agents to leave online when NJ_REGRESSION_SLIM_ROSTER is enabled."""
     if _env_truthy("NJ_REGRESSION_COLLAB_EDGE"):
@@ -173,24 +243,12 @@ def slim_roster_keep_agents() -> list[str]:
 
 
 def apply_collab_regression_tuning(hub_url: str) -> tuple[bool, str]:
-    """Apply slim roster + Claude routing when regression collab env flags are set."""
+    """Apply Claude routing (cloud preferred) + optional slim roster."""
     parts: list[str] = []
-    if _env_truthy("NJ_REGRESSION_CLAUDE_CLOUD"):
-        ok, detail = switch_claude_to_cloud(hub_url)
-        if not ok:
-            return False, detail
-        parts.append(detail)
-    elif _env_truthy("NJ_REGRESSION_SLIM_ROSTER"):
-        from pathlib import Path
-
-        from lib.regression_models import resolve_regression_agent_model
-
-        root = Path(__file__).resolve().parents[2]
-        model = resolve_regression_agent_model(root)
-        ok, detail = switch_claude_to_ollama(hub_url, model)
-        if not ok:
-            return False, detail
-        parts.append(detail)
+    ok, detail = route_claude_for_regression(hub_url)
+    if not ok:
+        return False, detail
+    parts.append(detail)
     if _env_truthy("NJ_REGRESSION_SLIM_ROSTER"):
         keep = slim_roster_keep_agents()
         ok, detail = unpause_keep_agents(hub_url, keep)
@@ -201,8 +259,6 @@ def apply_collab_regression_tuning(hub_url: str) -> tuple[bool, str]:
         if not ok:
             return False, detail
         parts.append(detail)
-    if not parts:
-        return True, "collab regression tuning skipped (flags off)"
     return True, "; ".join(parts)
 
 

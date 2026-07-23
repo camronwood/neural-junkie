@@ -8,6 +8,13 @@ const api = new ChatAPI(getHubBaseURL());
 
 const ACTIVE_WORKSPACE_STORAGE_KEY = 'nj-active-workspace-id';
 
+/** Normalize explorer paths so "docs", "/docs", and "docs/" all match. */
+export function normalizeExplorerPath(path: string): string {
+  const trimmed = (path || '').replace(/\\/g, '/').trim();
+  if (!trimmed || trimmed === '/') return '/';
+  return trimmed.replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
 function readStoredActiveWorkspaceId(): string | null {
   try {
     if (typeof localStorage === 'undefined') return null;
@@ -278,13 +285,14 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   loadFiles: async (workspaceId, path = '/') => {
     devLog('FileExplorerStore: Loading files for workspace:', workspaceId, 'path:', path);
     const isRoot = path === '/' || path === '';
+    const requestPath = isRoot ? '/' : normalizeExplorerPath(path);
     if (isRoot) {
       set({ loadingFiles: true, error: null });
     } else {
       set({ error: null });
     }
     try {
-      const files = await api.fetchFiles(workspaceId, path);
+      const files = await api.fetchFiles(workspaceId, requestPath);
       devLog('FileExplorerStore: Loaded files:', files);
       set(state => {
         let updatedFiles: FileNode[];
@@ -293,19 +301,20 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
           updatedFiles = files;
         } else {
           const currentFiles = state.fileTree[workspaceId] || [];
+          const targetPath = normalizeExplorerPath(requestPath);
           
-          const updateFileTree = (fileList: FileNode[], targetPath: string, newFiles: FileNode[]): FileNode[] => {
+          const updateFileTree = (fileList: FileNode[], newFiles: FileNode[]): FileNode[] => {
             return fileList.map(file => {
-              if (file.path === targetPath && file.is_dir) {
+              if (normalizeExplorerPath(file.path) === targetPath && file.is_dir) {
                 return { ...file, children: newFiles };
               } else if (file.children) {
-                return { ...file, children: updateFileTree(file.children, targetPath, newFiles) };
+                return { ...file, children: updateFileTree(file.children, newFiles) };
               }
               return file;
             });
           };
           
-          updatedFiles = updateFileTree(currentFiles, path, files);
+          updatedFiles = updateFileTree(currentFiles, files);
         }
         
         return {

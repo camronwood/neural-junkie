@@ -1376,17 +1376,20 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
       {/* File Tree */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none">
         {error ? (
-          <div className="p-4 text-center">
-            <div className="text-4xl mb-2">⚠️</div>
-            <div className="text-sm text-red-500 mb-2">{error}</div>
+          <div className="px-3 py-2 border-b border-red-900/40 bg-red-950/30 flex items-start gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-red-400 break-words">{error}</div>
+            </div>
             <button
+              type="button"
               onClick={clearError}
-              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors"
+              className="flex-shrink-0 px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white text-[10px] rounded transition-colors"
             >
               Dismiss
             </button>
           </div>
-        ) : loadingFiles && files.length === 0 ? (
+        ) : null}
+        {loadingFiles && files.length === 0 ? (
           <div className="flex items-center justify-center h-32">
             <div className="flex items-center gap-2 text-slack-textMuted">
               <div className="w-4 h-4 border border-slack-textMuted border-t-transparent rounded-full animate-spin"></div>
