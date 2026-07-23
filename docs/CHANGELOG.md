@@ -10,6 +10,17 @@ All notable changes to Neural Junkie.
 - **Neural Canvas** — app-managed, revisioned agent artifacts with trusted Markdown, Mermaid, code, table, chart, timeline, image, and graph renderers; chat cards, workspace tabs, provenance, history, and approved workspace export.
 - **Declarative artifact renderers for packs** — packs can map media types and file globs to versioned host-owned renderers without executing pack UI code.
 
+## [1.2.0-beta.16] - 2026-07-23
+
+Assistant reliability, CLI safety, Google auth opener, and knowledge-graph / file-explorer freezes.
+
+### Fixed
+- **Meeting notes answers** — personal Assistant questions about recent meetings stay chat-only and inject synced notes instead of falling through to web search / MCP.
+- **Gemini CLI presence pings** — packaged hub no longer launches CLI agents with cwd `/`; safe workdir + benign stderr filtering stop Bluetooth/filesystem scan false failures.
+- **Google Meet Connect** — Tauri opener allows default HTTPS URLs so Connect opens the browser; Connect UI falls back with a copyable auth URL.
+- **Knowledge graph freezes** — dense-view import expansion respects the UI node cap; client also caps React Flow payloads so large repos cannot freeze the WebView.
+- **File explorer / editor** — explorer errors no longer replace the whole tree; folder expand paths normalize so children attach reliably.
+
 ## [1.2.0-beta.12] - 2026-07-22
 
 Packaged hub login hotfix for large local message archives.

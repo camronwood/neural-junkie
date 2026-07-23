@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.12">v1.2.0-beta.12</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.16">v1.2.0-beta.16</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.16">1.2.0-beta.16</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.12">1.2.0-beta.12</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-2-0-beta-11">1.2.0-beta.11</a>
@@ -248,6 +250,19 @@
       <h3>Known limitation</h3>
       <ul>
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
+      </ul>
+
+      <h2 id="v1.2.0-beta.16" class="release-version-heading">1.2.0-beta.16 <span class="release-date">— 2026-07-23</span></h2>
+
+      <p><strong>Assistant, CLI, auth opener, and IDE graph/explorer fixes.</strong> Meeting-notes questions stay conversational with synced notes, Gemini CLI no longer scans from <code>/</code>, Google Meet Connect opens the browser, and knowledge-graph payloads are capped so the file explorer stays responsive. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.16">GitHub Releases</a>.</p>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Meeting notes answers</strong> — personal Assistant Q&amp;A injects synced notes instead of web-search / MCP detours.</li>
+        <li><strong>Gemini CLI workdir</strong> — packaged hub uses a safe cwd; benign CLI stderr is filtered.</li>
+        <li><strong>Google Meet Connect</strong> — opener capability + copyable auth URL fallback.</li>
+        <li><strong>Knowledge graph freezes</strong> — server and client enforce dense-view node caps for large repos.</li>
+        <li><strong>File explorer</strong> — errors keep the tree visible; folder expand path matching is normalized.</li>
       </ul>
 
       <h2 id="v1.2.0-beta.12" class="release-version-heading">1.2.0-beta.12 <span class="release-date">— 2026-07-22</span></h2>
