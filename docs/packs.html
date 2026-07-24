@@ -4,17 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Domain packs — Neural Junkie</title>
-  <meta name="description" content="Official Neural Junkie domain packs: nine packs — software development, life sciences, CAD, AWS, incident management, web browser, music creation, room chat, and specialist tuning. Install from the pack store and link to each pack repository." />
+  <meta name="description" content="Official Neural Junkie domain packs: ten packs — software development, life sciences, CAD, AWS, incident management, web browser, music creation, model arena, room chat, and specialist tuning. Install from the pack store and link to each pack repository." />
 <!-- NJ-SITE-SEO:START -->
   <link rel="canonical" href="https://camronwood.github.io/neural-junkie/packs.html" />
   <meta property="og:title" content="Domain packs — Neural Junkie" />
-  <meta property="og:description" content="Official Neural Junkie domain packs: nine packs — software development, life sciences, CAD, AWS, incident management, web browser, music creation, room chat, and specialist tuning. Install from the pack store and link to each pack repository." />
+  <meta property="og:description" content="Official Neural Junkie domain packs: ten packs — software development, life sciences, CAD, AWS, incident management, web browser, music creation, model arena, room chat, and specialist tuning. Install from the pack store and link to each pack repository." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://camronwood.github.io/neural-junkie/packs.html" />
   <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Domain packs — Neural Junkie" />
-  <meta name="twitter:description" content="Official Neural Junkie domain packs: nine packs — software development, life sciences, CAD, AWS, incident management, web browser, music creation, room chat, and specialist tuning. Install from the pack store and link to each pack repository." />
+  <meta name="twitter:description" content="Official Neural Junkie domain packs: ten packs — software development, life sciences, CAD, AWS, incident management, web browser, music creation, model arena, room chat, and specialist tuning. Install from the pack store and link to each pack repository." />
   <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
 <!-- NJ-SITE-SEO:END -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -155,14 +155,15 @@
         <li><strong>CAD</strong> — install OpenSCAD on PATH; optional FreeCAD for STEP export.</li>
         <li><strong>Web browser</strong> — run the pack’s Playwright setup script for browser binaries.</li>
         <li><strong>Music creation</strong> — one-time ACE-Step setup under <strong>Domain packs → Tools</strong>.</li>
+        <li><strong>Model Arena</strong> — Domain packs → <strong>Tools → Model Arena</strong> → Install chess dependencies (<code>python-chess</code>); optional Stockfish path for engine eval.</li>
         <li><strong>Specialist tuning</strong> — optional LoRA training venv via the pack setup script.</li>
         <li><strong>Room chat</strong> — host enables <strong>Settings → Security → listen on LAN</strong> and configures a hub token for guests.</li>
       </ul>
 
-      <h2 id="catalog">Official packs (9)</h2>
-      <p>Jump to a pack for specialists, capabilities, repository links, and setup notes.</p>
+      <h2 id="catalog">Official packs (10)</h2>
+      <p>Jump to a pack for specialists, capabilities, repository links, and setup notes. The IDE layout pack installs from the store but is not listed here — it powers workspace editing rather than a domain specialty.</p>
 
-      <nav class="packs-grid packs-grid--nine packs-toc" aria-label="Pack catalog">
+      <nav class="packs-grid packs-grid--ten packs-toc" aria-label="Pack catalog">
         <a class="pack-card pack-card--dev" href="#software-development">
           <h3 class="pack-card-title">Software development</h3>
           <p class="pack-card-blurb">11 engineering specialists, IDE v4, MCP sidecar</p>
@@ -190,6 +191,10 @@
         <a class="pack-card pack-card--music" href="#music-creation">
           <h3 class="pack-card-title">Music creation</h3>
           <p class="pack-card-blurb">Lyrics, ACE-Step generation, stems</p>
+        </a>
+        <a class="pack-card pack-card--arena" href="#model-arena">
+          <h3 class="pack-card-title">Model Arena</h3>
+          <p class="pack-card-blurb">Chess, Connect Four, logic — verifiable matches</p>
         </a>
         <a class="pack-card pack-card--lora" href="#specialist-tuning">
           <h3 class="pack-card-title">Specialist tuning</h3>
@@ -378,6 +383,28 @@
           <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-specialist-tuning">GitHub repository</a>
           <a class="btn btn-ghost btn-sm" href="features/personal-learning.html">Personal learning guide</a>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SPECIALIST_TUNING_PACK.md">Pack doc</a>
+        </div>
+      </section>
+
+      <section class="pack-detail pack-detail--arena" id="model-arena" aria-labelledby="pack-model-arena">
+        <header class="pack-detail-header">
+          <h2 id="pack-model-arena">Model Arena</h2>
+          <span class="pack-detail-badge">v1.0.0</span>
+        </header>
+        <p>Head-to-head <strong>model matches</strong> with verifiable scoring — chess, Connect Four, and logic puzzles. Pick any configured provider/model, run live games in the Arena workbench, and compare results with ground-truth move and answer checking from the pack sidecar.</p>
+        <h3>Specialists</h3>
+        <p>ArenaExpert.</p>
+        <h3>What you get</h3>
+        <ul>
+          <li><strong>Arena workbench</strong> — toolbar <strong>Arena</strong> chip and <code>*.nj-arena.json</code> sessions in the file explorer.</li>
+          <li><strong>Verifiable challenges</strong> — legal moves, FEN, Connect Four grids, and logic answer checking via the pack sidecar (<code>/api/arena</code>).</li>
+          <li><strong>Match runner</strong> — hub steps prompts against any configured provider/model for head-to-head comparison.</li>
+          <li><strong>Chat-driven play</strong> — <code>/create-expert arena ArenaExpert</code> then <code>@ArenaExpert</code> to start matches from chat.</li>
+        </ul>
+        <p><strong>Setup:</strong> Install and enable the pack. <strong>Domain packs → Tools → Model Arena</strong> → Install chess dependencies (one-time <code>python-chess</code> venv). Connect Four and logic puzzles skip that step. Optional: set <code>stockfish_path</code> for chess engine eval (Stockfish is not bundled).</p>
+        <div class="pack-detail-actions">
+          <a class="btn btn-primary btn-sm" href="https://github.com/camronwood/neural-junkie-pack-model-arena">GitHub repository</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/MODEL_ARENA_PACK.md">Pack doc</a>
         </div>
       </section>
 
