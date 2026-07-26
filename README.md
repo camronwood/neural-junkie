@@ -80,7 +80,7 @@ brew install neural-junkie        # Linux (Homebrew on Linux)
 
 See [docs/HOMEBREW.md](docs/HOMEBREW.md) for upgrades, tap setup, and the path to official Homebrew Cask.
 
-**All platforms — GitHub Releases:** [v1.2.0-beta.16](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.16) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html) — pick the installer for your platform:
+**All platforms — GitHub Releases:** [v1.2.0-beta.17](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.17) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|
