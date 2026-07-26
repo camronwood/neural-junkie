@@ -99,7 +99,7 @@ func TestExecuteGenerateImageTool(t *testing.T) {
 		Info: protocol.AgentInfo{Name: "Frontend", Type: protocol.AgentTypeFrontend},
 		Hub:  hub,
 	}
-	msg := &protocol.Message{Channel: "general"}
+	msg := &protocol.Message{Channel: "general", Content: "generate an image of a blue hexagon logo"}
 	input, _ := json.Marshal(map[string]string{"prompt": "a blue hexagon logo"})
 	result, err := a.executeGenerateImageTool(context.Background(), msg, input)
 	if err != nil {

@@ -75,7 +75,7 @@ func TestExecuteGenerateMusicTool(t *testing.T) {
 		Hub:     hub,
 		Context: &ConversationContext{CurrentChannel: "general"},
 	}
-	msg := &protocol.Message{Channel: "general"}
+	msg := &protocol.Message{Channel: "general", Content: "generate me a lo-fi chill song"}
 	input, _ := json.Marshal(map[string]string{
 		"style_tags": "lo-fi chill",
 		"lyrics":     "[Instrumental]",

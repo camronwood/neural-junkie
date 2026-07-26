@@ -77,8 +77,8 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 			decision.Action == semantic.ActionContinue || decision.Action == semantic.ActionRun {
 			return true
 		}
-		// Answer/AskUser/etc.: honor an explicit generate-image phrase (chat cover art, etc.).
-		if UserRequestsGeneratedImage(msg.Content) {
+		// Answer/AskUser/etc.: honor an explicit generate-image or generate-music phrase.
+		if UserRequestsGeneratedImage(msg.Content) || UserRequestsGeneratedMusic(msg.Content) {
 			return false
 		}
 		return true
@@ -104,7 +104,11 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
 		return true
 	}
-	// Chat / unset mode: keep generate_image off unless the user explicitly asked
+	// Shared by music tools: allow explicit song/track requests in chat.
+	if UserRequestsGeneratedMusic(msg.Content) {
+		return false
+	}
+	// Chat / unset mode: keep creative media tools off unless the user explicitly asked
 	// (avoids "theme support" / workspace visibility false-positive tool calls).
 	return true
 }
