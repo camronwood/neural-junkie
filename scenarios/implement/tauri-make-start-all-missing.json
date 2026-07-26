@@ -1,24 +1,36 @@
 {
   "name": "tauri-make-start-all-missing",
   "description": "FrontendEngineer repairs Makefile missing start-all target when scripts/start-all.sh exists (NJ Fix Loop playbook).",
-  "tags": ["implement", "boot-fix", "tauri", "fix-loop"],
+  "tags": [
+    "implement",
+    "boot-fix",
+    "tauri",
+    "fix-loop"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
-  "workspace": { "fixture": "react-tauri-missing-start-all" },
+  "required_agents": [
+    "FrontendEngineer"
+  ],
+  "workspace": {
+    "fixture": "react-tauri-missing-start-all"
+  },
   "expect_deliverables": [
     {
       "path": "Makefile",
       "for_question": {
-        "any_match": ["start-all:", "scripts/start-all.sh"]
+        "any_match": [
+          "start-all:",
+          "scripts/start-all.sh"
+        ]
       }
     }
   ],
   "steps": [
     {
       "action": "send",
-      "content": "the app in this workspace is not booting up — make start-all fails:\n\n```\n$ make start-all\nmake: *** No rule to make target 'start-all'.  Stop.\n```\n\nPlease fix the Makefile so start-all runs scripts/start-all.sh.",
+      "content": "the app in this workspace is not booting up \u2014 make start-all fails:\n\n```\n$ make start-all\nmake: *** No rule to make target 'start-all'.  Stop.\n```\n\nPlease fix the Makefile so start-all runs scripts/start-all.sh.",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "frontend",
@@ -31,14 +43,24 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "1200s",
-      "until_any_match": ["implementation session complete|applied and verified|proposals submitted|start-all"]
+      "until_file_match": {
+        "path": "Makefile",
+        "any_match": [
+          "start-all:",
+          "scripts/start-all.sh"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "FrontendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|start-all|Makefile"],
-      "none_match": ["finished without file changes"]
+      "none_match": [
+        "finished without file changes"
+      ]
     },
     {
       "action": "assert_message_metadata",

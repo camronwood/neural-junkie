@@ -39,11 +39,36 @@ func (h *Hub) onCollaborationEnterReviewing(collabID string) {
 		return
 	}
 	h.persistPlanApproval(snap)
-	if snap.PlanningRecapStatus == collaboration.RecapStatusComplete ||
-		(snap.PlanningRecapStatus == collaboration.RecapStatusPending && snap.PlanningRecapAgentID != "") {
+	if snap.PlanningRecapStatus == collaboration.RecapStatusComplete {
+		return
+	}
+	// Recap already in flight — kill peer planning streams only (keep facilitator).
+	if snap.PlanningRecapStatus == collaboration.RecapStatusPending && snap.PlanningRecapAgentID != "" {
+		h.abortCollabChannelGensExcept(snap.Channel, snap.PlanningRecapAgentID)
 		return
 	}
 	h.dispatchCollaborationRecap(snap, collaboration.RecapKindPreApproval)
+}
+
+// abortCollabChannelGensExcept cancels in-flight generations on a collab channel so
+// stale planning turns release Ollama/cloud slots before (or during) the recap turn.
+// exceptAgentID is preserved when non-empty (recap facilitator mid-flight).
+// Agents waiting on ask_user are always preserved.
+func (h *Hub) abortCollabChannelGensExcept(channel, exceptAgentID string) {
+	if h == nil || h.commandHandler == nil || strings.TrimSpace(channel) == "" {
+		return
+	}
+	except := map[string]bool{}
+	if exceptAgentID != "" {
+		except[exceptAgentID] = true
+	}
+	if h.userQuestionManager != nil {
+		for _, id := range h.userQuestionManager.PendingAgentIDsOnChannel(channel) {
+			except[id] = true
+		}
+	}
+	log.Printf("[CollaborationRecap] Aborting peer generations on %s (except=%v)", channel, except)
+	h.commandHandler.AbortRuntimeAgentsOnChannelExcept(channel, except)
 }
 
 // dispatchCollaborationRecap prompts the selected facilitator agent to post a user-facing recap.
@@ -60,6 +85,10 @@ func (h *Hub) dispatchCollaborationRecap(snap *collaboration.Collaboration, kind
 
 	agentName := collaboration.FacilitatorDisplayName(snap, agentID)
 	agentName = strings.TrimPrefix(agentName, "@")
+
+	// Clear ALL planning streams (including the future facilitator) so a fresh
+	// recap turn is not queued behind late discussion replies on a timed-out session.
+	h.abortCollabChannelGensExcept(snap.Channel, "")
 
 	switch kind {
 	case collaboration.RecapKindPreApproval:
@@ -163,8 +192,10 @@ func (h *Hub) onRecapTimeout(collabID string, kind collaboration.RecapKind) {
 	if h.collabManager == nil {
 		return
 	}
+	log.Printf("[CollaborationRecap] Recap timer fired for %s on %s", kind, collabID[:8])
 	snap, err := h.collabManager.GetCollaborationSnapshot(collabID)
 	if err != nil || snap == nil {
+		log.Printf("[CollaborationRecap] Timeout snapshot miss for %s on %s: %v", kind, collabID[:8], err)
 		return
 	}
 
@@ -178,11 +209,18 @@ func (h *Hub) onRecapTimeout(collabID string, kind collaboration.RecapKind) {
 		return
 	}
 	if status != collaboration.RecapStatusPending {
+		log.Printf("[CollaborationRecap] Timeout ignored for %s on %s (status=%s)", kind, collabID[:8], status)
 		return
 	}
 
 	log.Printf("[CollaborationRecap] Timeout waiting for %s recap on %s — using fallback", kind, collabID[:8])
-	fallback := h.generateRecapFallback(snap, kind)
+	// Prefer deterministic fallback under live load — Ollama may already be saturated
+	// by leftover planning streams / workspace indexing, and the 8s AI path can stall
+	// scenario wait_planning_recap past its deadline.
+	fallback := deterministicRecapFallback(snap, kind)
+	if strings.TrimSpace(fallback) == "" {
+		fallback = h.generateRecapFallback(snap, kind)
+	}
 	agentID := ""
 	switch kind {
 	case collaboration.RecapKindPreApproval:

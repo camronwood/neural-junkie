@@ -1,19 +1,34 @@
 {
   "name": "go-test-failure-repair",
   "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
-  "tags": ["implement", "cursor-parity", "go", "verify"],
+  "tags": [
+    "implement",
+    "cursor-parity",
+    "go",
+    "verify"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
-  "workspace": { "fixture": "go-api-with-tests" },
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "go-api-with-tests"
+  },
   "expect_deliverables": [
     {
       "path": "core/sample/math.go",
       "min_bytes": 20,
       "for_question": {
-        "any_match": ["func Add", "return a \\+ b"],
-        "none_match": ["a \\+ b \\+ 1", "index\\.js"]
+        "any_match": [
+          "func Add",
+          "return a \\+ b"
+        ],
+        "none_match": [
+          "a \\+ b \\+ 1",
+          "index\\.js"
+        ]
       }
     }
   ],
@@ -33,19 +48,34 @@
       "action": "wait_reply",
       "from": "BackendEngineer",
       "timeout": "900s",
-      "until_any_match": ["applied and verified|applied but verification failed|Multiply|Add\\(2, 3\\)|implementation session"]
-    },
-    {
-      "action": "assert_messages",
-      "from": "BackendEngineer",
-      "last_reply_only": true,
-      "any_match": ["implementation session|applied|verify|Add|math.go|go test|Preflight|file change|Multiply"],
-      "optional": true
+      "until_file_match": {
+        "path": "core/sample/math.go",
+        "any_match": [
+          "func Add",
+          "return a \\+ b"
+        ],
+        "none_match": [
+          "a \\+ b \\+ 1",
+          "index\\.js"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_file_exists",
       "path": "core/sample/math.go",
-      "none_match": ["a \\+ b \\+ 1"]
+      "none_match": [
+        "a \\+ b \\+ 1"
+      ]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "BackendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

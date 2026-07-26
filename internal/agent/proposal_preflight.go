@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/repo"
 )
 
 // ProposalOperation is create or edit for preflight validation.
@@ -15,13 +17,38 @@ const (
 	ProposalOpEdit   ProposalOperation = "edit"
 )
 
-// RedirectProposalPath maps common wrong paths to stack-manifest targets (e.g. misplaced tailwind config).
-func RedirectProposalPath(path string, manifest *StackManifest) string {
-	if manifest == nil {
-		return normalizeFileChangeRelPath(path)
-	}
+// stripScenarioBaselineSegments rewrites harness seed paths to the live workspace
+// equivalent (e.g. .scenario-baseline/Makefile → Makefile).
+func stripScenarioBaselineSegments(path string) string {
 	path = normalizeFileChangeRelPath(path)
 	if path == "" {
+		return path
+	}
+	var out []string
+	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
+		if part == "" || part == repo.ScenarioBaselineDir {
+			continue
+		}
+		out = append(out, part)
+	}
+	return strings.Join(out, "/")
+}
+
+// RedirectProposalPath maps common wrong paths to stack-manifest targets (e.g. misplaced tailwind config).
+// Delete ops must not remapped App.js → App.tsx: boot-fix removes the corrupt App.js entry while
+// keeping the real App.tsx entry (see attemptCorruptAppJSBootFix).
+func RedirectProposalPath(path string, manifest *StackManifest) string {
+	return RedirectProposalPathForOp(path, manifest, "")
+}
+
+// RedirectProposalPathForOp is RedirectProposalPath with an optional proposal operation
+// ("create", "edit", "delete", …). Empty op keeps legacy create/edit redirect behavior.
+func RedirectProposalPathForOp(path string, manifest *StackManifest, op string) string {
+	path = stripScenarioBaselineSegments(path)
+	if path == "" {
+		return path
+	}
+	if manifest == nil {
 		return path
 	}
 	lower := strings.ToLower(path)
@@ -29,6 +56,9 @@ func RedirectProposalPath(path string, manifest *StackManifest) string {
 		if filepath.ToSlash(path) != manifest.TailwindConfig {
 			return manifest.TailwindConfig
 		}
+	}
+	if strings.EqualFold(strings.TrimSpace(op), "delete") {
+		return path
 	}
 	base := strings.ToLower(filepath.Base(path))
 	if (base == "app.vue" || base == "app.jsx" || base == "app.js") && manifest.EntryPoint != "" {

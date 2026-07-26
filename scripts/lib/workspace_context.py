@@ -179,6 +179,21 @@ def build_workspace_context(scenario: dict) -> dict[str, Any]:
     }
 
 
+_AGENT_TYPE_BY_NAME = {
+    "backendengineer": "backend",
+    "frontendengineer": "frontend",
+    "softwarearchitect": "architecture",
+    "securityreviewer": "security",
+    "assistant": "assistant",
+}
+
+
+def ide_route_for_target_agent(target_agent: str) -> str:
+    """Map scenario target_agent display name to ide_route_agent_type."""
+    key = (target_agent or "").strip().lstrip("@").lower()
+    return _AGENT_TYPE_BY_NAME.get(key, "")
+
+
 def enrich_send_metadata(
     meta: dict | None,
     scenario: dict,
@@ -190,6 +205,15 @@ def enrich_send_metadata(
     if not meta:
         return None
     out = dict(meta)
+    # Public implement/parity channels keep multiple specialists subscribed. Without an
+    # explicit route, a prior scenario's agent (e.g. FrontendEngineer) can answer first
+    # and starve wait_reply for the intended target.
+    if not str(out.get("ide_route_agent_type") or "").strip():
+        target = (scenario.get("target_agent") or "").strip().lstrip("@")
+        route = ide_route_for_target_agent(target)
+        if route:
+            out["ide_route_agent_type"] = route
+
     ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
     if not out.get("workspace_context"):
         ctx = build_workspace_context(scenario)

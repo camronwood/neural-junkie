@@ -495,7 +495,13 @@ def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
                     True,
                     f"messages total={total} by_agent={counts}; planning ready{suffix}",
                 )
-            if requirements_met and per_agent_ok:
+            # Do not short-circuit on participation alone: scenarios that next
+            # wait for reviewing will flake if we proceed while still planning.
+            if (
+                bool(step.get("accept_participation", False))
+                and requirements_met
+                and per_agent_ok
+            ):
                 suffix = f" (after retry {attempt})" if attempt else ""
                 return True, f"messages total={total} by_agent={counts}; participation ready{suffix}"
             if nudge_silent and required and time.time() - started > timeout * 0.35:
@@ -1561,13 +1567,16 @@ def _solo_last_agent_chat(msgs: list[dict], agent: str, *, skip_status: bool = T
         if (msg.get("from") or {}).get("name") != agent:
             continue
         content = (msg.get("content") or "").strip()
-        if skip_status and content and _solo_is_status_chat(content):
+        meta = msg.get("metadata") if isinstance(msg.get("metadata"), dict) else {}
+        if skip_status and content and _solo_is_status_chat(content, meta):
             continue
         return msg
     return None
 
 
-def _solo_is_status_chat(content: str) -> bool:
+def _solo_is_status_chat(content: str, meta: dict | None = None) -> bool:
+    if isinstance(meta, dict) and isinstance(meta.get("implementation_session_outcome"), dict):
+        return True
     low = content.lower()
     markers = (
         "implementation session complete",
@@ -1638,13 +1647,15 @@ def _materialize_solo_findings(
         last = None
         for msg in reversed(hub.chat_agent_messages(msgs)):
             content = (msg.get("content") or "").strip()
-            if content and not _solo_is_status_chat(content):
+            meta = msg.get("metadata") if isinstance(msg.get("metadata"), dict) else {}
+            if content and not _solo_is_status_chat(content, meta):
                 last = msg
                 break
     if not last:
         return None
     content = (last.get("content") or "").strip()
-    if not content or _solo_is_status_chat(content):
+    meta = last.get("metadata") if isinstance(last.get("metadata"), dict) else {}
+    if not content or _solo_is_status_chat(content, meta):
         return None
 
     path_needle = Path(output_rel).parent.name or "parity-solo"
@@ -1687,15 +1698,16 @@ def _materialize_solo_findings(
     return None
 
 
-def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
+def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> tuple[bool, str]:
+    """Run optional solo_leg. Returns (ok, detail) — detail is for flake-retry matching."""
     solo = scenario.get("solo_leg")
     if not isinstance(solo, dict):
-        return True
+        return True, ""
 
     ctx.workspace_root = ctx.resolve_workspace_root()
     if not ctx.workspace_root:
         print("  FAIL [solo]: no workspace root", file=sys.stderr)
-        return False
+        return False, "solo leg: no workspace root"
 
     channel = (solo.get("channel") or f"{ctx.channel}-solo").strip()
     solo_agents = solo.get("required_agents") or ["Assistant"]
@@ -1710,29 +1722,33 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
     )
     if not ok_join:
         print(f"  FAIL [solo]: could not join agents to {channel!r}: {', '.join(failed)}", file=sys.stderr)
-        return False
+        return False, f"solo leg: could not join agents: {', '.join(failed)}"
 
     output_rel = (solo.get("output_rel") or "collabs/parity-solo/findings.md").strip()
     message = (solo.get("message") or "").strip()
     if not message:
         print("  FAIL [solo]: empty message", file=sys.stderr)
-        return False
+        return False, "solo leg: empty message"
 
     solo_dir = Path(ctx.workspace_root) / Path(output_rel).parent
     solo_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"  solo leg: channel={channel} output={output_rel}")
+    # Abort any leftover implement-session streams from a prior attempt/suite.
+    hub.abort_channel_agents(ctx.base, channel, held_by="scenario-solo-leg")
     hub.clear_channel_history(ctx.base, channel, max_retries=4)
     meta = ctx.build_send_metadata() or {}
-    meta.setdefault("conversation_mode", "code")
-    meta.setdefault("implementation_session", True)
-    meta.setdefault("editor_mode", "agent")
-    meta.setdefault("editor_agent_trust", "auto_apply_edits")
+    # Prefer a normal chat turn over a multi-step implementation session.
+    # Forced implementation_session + local coder models often burns the full
+    # reply_timeout without posting a counted chat/answer message.
+    meta["conversation_mode"] = "chat"
+    meta["implementation_session"] = False
+    meta.setdefault("editor_mode", "ask")
     meta.setdefault("context_scope", "outline")
     code, _ = hub.send_message(ctx.base, channel, message, metadata=meta)
     if code != 200:
         print(f"  FAIL [solo]: send ({code})", file=sys.stderr)
-        return False
+        return False, f"solo leg: send failed ({code})"
 
     timeout = hub.parse_timeout(solo.get("timeout", "300s"))
     reply_timeout = hub.parse_timeout(solo.get("reply_timeout", solo.get("timeout", "240s")))
@@ -1765,16 +1781,18 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
             failure_retried = True
             retry_msg = f"@{solo_agents[0]} Please try again — {message}"
             ctx.log(f"  solo leg: failure reply detected; re-sending")
+            hub.abort_channel_agents(ctx.base, channel, held_by="scenario-solo-leg")
             code, _ = hub.send_message(ctx.base, channel, retry_msg, metadata=meta)
             if code != 200:
                 print(f"  FAIL [solo]: retry send ({code})", file=sys.stderr)
-                return False
+                return False, f"solo leg: retry send failed ({code})"
             baseline = hub.count_chat_agent_messages(
                 hub.list_messages(ctx.base, channel, 200), from_agent=solo_agent
             )
             continue
         print(f"  FAIL [solo]: no {solo_agent} reply ({reply_detail})", file=sys.stderr)
-        return False
+        hub.abort_channel_agents(ctx.base, channel, held_by="scenario-solo-leg")
+        return False, f"solo leg: no {solo_agent} reply ({reply_detail})"
     ctx.log(f"  solo leg: {reply_detail}")
     path_needle = Path(output_rel).parent.name or "parity-solo"
     approve_timeout = hub.parse_timeout(solo.get("approve_timeout", "120s"))
@@ -1828,13 +1846,14 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
             )
             if ok:
                 print(f"  ✓ solo leg: {full} ({detail})")
-                return True
+                return True, ""
             print(f"  FAIL [solo]: {detail}", file=sys.stderr)
-            return False
+            return False, f"solo leg: {detail}"
         time.sleep(hub.POLL_INTERVAL)
 
     print(f"  FAIL [solo]: timeout waiting for {full}", file=sys.stderr)
-    return False
+    hub.abort_channel_agents(ctx.base, channel, held_by="scenario-solo-leg")
+    return False, f"solo leg: timeout waiting for {output_rel}"
 
 
 def cleanup_scenario_workspace(ctx: ScenarioContext) -> None:
@@ -1932,6 +1951,7 @@ def run_scenario(
         "collaboration-station-website-sa",
         "solo-vs-collab-parity",
         "multi-collab-isolation",
+        "plan-findings-task-regression",
     } else 2
     for attempt in range(1, max_attempts + 1):
         ok, last_detail = _run_scenario_once(
@@ -2035,9 +2055,10 @@ def _run_scenario_once(
             print("  FAIL: collab capacity full", file=sys.stderr)
             return False, "collab capacity full"
 
-        if not run_solo_parity_leg(ctx, scenario):
+        ok_solo, solo_detail = run_solo_parity_leg(ctx, scenario)
+        if not ok_solo:
             print(f"=== FAIL: {name} (solo leg) ===\n", file=sys.stderr)
-            return False, f"{name} solo leg failed"
+            return False, solo_detail or f"{name} solo leg failed"
 
         setup = scenario.get("setup")
         if isinstance(setup, dict) and setup.get("action") == "executing_blocker":

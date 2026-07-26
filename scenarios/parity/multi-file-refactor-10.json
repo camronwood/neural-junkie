@@ -1,19 +1,32 @@
 {
   "name": "multi-file-refactor-10",
   "description": "Agent runtime renames noise util prefix across 10+ files",
-  "tags": ["parity", "agent-runtime", "slow"],
+  "tags": [
+    "parity",
+    "agent-runtime",
+    "slow"
+  ],
   "channel": "parity-scenarios",
   "channel_type": "public",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
-  "workspace": { "fixture": "large-repo" },
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "large-repo"
+  },
   "expect_deliverables": [
     {
       "path": "noise/pkg0000/util.go",
       "min_bytes": 20,
       "for_question": {
-        "any_match": ["UtilRenamed0", "func UtilRenamed"],
-        "none_match": ["func Util0\\("]
+        "any_match": [
+          "UtilRenamed0",
+          "func UtilRenamed"
+        ],
+        "none_match": [
+          "func Util0\\("
+        ]
       }
     }
   ],
@@ -34,7 +47,19 @@
       "action": "wait_reply",
       "from": "BackendEngineer",
       "timeout": "900s",
-      "until_any_match": ["applied and verified|proposals submitted|UtilRenamed|file change"]
+      "until_file_match": {
+        "path": "noise/pkg0000/util.go",
+        "any_match": [
+          "UtilRenamed0",
+          "func UtilRenamed"
+        ],
+        "none_match": [
+          "func Util0\\("
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_file_exists",

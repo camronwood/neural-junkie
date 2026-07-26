@@ -90,6 +90,78 @@ func TestSynthesizeGoMathEdit_fixtureBugs(t *testing.T) {
 	}
 }
 
+func TestTryEarlyGoMathFixtureFix_directApply(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "core", "sample"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bug := "package sample\n\nfunc Multiply(a, b int) int {\n\treturn a + b\n}\n"
+	path := filepath.Join(dir, "core", "sample", "math.go")
+	if err := os.WriteFile(path, []byte(bug), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"go test ./... fails: Multiply in @file:core/sample/math.go is wrong. Fix it so tests pass.")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	if !ag.tryEarlyGoMathFixtureFix(context.Background(), msg, dir, state) {
+		t.Fatal("expected early go math fix")
+	}
+	onDisk, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(onDisk), "return a * b") {
+		t.Fatalf("math.go not fixed on disk: %q", onDisk)
+	}
+}
+
+func TestTryEarlyGoMathFixtureFix_affirmationUsesPriorPlanCue(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "core", "sample"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bug := "package sample\n\nfunc Add(a, b int) int {\n\treturn a + b + 1\n}\n"
+	path := filepath.Join(dir, "core", "sample", "math.go")
+	if err := os.WriteFile(path, []byte(bug), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	prior := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"Inspect the failing Add test and plan the smallest correction in core/sample/math.go.")
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	ag.Context = &ConversationContext{History: map[string][]*protocol.Message{
+		"implement-scenarios": {prior},
+	}}
+	state := &ImplementationSessionState{}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"Approve that plan and implement it now.")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	if !ag.tryEarlyGoMathFixtureFix(context.Background(), msg, dir, state) {
+		t.Fatal("expected early go math fix from prior plan cue")
+	}
+	onDisk, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(onDisk), "a + b + 1") {
+		t.Fatalf("math.go still buggy: %q", onDisk)
+	}
+}
+
 func TestSynthesizeTypeScriptAppCompileFix_fixtureBug(t *testing.T) {
 	t.Parallel()
 	bug := `export default function App() {
@@ -299,6 +371,67 @@ export default function App() {
 	}
 	if !strings.Contains(strings.ToLower(string(got)), "subtitle") {
 		t.Fatalf("expected subtitle on disk, got:\n%s", got)
+	}
+}
+
+func TestTryEarlySidebarFooterExtract(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	app := `import "./index.css";
+import { useState } from "react";
+
+function renderSidebarFooter() {
+  return (
+    <footer className="text-xs text-slate-600 border-t border-slate-800 pt-3">
+      <p>Neural Junkie fixture</p>
+      <p>Selection extract target block</p>
+      <p>Keep this helper scoped to sidebar only</p>
+      <p>Do not move theme toggle logic here</p>
+    </footer>
+  );
+}
+
+export default function App() {
+  return (
+    <aside>
+      {renderSidebarFooter()}
+    </aside>
+  );
+}
+`
+	writeMultifileTestFile(t, dir, "src/App.tsx", app)
+	ag := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{StackManifest: DetectStackManifest(dir)}
+	userContent := "@FrontendEngineer Extract the selected sidebar footer block from src/App.tsx into src/components/SidebarFooter.tsx and import it in App."
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"}, userContent)
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"workspace_context": map[string]interface{}{
+			"workspace_path": dir,
+		},
+	}
+	ctx := withImplementationSessionState(context.Background(), state)
+	if !ag.tryEarlySidebarFooterExtract(ctx, msg, dir, state) {
+		t.Fatal("expected early sidebar footer extract")
+	}
+	gotApp, err := os.ReadFile(filepath.Join(dir, "src/App.tsx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(gotApp), "function renderSidebarFooter") {
+		t.Fatalf("App.tsx still has helper:\n%s", gotApp)
+	}
+	if !strings.Contains(string(gotApp), "SidebarFooter") {
+		t.Fatalf("App.tsx missing SidebarFooter import/use:\n%s", gotApp)
+	}
+	gotFooter, err := os.ReadFile(filepath.Join(dir, "src/components/SidebarFooter.tsx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(gotFooter), "Neural Junkie fixture") {
+		t.Fatalf("footer missing content:\n%s", gotFooter)
 	}
 }
 

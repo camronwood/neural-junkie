@@ -15,6 +15,7 @@ type ServerForm = {
 };
 
 type SessionForm = {
+  persist_enabled: boolean;
   restore_on_startup: boolean;
   skip_restore_once: boolean;
   force_restore_large: boolean;
@@ -41,10 +42,13 @@ export function ServerNetworkSettingsTab({ hubHttp, isActive }: SettingsTabProps
     ws_origins: '',
   });
   const [session, setSession] = useState<SessionForm>({
-    restore_on_startup: true,
+    persist_enabled: false,
+    restore_on_startup: false,
     skip_restore_once: false,
     force_restore_large: false,
   });
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
+  const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
   const [debug, setDebug] = useState<DebugForm>({ enabled: false, pprof_addr: '127.0.0.1:6060' });
   const [mcpResources, setMcpResources] = useState<MCPResourcesForm>({
     enabled: false,
@@ -75,6 +79,7 @@ export function ServerNetworkSettingsTab({ hubHttp, isActive }: SettingsTabProps
         });
         const sess = data.session ?? {};
         setSession({
+          persist_enabled: !!sess.persist_enabled,
           restore_on_startup: !!sess.restore_on_startup,
           skip_restore_once: !!sess.skip_restore_once,
           force_restore_large: !!sess.force_restore_large,
@@ -207,14 +212,26 @@ export function ServerNetworkSettingsTab({ hubHttp, isActive }: SettingsTabProps
       </section>
 
       <section className="space-y-2">
-        <h4 className="text-sm font-medium text-slack-text">Session restore</h4>
+        <h4 className="text-sm font-medium text-slack-text">Session snapshot (debug)</h4>
+        <p className="text-xs text-slack-textMuted">
+          Optional <code className="font-mono">~/.neural-junkie/last-session.json</code> for agent review.
+          Off by default — chat history uses SQLite. Regression hubs never need this.
+        </p>
+        <label className="flex gap-2 items-center text-sm">
+          <input
+            type="checkbox"
+            checked={session.persist_enabled}
+            onChange={(e) => setSession((s) => ({ ...s, persist_enabled: e.target.checked }))}
+          />
+          Write last-session.json periodically and on shutdown
+        </label>
         <label className="flex gap-2 items-center text-sm">
           <input
             type="checkbox"
             checked={session.restore_on_startup}
             onChange={(e) => setSession((s) => ({ ...s, restore_on_startup: e.target.checked }))}
           />
-          Restore last session on startup
+          Restore last-session.json on startup
         </label>
         <label className="flex gap-2 items-center text-sm">
           <input
@@ -232,6 +249,33 @@ export function ServerNetworkSettingsTab({ hubHttp, isActive }: SettingsTabProps
           />
           Force restore large session files (&gt;64MB, may OOM)
         </label>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <button
+            type="button"
+            className="px-3 py-1.5 text-sm rounded border border-slack-border bg-slack-bgHover text-slack-text disabled:opacity-50"
+            disabled={snapshotBusy}
+            onClick={async () => {
+              setSnapshotBusy(true);
+              setSnapshotMsg(null);
+              try {
+                const r = await fetch(`${hubHttp}/api/system/session-snapshot`, { method: 'POST' });
+                const text = await r.text();
+                if (!r.ok) throw new Error(text || r.statusText);
+                const data = JSON.parse(text) as { path?: string; bytes?: number };
+                setSnapshotMsg(
+                  `Wrote ${data.path ?? 'last-session.json'}${typeof data.bytes === 'number' ? ` (${data.bytes} bytes)` : ''}`
+                );
+              } catch (e) {
+                setSnapshotMsg(e instanceof Error ? e.message : String(e));
+              } finally {
+                setSnapshotBusy(false);
+              }
+            }}
+          >
+            {snapshotBusy ? 'Dumping…' : 'Dump snapshot now'}
+          </button>
+          {snapshotMsg ? <span className="text-xs text-slack-textMuted">{snapshotMsg}</span> : null}
+        </div>
       </section>
 
       <section className="space-y-2">

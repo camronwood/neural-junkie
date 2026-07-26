@@ -51,26 +51,67 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		msg.Metadata = make(map[string]interface{})
 	}
 	if len(msg.Mentions) == 0 && !features.IsDirectMessage && decision.RecipientType != "" {
-		msg.Metadata[protocol.IdeMetaRouteAgentType] = decision.RecipientType
+		// Keep client/scenario routing (e.g. implement harness ide_route_agent_type=frontend).
+		// Overwriting with a classifier recipient (often "assistant") silences the target agent
+		// on public scenario channels where Assistant is not listening.
+		if strings.TrimSpace(msg.IdeRouteAgentType()) == "" {
+			msg.Metadata[protocol.IdeMetaRouteAgentType] = decision.RecipientType
+		}
 	}
 	wantsImpl := decision.Mutation == intent.MutationWorkspace &&
 		(decision.Action == intent.ActionDebug || decision.Action == intent.ActionEdit ||
 			decision.Action == intent.ActionContinue || decision.Action == intent.ActionRun)
 	mode := protocol.ComposerModeFromMessage(msg)
 	planOrAsk := mode == "ask" || mode == "plan"
+	// Preserve client/scenario implementation_session when semantic does not request mutation
+	// (e.g. boot-fix paste classified as Answer).
+	explicitSession := msg.ImplementationSession() && !planOrAsk
+	// conversation_mode=chat is advisory: do not promote semantic Edit into an
+	// implementation session unless the client/scenario already opted in.
+	chatAdvisory := false
+	if raw, ok := msg.Metadata["conversation_mode"].(string); ok {
+		chatAdvisory = strings.EqualFold(strings.TrimSpace(raw), "chat")
+	}
+	advisoryQuestion := intent.LooksLikeAdvisoryImplementationQuestion(msg.Content)
+	if (chatAdvisory || advisoryQuestion) && !explicitSession {
+		wantsImpl = false
+		// Keep advisory turns as answer/none so design/topic-switch prompts
+		// are not stamped inspect/edit/image (scenarios and tooling rely on this).
+		// Explicit image/artifact phrases are re-promoted later in turn-goal derivation.
+		decision.Action = intent.ActionAnswer
+		decision.RequestedAction = intent.ActionAnswer
+		decision.Mutation = intent.MutationNone
+		if err := protocol.StampTurnDecision(msg, decision); err != nil {
+			return
+		}
+	}
+	if explicitSession {
+		wantsImpl = true
+	}
 	if wantsImpl && !planOrAsk {
 		msg.Metadata[protocol.IdeMetaImplementationSession] = true
 		msg.Metadata[protocol.TurnMetaCanProposeFiles] = true
 		msg.Metadata[protocol.TurnMetaCanRunImplSession] = true
 		msg.Metadata[protocol.TurnMetaRequiresWorkspace] = true
 	}
+	if (chatAdvisory || advisoryQuestion) && !explicitSession && !planOrAsk {
+		delete(msg.Metadata, protocol.IdeMetaImplementationSession)
+		delete(msg.Metadata, protocol.TurnMetaCanProposeFiles)
+		delete(msg.Metadata, protocol.TurnMetaCanRunImplSession)
+		delete(msg.Metadata, protocol.TurnMetaRequiresWorkspace)
+	}
 	governance, _ := protocol.ExtractTurnGovernance(msg)
 	if governance.ComposerMode == "" {
 		governance.ComposerMode = mode
 	}
 	governance.RequiresWorkspace = wantsImpl && !planOrAsk
-	governance.CanProposeFiles = decision.Mutation == intent.MutationWorkspace && !planOrAsk
+	governance.CanProposeFiles = (decision.Mutation == intent.MutationWorkspace || explicitSession) && !planOrAsk && !((chatAdvisory || advisoryQuestion) && !explicitSession)
 	governance.CanRunImplSession = wantsImpl && !planOrAsk
+	if (chatAdvisory || advisoryQuestion) && !explicitSession {
+		governance.CanProposeFiles = false
+		governance.CanRunImplSession = false
+		governance.RequiresWorkspace = false
+	}
 	if governance.ComposerMode == "ask" || governance.ComposerMode == "plan" {
 		governance.CanProposeFiles = false
 		governance.CanRunImplSession = false

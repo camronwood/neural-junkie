@@ -24,6 +24,20 @@ var nonSourceExtensions = map[string]struct{}{
 	".icns": {},
 }
 
+// ScenarioBaselineDir is the harness seed tree copied onto fixture roots for reset.
+// Agents must not list, read, or edit it — only the live workspace files matter.
+const ScenarioBaselineDir = ".scenario-baseline"
+
+// IsScenarioBaselinePath reports whether relPath is under a harness seed directory.
+func IsScenarioBaselinePath(relPath string) bool {
+	for _, part := range strings.Split(filepath.ToSlash(relPath), "/") {
+		if part == ScenarioBaselineDir {
+			return true
+		}
+	}
+	return false
+}
+
 // ShouldIgnoreEntry reports whether a path should be excluded from indexing walks.
 // relPath uses OS separators and is relative to the repository root.
 func ShouldIgnoreEntry(relPath, name string) bool {

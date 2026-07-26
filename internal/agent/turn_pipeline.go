@@ -283,18 +283,16 @@ func (st *turnState) stepIntentClassify(ctx context.Context) error {
 	}
 	span.End(attrs)
 
-	if st.intent == IntentClosure {
-		if resp, ok := tryConversationalClosure(st.agent, st.msg); ok {
-			log.Printf("[%s] Conversational closure (fast path): %q", st.agent.Info.Name, truncateForLog(st.msg.Content, 60))
-			if err := st.agent.sendQuickChatReply(st.msg, resp); err != nil {
-				log.Printf("[%s] Error sending closure: %v", st.agent.Info.Name, err)
-				st.clearResponded()
-				st.outcome = turnFailed
-			} else {
-				st.outcome = turnDone
-			}
-			return errTurnPipelineHalt
+	if resp, ok := tryConversationalClosure(st.agent, st.msg); ok {
+		log.Printf("[%s] Conversational closure (fast path): %q", st.agent.Info.Name, truncateForLog(st.msg.Content, 60))
+		if err := st.agent.sendQuickChatReply(st.msg, resp); err != nil {
+			log.Printf("[%s] Error sending closure: %v", st.agent.Info.Name, err)
+			st.clearResponded()
+			st.outcome = turnFailed
+		} else {
+			st.outcome = turnDone
 		}
+		return errTurnPipelineHalt
 	}
 	return nil
 }

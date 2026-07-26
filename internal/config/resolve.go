@@ -150,12 +150,24 @@ func (c *Config) ResolvedServer() ServerConfig {
 	return out
 }
 
-// ResolvedSession returns session restore settings with env overrides.
+// ResolvedSession returns session snapshot settings with env overrides.
 func (c *Config) ResolvedSession() SessionConfig {
 	if c == nil {
 		c = DefaultConfig()
 	}
 	out := c.Session
+	if v, ok := envBool("NEURAL_JUNKIE_PERSIST_LAST_SESSION"); ok {
+		out.PersistEnabled = v
+	} else if strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_PERSIST_LAST_SESSION")) == "1" {
+		out.PersistEnabled = true
+	}
+	if v, ok := envBool("NEURAL_JUNKIE_DISABLE_SESSION_PERSIST"); ok {
+		if v {
+			out.PersistEnabled = false
+		}
+	} else if strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_DISABLE_SESSION_PERSIST")) == "1" {
+		out.PersistEnabled = false
+	}
 	if v, ok := envBool("NEURAL_JUNKIE_RESTORE_LAST_SESSION"); ok {
 		out.RestoreOnStartup = v
 	} else if strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_RESTORE_LAST_SESSION")) == "1" {
@@ -163,8 +175,12 @@ func (c *Config) ResolvedSession() SessionConfig {
 	}
 	if v, ok := envBool("NEURAL_JUNKIE_SKIP_SESSION_RESTORE"); ok {
 		out.SkipRestoreOnce = v
+		if v {
+			out.RestoreOnStartup = false
+		}
 	} else if strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SKIP_SESSION_RESTORE")) == "1" {
 		out.SkipRestoreOnce = true
+		out.RestoreOnStartup = false
 	}
 	if v, ok := envBool("NEURAL_JUNKIE_FORCE_SESSION_RESTORE"); ok {
 		out.ForceRestoreLarge = v
@@ -428,6 +444,7 @@ func SettingsRestartReasons(before SettingsRestartBaseline, after *Config) []str
 	add("mcp_resources.enabled", bm.Enabled != am.Enabled)
 	add("mcp_resources.port", bm.Port != am.Port)
 	bsess, asess := before.Session, after.ResolvedSession()
+	add("session.persist_enabled", bsess.PersistEnabled != asess.PersistEnabled)
 	add("session.restore_on_startup", bsess.RestoreOnStartup != asess.RestoreOnStartup)
 	add("session.skip_restore_once", bsess.SkipRestoreOnce != asess.SkipRestoreOnce)
 	add("session.force_restore_large", bsess.ForceRestoreLarge != asess.ForceRestoreLarge)

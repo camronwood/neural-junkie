@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
+	"github.com/camronwood/neural-junkie/internal/repo"
 )
 
 const stackManifestMaxWalkFiles = 200
@@ -147,7 +148,7 @@ func (m *StackManifest) countExtensions(root string) {
 		}
 		if d.IsDir() {
 			base := d.Name()
-			if base == "node_modules" || base == ".git" || base == "dist" || base == "target" {
+			if base == "node_modules" || base == ".git" || base == "dist" || base == "target" || base == repo.ScenarioBaselineDir {
 				return filepath.SkipDir
 			}
 			return nil

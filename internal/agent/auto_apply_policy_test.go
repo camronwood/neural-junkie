@@ -1,6 +1,10 @@
 package agent
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestIsProtectedConfigPath(t *testing.T) {
 	protected := []string{
@@ -71,6 +75,36 @@ func TestShouldAutoApproveFileChange_tailwindConfig(t *testing.T) {
 	}
 	if ShouldAutoApproveFileChange("package.json", ws) {
 		t.Fatal("package.json should remain protected")
+	}
+}
+
+func TestShouldAutoApproveFileChangeOp_greenfieldManifestCreate(t *testing.T) {
+	ws := t.TempDir()
+	for _, name := range []string{"Cargo.toml", "package.json", "go.mod"} {
+		if ShouldAutoApproveFileChange(name, ws) {
+			t.Fatalf("%s must stay protected for edit policy", name)
+		}
+		if !ShouldAutoApproveFileChangeOp(name, true, ws) {
+			t.Fatalf("missing %s create should auto-approve (greenfield)", name)
+		}
+	}
+	// Existing package.json stays protected even on "create" race — Stat sees it.
+	pkg := filepath.Join(ws, "package.json")
+	if err := os.WriteFile(pkg, []byte(`{"name":"x"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if ShouldAutoApproveFileChangeOp("package.json", true, ws) {
+		t.Fatal("existing package.json must not greenfield-auto-approve")
+	}
+}
+
+func TestShouldAutoApproveFileChangeOp_greenfieldRootHTML(t *testing.T) {
+	ws := t.TempDir()
+	if !ShouldAutoApproveFileChangeOp("index.html", true, ws) {
+		t.Fatal("missing root index.html create should auto-approve")
+	}
+	if ShouldAutoApproveFileChange("index.html", ws) {
+		t.Fatal("index.html without greenfield create flag stays untrusted")
 	}
 }
 

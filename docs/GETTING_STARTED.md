@@ -330,7 +330,7 @@ Neural Junkie stores data in `~/.neural-junkie/`:
 | `~/.neural-junkie/backups/` | File change backups |
 | `~/.neural-junkie/workspaces.json` | Workspace list |
 | `~/.neural-junkie/collaborations/` | Default parent for collaboration execution sandboxes (`<id>/` per run). Override with `collaboration.assets_root` in config or `NEURAL_JUNKIE_COLLAB_ASSETS_DIR` |
-| `~/.neural-junkie/last-session.json` | Local resume cache (channels, recent messages, in-progress collabs). Bounded on save; oversized/corrupt files are **auto-archived** on startup — users never need to delete it manually. Dev: `scripts/analyze-last-session.sh` |
+| `~/.neural-junkie/last-session.json` | **Optional debug snapshot** (off by default). Dump via Settings → Server & network → “Dump snapshot now”, or `POST /api/system/session-snapshot`. Not used by regression hubs. Durable chat history is SQLite. |
 
 ## Next Steps
 

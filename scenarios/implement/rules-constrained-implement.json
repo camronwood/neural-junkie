@@ -1,22 +1,37 @@
 {
   "name": "rules-constrained-implement",
   "description": "Implement theme toggle respecting .neural-junkie/rules.md constraints.",
-  "tags": ["implement", "cursor-parity", "react", "rules"],
+  "tags": [
+    "implement",
+    "cursor-parity",
+    "react",
+    "rules"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
+  "required_agents": [
+    "FrontendEngineer"
+  ],
   "workspace": {
     "fixture": "rules-fixture",
-    "unchanged_files": ["tailwind.config.js", "package.json"]
+    "unchanged_files": [
+      "tailwind.config.js",
+      "package.json"
+    ]
   },
   "expect_deliverables": [
     {
       "path": "src/App.tsx",
       "min_bytes": 80,
       "for_question": {
-        "any_match": ["theme|toggle|dark|light"],
-        "none_match": ["console\\.log", "\\.jsx"]
+        "any_match": [
+          "theme|toggle|dark|light"
+        ],
+        "none_match": [
+          "console\\.log",
+          "\\.jsx"
+        ]
       }
     }
   ],
@@ -36,16 +51,41 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "420s",
-      "until_any_match": ["applied and verified|implementation session complete|theme|toggle"]
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "any_match": [
+          "theme|toggle|dark|light"
+        ],
+        "none_match": [
+          "console\\.log",
+          "\\.jsx"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_files_unchanged",
-      "paths": ["tailwind.config.js", "package.json"]
+      "paths": [
+        "tailwind.config.js",
+        "package.json"
+      ]
     },
     {
       "action": "assert_file_exists",
       "path": "src/App.tsx",
-      "none_match": ["console\\.log", "\\.jsx"]
+      "none_match": [
+        "console\\.log",
+        "\\.jsx"
+      ]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "FrontendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

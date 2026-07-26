@@ -63,6 +63,15 @@ func appendDetectedPath(paths []string, seen map[string]bool, p string) []string
 	if seen[p] {
 		return paths
 	}
+	// Prefer fuller paths: skip bare basenames already covered by a directory path.
+	base := filepath.Base(p)
+	if p == base {
+		for existing := range seen {
+			if filepath.Base(existing) == base && existing != base {
+				return paths
+			}
+		}
+	}
 	seen[p] = true
 	return append(paths, p)
 }
@@ -85,6 +94,11 @@ func DetectFilePaths(content string) []string {
 	seen := make(map[string]bool)
 	var paths []string
 
+	// Prefer explicit @file:… refs first so bareFilenamePattern does not win with
+	// basename-only hits like main.go from @file:core/sample/main.go.
+	for _, p := range DetectAtFilePaths(content) {
+		paths = appendDetectedPath(paths, seen, p)
+	}
 	for _, match := range filePathPattern.FindAllStringSubmatch(content, -1) {
 		if len(match) < 2 {
 			continue

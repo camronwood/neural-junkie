@@ -31,6 +31,34 @@ func TestShouldRunImplementationSession(t *testing.T) {
 	}
 }
 
+func TestShouldRunImplementationSession_explicitSessionWinsOverAnswerDecision(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"}}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "implement-scenarios",
+		protocol.AgentInfo{ID: "u1", Name: "User"},
+		"the app won't boot — make start-all fails:\n```\n$ make start-all\nmake: *** No rule to make target 'start-all'.  Stop.\n```")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"ide_route_agent_type":   "frontend",
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"conversation_mode":      "code",
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Interaction:     intent.InteractionTask,
+		RequestedAction: intent.ActionAnswer,
+		Action:          intent.ActionAnswer,
+		Mutation:        intent.MutationNone,
+		Confidence:      0.9,
+		Source:          intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("implementation_session metadata must win over semantic ActionAnswer")
+	}
+}
+
 func TestShouldRunImplementationSession_continuationAfterFileChange(t *testing.T) {
 	a := &Agent{
 		Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
@@ -154,6 +182,36 @@ func TestShouldRunImplementationSession_respectsChatMode(t *testing.T) {
 	}
 	if shouldRunImplementationSession(a, msg) {
 		t.Fatal("chat-mode theme advice should not run implementation session")
+	}
+}
+
+func TestShouldRunImplementationSession_chatModeBlocksSemanticEdit(t *testing.T) {
+	a := &Agent{
+		Info:    protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
+		Context: &ConversationContext{History: map[string][]*protocol.Message{}},
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-chatscenario-frontendengineer",
+		protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
+		"Design a theme settings flow. Keep the toggle in an Appearance section and call the component ThemeSettings.",
+	)
+	msg.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		MetadataContextScope:     ContextScopeNone,
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionEdit, Action: intent.ActionEdit,
+		Mutation: intent.MutationWorkspace, Confidence: 0.9, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: true,
+	})
+	if shouldRunImplementationSession(a, msg) {
+		t.Fatal("conversation_mode=chat must block semantic ActionEdit implementation sessions")
 	}
 }
 
@@ -451,5 +509,153 @@ func TestDeriveTurnGoalFromDecision_respectsExplicitImplementationSession(t *tes
 	goal := deriveTurnGoalFromDecision(msg, decision)
 	if !goal.ImplementationSession {
 		t.Fatal("expected implementation session when metadata requests it and caps allow")
+	}
+}
+
+func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesInspectBootFix(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"implement-scenarios",
+		protocol.AgentInfo{ID: "u1", Name: "User"},
+		"the app won't boot — make start-all fails:\n\n```\n$ make start-all\nmake: *** No rule to make target 'start-all'.  Stop.\n```",
+	)
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"composer_mode":          "agent",
+		"implementation_session": true,
+		"conversation_mode":      "code",
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: true,
+		Provenance: "test",
+	})
+	decision := intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Action:          intent.ActionInspect,
+		RequestedAction: intent.ActionInspect,
+		Mutation:        intent.MutationNone,
+		Interaction:     intent.InteractionQuestion,
+		Confidence:      1,
+		Source:          "local_model",
+		ReasonCodes:     []string{"runtime_failure"},
+	}
+	_ = protocol.StampTurnDecision(msg, decision)
+	goal := deriveTurnGoalFromDecision(msg, decision)
+	if goal.Action != ActionDebug {
+		t.Fatalf("action=%s want debug (boot-fix under inspect)", goal.Action)
+	}
+	if goal.Mutation != MutationWorkspace {
+		t.Fatalf("mutation=%s want workspace", goal.Mutation)
+	}
+	if !goal.ImplementationSession {
+		t.Fatal("expected implementation session after explicit-session upgrade")
+	}
+	if !turnGoalRunsImplementationSession(goal) {
+		t.Fatal("turnGoalRunsImplementationSession should be true")
+	}
+}
+
+func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesAnswerBootFix(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"implement-scenarios",
+		protocol.AgentInfo{ID: "u1", Name: "User"},
+		"the app in this workspace is not booting up can you help me fix it?\n\nvite dev error log:\n\n✘ [ERROR] Expected \";\" but found \"git\"\n\n    src/App.js:1:7:\n      1 │ diff --git a/tailwind.config.js b/tailwind.config.js",
+	)
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"composer_mode":          "agent",
+		"implementation_session": true,
+		"conversation_mode":      "code",
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: true,
+		Provenance: "test",
+	})
+	decision := intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion,
+		Action:        intent.ActionAnswer,
+		Mutation:      intent.MutationNone,
+		Interaction:   intent.InteractionQuestion,
+		Confidence:    1,
+		Source:        "local_model",
+	}
+	_ = protocol.StampTurnDecision(msg, decision)
+	goal := deriveTurnGoalFromDecision(msg, decision)
+	if goal.Action != ActionDebug {
+		t.Fatalf("action=%s want debug (boot-fix under answer)", goal.Action)
+	}
+	if !goal.ImplementationSession || goal.Mutation != MutationWorkspace {
+		t.Fatalf("goal=%+v", goal)
+	}
+}
+
+func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesAnswerExtract(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"implement-scenarios",
+		protocol.AgentInfo{ID: "u1", Name: "User"},
+		"@FrontendEngineer Extract the selected sidebar footer block from src/App.tsx into src/components/SidebarFooter.tsx and import it in App.",
+	)
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"composer_mode":          "agent",
+		"implementation_session": true,
+		"conversation_mode":      "code",
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: true,
+		Provenance: "test",
+	})
+	decision := intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion,
+		Action:        intent.ActionAnswer,
+		Mutation:      intent.MutationNone,
+		Interaction:   intent.InteractionQuestion,
+		Confidence:    1,
+		Source:        "local_model",
+	}
+	_ = protocol.StampTurnDecision(msg, decision)
+	goal := deriveTurnGoalFromDecision(msg, decision)
+	if goal.Action != ActionEdit {
+		t.Fatalf("action=%s want edit (extract under answer)", goal.Action)
+	}
+	if !goal.ImplementationSession {
+		t.Fatal("expected implementation session")
+	}
+}
+
+func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesRunBootFix(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"implement-scenarios",
+		protocol.AgentInfo{ID: "u1", Name: "User"},
+		"the app won't boot — make start-all fails:\n\n```\n$ make start-all\nmake: *** No rule to make target 'start-all'.  Stop.\n```",
+	)
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"composer_mode":          "agent",
+		"implementation_session": true,
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: true,
+		Provenance: "test",
+	})
+	decision := intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion,
+		Action:        intent.ActionRun,
+		Mutation:      intent.MutationNone,
+		Interaction:   intent.InteractionCasual,
+		Confidence:    1,
+		Source:        "local_model",
+		ReasonCodes:   []string{"runtime_failure"},
+	}
+	_ = protocol.StampTurnDecision(msg, decision)
+	goal := deriveTurnGoalFromDecision(msg, decision)
+	if goal.Action != ActionDebug {
+		t.Fatalf("action=%s want debug", goal.Action)
+	}
+	if !goal.ImplementationSession || goal.Mutation != MutationWorkspace {
+		t.Fatalf("goal=%+v", goal)
 	}
 }

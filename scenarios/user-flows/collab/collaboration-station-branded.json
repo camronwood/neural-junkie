@@ -1,0 +1,146 @@
+{
+  "name": "collaboration-station-branded",
+  "description": "Real user flow: static Collaboration Station site — home/about/contact with brand colors blue/green/yellow plus gray/white/black/red.",
+  "tags": ["user-flow", "website", "collab", "brand"],
+  "channel": "user-flow-scenarios",
+  "agents": "@FrontendEngineer @Claude",
+  "required_agents": ["FrontendEngineer", "Claude"],
+  "workspace": {
+    "fixture": "user-flow-empty",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "2", "--messages", "12"],
+    "goal": "@FrontendEngineer @Claude Let's design and implement a website for a company called Collaboration Station. The brand colors are blue, green, yellow. We can also use gray, white, black and red. It should be a static site with 3 pages: about, contact, and home. For now use placeholder text where needed. Produce EXACTLY four tasks using these lines:\n- Task 1: @FrontendEngineer - Write collabs/<id>/style.css with the Collaboration Station palette (blue, green, yellow, gray, white, black, red)\n- Task 2: @FrontendEngineer - Write collabs/<id>/index.html home page linking about/contact\n- Task 3: @Claude - Write collabs/<id>/about.html using style.css\n- Task 4: @Claude - Write collabs/<id>/contact.html using style.css\nReal HTML/CSS only — no markdown specs."
+  },
+  "expect_deliverables": [
+    {
+      "path": "collabs/<collab-id>/index.html",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["<!DOCTYPE|<html|Collaboration Station"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/about.html",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["<!DOCTYPE|<html|about|Collaboration Station"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/contact.html",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["<!DOCTYPE|<html|contact|Collaboration Station"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/style.css",
+      "min_bytes": 40,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["blue|green|yellow|#|rgb|color|background"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    }
+  ],
+  "steps": [
+    { "action": "wait_phase", "phase": "planning", "timeout": 45 },
+    {
+      "action": "wait_discussion",
+      "min_total": 2,
+      "min_per_agent": 1,
+      "required_agents": ["FrontendEngineer", "Claude"],
+      "timeout": "360s",
+      "retries": 1,
+      "nudge_agents": ["Claude"]
+    },
+    { "action": "wait_phase", "phase": "reviewing", "timeout": "300s" },
+    { "action": "wait_planning_recap", "timeout": "300s" },
+    {
+      "action": "assert_plan",
+      "min_tasks": 4,
+      "max_tasks": 5,
+      "tasks_have_assignee": true,
+      "tasks_have_file_deliverable": true,
+      "content_any_match": [
+        "index\\.html",
+        "about\\.html",
+        "contact\\.html",
+        "style\\.css"
+      ]
+    },
+    { "action": "approve_plan" },
+    { "action": "wait_phase", "phase": "executing", "timeout": 60 },
+    {
+      "action": "assert_collab",
+      "phase": "executing",
+      "workspace_acknowledged": true,
+      "tasks_dispatched": true
+    },
+    { "action": "send", "content": "/resume-plan <collab-id>" },
+    {
+      "action": "wait_tasks",
+      "min_completed": 2,
+      "all_match": false,
+      "timeout": "360s"
+    },
+    { "action": "send", "content": "/resume-plan <collab-id>" },
+    {
+      "action": "wait_tasks",
+      "min_completed": 4,
+      "all_match": true,
+      "timeout": "540s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "index.html",
+      "target_rel": "collabs/<collab-id>/index.html",
+      "from_discussion_fallback": false,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "about.html",
+      "target_rel": "collabs/<collab-id>/about.html",
+      "from_discussion_fallback": false,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "contact.html",
+      "target_rel": "collabs/<collab-id>/contact.html",
+      "from_discussion_fallback": false,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": ".css",
+      "target_rel": "collabs/<collab-id>/style.css",
+      "from_discussion_fallback": false,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    { "action": "assert_files", "path": "collabs/<collab-id>/index.html" },
+    { "action": "assert_files", "path": "collabs/<collab-id>/about.html" },
+    { "action": "assert_files", "path": "collabs/<collab-id>/contact.html" },
+    { "action": "assert_files", "path": "collabs/<collab-id>/style.css" }
+  ],
+  "cleanup": "cancel"
+}

@@ -113,6 +113,11 @@ func (a *Agent) attemptMissingStartAllMakefileFix(
 	} else if err := a.validateProposalForSession(ctx, msg, "Makefile", op); err != nil {
 		return false, nil
 	}
+	// Deterministic playbook edit — allow hub auto-approve even for local models.
+	if msg.Metadata == nil {
+		msg.Metadata = map[string]interface{}{}
+	}
+	msg.Metadata["deterministic_edit"] = true
 	if oldContent == "" {
 		if err := a.proposeFileCreateInChannel(ctx, msg.Channel, "Makefile", body, msg); err != nil {
 			return false, nil
@@ -122,14 +127,40 @@ func (a *Agent) attemptMissingStartAllMakefileFix(
 			return false, nil
 		}
 	}
+	// Hub auto-apply can lag or miss; under auto_apply_edits ensure start-all lands on disk
+	// (same pattern as Tailwind / scoped-file early fixes).
+	if !makefileHasStartAllTarget(wsPath) {
+		if resolveImplementationTrustMode(msg) != editorTrustAutoApply {
+			return false, nil
+		}
+		if err := os.WriteFile(makefilePath, []byte(body), 0o644); err != nil {
+			return false, nil
+		}
+		if !makefileHasStartAllTarget(wsPath) {
+			return false, nil
+		}
+		log.Printf("[%s] playbook_missing_start_all_target_direct_apply", a.Info.Name)
+	}
 	if state != nil {
 		state.ProposedCount++
 		state.FilesChanged = appendUnique(state.FilesChanged, []string{"Makefile"})
 		state.RecordEdit("Makefile")
 		state.SetPlaybookUsed("missing_start_all_target")
+		// Direct-apply must not be undone by session rollback of the pre-edit snapshot.
+		state.releaseSnapshot("Makefile")
+		state.VerifySkipped = true
 	}
 	log.Printf("[%s] playbook_missing_start_all_target", a.Info.Name)
 	return true, []string{"Makefile"}
+}
+
+func makefileHasStartAllTarget(wsPath string) bool {
+	b, err := os.ReadFile(filepath.Join(wsPath, "Makefile"))
+	if err != nil {
+		return false
+	}
+	s := string(b)
+	return strings.Contains(s, "start-all:") || strings.Contains(s, "start-all ")
 }
 
 func inferProposalOp(wsPath, path, existing string) ProposalOperation {

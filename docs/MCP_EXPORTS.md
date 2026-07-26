@@ -328,10 +328,10 @@ rsync -av ~/.neural-junkie/exports/ backup-server:/backups/
 
 Planned improvements include:
 
+- **Share Agent (gift bundle)** - Self-contained export a friend/coworker can import with retained knowledge (hydrate from resources, optional learnings/rules/LoRA) — see [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md#share-agent-gift-bundle-for-friends--coworkers)
 - **Compressed exports** - Reduce file sizes for large repositories
 - **Incremental exports** - Only export changes since last export
 - **Cloud storage** - Direct integration with cloud storage services
-- **Team collaboration** - Real-time sharing of agent knowledge
 - **Export templates** - Pre-configured export formats for common use cases
 
 ## Support

@@ -26,6 +26,7 @@ LAYER_ORDER: tuple[str, ...] = (
     "collab-core",
     "collab-full",
     "bundle",
+    "user-flows",
     "parity",
 )
 
@@ -131,6 +132,19 @@ LAYERS: dict[str, LayerSpec] = {
             LayerStage(
                 "regression-bundle",
                 ["python3", "scripts/regression-bundle.py", "--hub", _hub_url_placeholder()],
+            ),
+        ),
+        next_layer="user-flows",
+    ),
+    "user-flows": LayerSpec(
+        name="user-flows",
+        description="Real-world product journeys (trip research, games, APIs, websites, boot fix)",
+        requires_hub=True,
+        est_minutes=120,
+        stages=(
+            LayerStage(
+                "user-flow-scenarios",
+                ["python3", "scripts/user-flow-scenarios.py", "--all"],
             ),
         ),
         next_layer="parity",

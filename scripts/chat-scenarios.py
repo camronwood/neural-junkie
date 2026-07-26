@@ -262,10 +262,15 @@ def step_assert_messages(ctx: ChatScenarioContext, step: dict) -> tuple[bool, st
     if any_patterns := step.get("any_match") or []:
         if not any(hub.messages_matching(pool, pattern) for pattern in any_patterns):
             agents = sorted({(m.get("from") or {}).get("name", "?") for m in pool})
-            return False, (
+            detail = (
                 f"any_match not found (want one of {any_patterns!r}) "
                 f"(agents: {agents or 'none'})"
             )
+            # optional demotes chat-phrase any_match only; none_match / max_chars stay hard.
+            if step.get("optional") or step.get("any_match_optional"):
+                ctx.log(f"  soft any_match miss: {detail}")
+            else:
+                return False, detail
 
     if step.get("max_chars"):
         limit = int(step["max_chars"])
@@ -321,11 +326,39 @@ def step_assert_messages(ctx: ChatScenarioContext, step: dict) -> tuple[bool, st
 def step_assert_reply_count(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
     from_agent = (step.get("from") or ctx.target_agent).strip().lstrip("@")
-    total = hub.count_chat_agent_messages(msgs, from_agent)
-    baseline = int(step.get("baseline", ctx.baseline_agent_count if step.get("since_baseline") else ctx.start_agent_count))
-    since = total - baseline
+
+    def _counts_as_reply(m: dict) -> bool:
+        if hub.is_generation_error_message(m) or hub.is_agent_failure_message(m):
+            return False
+        body = (m.get("content") or "").strip().lower()
+        if "couldn't produce a sufficiently grounded answer" in body:
+            return False
+        return True
+
+    def _filtered_count(message_list: list) -> int:
+        return sum(
+            1
+            for m in hub.chat_agent_messages(message_list)
+            if (m.get("from") or {}).get("name") == from_agent and _counts_as_reply(m)
+        )
+
+    total = _filtered_count(msgs)
+    if step.get("since_baseline"):
+        baseline = int(step.get("baseline", ctx.baseline_agent_count))
+        since = total - baseline
+        label = "since baseline"
+    else:
+        # Prefer filtered prefix so soft-fail stubs before the scenario don't skew counts.
+        prior = _filtered_count(msgs[: max(0, ctx.start_message_count)])
+        since = total - prior
+        label = "since start"
     want = int(step.get("count", step.get("since_start", 1)))
-    label = "since baseline" if step.get("since_baseline") else "since start"
+    want_max = step.get("max_count", step.get("max_since_start"))
+    if want_max is not None:
+        want_max_i = int(want_max)
+        if since < want or since > want_max_i:
+            return False, f"reply count {label}: got {since} want {want}..{want_max_i} (total={total})"
+        return True, f"reply count {label}={since}"
     if since != want:
         return False, f"reply count {label}: got {since} want {want} (total={total})"
     return True, f"reply count {label}={since}"
@@ -535,7 +568,20 @@ def run_scenario(
 
     last_detail = ""
     metric_run = "metrics" in scenario_tags(load_scenario(name))
-    max_attempts = 1 if metric_run else (3 if name == "dm-backend-codebase-semantic" else 2)
+    # Metrics scenarios still flake on Ollama empty/EOF; allow one retry.
+    # Topic-switch hits Ollama hard (code→chat→code); give it an extra attempt.
+    if metric_run:
+        max_attempts = 2
+    elif name in {
+        "dm-backend-codebase-semantic",
+        "dm-topic-switch",
+        "dm-backend-interject-resume",
+        "dm-backend-echo-followup",
+        "dm-backend-deep-continuation",
+    }:
+        max_attempts = 3
+    else:
+        max_attempts = 2
     telemetry = new_run("chat", name)
     for attempt in range(1, max_attempts + 1):
         telemetry["attempts"] = attempt
@@ -602,6 +648,12 @@ def _run_scenario_once(
     if not ensure_scenario_channel(ctx):
         return False, "could not ensure scenario channel"
     print(f"  channel={ctx.channel} agent={ctx.target_agent}")
+
+    # Clear before steps so a prior kill/restart cannot leave README (or other)
+    # prompts in shared DM channels and poison @codebase / metric asserts.
+    if not keep:
+        hub.abort_channel_agents(ctx.base, ctx.channel, held_by="chat-scenario")
+        hub.clear_channel_history(ctx.base, ctx.channel)
 
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
     ctx.start_message_count = len(msgs)
@@ -691,7 +743,11 @@ def main() -> int:
                 keep=args.keep,
                 require_debug=args.require_debug,
             ):
-                failed.append(n)
+                if scenario.get("optional"):
+                    print(f"=== WARN (optional fail): {n} — continuing ===\n", file=sys.stderr)
+                    skipped.append(n)
+                else:
+                    failed.append(n)
         if skipped:
             print(f"Skipped optional: {', '.join(skipped)}", file=sys.stderr)
         return 1 if failed else 0

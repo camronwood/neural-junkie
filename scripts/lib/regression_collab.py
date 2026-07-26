@@ -201,6 +201,22 @@ def route_claude_for_regression(hub_url: str) -> tuple[bool, str]:
             os.environ["NJ_REGRESSION_CLAUDE_ROUTE"] = "ollama"
         return ok, detail
 
+    # Cloud provider uses ANTHROPIC_API_KEY (API), not Claude Code CLI OAuth.
+    # CLI auth OK ≠ valid API key — invalid keys 401 every planning turn.
+    api_key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    if not api_key or api_key.startswith("your_") or "example" in api_key.lower():
+        if mode == "force_cloud":
+            return False, "Claude cloud required but ANTHROPIC_API_KEY missing/placeholder"
+        return _fallback_claude_to_ollama(
+            hub_url, reason="ANTHROPIC_API_KEY missing/placeholder (CLI OAuth ≠ API key)"
+        )
+    if not api_key.startswith("sk-ant-"):
+        if mode == "force_cloud":
+            return False, "Claude cloud required but ANTHROPIC_API_KEY is not an Anthropic API key (sk-ant-…)"
+        return _fallback_claude_to_ollama(
+            hub_url, reason="ANTHROPIC_API_KEY not sk-ant-… (likely CLI/proxy token; use Ollama)"
+        )
+
     # force_cloud or auto: try cloud first.
     try:
         from lib.claude_judge_auth import ensure_claude_for_testing

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -87,6 +88,65 @@ func ShouldAutoApproveFileChange(path string, workspaceRoot ...string) bool {
 		return false
 	}
 	return isTrustedAutoApplyPath(path) || isRootMakefile(path) || isTrustedStackConfigPath(path)
+}
+
+// ShouldAutoApproveFileChangeOp is like ShouldAutoApproveFileChange but allows greenfield
+// creates of package manifests and root site/docs when the target file does not exist yet.
+// Edits to existing protected configs still require human approval.
+func ShouldAutoApproveFileChangeOp(path string, create bool, workspaceRoot ...string) bool {
+	ws := ""
+	if len(workspaceRoot) > 0 {
+		ws = workspaceRoot[0]
+	}
+	if ShouldAutoApproveFileChange(path, workspaceRoot...) {
+		return true
+	}
+	if !create || ws == "" {
+		return false
+	}
+	rel := RelativizeFileChangePath(path, ws)
+	if rel == "" {
+		return false
+	}
+	abs := filepath.Join(ws, filepath.FromSlash(rel))
+	if _, err := os.Stat(abs); err == nil {
+		return false
+	}
+	return isGreenfieldManifestPath(rel) || isGreenfieldRootContentPath(rel)
+}
+
+// isGreenfieldManifestPath allows first-time create of root package manifests under auto_apply.
+func isGreenfieldManifestPath(path string) bool {
+	path = normalizeFileChangeRelPath(path)
+	if path == "" || strings.Contains(path, "/") {
+		return false
+	}
+	switch strings.ToLower(filepath.Base(path)) {
+	case "package.json", "cargo.toml", "go.mod", "pyproject.toml", "requirements.txt":
+		return true
+	default:
+		return false
+	}
+}
+
+// isGreenfieldRootContentPath allows first-time create of root HTML/CSS/JS/MD (landing pages)
+// and Swift sources used by empty-workspace user flows.
+func isGreenfieldRootContentPath(path string) bool {
+	path = normalizeFileChangeRelPath(path)
+	if path == "" {
+		return false
+	}
+	lower := strings.ToLower(filepath.ToSlash(path))
+	ext := strings.ToLower(filepath.Ext(lower))
+	parts := strings.Split(lower, "/")
+	switch ext {
+	case ".html", ".css", ".js", ".md", ".txt", ".svg":
+		return len(parts) == 1
+	case ".swift":
+		return true
+	default:
+		return false
+	}
 }
 
 // isTrustedStackConfigPath allows Tailwind/PostCSS config edits during implementation sessions.

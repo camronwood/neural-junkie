@@ -4,6 +4,33 @@ import (
 	"testing"
 )
 
+func TestResolvedSessionDefaultsOff(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_PERSIST_LAST_SESSION", "")
+	t.Setenv("NEURAL_JUNKIE_DISABLE_SESSION_PERSIST", "")
+	t.Setenv("NEURAL_JUNKIE_RESTORE_LAST_SESSION", "")
+	t.Setenv("NEURAL_JUNKIE_SKIP_SESSION_RESTORE", "")
+	cfg := DefaultConfig()
+	got := cfg.ResolvedSession()
+	if got.PersistEnabled || got.RestoreOnStartup {
+		t.Fatalf("expected persist/restore off by default, got %+v", got)
+	}
+}
+
+func TestResolvedSessionPersistEnv(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_PERSIST_LAST_SESSION", "1")
+	t.Setenv("NEURAL_JUNKIE_DISABLE_SESSION_PERSIST", "")
+	cfg := DefaultConfig()
+	got := cfg.ResolvedSession()
+	if !got.PersistEnabled {
+		t.Fatal("expected PERSIST_LAST_SESSION=1 to enable persist")
+	}
+	t.Setenv("NEURAL_JUNKIE_DISABLE_SESSION_PERSIST", "1")
+	got = cfg.ResolvedSession()
+	if got.PersistEnabled {
+		t.Fatal("expected DISABLE_SESSION_PERSIST=1 to force persist off")
+	}
+}
+
 func TestResolvedSecurityEnvOverridesConfig(t *testing.T) {
 	t.Setenv("NEURAL_JUNKIE_AUTH_REQUIRED", "1")
 	cfg := DefaultConfig()

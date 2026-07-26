@@ -3,8 +3,17 @@ package intent
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+)
+
+var (
+	advisoryHypotheticalRE = regexp.MustCompile(`(?i)\b(how would you|how could you|how should i|what would you|in one short paragraph|can you explain how)\b`)
+	advisoryPlacementRE    = regexp.MustCompile(`(?i)\b(where should .{0,80} live|where would you put)\b`)
+	advisoryPrerequisiteRE = regexp.MustCompile(`(?i)\b(?:do|does|would|should)\s+(?:we|i|you)\s+(?:need to\s+)?(?:fix|change|update|implement)\b`)
+	// Outline / "you'd make" design asks stay conversational even in code mode.
+	advisoryOutlineRE = regexp.MustCompile(`(?i)\boutline\b.{0,100}\b(?:changes|hooks|approach|plan)\b|\b(?:you'?d|you would)\s+(?:make|change|do|outline)\b`)
 )
 
 // Classifier resolves natural-language meaning only. Policy and permissions are
@@ -459,6 +468,40 @@ func looksLikeCreativeOrGeneralAnswerRequest(text string) bool {
 		case "what", "huh", "why", "how", "who", "where", "when", "ok", "okay", "thanks", "thank":
 			return true
 		}
+	}
+	return false
+}
+
+// LooksLikeAdvisoryImplementationQuestion reports hypothetical / placement-only
+// asks that should stay conversational (no implementation session / FILE_CHANGE).
+func LooksLikeAdvisoryImplementationQuestion(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+	if lower == "" {
+		return false
+	}
+	if advisoryHypotheticalRE.MatchString(lower) {
+		return true
+	}
+	if advisoryOutlineRE.MatchString(lower) {
+		shipVerbs := []string{"implement now", "go ahead", "please do", "ship ", "apply "}
+		for _, p := range shipVerbs {
+			if strings.Contains(lower, p) {
+				return false
+			}
+		}
+		return true
+	}
+	if advisoryPrerequisiteRE.MatchString(lower) {
+		return true
+	}
+	if advisoryPlacementRE.MatchString(lower) {
+		shipVerbs := []string{"implement", "add ", "build ", "fix ", "go ahead", "please do", "ship ", "wire "}
+		for _, p := range shipVerbs {
+			if strings.Contains(lower, p) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }

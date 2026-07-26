@@ -70,6 +70,27 @@ func TestApprovePlan_BlockedWhileRecapPending(t *testing.T) {
 	}
 }
 
+func TestSelectRecapFacilitator_SkipsCLILastSpeaker(t *testing.T) {
+	c := &Collaboration{
+		Agents: []CollaborationAgent{
+			{AgentID: "be", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+			{AgentID: "cli", AgentName: "Claude", AgentType: protocol.AgentTypeCLI},
+		},
+		Discussion: &DiscussionSession{
+			Messages: []*protocol.Message{
+				protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "ch",
+					protocol.AgentInfo{ID: "be", Name: "BackendEngineer", Type: protocol.AgentTypeBackend}, "plan"),
+				protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "ch",
+					protocol.AgentInfo{ID: "cli", Name: "Claude", Type: protocol.AgentTypeCLI}, "last"),
+			},
+		},
+	}
+	got := SelectRecapFacilitator(c, RecapKindPreApproval)
+	if got != "be" {
+		t.Fatalf("SelectRecapFacilitator = %q, want be (skip CLI last speaker)", got)
+	}
+}
+
 func TestSelectRecapFacilitator_FinalUsesExecutionDiscussion(t *testing.T) {
 	c := &Collaboration{
 		PlanningRecapAgentID: "a1",

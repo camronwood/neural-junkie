@@ -82,6 +82,10 @@ func (c *Config) SeedFromEnv() {
 		c.Session.RestoreOnStartup = true
 		seeded = true
 	}
+	if !c.Session.PersistEnabled && os.Getenv("NEURAL_JUNKIE_PERSIST_LAST_SESSION") == "1" {
+		c.Session.PersistEnabled = true
+		seeded = true
+	}
 	var slackDisabled bool
 	seedBool(&slackDisabled, "NEURAL_JUNKIE_SLACK_DISABLED", func(v bool) { c.Slack.ForceDisabled = v })
 	if c.Features.LegacyFileChangeParse == false && os.Getenv("NEURAL_JUNKIE_LEGACY_FILE_CHANGE_PARSE") == "1" {

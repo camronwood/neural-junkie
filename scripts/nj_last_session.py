@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -292,6 +293,33 @@ def cmd_repair(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dump(args: argparse.Namespace) -> int:
+    """Ask a running hub to write last-session.json (works when persist is off)."""
+    import urllib.error
+    import urllib.request
+
+    base = (getattr(args, "hub", None) or os.environ.get("NEURAL_JUNKIE_HUB") or "http://127.0.0.1:18765").rstrip(
+        "/"
+    )
+    url = f"{base}/api/system/session-snapshot"
+    req = urllib.request.Request(url, data=b"{}", method="POST", headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            payload = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        print(f"error: HTTP {e.code}: {body}", file=sys.stderr)
+        return 1
+    except OSError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    path = payload.get("path") or str(DEFAULT_SESSION)
+    print(path)
+    if not getattr(args, "quiet", False):
+        print(f"bytes: {payload.get('bytes')}")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(
         description="Archive and inspect Neural Junkie last-session.json snapshots.",
@@ -310,6 +338,11 @@ def main() -> int:
     a.add_argument("--force", action="store_true", help="Overwrite if same stamp exists")
     a.add_argument("-q", "--quiet", action="store_true", help="Print only archive path")
     a.set_defaults(func=cmd_archive)
+
+    d = sub.add_parser("dump", help="POST /api/system/session-snapshot on a running hub (debug dump)")
+    d.add_argument("--hub", default="", help="Hub base URL (default NEURAL_JUNKIE_HUB or http://127.0.0.1:18765)")
+    d.add_argument("-q", "--quiet", action="store_true", help="Print only snapshot path")
+    d.set_defaults(func=cmd_dump)
 
     l = sub.add_parser("list", help="List archived sessions (newest first)")
     l.add_argument("--archive-dir", default=str(DEFAULT_ARCHIVE_DIR))

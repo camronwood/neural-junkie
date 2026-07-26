@@ -18,6 +18,18 @@ func TestValidateProposal_rejectsVueInReactRepo(t *testing.T) {
 	}
 }
 
+func TestRedirectProposalPath_stripsScenarioBaseline(t *testing.T) {
+	t.Parallel()
+	got := RedirectProposalPath(".scenario-baseline/Makefile", nil)
+	if got != "Makefile" {
+		t.Fatalf("got %q want Makefile", got)
+	}
+	got = RedirectProposalPath(".scenario-baseline/src/App.tsx", &StackManifest{HasReact: true, EntryPoint: "src/App.tsx"})
+	if got != "src/App.tsx" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestRedirectProposalPath_tailwind(t *testing.T) {
 	t.Parallel()
 	m := &StackManifest{TailwindConfig: "tailwind.config.js"}
@@ -45,6 +57,11 @@ func TestRedirectProposalPath_appJsToTsx(t *testing.T) {
 	got := RedirectProposalPath("src/App.js", m)
 	if got != "src/App.tsx" {
 		t.Fatalf("got %q", got)
+	}
+	// Deletes must keep App.js so boot-fix can remove the corrupt entry.
+	got = RedirectProposalPathForOp("src/App.js", m, "delete")
+	if got != "src/App.js" {
+		t.Fatalf("delete redirect got %q want src/App.js", got)
 	}
 }
 

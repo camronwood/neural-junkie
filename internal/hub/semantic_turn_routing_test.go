@@ -68,6 +68,36 @@ func TestResolveSemanticTurnPreservesExplicitMentionRouting(t *testing.T) {
 	}
 }
 
+func TestResolveSemanticTurnPreservesExplicitIdeRouteWithoutMentions(t *testing.T) {
+	h := NewHub()
+	h.CreateChannelWithType("semantic-ide-route", "", "", protocol.ChannelTypePublic, "user")
+	h.SetSemanticTurnRouter(semanticRouterFunc(func(context.Context, intent.TurnFeatures) intent.TurnDecision {
+		return intent.TurnDecision{
+			SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionQuestion,
+			RequestedAction: intent.ActionInspect, Action: intent.ActionInspect,
+			RecipientType: "assistant", Mutation: intent.MutationNone,
+			Confidence: 1, Source: intent.SourceLocalModel,
+			ReasonCodes: []string{"runtime_failure"},
+		}
+	}))
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "semantic-ide-route", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "the app won't boot — make start-all fails")
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode:         "agent",
+		protocol.IdeMetaRouteAgentType:        "frontend",
+		protocol.IdeMetaImplementationSession: true,
+		"workspace_context":                   map[string]interface{}{"workspace_path": "/tmp/fixture"},
+	}
+	h.resolveSemanticTurn(context.Background(), msg)
+	if msg.IdeRouteAgentType() != "frontend" {
+		t.Fatalf("scenario ide_route_agent_type overwritten to %q", msg.IdeRouteAgentType())
+	}
+	if !msg.ImplementationSession() {
+		t.Fatal("expected implementation_session preserved")
+	}
+}
+
 func TestResolveSemanticTurnRejectsClientAuthoredDecision(t *testing.T) {
 	h := NewHub()
 	h.CreateChannelWithType("semantic-spoof", "", "", protocol.ChannelTypePublic, "user")
@@ -172,5 +202,67 @@ func TestResolveSemanticTurnContinueWithoutWorkspaceMutationSkipsImplSession(t *
 	h.resolveSemanticTurn(context.Background(), msg)
 	if msg.ImplementationSession() {
 		t.Fatal("continue with mutation=none must not stamp implementation_session")
+	}
+}
+
+func TestResolveSemanticTurnChatModeDoesNotStampImplSession(t *testing.T) {
+	h := NewHub()
+	h.CreateChannelWithType("semantic-chat", "", "", protocol.ChannelTypeDM, "user")
+	h.SetSemanticTurnRouter(semanticRouterFunc(func(context.Context, intent.TurnFeatures) intent.TurnDecision {
+		return intent.TurnDecision{
+			SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+			RequestedAction: intent.ActionEdit, Action: intent.ActionEdit,
+			RecipientType: "frontend", Mutation: intent.MutationWorkspace,
+			Confidence: 0.9, Source: intent.SourceLocalModel,
+		}
+	}))
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "semantic-chat", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "Design a theme settings flow with ThemeSettings.")
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode: "agent",
+		"conversation_mode":           "chat",
+		"workspace_context":           map[string]interface{}{"workspace_path": "/tmp/project"},
+	}
+	h.resolveSemanticTurn(context.Background(), msg)
+	if msg.ImplementationSession() {
+		t.Fatal("conversation_mode=chat must not stamp implementation_session from semantic Edit")
+	}
+	decision, ok := protocol.ExtractTurnDecision(msg)
+	if !ok || decision.Action != intent.ActionAnswer || decision.Mutation != intent.MutationNone {
+		t.Fatalf("chat advisory decision=%+v", decision)
+	}
+	gov, ok := protocol.ExtractTurnGovernance(msg)
+	if !ok || gov.CanRunImplSession || gov.RequiresWorkspace {
+		t.Fatalf("chat advisory governance=%+v", gov)
+	}
+}
+
+func TestResolveSemanticTurnAdvisoryQuestionDoesNotStampImplSession(t *testing.T) {
+	h := NewHub()
+	h.CreateChannelWithType("semantic-advisory", "", "", protocol.ChannelTypeDM, "user")
+	h.SetSemanticTurnRouter(semanticRouterFunc(func(context.Context, intent.TurnFeatures) intent.TurnDecision {
+		return intent.TurnDecision{
+			SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+			RequestedAction: intent.ActionEdit, Action: intent.ActionEdit,
+			RecipientType: "backend", Mutation: intent.MutationWorkspace,
+			Confidence: 0.9, Source: intent.SourceLocalModel,
+		}
+	}))
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "semantic-advisory", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "go deeper on the approach — what would you implement first?")
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode: "agent",
+		"conversation_mode":           "code",
+		"workspace_context":           map[string]interface{}{"workspace_path": "/tmp/project"},
+	}
+	h.resolveSemanticTurn(context.Background(), msg)
+	if msg.ImplementationSession() {
+		t.Fatal("advisory question must not stamp implementation_session")
+	}
+	decision, ok := protocol.ExtractTurnDecision(msg)
+	if !ok || decision.Action != intent.ActionAnswer || decision.Mutation != intent.MutationNone {
+		t.Fatalf("advisory decision=%+v", decision)
 	}
 }

@@ -1,0 +1,112 @@
+{
+  "name": "ios-trivia-swift",
+  "description": "Real user flow: local Swift trivia game under an Xcode-like project structure (UI then game logic).",
+  "tags": [
+    "user-flow",
+    "ios",
+    "swift",
+    "game",
+    "implement"
+  ],
+  "channel": "user-flow-scenarios",
+  "channel_type": "public",
+  "target_agent": "SoftwareArchitect",
+  "required_agents": [
+    "SoftwareArchitect"
+  ],
+  "workspace": {
+    "fixture": "user-flow-empty"
+  },
+  "expect_deliverables": [
+    {
+      "path": "TriviaGame/TriviaGameApp.swift",
+      "min_bytes": 40,
+      "for_question": {
+        "any_match": [
+          "@main|App|WindowGroup|SwiftUI|UIApplication"
+        ],
+        "none_match": [
+          "lorem ipsum"
+        ]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "TriviaGame/ContentView.swift",
+      "path_alternatives": [
+        "TriviaGame/GameView.swift",
+        "TriviaGame/Views/ContentView.swift"
+      ],
+      "min_bytes": 80,
+      "for_question": {
+        "any_match": [
+          "lives|timer|question|score|Trivia|Text\\(|Button"
+        ],
+        "none_match": [
+          "lorem ipsum",
+          "\\[Insert"
+        ]
+      },
+      "llm_judge": true
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "Let's design and implement a simple iOS game where users answer basic trivia questions, get points for each correct answer and lose a life for each wrong answer. Users start with 3 lives, and each question should have a 15 second answer clock \u2014 if the timer ends they lose that round. Use .swift files under an Xcode-like folder TriviaGame/ with TriviaGameApp.swift and ContentView.swift (or GameView.swift). Start with the UI and then the game logic. Keep everything local (no network backend).",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "architecture",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "SoftwareArchitect",
+      "timeout": "720s",
+      "until_file_match": {
+        "path": "TriviaGame/TriviaGameApp.swift",
+        "path_alternatives": [
+          "TriviaGameApp.swift"
+        ],
+        "any_match": [
+          "@main|App|WindowGroup|SwiftUI|UIApplication"
+        ],
+        "none_match": [
+          "lorem ipsum"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_messages",
+      "from": "SoftwareArchitect",
+      "last_reply_only": true,
+      "none_match": [
+        "finished without file changes"
+      ]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "TriviaGame/TriviaGameApp.swift",
+      "path_alternatives": [
+        "TriviaGameApp.swift"
+      ]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "TriviaGame/ContentView.swift",
+      "path_alternatives": [
+        "TriviaGame/GameView.swift",
+        "TriviaGame/Views/ContentView.swift",
+        "ContentView.swift",
+        "GameView.swift"
+      ]
+    }
+  ],
+  "cleanup": "clear"
+}

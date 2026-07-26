@@ -15,6 +15,7 @@ import (
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
+	"github.com/camronwood/neural-junkie/internal/repo"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/camronwood/neural-junkie/internal/workspacefiles"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
@@ -136,6 +137,14 @@ func (w *tools) handleReadFile(ctx context.Context, request mcpgo.CallToolReques
 	if rel == "" {
 		return mcp.HandleToolError(fmt.Errorf("path is required"), "read_file"), nil
 	}
+	if repo.IsScenarioBaselinePath(rel) {
+		live := strings.TrimPrefix(filepath.ToSlash(rel), repo.ScenarioBaselineDir+"/")
+		live = strings.ReplaceAll(live, "/"+repo.ScenarioBaselineDir+"/", "/")
+		return mcp.HandleToolError(fmt.Errorf(
+			"%s is a harness seed directory — read %q instead",
+			repo.ScenarioBaselineDir, live,
+		), "read_file"), nil
+	}
 	full, err := w.resolveRel(root, rel)
 	if err != nil {
 		return mcp.HandleToolError(err, "read_file"), nil
@@ -199,7 +208,11 @@ func (w *tools) handleGrep(ctx context.Context, request mcpgo.CallToolRequest) (
 		}
 		res, err := b.Exec(ctx, workspacebackend.ExecRequest{
 			Command: "rg",
-			Args:    []string{"-n", "--no-heading", "--color=never", pattern, "."},
+			Args: []string{
+				"-n", "--no-heading", "--color=never",
+				"--glob", "!" + repo.ScenarioBaselineDir + "/**",
+				pattern, ".",
+			},
 			RelCwd:  relCwd,
 			Timeout: 60 * time.Second,
 		})
@@ -269,7 +282,8 @@ func (w *tools) handleGrep(ctx context.Context, request mcpgo.CallToolRequest) (
 }
 
 func runRipgrep(ctx context.Context, dir, pattern string) (string, error) {
-	cmd := exec.CommandContext(ctx, "rg", "-n", "--no-heading", "--color=never", pattern, dir)
+	cmd := exec.CommandContext(ctx, "rg", "-n", "--no-heading", "--color=never",
+		"--glob", "!"+repo.ScenarioBaselineDir+"/**", pattern, dir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if len(out) == 0 {
@@ -338,6 +352,9 @@ func (w *tools) handleListDir(ctx context.Context, request mcpgo.CallToolRequest
 		}
 		var lines []string
 		for _, e := range entries {
+			if e.Name == repo.ScenarioBaselineDir {
+				continue
+			}
 			kind := "file"
 			if e.IsDir {
 				kind = "dir"
@@ -355,6 +372,9 @@ func (w *tools) handleListDir(ctx context.Context, request mcpgo.CallToolRequest
 	}
 	var lines []string
 	for _, e := range entries {
+		if e.Name() == repo.ScenarioBaselineDir {
+			continue
+		}
 		kind := "file"
 		if e.IsDir() {
 			kind = "dir"

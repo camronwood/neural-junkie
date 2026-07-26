@@ -15,6 +15,10 @@ const recapDiscussionMaxChars = 800
 // When @Assistant is on the roster, they facilitate both pre-approval and final recaps.
 // Otherwise pre_approval uses the last planning speaker; final uses last execution speaker,
 // then the planning recap agent, then the first roster agent.
+//
+// CLI-backed agents (Claude CLI, Cursor, etc.) are skipped for facilitation when a
+// non-CLI participant exists — under local Ollama routing they often fail to pick up
+// collaboration_recap turns after discussion abort, leaving planning_recap pending.
 func SelectRecapFacilitator(c *Collaboration, kind RecapKind) string {
 	if c == nil {
 		return ""
@@ -28,6 +32,16 @@ func SelectRecapFacilitator(c *Collaboration, kind RecapKind) string {
 	if kind == RecapKindPreApproval && c.PlanningDiscussion != nil {
 		disc = c.PlanningDiscussion
 	}
+	if id := lastDiscussionSpeakerID(disc); id != "" && !collaborationAgentIsCLI(c, id) {
+		return id
+	}
+	if kind == RecapKindFinal && strings.TrimSpace(c.PlanningRecapAgentID) != "" &&
+		!collaborationAgentIsCLI(c, c.PlanningRecapAgentID) {
+		return c.PlanningRecapAgentID
+	}
+	if id := firstNonCLIAgentID(c); id != "" {
+		return id
+	}
 	if id := lastDiscussionSpeakerID(disc); id != "" {
 		return id
 	}
@@ -36,6 +50,34 @@ func SelectRecapFacilitator(c *Collaboration, kind RecapKind) string {
 	}
 	if len(c.Agents) > 0 {
 		return c.Agents[0].AgentID
+	}
+	return ""
+}
+
+func collaborationAgentIsCLI(c *Collaboration, agentID string) bool {
+	if c == nil || agentID == "" {
+		return false
+	}
+	for _, a := range c.Agents {
+		if a.AgentID == agentID {
+			return a.AgentType == protocol.AgentTypeCLI
+		}
+	}
+	return false
+}
+
+func firstNonCLIAgentID(c *Collaboration) string {
+	if c == nil {
+		return ""
+	}
+	for _, a := range c.Agents {
+		if a.AgentType == protocol.AgentTypeCLI {
+			continue
+		}
+		if strings.TrimSpace(a.AgentID) == "" {
+			continue
+		}
+		return a.AgentID
 	}
 	return ""
 }

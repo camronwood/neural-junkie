@@ -520,7 +520,19 @@ def wait_chat_reply(
             if len(failures) > 0:
                 return False, f"@{want} posted failure system message"
         time.sleep(POLL_INTERVAL)
-    counts = count_by_agent(chat_agent_messages(list_messages(base, channel, 50)))
+    # Final check: reply often lands during the last sleep past deadline.
+    msgs = list_messages(base, channel, 200)
+    pool = chat_agent_messages(msgs)
+    agent_msgs = [m for m in pool if (m.get("from") or {}).get("name") == want]
+    new_count = len(agent_msgs) - baseline_count
+    if new_count >= max_new:
+        last = agent_msgs[-1]
+        if is_agent_failure_message(last):
+            if detect_failures:
+                return False, f"@{want} returned failure reply"
+        else:
+            return True, f"{want} replied ({new_count} new)"
+    counts = count_by_agent(pool)
     return False, f"timeout waiting for @{want} (baseline={baseline_count}, counts={counts})"
 
 

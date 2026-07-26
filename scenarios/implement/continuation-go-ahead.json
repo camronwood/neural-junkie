@@ -1,19 +1,33 @@
 {
   "name": "continuation-go-ahead",
   "description": "User affirms prior implementation ask; session should still run.",
-  "tags": ["implement", "continuation"],
+  "tags": [
+    "implement",
+    "continuation"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
-  "workspace": { "fixture": "minimal-repo" },
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "minimal-repo"
+  },
   "expect_deliverables": [
     {
       "path": "core/sample/main.go",
       "for_question": {
-        "contains_all": ["PrintVersion"],
-        "any_match": ["func PrintVersion", "PrintVersion\\("],
-        "none_match": ["index\\.js"]
+        "contains_all": [
+          "PrintVersion"
+        ],
+        "any_match": [
+          "func PrintVersion",
+          "PrintVersion\\("
+        ],
+        "none_match": [
+          "index\\.js"
+        ]
       },
       "llm_judge": true
     }
@@ -34,7 +48,9 @@
       "action": "wait_reply",
       "from": "BackendEngineer",
       "timeout": "420s",
-      "until_any_match": ["applied and verified|proposals submitted|PrintVersion"]
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "steps": [
@@ -53,19 +69,42 @@
       "action": "wait_reply",
       "from": "BackendEngineer",
       "timeout": "420s",
-      "until_any_match": ["applied and verified|proposals submitted|PrintVersion"]
+      "until_file_match": {
+        "path": "core/sample/main.go",
+        "any_match": [
+          "func PrintVersion",
+          "PrintVersion\\("
+        ],
+        "none_match": [
+          "index\\.js"
+        ],
+        "contains_all": [
+          "PrintVersion"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation|PrintVersion|Grounding|applied and verified|proposals submitted"],
-      "none_match": ["finished without file changes"]
+      "none_match": [
+        "finished without file changes"
+      ]
     },
     {
       "action": "assert_file_exists",
       "path": "core/sample/main.go",
       "contains": "PrintVersion"
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "BackendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

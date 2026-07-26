@@ -1,14 +1,23 @@
 {
   "name": "typescript-compile-error-fix",
   "description": "Fix TypeScript compile error in src/App.tsx.",
-  "tags": ["implement", "cursor-parity", "react", "typescript"],
+  "tags": [
+    "implement",
+    "cursor-parity",
+    "react",
+    "typescript"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
+  "required_agents": [
+    "FrontendEngineer"
+  ],
   "workspace": {
     "fixture": "react-ts-type-error",
-    "open_files": ["src/App.tsx"],
+    "open_files": [
+      "src/App.tsx"
+    ],
     "active_file": "src/App.tsx"
   },
   "setup": [
@@ -23,8 +32,14 @@
       "path": "src/App.tsx",
       "min_bytes": 40,
       "for_question": {
-        "any_match": ["export default function App", "brokenCount|count"],
-        "none_match": ["not-a-number", "Type 'string' is not assignable"]
+        "any_match": [
+          "export default function App",
+          "brokenCount|count"
+        ],
+        "none_match": [
+          "not-a-number",
+          "Type 'string' is not assignable"
+        ]
       }
     }
   ],
@@ -44,24 +59,48 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "420s",
-      "until_any_match": ["applied and verified|implementation session complete"]
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "any_match": [
+          "export default function App",
+          "brokenCount|count"
+        ],
+        "none_match": [
+          "not-a-number",
+          "Type 'string' is not assignable"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "FrontendEngineer",
       "last_reply_only": true,
-      "any_match": ["applied and verified|implementation session complete"],
-      "none_match": ["finished without file changes", "not-a-number"]
+      "none_match": [
+        "finished without file changes",
+        "not-a-number"
+      ]
     },
     {
       "action": "assert_file_exists",
       "path": "src/App.tsx",
-      "none_match": ["not-a-number"]
+      "none_match": [
+        "not-a-number"
+      ]
     },
     {
       "action": "assert_shell",
       "command": "npm run typecheck",
       "timeout_s": 120
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "FrontendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

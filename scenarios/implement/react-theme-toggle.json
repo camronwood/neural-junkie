@@ -1,18 +1,31 @@
 {
   "name": "react-theme-toggle",
   "description": "Frontend implementation session adds darkMode to Tailwind on React fixture; rejects Vue paths.",
-  "tags": ["implement", "frontend", "react"],
+  "tags": [
+    "implement",
+    "frontend",
+    "react"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
-  "workspace": { "fixture": "react-tailwind-minimal" },
+  "required_agents": [
+    "FrontendEngineer"
+  ],
+  "workspace": {
+    "fixture": "react-tailwind-minimal"
+  },
   "expect_deliverables": [
     {
       "path": "tailwind.config.js",
       "for_question": {
-        "contains_all": ["darkMode"],
-        "none_match": ["\\.vue", "App\\.vue"]
+        "contains_all": [
+          "darkMode"
+        ],
+        "none_match": [
+          "\\.vue",
+          "App\\.vue"
+        ]
       },
       "llm_judge": {
         "criteria": "This file is only the Tailwind config. PASS if class-based dark mode is enabled (darkMode). UI toggle logic is validated in App.tsx."
@@ -21,8 +34,13 @@
     {
       "path": "src/App.tsx",
       "for_question": {
-        "any_match": ["toggleTheme|setTheme|useState|onClick|Toggle Theme|dark|light"],
-        "none_match": ["\\.vue", "ThemeToggle\\.vue"]
+        "any_match": [
+          "toggleTheme|setTheme|useState|onClick|Toggle Theme|dark|light"
+        ],
+        "none_match": [
+          "\\.vue",
+          "ThemeToggle\\.vue"
+        ]
       },
       "llm_judge": {
         "criteria": "PASS if the sidebar includes a theme toggle control with state/logic for light and dark modes."
@@ -45,14 +63,30 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "900s",
-      "until_any_match": ["applied and verified|proposals submitted|verification failed|darkMode|dark mode|implementation session"]
+      "until_file_match": {
+        "path": "tailwind.config.js",
+        "none_match": [
+          "\\.vue",
+          "App\\.vue"
+        ],
+        "contains_all": [
+          "darkMode"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "FrontendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|applied and verified|proposals submitted|darkMode|theme"],
-      "none_match": ["finished without file changes", "\\.vue", "App\\.vue", "ThemeToggle\\.vue"]
+      "none_match": [
+        "finished without file changes",
+        "\\.vue",
+        "App\\.vue",
+        "ThemeToggle\\.vue"
+      ]
     },
     {
       "action": "assert_file_exists",
@@ -62,7 +96,19 @@
     {
       "action": "assert_file_exists",
       "path": "src/App.tsx",
-      "any_match": ["toggleTheme", "setTheme", "useState", "onClick"]
+      "any_match": [
+        "toggleTheme",
+        "setTheme",
+        "useState",
+        "onClick"
+      ]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "FrontendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

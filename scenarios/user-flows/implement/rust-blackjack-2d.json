@@ -1,0 +1,116 @@
+{
+  "name": "rust-blackjack-2d",
+  "description": "Real user flow: design and implement a local CLI Rust blackjack game that cargo build can compile (playable end state).",
+  "tags": [
+    "user-flow",
+    "rust",
+    "game",
+    "implement"
+  ],
+  "channel": "user-flow-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "user-flow-empty"
+  },
+  "expect_deliverables": [
+    {
+      "path": "Cargo.toml",
+      "min_bytes": 40,
+      "for_question": {
+        "any_match": [
+          "name\\s*=|blackjack|edition"
+        ],
+        "none_match": [
+          "bevy|wgpu|three\\.js|unity"
+        ]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "src/main.rs",
+      "path_alternatives": [
+        "src/lib.rs"
+      ],
+      "min_bytes": 200,
+      "for_question": {
+        "any_match": [
+          "blackjack|Blackjack",
+          "hit|stand|dealer|Hand|Deck|card"
+        ],
+        "none_match": [
+          "bevy::|wgpu|OpenGL|3D mesh"
+        ]
+      },
+      "llm_judge": {
+        "criteria": "PASS when a local terminal/CLI Rust blackjack game exists with hit/stand/dealer/win-lose. FAIL if engine-based or non-playable stubs."
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "Let's design and implement a simple game using Rust. This will be a local CLI card game where the user can play blackjack against the house. Keep everything local (no network). Prefer a terminal/CLI or simple text UI — not a 3D engine. Put the crate at the workspace root with Cargo.toml and src/main.rs. Include hit/stand, dealer play, and win/lose so cargo build works and the game is playable. Prefer the Rust standard library only (no Bevy/wgpu; avoid rand if you can shuffle with std).",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "720s",
+      "until_files_exist": [
+        "Cargo.toml",
+        "src/main.rs"
+      ],
+      "until_file_match": {
+        "path": "src/main.rs",
+        "path_alternatives": [
+          "src/lib.rs"
+        ],
+        "any_match": [
+          "blackjack|Blackjack",
+          "hit|stand|dealer|Hand|Deck|card"
+        ],
+        "none_match": [
+          "bevy|wgpu|three\\.js|unity"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "none_match": [
+        "finished without file changes"
+      ]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "Cargo.toml"
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "src/main.rs",
+      "path_alternatives": [
+        "src/lib.rs"
+      ]
+    },
+    {
+      "action": "assert_shell",
+      "command": "cargo build",
+      "timeout_s": 180
+    }
+  ],
+  "cleanup": "clear"
+}

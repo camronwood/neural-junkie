@@ -25,6 +25,12 @@ func isConversationalOnlyTurn(msg *protocol.Message) bool {
 	if msg == nil {
 		return false
 	}
+	// Explicit conversation_mode=chat is advisory design/Q&A — keep workspace MCP off
+	// so specialists do not dump repo findings mid conversation.
+	if ConversationModeFromMessage(msg) == ConversationModeChat &&
+		!msg.ImplementationSession() && !msg.IdeEditorModeIsExport() {
+		return true
+	}
 	content := strings.TrimSpace(msg.Content)
 	if isSocialOrStatusPing(content) || intent.LooksLikePresenceCheck(content) {
 		return true

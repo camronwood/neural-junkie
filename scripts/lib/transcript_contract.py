@@ -355,7 +355,15 @@ def evaluate_contract(contract: dict[str, Any]) -> dict[str, Any]:
             counts["tool_follow_through_good"] += int(passed)
         elif kind == "unsupported_claim":
             counts["unsupported_claim_total"] += 1
-            claim_index = _find(turns, "assistant", assistant)
+            # Scope claims after an optional user_match (e.g. the image request) so
+            # earlier outline text with "created"/"cover" does not false-positive.
+            claim_start = 0
+            user_scope = str(case.get("user_match") or "").strip()
+            if user_scope:
+                user_index = _find(turns, "user", user_scope)
+                if user_index is not None:
+                    claim_start = user_index + 1
+            claim_index = _find(turns, "assistant", assistant, claim_start)
             evidence = str(case.get("evidence_match") or "")
             evidence_label = str(case.get("evidence_label") or "")
             evidence_role = str(case.get("evidence_role") or "")

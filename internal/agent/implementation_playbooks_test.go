@@ -63,4 +63,43 @@ func TestTryEarlyCommandEvidencePlaybook_requiresPastedOutput(t *testing.T) {
 	if !ag.tryEarlyCommandEvidencePlaybook(context.Background(), pasted, dir, state) {
 		t.Fatal("pasted command output should trigger early playbook")
 	}
+	if !makefileHasStartAllTarget(dir) {
+		t.Fatal("Makefile on disk should contain start-all after playbook")
+	}
+}
+
+func TestTryEarlyCommandEvidencePlaybook_survivesRollback(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "scripts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "scripts", "start-all.sh"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("build:\n\tnpm run build\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ag := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{
+		BootFixIntent: true,
+		TrustMode:     editorTrustAutoApply,
+		VerifyFailed:  true, // would normally trigger rollback
+	}
+	meta := map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	pasted := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
+		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
+		"make start-all fails:\n```\n$ make start-all\nmake: *** No rule to make target 'start-all'.  Stop.\n```")
+	pasted.Metadata = meta
+	if !ag.tryEarlyCommandEvidencePlaybook(context.Background(), pasted, dir, state) {
+		t.Fatal("pasted command output should trigger early playbook")
+	}
+	state.rollbackFailedAutoApplySession(dir)
+	if !makefileHasStartAllTarget(dir) {
+		t.Fatal("Makefile start-all must survive session rollback after playbook")
+	}
 }

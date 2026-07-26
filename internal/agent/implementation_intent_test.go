@@ -29,6 +29,26 @@ func TestUserAffirmsPendingImplementation_expanded(t *testing.T) {
 	}
 }
 
+func TestShouldForceWorkspaceGroundingOpener(t *testing.T) {
+	t.Parallel()
+	chat := protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{}, "what about go vs rust?")
+	chat.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		MetadataContextScope:     ContextScopeNone,
+	}
+	if shouldForceWorkspaceGroundingOpener(chat) {
+		t.Fatal("chat + context_scope=none must not force grounding opener")
+	}
+	code := protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{}, "review hub.go")
+	code.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeCode,
+		MetadataContextScope:     "outline",
+	}
+	if !shouldForceWorkspaceGroundingOpener(code) {
+		t.Fatal("code mode should allow grounding opener")
+	}
+}
+
 func TestUserRequestsImplementation_debugPhrases(t *testing.T) {
 	t.Parallel()
 	if !userRequestsImplementation("can you review the code for issues?") {
@@ -103,6 +123,7 @@ func TestIsAdvisoryImplementationQuestion(t *testing.T) {
 	}{
 		{"how would you add a light/dark theme toggle in a React settings page?", true},
 		{"One more thing — where should the theme toggle live in the settings UI?", true},
+		{"go deeper on the approach — what would you implement first?", true},
 		{"please add theme support to settings", false},
 		{"implement the theme toggle now", false},
 	}

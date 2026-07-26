@@ -1,11 +1,18 @@
 {
   "name": "already-said-closure",
   "description": "User says the agent already answered; expect canned won't-repeat style closure.",
-  "tags": ["public", "assistant", "closure", "regression"],
+  "tags": [
+    "public",
+    "assistant",
+    "closure",
+    "regression"
+  ],
   "channel": "chat-scenarios",
   "channel_type": "public",
   "mention": "@Assistant",
-  "required_agents": ["Assistant"],
+  "required_agents": [
+    "Assistant"
+  ],
   "steps": [
     {
       "action": "send",
@@ -30,7 +37,14 @@
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "Assistant",
-      "any_match": ["won't repeat|won’t repeat|What would you like|anything else"]
+      "any_match": [
+        "won't repeat|won\u2019t repeat|What would you like|anything else"
+      ],
+      "optional": true,
+      "max_chars": 180,
+      "none_match": [
+        "2\\s*\\+\\s*2\\s*=\\s*4"
+      ]
     }
   ],
   "cleanup": "clear"

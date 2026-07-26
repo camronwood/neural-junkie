@@ -182,23 +182,24 @@ func main() {
 	}
 
 	sessionPath := hub.DefaultSessionPath()
-	log.Printf("💾 Session will be saved to: %s", sessionPath)
 	sessCfg := appConfig.ResolvedSession()
+	if sessCfg.PersistEnabled {
+		log.Printf("💾 Session snapshot persist enabled → %s (periodic + shutdown)", sessionPath)
+	} else {
+		log.Printf("💾 Session snapshot persist is off (debug dump: POST /api/system/session-snapshot → %s)", sessionPath)
+	}
 	restoreLastSession := sessCfg.RestoreOnStartup
 	if !restoreLastSession {
 		if fi, err := os.Stat(sessionPath); err == nil {
-			log.Printf("🧹 Resetting previous session on startup: removing %s (%.1f MiB)", sessionPath, float64(fi.Size())/(1024*1024))
-			if err := os.Remove(sessionPath); err != nil {
-				log.Printf("⚠️  Failed to remove previous session file %s: %v", sessionPath, err)
-			}
+			log.Printf("💾 Leaving existing snapshot on disk (%.1f MiB); restore is off — enable in Settings → Server & network if needed", float64(fi.Size())/(1024*1024))
 		} else if !os.IsNotExist(err) {
 			log.Printf("⚠️  Failed to stat previous session file %s: %v", sessionPath, err)
 		}
-		log.Printf("💾 Previous session restore is off; starting with a fresh session (enable in Settings → Server & network)")
+		log.Printf("💾 Session restore is off; starting with a fresh in-memory session")
 	} else if fi, err := os.Stat(sessionPath); err == nil {
 		log.Printf("💾 Session file on disk: %.1f MiB", float64(fi.Size())/(1024*1024))
 		if fi.Size() > 200*1024*1024 {
-			log.Printf("⚠️  Session file is very large; consider archiving %s or unset NEURAL_JUNKIE_RESTORE_LAST_SESSION to start fresh", sessionPath)
+			log.Printf("⚠️  Session file is very large; consider archiving %s or disable restore in Settings", sessionPath)
 		}
 	} else if !os.IsNotExist(err) {
 		log.Printf("⚠️  Failed to stat session file %s: %v", sessionPath, err)
@@ -299,25 +300,27 @@ func main() {
 		log.Printf("CORS: restricted to local dev origins (set NEURAL_JUNKIE_CORS_ANY=1 to allow all)")
 	}
 
-	// Periodic session save (every 2 minutes), cancellable for clean shutdown.
+	// Background hub maintenance (cancellable for clean shutdown).
 	sessionSaverCtx, stopSessionSaver := context.WithCancel(context.Background())
 	var sessionSaverWG sync.WaitGroup
-	sessionSaverWG.Add(1)
-	go func() {
-		defer sessionSaverWG.Done()
-		ticker := time.NewTicker(2 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-sessionSaverCtx.Done():
-				return
-			case <-ticker.C:
-				if err := chatHub.SaveSessionToFile(sessionPath); err != nil {
-					log.Printf("⚠️  Periodic session save failed: %v", err)
+	if sessCfg.PersistEnabled {
+		sessionSaverWG.Add(1)
+		go func() {
+			defer sessionSaverWG.Done()
+			ticker := time.NewTicker(2 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-sessionSaverCtx.Done():
+					return
+				case <-ticker.C:
+					if err := chatHub.SaveSessionToFile(sessionPath); err != nil {
+						log.Printf("⚠️  Periodic session save failed: %v", err)
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 
 	// Drop channel/thread messages older than 24h periodically (WebSocket resync to clients/agents).
 	sessionSaverWG.Add(1)
@@ -353,7 +356,7 @@ func main() {
 		}
 	}()
 
-	// Graceful shutdown: save session on SIGINT/SIGTERM
+	// Graceful shutdown: optionally save session on SIGINT/SIGTERM
 	server := &http.Server{Addr: *addr}
 	go func() {
 		// Outbound bridge uses WebSocket to localhost; start after the hub is listening.
@@ -371,9 +374,13 @@ func main() {
 		stopSlackBridge()
 		stopStreamManager()
 		sessionSaverWG.Wait()
-		log.Println("🛑 Shutdown signal received, saving session...")
-		if err := chatHub.SaveSessionToFile(sessionPath); err != nil {
-			log.Printf("⚠️  Failed to save session on shutdown: %v", err)
+		if appConfig.ResolvedSession().PersistEnabled {
+			log.Println("🛑 Shutdown signal received, saving session snapshot...")
+			if err := chatHub.SaveSessionToFile(sessionPath); err != nil {
+				log.Printf("⚠️  Failed to save session on shutdown: %v", err)
+			}
+		} else {
+			log.Println("🛑 Shutdown signal received (session snapshot persist off)")
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

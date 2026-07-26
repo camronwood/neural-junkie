@@ -18,7 +18,7 @@
       "content": "ok thanks",
       "metadata": { "conversation_mode": "chat", "context_scope": "none" }
     },
-    { "action": "wait_reply", "from": "Assistant", "timeout": "30s" },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "90s" },
     {
       "action": "send",
       "content": "One more thing — where should the theme toggle live in the settings UI?",

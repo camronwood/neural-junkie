@@ -217,6 +217,34 @@ func TestCompleteMixedImageResponseIncludesTextDeliverable(t *testing.T) {
 	}
 }
 
+func TestImageGenerationDisabledForChatThemeAsk(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "BackendEngineer", Type: protocol.AgentTypeBackend},
+		Hub:  hub,
+	}
+	msg := &protocol.Message{
+		Channel: "dm-test",
+		Content: "I want to add theme support to this app I am working on now",
+		Metadata: map[string]interface{}{
+			MetadataConversationMode: ConversationModeChat,
+		},
+	}
+	if a.imageGenerationToolsEnabledForMessage(msg) {
+		t.Fatal("theme support chat ask must not expose generate_image")
+	}
+	vis := &protocol.Message{
+		Channel: "dm-test",
+		Content: "can you see my workspace I have open?",
+		Metadata: map[string]interface{}{
+			MetadataConversationMode: ConversationModeCode,
+		},
+	}
+	if a.imageGenerationToolsEnabledForMessage(vis) {
+		t.Fatal("workspace visibility must not expose generate_image")
+	}
+}
+
 func TestImageGenerationDisabledDuringImplementationSession(t *testing.T) {
 	hub := &imageGenTestHub{enabled: true}
 	a := &Agent{

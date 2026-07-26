@@ -7,6 +7,7 @@ import (
 )
 
 func TestOllamaChatOptions_runtimeOverrides(t *testing.T) {
+	t.Setenv("NJ_OLLAMA_NUM_PREDICT", "")
 	SetHubRuntimeOptions(config.PerformanceConfig{}, config.OllamaConfig{
 		NumCtx:     8192,
 		NumPredict: 256,
@@ -18,10 +19,20 @@ func TestOllamaChatOptions_runtimeOverrides(t *testing.T) {
 }
 
 func TestOllamaChatOptions_defaultCapsNativeToolModels(t *testing.T) {
+	t.Setenv("NJ_OLLAMA_NUM_PREDICT", "")
 	SetHubRuntimeOptions(config.PerformanceConfig{}, config.OllamaConfig{})
 	opts := ollamaChatOptions("qwen3.5:9b")
 	if opts["num_predict"] != 512 {
 		t.Fatalf("default num_predict = %#v, want 512", opts["num_predict"])
+	}
+}
+
+func TestOllamaChatOptions_envNumPredictOverride(t *testing.T) {
+	t.Setenv("NJ_OLLAMA_NUM_PREDICT", "4096")
+	SetHubRuntimeOptions(config.PerformanceConfig{}, config.OllamaConfig{NumPredict: 256})
+	opts := ollamaChatOptions("qwen2.5-coder:14b")
+	if opts["num_predict"] != 4096 {
+		t.Fatalf("env override num_predict = %#v, want 4096", opts["num_predict"])
 	}
 }
 

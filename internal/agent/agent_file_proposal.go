@@ -70,9 +70,11 @@ func isAskModeReadOnly(sourceMsg *protocol.Message) bool {
 		return true
 	}
 	// Canonical semantic decision is authoritative: only workspace mutation may
-	// emit file proposals, even if composer mode is agent.
+	// emit file proposals — unless the IDE/scenario explicitly requested a session
+	// or export (boot-fix pastes are often classified ActionAnswer/MutationNone).
 	if decision, ok := protocol.ExtractTurnDecision(sourceMsg); ok {
-		if decision.Mutation != semantic.MutationWorkspace {
+		if decision.Mutation != semantic.MutationWorkspace &&
+			!sourceMsg.ImplementationSession() && !sourceMsg.IdeEditorModeIsExport() {
 			return true
 		}
 	}

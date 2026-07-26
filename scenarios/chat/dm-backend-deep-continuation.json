@@ -15,13 +15,13 @@
     {
       "action": "send",
       "content": "I want to add light and dark theme support to this project",
-      "metadata": { "conversation_mode": "code", "context_scope": "hint" }
+      "metadata": { "conversation_mode": "chat", "context_scope": "hint" }
     },
     { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {
       "action": "send",
-      "content": "go deeper on the approach — what would you implement first?",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "content": "Stay on the light/dark theme topic — what would you implement first for the theme toggle (CSS variables, provider, or config)?",
+      "metadata": { "conversation_mode": "chat", "context_scope": "outline" }
     },
     { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {

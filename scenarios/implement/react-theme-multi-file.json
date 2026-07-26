@@ -1,25 +1,43 @@
 {
   "name": "react-theme-multi-file",
   "description": "Single prompt lands tailwind darkMode and App.tsx theme wiring without a go-ahead turn.",
-  "tags": ["implement", "frontend", "multi-file"],
+  "tags": [
+    "implement",
+    "frontend",
+    "multi-file"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
-  "workspace": { "fixture": "react-tailwind-minimal" },
+  "required_agents": [
+    "FrontendEngineer"
+  ],
+  "workspace": {
+    "fixture": "react-tailwind-minimal"
+  },
   "expect_deliverables": [
     {
       "path": "tailwind.config.js",
       "for_question": {
-        "contains_all": ["darkMode"],
-        "none_match": ["\\.vue", "ThemeToggle\\.vue"]
+        "contains_all": [
+          "darkMode"
+        ],
+        "none_match": [
+          "\\.vue",
+          "ThemeToggle\\.vue"
+        ]
       }
     },
     {
       "path": "src/App.tsx",
       "for_question": {
-        "any_match": ["toggleTheme|setTheme|useState.*theme|dark|light"],
-        "none_match": ["\\.vue", "ThemeToggle\\.vue"]
+        "any_match": [
+          "toggleTheme|setTheme|useState.*theme|dark|light"
+        ],
+        "none_match": [
+          "\\.vue",
+          "ThemeToggle\\.vue"
+        ]
       }
     }
   ],
@@ -39,14 +57,29 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "600s",
-      "until_any_match": ["applied and verified|proposals submitted|verification failed|implementation session|toggleTheme|setTheme"]
+      "until_file_match": {
+        "path": "tailwind.config.js",
+        "none_match": [
+          "\\.vue",
+          "ThemeToggle\\.vue"
+        ],
+        "contains_all": [
+          "darkMode"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "FrontendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|applied|proposals submitted|theme|App.tsx"],
-      "none_match": ["finished without file changes", "\\.vue", "ThemeToggle\\.vue"]
+      "none_match": [
+        "finished without file changes",
+        "\\.vue",
+        "ThemeToggle\\.vue"
+      ]
     },
     {
       "action": "assert_file_exists",
@@ -56,7 +89,18 @@
     {
       "action": "assert_file_exists",
       "path": "src/App.tsx",
-      "any_match": ["toggleTheme", "setTheme", "useState"]
+      "any_match": [
+        "toggleTheme",
+        "setTheme",
+        "useState"
+      ]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "FrontendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

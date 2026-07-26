@@ -1,0 +1,204 @@
+{
+  "name": "journey-crud-clarify-correct",
+  "description": "Multi-turn goal: vague user API ask → constrain to Node/TS → implement → mid-session health-route correction → finish.",
+  "tags": [
+    "user-flow",
+    "journey",
+    "long-horizon",
+    "correction",
+    "nodejs",
+    "implement"
+  ],
+  "evaluation": {
+    "long_horizon": true,
+    "min_user_turns": 4
+  },
+  "channel": "user-flow-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "user-flow-empty"
+  },
+  "expect_deliverables": [
+    {
+      "path": "package.json",
+      "min_bytes": 40,
+      "for_question": {
+        "any_match": [
+          "\"name\"|typescript|express|fastify|hono"
+        ],
+        "none_match": [
+          "lorem ipsum"
+        ]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "src/server.ts",
+      "path_alternatives": [
+        "src/index.ts",
+        "src/app.ts",
+        "server.ts"
+      ],
+      "min_bytes": 120,
+      "for_question": {
+        "contains_all": [
+          "/health",
+          "user|/users|User"
+        ],
+        "any_match": [
+          "get|post|put|delete|router|app\\.(get|post|put|delete)|listen"
+        ],
+        "none_match": [
+          "lorem ipsum",
+          "\\[Insert"
+        ]
+      },
+      "llm_judge": {
+        "criteria": "PASS when a Node/TypeScript user CRUD API exists and a health endpoint returns ok/true style status. FAIL if health is missing or CRUD was dropped after the correction."
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "I need a simple user management API for a local prototype. Don't write code yet — outline the approach and what you need from me.",
+      "metadata": {
+        "editor_mode": "plan",
+        "ide_route_agent_type": "backend",
+        "conversation_mode": "code",
+        "context_scope": "none"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "300s"
+    },
+    {
+      "action": "send",
+      "content": "Use Node.js with TypeScript, in-memory store, package.json plus src/server.ts (or src/index.ts). Expose create/read/update/delete for users. Implement it now.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "720s",
+      "until_files_exist": [
+        "package.json"
+      ],
+      "until_file_match": {
+        "path": "package.json",
+        "any_match": [
+          "\"name\"|typescript|express|fastify|hono"
+        ],
+        "none_match": [
+          "lorem ipsum"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "send",
+      "content": "Correction: also expose GET /health that returns {\"ok\": true}. Keep the user CRUD — do not replace it.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "540s",
+      "until_file_match": {
+        "path": "src/server.ts",
+        "path_alternatives": [
+          "src/index.ts",
+          "src/app.ts",
+          "server.ts"
+        ],
+        "contains_all": [
+          "/health"
+        ],
+        "any_match": [
+          "user|User|/users"
+        ],
+        "none_match": [
+          "lorem ipsum"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "send",
+      "content": "Verify both the health route and user CRUD are still in place, then stop. No extra features.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "420s",
+      "until_file_match": {
+        "path": "src/server.ts",
+        "path_alternatives": [
+          "src/index.ts",
+          "src/app.ts",
+          "server.ts"
+        ],
+        "contains_all": [
+          "/health"
+        ],
+        "any_match": [
+          "user|User|/users"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "none_match": [
+        "finished without file changes"
+      ]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "package.json"
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "src/server.ts",
+      "path_alternatives": [
+        "src/index.ts",
+        "src/app.ts",
+        "server.ts"
+      ]
+    }
+  ],
+  "cleanup": "clear"
+}

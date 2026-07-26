@@ -1,24 +1,36 @@
 {
   "name": "app-wont-boot-fix-like",
   "description": "Fix-like flow: vague boot failure triggers repro-first bootstrap and Makefile repair.",
-  "tags": ["implement", "fix-like", "boot-fix", "tauri"],
+  "tags": [
+    "implement",
+    "fix-like",
+    "boot-fix",
+    "tauri"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
-  "workspace": { "fixture": "react-tauri-missing-start-all" },
+  "required_agents": [
+    "FrontendEngineer"
+  ],
+  "workspace": {
+    "fixture": "react-tauri-missing-start-all"
+  },
   "expect_deliverables": [
     {
       "path": "Makefile",
       "for_question": {
-        "any_match": ["start-all:", "scripts/start-all.sh"]
+        "any_match": [
+          "start-all:",
+          "scripts/start-all.sh"
+        ]
       }
     }
   ],
   "steps": [
     {
       "action": "send",
-      "content": "the app won't boot — make start-all fails:\n\n```\n$ make start-all\nmake: *** No rule to make target 'start-all'.  Stop.\n```",
+      "content": "the app won't boot \u2014 make start-all fails:\n\n```\n$ make start-all\nmake: *** No rule to make target 'start-all'.  Stop.\n```",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "frontend",
@@ -31,19 +43,31 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "900s",
-      "until_any_match": ["fix session complete|implementation session complete|repro|start-all|Makefile"]
+      "until_file_match": {
+        "path": "Makefile",
+        "any_match": [
+          "start-all:",
+          "scripts/start-all.sh"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "FrontendEngineer",
       "last_reply_only": true,
-      "any_match": ["session complete|start-all|Makefile|repro"],
-      "none_match": ["finished without file changes"]
+      "none_match": [
+        "finished without file changes"
+      ]
     },
     {
       "action": "assert_message_metadata",
       "from": "FrontendEngineer",
-      "require_keys": ["implementation_session_outcome"]
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

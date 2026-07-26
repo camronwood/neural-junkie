@@ -1,0 +1,168 @@
+{
+  "name": "journey-boot-fix-then-feature",
+  "description": "Multi-turn goal: fix corrupt Vite App.js → confirm → add Workspace Ready heading without reintroducing App.js.",
+  "tags": [
+    "user-flow",
+    "journey",
+    "long-horizon",
+    "boot-fix",
+    "react",
+    "implement"
+  ],
+  "evaluation": {
+    "long_horizon": true,
+    "min_user_turns": 4
+  },
+  "channel": "user-flow-scenarios",
+  "channel_type": "public",
+  "target_agent": "SoftwareArchitect",
+  "required_agents": [
+    "SoftwareArchitect"
+  ],
+  "workspace": {
+    "fixture": "react-vite-corrupt-appjs"
+  },
+  "expect_deliverables": [
+    {
+      "path": "src/App.js",
+      "must_exist": false
+    },
+    {
+      "path": "src/App.tsx",
+      "for_question": {
+        "contains_all": [
+          "Workspace Ready"
+        ],
+        "any_match": [
+          "export|function|const|App"
+        ],
+        "none_match": [
+          "diff --git",
+          "your valid javascript",
+          "Expected \";\" but found \"git\""
+        ]
+      },
+      "llm_judge": {
+        "criteria": "PASS when App.js is gone, App.tsx is valid React/TSX, and an h1 or visible heading shows exactly Workspace Ready. FAIL if the git-diff corruption returns or the heading is missing."
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "the app in this workspace is not booting up can you help me fix it?\n\nvite dev error log:\n\n\u2718 [ERROR] Expected \";\" but found \"git\"\n\n    src/App.js:1:7:\n      1 \u2502 diff --git a/tailwind.config.js b/tailwind.config.js\n        \u2502        ~~~\n        \u2575        ;\n\nFailed to scan for dependencies from entries.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "architecture",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "SoftwareArchitect",
+      "timeout": "1200s",
+      "until_file_absent": "src/App.js",
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "any_match": [
+          "export|function|const|App"
+        ],
+        "none_match": [
+          "diff --git",
+          "your valid javascript"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "send",
+      "content": "is it fixed?",
+      "metadata": {
+        "editor_mode": "agent",
+        "conversation_mode": "chat"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "SoftwareArchitect",
+      "timeout": "240s"
+    },
+    {
+      "action": "send",
+      "content": "Great. Now add an h1 that says Workspace Ready in App.tsx. Do not recreate src/App.js.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "architecture",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "SoftwareArchitect",
+      "timeout": "540s",
+      "until_file_absent": "src/App.js",
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "contains_all": [
+          "Workspace Ready"
+        ],
+        "none_match": [
+          "diff --git"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "send",
+      "content": "Keep the heading text exactly Workspace Ready — no other title — and confirm App.js is still gone.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "architecture",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "SoftwareArchitect",
+      "timeout": "420s",
+      "until_file_absent": "src/App.js",
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "contains_all": [
+          "Workspace Ready"
+        ],
+        "none_match": [
+          "diff --git"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_file_absent",
+      "path": "src/App.js"
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "src/App.tsx",
+      "contains_all": [
+        "Workspace Ready"
+      ],
+      "none_match": [
+        "diff --git"
+      ]
+    }
+  ],
+  "cleanup": "clear"
+}

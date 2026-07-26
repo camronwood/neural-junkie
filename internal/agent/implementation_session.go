@@ -184,6 +184,28 @@ func assistantAllowsImplementationSession(a *Agent, msg *protocol.Message) bool 
 	return false
 }
 
+// chatModeBlocksImplementationSession reports advisory conversation_mode=chat turns that
+// must stay conversational (no file-edit impl loop), unless an explicit session/export is set
+// or the user is continuing an active implementation thread.
+func chatModeBlocksImplementationSession(a *Agent, msg *protocol.Message) bool {
+	if msg == nil || ConversationModeFromMessage(msg) != ConversationModeChat {
+		return false
+	}
+	if msg.ImplementationSession() || msg.IdeEditorModeIsExport() {
+		return false
+	}
+	if a == nil {
+		return true
+	}
+	history := a.channelHistorySafe(msg.Channel)
+	active := channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)
+	if active && (userRequestsImplementationStatusCheck(msg.Content) ||
+		userRequestsImplementation(msg.Content) || messageHasBootOrBuildError(msg.Content)) {
+		return false
+	}
+	return true
+}
+
 // shouldRunImplementationSession reports whether to use the bounded implementation loop.
 func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if a == nil || msg == nil {
@@ -204,12 +226,27 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 		caps := protocol.ResolveTurnCapabilities(msg)
 		switch decision.Action {
 		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue:
+			// Semantic Edit must not override explicit conversation_mode=chat advisory turns.
+			// Classifier often stamps Design/Correction prompts as Edit; chat scenarios and
+			// the desktop chat composer expect a conversational reply, not an impl session.
+			if chatModeBlocksImplementationSession(a, msg) {
+				return false
+			}
+			// "What would you implement first?" / go-deeper design questions stay advisory
+			// even when conversation_mode=code and the classifier stamps Edit.
+			if isAdvisoryImplementationQuestion(msg.Content) {
+				return false
+			}
 			return caps.CanRunImplSession &&
 				(a.Info.Type != protocol.AgentTypeAssistant || assistantAllowsImplementationSession(a, msg)) &&
 				agentTypeCanShipFileChanges(a.Info.Type) &&
 				a.Info.Type != protocol.AgentTypeCodeReview
 		default:
-			return false
+			// Semantic Answer/etc. must not veto an explicit IDE/scenario session flag.
+			// Fall through so the rest of the gates (and ImplementationSession()) apply.
+			if !msg.ImplementationSession() {
+				return false
+			}
 		}
 	}
 	if UserRequestsArtifact(msg.Content) ||
@@ -256,14 +293,8 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	}
 	// Explicit chat-mode turns are advisory only — unless continuing an active implementation
 	// thread (status check or boot-fix follow-up).
-	if ConversationModeFromMessage(msg) == ConversationModeChat &&
-		!msg.ImplementationSession() && !msg.IdeEditorModeIsExport() {
-		history := a.channelHistorySafe(msg.Channel)
-		active := channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)
-		if !active || (!userRequestsImplementationStatusCheck(msg.Content) &&
-			!userRequestsImplementation(msg.Content) && !messageHasBootOrBuildError(msg.Content)) {
-			return false
-		}
+	if chatModeBlocksImplementationSession(a, msg) {
+		return false
 	}
 
 	history := a.channelHistorySafe(msg.Channel)
@@ -352,12 +383,25 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		if hasSemanticDecision {
 			state.FixLikeIntent = semanticDecision.Action == semantic.ActionDebug
 			state.BootFixIntent = semanticDecisionHasReason(semanticDecision, "startup_failure", "boot_failure")
+			// Classifiers often stamp ActionEdit for boot-fix paste without
+			// startup_failure reason codes — still treat clear boot/build errors as boot-fix.
+			if !state.BootFixIntent && (messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content)) {
+				state.BootFixIntent = true
+				state.FixLikeIntent = true
+			}
 		} else {
 			state.BootFixIntent = messageImpliesBootFix(msg.Content, history)
 			state.FixLikeIntent = messageImpliesFixLikeIntent(msg.Content, history)
 		}
 		if !hasSemanticDecision && state.FixLikeIntent && !state.BootFixIntent {
 			state.BootFixIntent = state.FixLikeIntent
+		}
+		// Deterministic entry-conflict cleanup must run even when semantic
+		// stamped Edit without boot reasons (vite-boot-fix-corrupt-appjs).
+		if !state.BootFixIntent && DetectEntryConflicts(wsPath, state.StackManifest) != "" &&
+			(messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content)) {
+			state.BootFixIntent = true
+			state.FixLikeIntent = true
 		}
 		state.ReproCommand = inferReproCommand(wsPath, state.StackManifest, msg.Content)
 		state.DiagnosePhaseRequired = requiresDiagnoseGate(msg, state, wsPath)
@@ -407,10 +451,9 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	if !skipCollabCodingFixtureSynths(msg) {
 		if a.tryEarlyCorruptAppJSBootFix(sessionCtx, msg, wsPath, state) {
 			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
+			// Entry-conflict delete is deterministic; skip verify so a soft verify miss
+			// cannot rollback and restore the corrupt App.js via session snapshots.
+			state.VerifySkipped = true
 			summary := a.formatImplementationSessionSummary("", state, true, msg)
 			outcome := a.buildImplementationSessionOutcome(msg, state, true)
 			return summary, streamMsgID, true, state.FilesChanged, outcome, nil
@@ -511,12 +554,18 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
 		}
 
+		if a.tryEarlySidebarFooterExtract(sessionCtx, msg, wsPath, state) {
+			state.Phase = "verify"
+			state.VerifySkipped = true
+			summary := a.formatImplementationSessionSummary("", state, true, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, true)
+			return summary, streamMsgID, true, state.FilesChanged, outcome, nil
+		}
+
 		if a.tryEarlyScopedFileEdit(sessionCtx, msg, wsPath, state) {
 			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
+			// Scoped @file subtitle edits are frontend-only; skip Go verify commands.
+			state.VerifySkipped = true
 			proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
 			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
 			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
@@ -1682,6 +1731,7 @@ func (a *Agent) executeProposeFileEditTool(ctx context.Context, msg *protocol.Me
 	if path == "" {
 		return "", fmt.Errorf("path is required")
 	}
+	path = a.ResolveProposalPath(ctx, msg, path)
 	op := strings.ToLower(strings.TrimSpace(args.Operation))
 	if op == "delete" {
 		return "", fmt.Errorf("delete not supported via propose_file_edit in v1")

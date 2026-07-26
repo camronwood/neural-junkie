@@ -1,0 +1,9 @@
+:root {
+  --bg: #f8fafc;
+  --text: #0f172a;
+}
+
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --text: #f8fafc;
+}

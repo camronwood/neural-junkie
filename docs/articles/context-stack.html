@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How Neural Junkie Builds, Uses, and Shares Agent Context — Neural Junkie</title>
+  <meta name="description" content="Every turn flows through a six-stage Conversation Context Stack — mode, intent, memory, grounding, persona, budget — then shares only what&#x27;s needed via channels, delegation, collabs, learnings, and retrieve-on-demand memory. Scoped context, not a hive mind." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/articles/context-stack.html" />
+  <meta property="og:title" content="How Neural Junkie Builds, Uses, and Shares Agent Context — Neural Junkie" />
+  <meta property="og:description" content="Every turn flows through a six-stage Conversation Context Stack — mode, intent, memory, grounding, persona, budget — then shares only what&amp;#x27;s needed via channels, delegation, collabs, learnings, and retrieve-on-demand memory. Scoped context, not a hive mind." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/articles/context-stack.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-context-stack-1200.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="627" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="How Neural Junkie Builds, Uses, and Shares Agent Context — Neural Junkie" />
+  <meta name="twitter:description" content="Every turn flows through a six-stage Conversation Context Stack — mode, intent, memory, grounding, persona, budget — then shares only what&amp;#x27;s needed via channels, delegation, collabs, learnings, and retrieve-on-demand memory. Scoped context, not a hive mind." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-context-stack-1200.png" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "How Neural Junkie Builds, Uses, and Shares Agent Context",
+  "description": "Every turn flows through a six-stage Conversation Context Stack \u2014 mode, intent, memory, grounding, persona, budget \u2014 then shares only what&#x27;s needed via channels, delegation, collabs, learnings, and retrieve-on-demand memory. Scoped context, not a hive mind.",
+  "url": "https://camronwood.github.io/neural-junkie/articles/context-stack.html",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Neural Junkie"
+  },
+  "image": [
+    "https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-context-stack-1200.png"
+  ]
+}
+  </script>
+<!-- NJ-SITE-SEO:END -->
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap site-header-bar">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+          <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+          <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+          <a class="btn btn-ghost" href="../packs.html">Packs</a>
+          <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+          <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+          <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+          <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+          <a class="btn btn-ghost" href="../security.html">Security</a>
+          <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+          <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+          <a class="btn btn-ghost" href="../download.html">Download</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · How Neural Junkie Builds, Uses, and Shares Agent Context
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>How Neural Junkie Builds, Uses, and Shares Agent Context</h1>
+      <p class="article-lead">Every turn flows through a six-stage Conversation Context Stack — mode, intent, memory, grounding, persona, budget — then shares only what&#x27;s needed via channels, delegation, collabs, learnings, and retrieve-on-demand memory. Scoped context, not a hive mind.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">opensource</span><span class="article-tag">developertools</span><span class="article-tag">architecture</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-context-stack-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>Open a long <code>#general</code> thread. Ping a backend specialist. Ask a security reviewer for a second opinion. Start a <code>/collaborate</code> run that lasts three hours.</p>
+<p>Every one of those turns needs <strong>context</strong> — but not the <em>same</em> context, and not <em>all</em> of it.</p>
+<p>If you stuff the full transcript, open files, and tool dumps into every model call, local multi-agent dies on latency and RAM. If you send almost nothing, agents reinvent decisions you already made.</p>
+<p><strong>Neural Junkie</strong> is my personal open-source hub for running AI specialists on your hardware. The bet isn't a shared global brain. It's a <strong>Conversation Context Stack</strong> that builds the right prompt per turn — and explicit sharing paths when specialists need to see each other's work.</p>
+<h2>Build: six stages before the LLM</h2>
+<p>Every user message flows through the same pipeline before any model call:</p>
+<ol>
+<li><strong>Mode</strong> — chat, code, or collab (composer chip or auto from signals like file paths and code verbs)</li>
+<li><strong>Intent</strong> — closure, casual, meta, substantive, or task</li>
+<li><strong>Memory</strong> — rolling session summary + a capped history slice (threads stay thread-scoped)</li>
+<li><strong>Grounding</strong> — workspace scope from none → hint → outline → focus → full</li>
+<li><strong>Persona</strong> — direct DM, multi-agent channel, or collaboration framing</li>
+<li><strong>Budget</strong> — byte caps per section; compress with retrieve refs instead of silent truncation</li>
+</ol>
+<p>This is the part most demos skip. They ask a big model to "behave" with a giant prompt. We <strong>route context first</strong>.</p>
+<p>"Thanks!" → canned closure. No LLM. No workspace scan. No MCP tool block.</p>
+<p>A casual DM → minimal prompt, two history rows, summary if present.</p>
+<p>A refactor with <code>src/auth/middleware.go</code> open → code mode, task intent, focus or full scope, specialist tools on.</p>
+<h2>Use: what actually lands in the prompt</h2>
+<p>The agent assembles a <strong>system</strong> prompt and a <strong>user</strong> prompt from labeled sections — so you can debug what the model saw:</p>
+<p>System side: persona rules, pack domain blocks, MCP tools (when gated on), collaboration plan/lanes, user + project rules, session summary, conversation memory hits, personal learnings, durable conversation state.</p>
+<p>User side: your message, attached uploads, ambient editor state, <code>=== WORKSPACE CONTEXT ===</code>, linked repos, and any hub-data you explicitly granted.</p>
+<p>Then a <strong>turn pipeline</strong> runs knowledge retrievers when the intent warrants it — codebase search, code graph, memory, learnings, prior references — and stamps metadata so you can audit what was injected.</p>
+<p>When context would overflow, <strong>CCR</strong> (context compression + retrieve) stores oversized sections under <code>ctx-…</code> refs. The agent can pull them back with <code>nj_retrieve_context</code> instead of losing them quietly.</p>
+<h2>Share: scoped, not hive-mind</h2>
+<p>There is no single shared context blob across all agents. Sharing is intentional:</p>
+<p><strong>Same channel</strong> — everyone sees the same transcript; each agent rebuilds its own prompt from that history.</p>
+<p><strong>Delegation</strong> — the hub silently consults another specialist and injects <code>=== DELEGATE_RESULTS ===</code> into the responder's prompt. The user never leaves the conversation.</p>
+<p><strong>Agent Review</strong> — you @mention a different specialist in a thread for a second opinion.</p>
+<p><strong>Collaboration</strong> — plan, tasks, participants, and workspace context travel with the collab; task dispatch can attach slimmed path context so workers don't need the whole repo dump.</p>
+<p><strong>Personal learnings</strong> — user-confirmed memories scoped to an agent, the workspace, a collaboration, or globally — portable across sessions when you opt in.</p>
+<p><strong>Conversation memory</strong> — local embeddings over channel history and collab markdown (<code>plan.md</code>, findings, etc.), retrieved as <code>=== RELEVANT PAST CONTEXT ===</code> when the question needs yesterday's decision.</p>
+<p><strong>Packs</strong> don't reimplement the stack. They contribute capabilities and domain prompt appendices; the hub still owns assembly.</p>
+<h2>What you control</h2>
+<ul>
+<li><strong>Composer mode</strong> — Chat / Code / Auto</li>
+<li><strong>Workspace scope chip</strong> — how much of the open project goes into the turn</li>
+<li><strong>Linked workspaces</strong> — multi-repo project sets with cross-repo hints</li>
+<li><strong>Conversation memory + personal learning</strong> — Settings toggles, local SQLite / JSON under <code>~/.neural-junkie</code></li>
+<li><strong>Debug</strong> — <code>GET /api/debug/channel-context</code> when you need to see summary, mode, intent, persona, and budget stats</li>
+</ul>
+<h2>Why this matters for local AI</h2>
+<p>Cloud agents can afford giant windows and opaque retrieval. On your laptop, <strong>what you put in the prompt is the product</strong>.</p>
+<p>Build context in stages. Use only what the turn needs. Share through channels, collabs, and delegation — not by cloning one mega-prompt into every specialist.</p>
+<p>Docs deep dive: <code>docs/CONTEXT_MODEL.md</code> in the repo.</p>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/campaigns/context-stack/CONTEXT-STACK-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="../timeline.html">Timeline</a>
+        <a class="btn btn-ghost btn-sm" href="../thanks.html">Thank you</a>
+        <a class="btn btn-ghost btn-sm" href="../install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+        <a class="btn btn-ghost btn-sm" href="mailto:neuraljunkie.app@gmail.com">Contact</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="context-stack.html">How Neural Junkie Builds, Uses, and Shares Agent Context</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

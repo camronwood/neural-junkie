@@ -204,6 +204,13 @@ func appendConversationModeClarifyPrompt(system *strings.Builder) {
 	system.WriteString("Do not call tools or propose file edits until they choose.\n\n")
 }
 
+func appendConversationModeChatPrompt(system *strings.Builder) {
+	system.WriteString("=== CHAT MODE (ADVISORY) ===\n")
+	system.WriteString("Answer in conversation only. Do not edit files, run workspace tools, or dump repo findings.\n")
+	system.WriteString("Retain named constraints from earlier turns (component names, section placement, accessibility rules).\n")
+	system.WriteString("When summarizing a multi-turn design, restate those constraints explicitly in your reply.\n\n")
+}
+
 func appendGitInspectPrompt(system *strings.Builder, msg *protocol.Message) {
 	if msg == nil || !semantic.LooksLikeGitInspectRequest(msg.Content) {
 		return

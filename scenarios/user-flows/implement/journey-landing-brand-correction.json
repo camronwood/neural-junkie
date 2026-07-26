@@ -1,0 +1,184 @@
+{
+  "name": "journey-landing-brand-correction",
+  "description": "Multi-turn goal: greenfield landing page → brand rename correction → add tagline → finish without reverting brand.",
+  "tags": [
+    "user-flow",
+    "journey",
+    "long-horizon",
+    "correction",
+    "frontend",
+    "implement"
+  ],
+  "evaluation": {
+    "long_horizon": true,
+    "min_user_turns": 4
+  },
+  "channel": "user-flow-scenarios",
+  "channel_type": "public",
+  "target_agent": "FrontendEngineer",
+  "required_agents": [
+    "FrontendEngineer"
+  ],
+  "workspace": {
+    "fixture": "user-flow-empty"
+  },
+  "expect_deliverables": [
+    {
+      "path": "index.html",
+      "min_bytes": 200,
+      "for_question": {
+        "contains_all": [
+          "Neural Junkie",
+          "Local multi-agent hub"
+        ],
+        "any_match": [
+          "<h1|contact|Contact"
+        ],
+        "none_match": [
+          "Brightest Bio",
+          "lorem ipsum",
+          "\\[Insert"
+        ]
+      },
+      "llm_judge": {
+        "criteria": "PASS when index.html is a simple landing page branded Neural Junkie with the tagline Local multi-agent hub and a contact section. FAIL if Brightest Bio remains or the tagline/brand is missing after corrections."
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "Create a simple static landing page at index.html for Brightest Bio. Include an H1 with the brand name and a short Contact section with a mailto placeholder.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "540s",
+      "until_file_match": {
+        "path": "index.html",
+        "any_match": [
+          "Brightest Bio|Neural Junkie|<h1"
+        ],
+        "none_match": [
+          "lorem ipsum"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "send",
+      "content": "Correction: the brand is Neural Junkie, not Brightest Bio. Update the title and H1 — remove Brightest Bio.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "420s",
+      "until_file_match": {
+        "path": "index.html",
+        "contains_all": [
+          "Neural Junkie"
+        ],
+        "none_match": [
+          "Brightest Bio"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "send",
+      "content": "Add a short tagline under the H1: Local multi-agent hub. Keep the Neural Junkie brand and the Contact section.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "420s",
+      "until_file_match": {
+        "path": "index.html",
+        "contains_all": [
+          "Neural Junkie",
+          "Local multi-agent hub"
+        ],
+        "none_match": [
+          "Brightest Bio"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "send",
+      "content": "Done — do not change the brand again. Confirm Neural Junkie + the tagline are both present, then stop.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "300s",
+      "until_file_match": {
+        "path": "index.html",
+        "contains_all": [
+          "Neural Junkie",
+          "Local multi-agent hub"
+        ],
+        "none_match": [
+          "Brightest Bio"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_messages",
+      "from": "FrontendEngineer",
+      "last_reply_only": true,
+      "none_match": [
+        "finished without file changes"
+      ]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "index.html",
+      "contains_all": [
+        "Neural Junkie",
+        "Local multi-agent hub"
+      ],
+      "none_match": [
+        "Brightest Bio"
+      ]
+    }
+  ],
+  "cleanup": "clear"
+}

@@ -295,6 +295,7 @@ tail -f /tmp/devops-mcp.log
 
 ## Future Enhancements
 
+- **MCP Tool Wizard** — create or connect tools and grant access to agents (HTTP-fetch templates, remote MCP registry, custom experts with tool loops) — see [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md#mcp-tool-wizard-user-defined-tools--agents)
 - **Custom MCP tools** per project/repository
 - **User-defined tool configurations**
 - **Tool composition** (chain tools together)

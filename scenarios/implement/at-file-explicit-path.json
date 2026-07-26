@@ -1,22 +1,36 @@
 {
   "name": "at-file-explicit-path",
   "description": "Scoped edit via @file:src/App.tsx only.",
-  "tags": ["implement", "cursor-parity", "react", "at-file"],
+  "tags": [
+    "implement",
+    "cursor-parity",
+    "react",
+    "at-file"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
+  "required_agents": [
+    "FrontendEngineer"
+  ],
   "workspace": {
     "fixture": "react-tailwind-minimal",
-    "unchanged_files": ["tailwind.config.js", "package.json"]
+    "unchanged_files": [
+      "tailwind.config.js",
+      "package.json"
+    ]
   },
   "expect_deliverables": [
     {
       "path": "src/App.tsx",
       "min_bytes": 80,
       "for_question": {
-        "any_match": ["subtitle|Neural Junkie|fixture"],
-        "none_match": ["tailwind\\.config"]
+        "any_match": [
+          "subtitle|Neural Junkie|fixture"
+        ],
+        "none_match": [
+          "tailwind\\.config"
+        ]
       }
     }
   ],
@@ -36,16 +50,39 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "900s",
-      "until_any_match": ["applied and verified|implementation session complete|App.tsx|subtitle"]
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "any_match": [
+          "subtitle|Neural Junkie|fixture"
+        ],
+        "none_match": [
+          "tailwind\\.config"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_files_unchanged",
-      "paths": ["tailwind.config.js", "package.json"]
+      "paths": [
+        "tailwind.config.js",
+        "package.json"
+      ]
     },
     {
       "action": "assert_file_exists",
       "path": "src/App.tsx",
-      "any_match": ["subtitle|Subhead|fixture"]
+      "any_match": [
+        "subtitle|Subhead|fixture"
+      ]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "FrontendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

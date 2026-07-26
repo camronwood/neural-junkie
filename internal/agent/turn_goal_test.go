@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -157,5 +158,88 @@ func TestActionTurnStreamingIsBufferedForValidation(t *testing.T) {
 		if sent.Type == protocol.MessageTypeStreamDelta {
 			t.Fatal("action response delta was visible before evidence validation")
 		}
+	}
+}
+
+func TestDeriveTurnGoal_chatModeKeepsAnswerDespiteDesignWording(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{ID: "fe", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
+		"Design a theme settings flow. Keep the toggle in an Appearance section and call the component ThemeSettings.")
+	msg.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		MetadataContextScope:     ContextScopeNone,
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionQuestion,
+		RequestedAction: intent.ActionAnswer, Action: intent.ActionAnswer,
+		Mutation: intent.MutationNone, Confidence: 1, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: false, CanRunImplSession: false,
+	})
+	goal := deriveTurnGoal(a, msg, IntentSubstantive)
+	if goal.Action != ActionAnswer {
+		t.Fatalf("action=%s want answer; goal=%+v", goal.Action, goal)
+	}
+}
+
+func TestDeriveTurnGoal_chatModeDemotesFalseImageClassification(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{ID: "fe", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
+		"Design a theme settings flow. Keep the toggle in an Appearance section and call the component ThemeSettings.")
+	msg.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		MetadataContextScope:     ContextScopeNone,
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionImage, Action: intent.ActionImage,
+		Mutation: intent.MutationExternal, Confidence: 0.9, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: false, CanRunImplSession: false,
+	})
+	goal := deriveTurnGoal(a, msg, IntentSubstantive)
+	if goal.Action != ActionAnswer {
+		t.Fatalf("false image stamp must demote to answer; got %s goal=%+v", goal.Action, goal)
+	}
+}
+
+func TestDeriveTurnGoal_chatModeKeepsExplicitImageRequest(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{ID: "fe", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
+		"Generate an image of a theme settings mockup.")
+	msg.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		MetadataContextScope:     ContextScopeNone,
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionImage, Action: intent.ActionImage,
+		Mutation: intent.MutationExternal, Confidence: 0.9, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	goal := deriveTurnGoal(a, msg, IntentSubstantive)
+	if goal.Action != ActionImage {
+		t.Fatalf("explicit image ask must stay image; got %s", goal.Action)
+	}
+}
+
+func TestDeriveTurnGoal_chatModeWithoutDecisionStaysAnswer(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{ID: "fe", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
+		"Design a theme settings flow. Keep the toggle in an Appearance section and call the component ThemeSettings.")
+	msg.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		MetadataContextScope:     ContextScopeNone,
+	}
+	goal := deriveTurnGoal(a, msg, IntentSubstantive)
+	if goal.Action != ActionAnswer {
+		t.Fatalf("action=%s want answer without decision; goal=%+v", goal.Action, goal)
 	}
 }

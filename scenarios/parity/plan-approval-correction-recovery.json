@@ -12,8 +12,8 @@
     {
       "path": "core/sample/math.go",
       "for_question": {
-        "contains_all": ["func Add"],
-        "none_match": ["return a + b + 1"]
+        "any_match": ["func Multiply", "\\*"],
+        "none_match": ["return a \\+ b[^*]"]
       },
       "llm_judge": true
     }
@@ -21,7 +21,7 @@
   "steps": [
     {
       "action": "send",
-      "content": "Plan the smallest fix for the failing Add test. Do not edit files yet.",
+      "content": "Plan the smallest fix for the failing Multiply test in core/sample/math.go. Do not edit files yet.",
       "metadata": {"editor_mode": "plan", "conversation_mode": "code", "context_scope": "workspace"}
     },
     {"action": "wait_reply", "from": "BackendEngineer", "timeout": "300s"},
@@ -36,10 +36,20 @@
         "agent_runtime_v2": true
       }
     },
-    {"action": "wait_reply", "from": "BackendEngineer", "timeout": "600s"},
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "600s",
+      "until_file_match": {
+        "path": "core/sample/math.go",
+        "any_match": ["func Multiply", "\\*"],
+        "none_match": ["return a \\+ b[^*]"]
+      },
+      "until_metadata_keys": ["implementation_session_outcome"]
+    },
     {
       "action": "send",
-      "content": "Correction: preserve the existing function signature and do not edit math_test.go.",
+      "content": "Correction: preserve the existing Multiply signature and do not edit math_test.go.",
       "metadata": {
         "editor_mode": "agent",
         "implementation_session": true,
@@ -48,7 +58,17 @@
         "agent_runtime_v2": true
       }
     },
-    {"action": "wait_reply", "from": "BackendEngineer", "timeout": "420s"},
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "420s",
+      "until_file_match": {
+        "path": "core/sample/math.go",
+        "any_match": ["func Multiply", "\\*"],
+        "none_match": ["return a \\+ b[^*]"]
+      },
+      "until_metadata_keys": ["implementation_session_outcome"]
+    },
     {
       "action": "send",
       "content": "Resume the approved task from where you stopped and report the go test evidence.",
@@ -60,7 +80,17 @@
         "agent_runtime_v2": true
       }
     },
-    {"action": "wait_reply", "from": "BackendEngineer", "timeout": "600s"},
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "600s",
+      "until_file_match": {
+        "path": "core/sample/math.go",
+        "any_match": ["func Multiply", "\\*"],
+        "none_match": ["return a \\+ b[^*]"]
+      },
+      "until_metadata_keys": ["implementation_session_outcome"]
+    },
     {"action": "assert_shell", "command": "go test ./...", "expect_exit": 0}
   ],
   "cleanup": "clear"

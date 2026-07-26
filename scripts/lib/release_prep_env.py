@@ -95,6 +95,8 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
 
     env.setdefault("NEURAL_JUNKIE_RATE_LIMIT", "0")
     env.setdefault("NJ_OLLAMA_MAX_CONCURRENCY", "2")
+    # Greenfield implement / user-flow turns need more than the 512 default.
+    env.setdefault("NJ_OLLAMA_NUM_PREDICT", "4096")
     env.setdefault("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765")
     env.setdefault("NEURAL_JUNKIE_AUTH_REQUIRED", "1")
     # Regression collab/implement scenarios default to the minimal fixture, not the NJ repo root.

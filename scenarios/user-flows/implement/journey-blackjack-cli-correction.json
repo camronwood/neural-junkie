@@ -1,0 +1,198 @@
+{
+  "name": "journey-blackjack-cli-correction",
+  "description": "Multi-turn goal: plan Rust blackjack → implement → correct away from GUI engines → finish CLI-only playable game (cargo build).",
+  "tags": [
+    "user-flow",
+    "journey",
+    "long-horizon",
+    "correction",
+    "rust",
+    "implement"
+  ],
+  "evaluation": {
+    "long_horizon": true,
+    "min_user_turns": 4
+  },
+  "channel": "user-flow-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "user-flow-empty"
+  },
+  "expect_deliverables": [
+    {
+      "path": "Cargo.toml",
+      "min_bytes": 40,
+      "for_question": {
+        "any_match": [
+          "name\\s*=|blackjack|edition"
+        ],
+        "none_match": [
+          "bevy|wgpu|three\\.js|unity"
+        ]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "src/main.rs",
+      "path_alternatives": [
+        "src/lib.rs"
+      ],
+      "min_bytes": 200,
+      "for_question": {
+        "any_match": [
+          "blackjack|Blackjack",
+          "hit|stand|dealer|Hand|Deck|card"
+        ],
+        "none_match": [
+          "bevy::|wgpu|OpenGL|3D mesh"
+        ]
+      },
+      "llm_judge": {
+        "criteria": "PASS when a local terminal/CLI Rust blackjack game exists with hit/stand/dealer/win-lose flow and would be playable after cargo build. FAIL if it depends on a 3D/game-engine stack, drops core blackjack play after the CLI correction, or is only stubs/placeholders."
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "I want a local blackjack game in Rust against the house. Don't write code yet — outline the smallest viable design.",
+      "metadata": {
+        "editor_mode": "plan",
+        "ide_route_agent_type": "backend",
+        "conversation_mode": "code",
+        "context_scope": "none"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "300s"
+    },
+    {
+      "action": "send",
+      "content": "Approve that plan and implement it at the workspace root with Cargo.toml and src/main.rs. Include hit/stand, dealer play, and win/lose so the result is a playable CLI game (cargo build must succeed). Prefer the Rust standard library only — no Bevy/wgpu and avoid extra crates like rand if you can shuffle with std.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "720s",
+      "until_files_exist": [
+        "Cargo.toml",
+        "src/main.rs"
+      ],
+      "until_file_match": {
+        "path": "Cargo.toml",
+        "any_match": [
+          "name\\s*=|blackjack|edition"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "send",
+      "content": "Correction: keep it terminal/CLI or simple text UI only. Do not use Bevy, wgpu, or any web/3D engine. Prefer stdin/stdout gameplay. Keep it playable — hit/stand/dealer/win-lose must still work.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "540s",
+      "until_files_exist": [
+        "Cargo.toml",
+        "src/main.rs"
+      ],
+      "until_file_match": {
+        "path": "Cargo.toml",
+        "any_match": [
+          "name\\s*=|blackjack|edition"
+        ],
+        "none_match": [
+          "bevy|wgpu|three\\.js|unity"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "send",
+      "content": "Continue from the corrected CLI scope. Make sure hit/stand still works, then finish so cargo build would pass. Prefer std-only (no rand crate) if you still have external deps.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "540s",
+      "until_files_exist": [
+        "Cargo.toml",
+        "src/main.rs"
+      ],
+      "until_file_match": {
+        "path": "src/main.rs",
+        "path_alternatives": [
+          "src/lib.rs"
+        ],
+        "any_match": [
+          "blackjack|Blackjack",
+          "hit|stand|dealer|Hand|Deck|card"
+        ],
+        "none_match": [
+          "bevy::|wgpu"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "none_match": [
+        "finished without file changes"
+      ]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "Cargo.toml"
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "src/main.rs",
+      "path_alternatives": [
+        "src/lib.rs"
+      ]
+    },
+    {
+      "action": "assert_shell",
+      "command": "cargo build",
+      "timeout_s": 180
+    }
+  ],
+  "cleanup": "clear"
+}

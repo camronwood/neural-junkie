@@ -145,6 +145,7 @@ def benchmark_model(
         return result
     _run_track("chat", tracks.chat)
     _run_track("collab", tracks.collab)
+    _run_track("user_flow", tracks.user_flows)
     _run_track("arena", tracks.arena, with_model=True)
     _run_track("cad", tracks.cad, with_model=True)
     _run_track("external", tracks.external, with_model=True)
@@ -239,8 +240,8 @@ def main() -> int:
             print(
                 f"{name}\t{suite.get('description', '')}\t"
                 f"implement={len(tracks.implement)}\tchat={len(tracks.chat)}\t"
-                f"collab={len(tracks.collab)}\tarena={len(tracks.arena)}\t"
-                f"cad={len(tracks.cad)}\texternal={len(tracks.external)}"
+                f"collab={len(tracks.collab)}\tuser_flows={len(tracks.user_flows)}\t"
+                f"arena={len(tracks.arena)}\tcad={len(tracks.cad)}\texternal={len(tracks.external)}"
             )
         return 0
 
@@ -321,6 +322,7 @@ def main() -> int:
     print(f"  implement ({len(tracks.implement)}): {', '.join(tracks.implement) or '(none)'}")
     print(f"  chat ({len(tracks.chat)}): {', '.join(tracks.chat) or '(none)'}")
     print(f"  collab ({len(tracks.collab)}): {', '.join(tracks.collab) or '(none)'}")
+    print(f"  user_flows ({len(tracks.user_flows)}): {', '.join(tracks.user_flows) or '(none)'}")
     print(f"  arena ({len(tracks.arena)}): {', '.join(tracks.arena) or '(none)'}")
     print(f"  cad ({len(tracks.cad)}): {', '.join(tracks.cad) or '(none)'}")
     print(f"  external ({len(tracks.external)}): {', '.join(tracks.external) or '(none)'}")
@@ -358,6 +360,7 @@ def main() -> int:
         implement_names=tracks.implement,
         chat_names=tracks.chat,
         collab_names=tracks.collab,
+        user_flow_names=tracks.user_flows,
         arena_names=tracks.arena,
         cad_names=tracks.cad,
         external_names=tracks.external,

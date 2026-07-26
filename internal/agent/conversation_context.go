@@ -163,7 +163,7 @@ func appendDurableConversationContext(prompt string, envelope protocol.TurnConte
 		fmt.Fprintf(&b, "Unresolved action [%s]: %s\n", action.ID, action.Description)
 	}
 	for _, correction := range envelope.Corrections {
-		fmt.Fprintf(&b, "Correction [%s]: %s\n", correction.MessageID, correction.Instruction)
+		fmt.Fprintf(&b, "ACTIVE CORRECTION (must honor): %s\n", correction.Instruction)
 	}
 	if len(envelope.SupersededMessageIDs) > 0 {
 		fmt.Fprintf(&b, "Superseded message IDs: %s\n", strings.Join(envelope.SupersededMessageIDs, ", "))

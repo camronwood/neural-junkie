@@ -13,6 +13,8 @@ IMPLEMENT_DIR = ROOT / "scenarios" / "implement"
 COLLAB_DIR = ROOT / "scenarios" / "collab"
 CHAT_DIR = ROOT / "scenarios" / "chat"
 PARITY_DIR = ROOT / "scenarios" / "parity"
+USER_FLOW_IMPLEMENT_DIR = ROOT / "scenarios" / "user-flows" / "implement"
+USER_FLOW_COLLAB_DIR = ROOT / "scenarios" / "user-flows" / "collab"
 
 
 def _has_quality_bar(spec: dict[str, Any]) -> bool:
@@ -46,6 +48,72 @@ def implement_requires_deliverable_contract(scenario: dict) -> bool:
     return False
 
 
+def _agent_implement_sends(scenario: dict) -> list[dict]:
+    sends: list[dict] = []
+    for step in scenario_all_steps(scenario):
+        if (step.get("action") or "").strip() != "send":
+            continue
+        meta = step.get("metadata") if isinstance(step.get("metadata"), dict) else {}
+        mode = (meta.get("editor_mode") or "").strip().lower()
+        if mode in ("ask", "plan"):
+            continue
+        if mode == "agent" or (meta.get("implementation_session") and mode not in ("ask", "plan")):
+            sends.append(step)
+    return sends
+
+
+def validate_implement_wait_gates(scenario_relpath: str, scenario: dict) -> list[str]:
+    """File-producing implement/parity waits must use disk and/or metadata — not chat phrases alone."""
+    errors: list[str] = []
+    if scenario.get("expect_no_deliverables"):
+        return errors
+    if not (
+        scenario_relpath.startswith("implement/")
+        or scenario_relpath.startswith("user-flows/implement/")
+        or scenario_relpath.startswith("parity/")
+    ):
+        return errors
+    if not implement_requires_deliverable_contract(scenario):
+        return errors
+
+    for index, step in enumerate(scenario_all_steps(scenario)):
+        if (step.get("action") or "").strip() != "wait_reply":
+            continue
+        if step.get("until_any_match") and not (
+            step.get("until_file_match")
+            or step.get("until_file_exists")
+            or step.get("until_files_exist")
+            or step.get("until_file_absent")
+            or step.get("until_files_absent")
+            or step.get("until_metadata_keys")
+        ):
+            errors.append(
+                f"{scenario_relpath}: steps wait_reply[{index}] uses until_any_match alone; "
+                "prefer until_file_match / until_metadata_keys"
+            )
+    # At least one wait after an agent implement send should gate on disk or metadata.
+    has_gated_wait = False
+    for step in scenario_all_steps(scenario):
+        if (step.get("action") or "").strip() != "wait_reply":
+            continue
+        if (
+            step.get("until_file_match")
+            or step.get("until_file_exists")
+            or step.get("until_files_exist")
+            or step.get("until_file_absent")
+            or step.get("until_files_absent")
+            or step.get("until_metadata_keys")
+        ):
+            has_gated_wait = True
+            break
+    if _agent_implement_sends(scenario) and not has_gated_wait:
+        errors.append(
+            f"{scenario_relpath}: file-producing scenario needs at least one wait_reply with "
+            "until_file_match / until_file_exists / until_file_absent / until_metadata_keys"
+        )
+    return errors
+
+
 def collab_requires_deliverable_contract(scenario: dict) -> bool:
     if scenario.get("expect_no_deliverables"):
         return False
@@ -59,9 +127,13 @@ def collab_requires_deliverable_contract(scenario: dict) -> bool:
 def validate_deliverable_contract(scenario_relpath: str, scenario: dict) -> list[str]:
     errors: list[str] = []
     requires = False
-    if scenario_relpath.startswith("implement/"):
+    if scenario_relpath.startswith("implement/") or scenario_relpath.startswith(
+        "user-flows/implement/"
+    ) or scenario_relpath.startswith("parity/"):
         requires = implement_requires_deliverable_contract(scenario)
-    elif scenario_relpath.startswith("collab/"):
+    elif scenario_relpath.startswith("collab/") or scenario_relpath.startswith(
+        "user-flows/collab/"
+    ):
         requires = collab_requires_deliverable_contract(scenario)
 
     if not requires:
@@ -144,6 +216,8 @@ def validate_all_scenario_contracts() -> list[str]:
         (COLLAB_DIR, "collab"),
         (CHAT_DIR, "chat"),
         (PARITY_DIR, "parity"),
+        (USER_FLOW_IMPLEMENT_DIR, "user-flows/implement"),
+        (USER_FLOW_COLLAB_DIR, "user-flows/collab"),
     ):
         if not directory.is_dir():
             continue
@@ -156,6 +230,7 @@ def validate_all_scenario_contracts() -> list[str]:
                 continue
             errors.extend(validate_scenario_shape(rel, scenario))
             errors.extend(validate_deliverable_contract(rel, scenario))
+            errors.extend(validate_implement_wait_gates(rel, scenario))
     return errors
 
 

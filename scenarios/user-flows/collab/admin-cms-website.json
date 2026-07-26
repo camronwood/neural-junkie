@@ -1,0 +1,190 @@
+{
+  "name": "admin-cms-website",
+  "description": "Real user flow: sample site with API backend, admin login, and simple content control — populated with examples.",
+  "tags": ["user-flow", "website", "api", "admin", "cms", "collab"],
+  "channel": "user-flow-scenarios",
+  "agents": "@FrontendEngineer @BackendEngineer",
+  "required_agents": ["FrontendEngineer", "BackendEngineer"],
+  "workspace": {
+    "fixture": "user-flow-empty",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "2", "--messages", "14"],
+    "goal": "@FrontendEngineer @BackendEngineer Let's design and implement a website with an API backend management system and an admin panel that lets you make changes on the front end. Include a simple admin login page and a content control system. Populate a sample site with examples. Keep it local. Produce EXACTLY five tasks using these lines:\n- Task 1: @BackendEngineer - Write collabs/<id>/api/server.js (or server.ts) with sample content CRUD and a simple admin auth check\n- Task 2: @BackendEngineer - Write collabs/<id>/api/seed.json with example pages/posts for the sample site\n- Task 3: @FrontendEngineer - Write collabs/<id>/index.html public home using sample content\n- Task 4: @FrontendEngineer - Write collabs/<id>/admin/login.html admin login page\n- Task 5: @FrontendEngineer - Write collabs/<id>/admin/index.html content control panel\nReal files only — no markdown specs as the deliverable."
+  },
+  "expect_deliverables": [
+    {
+      "path": "collabs/<collab-id>/api/server.js",
+      "path_alternatives": [
+        "collabs/<collab-id>/api/server.ts",
+        "collabs/<collab-id>/server.js",
+        "collabs/<collab-id>/server.ts"
+      ],
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["listen|express|http|router|content|admin|login|password"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/api/seed.json",
+      "path_alternatives": [
+        "collabs/<collab-id>/seed.json",
+        "collabs/<collab-id>/data/seed.json"
+      ],
+      "min_bytes": 40,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["\\{|title|content|page|post"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/index.html",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["<!DOCTYPE|<html"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/admin/login.html",
+      "min_bytes": 60,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["login|password|admin|<form|input"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/admin/index.html",
+      "min_bytes": 60,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["admin|content|edit|panel|manage"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    }
+  ],
+  "steps": [
+    { "action": "wait_phase", "phase": "planning", "timeout": 45 },
+    {
+      "action": "wait_discussion",
+      "min_total": 2,
+      "min_per_agent": 1,
+      "required_agents": ["FrontendEngineer", "BackendEngineer"],
+      "timeout": "360s",
+      "retries": 1,
+      "nudge_agents": ["FrontendEngineer", "BackendEngineer"]
+    },
+    { "action": "wait_phase", "phase": "reviewing", "timeout": "360s" },
+    { "action": "wait_planning_recap", "timeout": "300s" },
+    {
+      "action": "assert_plan",
+      "min_tasks": 5,
+      "max_tasks": 7,
+      "tasks_have_assignee": true,
+      "tasks_have_file_deliverable": true,
+      "content_any_match": [
+        "server\\.(js|ts)|api/",
+        "seed\\.json",
+        "index\\.html",
+        "admin/login",
+        "admin"
+      ]
+    },
+    { "action": "approve_plan" },
+    { "action": "wait_phase", "phase": "executing", "timeout": 60 },
+    {
+      "action": "assert_collab",
+      "phase": "executing",
+      "workspace_acknowledged": true,
+      "tasks_dispatched": true
+    },
+    { "action": "send", "content": "/resume-plan <collab-id>" },
+    {
+      "action": "wait_tasks",
+      "min_completed": 2,
+      "all_match": false,
+      "timeout": "420s"
+    },
+    { "action": "send", "content": "/resume-plan <collab-id>" },
+    {
+      "action": "wait_tasks",
+      "min_completed": 5,
+      "all_match": true,
+      "timeout": "720s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "server",
+      "target_rel": "collabs/<collab-id>/api/server.js",
+      "from_discussion_fallback": false,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "seed.json",
+      "target_rel": "collabs/<collab-id>/api/seed.json",
+      "from_discussion_fallback": false,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "index.html",
+      "target_rel": "collabs/<collab-id>/index.html",
+      "from_discussion_fallback": false,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "login.html",
+      "target_rel": "collabs/<collab-id>/admin/login.html",
+      "from_discussion_fallback": false,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "admin/index.html",
+      "target_rel": "collabs/<collab-id>/admin/index.html",
+      "from_discussion_fallback": false,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/api/server.js",
+      "path_alternatives": [
+        "collabs/<collab-id>/api/server.ts",
+        "collabs/<collab-id>/server.js",
+        "collabs/<collab-id>/server.ts"
+      ]
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/api/seed.json",
+      "path_alternatives": [
+        "collabs/<collab-id>/seed.json",
+        "collabs/<collab-id>/data/seed.json"
+      ]
+    },
+    { "action": "assert_files", "path": "collabs/<collab-id>/index.html" },
+    { "action": "assert_files", "path": "collabs/<collab-id>/admin/login.html" },
+    { "action": "assert_files", "path": "collabs/<collab-id>/admin/index.html" }
+  ],
+  "cleanup": "cancel"
+}

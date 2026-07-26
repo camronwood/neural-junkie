@@ -14,8 +14,8 @@
   "steps": [
     {
       "action": "send",
-      "content": "What does the main function in the open file do?",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "content": "What does the main function in @file:core/sample/main.go do?",
+      "metadata": { "conversation_mode": "code", "context_scope": "focus" }
     },
     { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
     { "action": "channel_interject", "retries": 1 },
@@ -28,15 +28,15 @@
     },
     {
       "action": "send",
-      "content": "What package is that file in?",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "content": "What Go package declaration is at the top of that file?",
+      "metadata": { "conversation_mode": "code", "context_scope": "focus" }
     },
     { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
     {
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "BackendEngineer",
-      "any_match": ["package main|main\\b|HelloWorld|sample/main"],
+      "any_match": ["package main|core/sample|main\\b|HelloWorld|sample/main"],
       "none_match": [
         "What does the main function",
         "go vet",

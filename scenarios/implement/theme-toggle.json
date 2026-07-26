@@ -1,19 +1,30 @@
 {
   "name": "theme-toggle",
   "description": "Frontend implementation session asks for theme-related deliverable.",
-  "tags": ["implement", "frontend"],
+  "tags": [
+    "implement",
+    "frontend"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
-  "workspace": { "fixture": "minimal-repo" },
+  "required_agents": [
+    "FrontendEngineer"
+  ],
+  "workspace": {
+    "fixture": "minimal-repo"
+  },
   "expect_deliverables": [
     {
       "path": "src/theme.css",
       "min_bytes": 20,
       "for_question": {
-        "contains_all": ["dark"],
-        "any_match": ["light|data-theme|prefers-color-scheme|--dark|--bg-dark|var\\(|\\.dark"]
+        "contains_all": [
+          "dark"
+        ],
+        "any_match": [
+          "light|data-theme|prefers-color-scheme|--dark|--bg-dark|var\\(|\\.dark"
+        ]
       },
       "llm_judge": true
     }
@@ -34,19 +45,38 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "600s",
-      "until_any_match": ["applied and verified|proposals submitted|theme.css"]
+      "until_file_match": {
+        "path": "src/theme.css",
+        "any_match": [
+          "light|data-theme|prefers-color-scheme|--dark|--bg-dark|var\\(|\\.dark"
+        ],
+        "contains_all": [
+          "dark"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "FrontendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|theme|FILE_CHANGE|file change|applied and verified|proposals submitted"],
-      "none_match": ["finished without file changes"]
+      "none_match": [
+        "finished without file changes"
+      ]
     },
     {
       "action": "assert_file_exists",
       "path": "src/theme.css",
       "contains": "dark"
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "FrontendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

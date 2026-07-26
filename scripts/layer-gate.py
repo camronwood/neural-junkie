@@ -99,7 +99,7 @@ def apply_verbose_to_stage_cmd(cmd: list[str], *, verbose: bool) -> tuple[list[s
 
 def ensure_hub_for_layer(hub_url: str, *, no_restart: bool, layer: str = "", cwd: Path = ROOT) -> bool:
     repo = cwd.resolve()
-    restart_layers = {"implement", "collab", "collab-core", "collab-full"}
+    restart_layers = {"implement", "collab", "collab-core", "collab-full", "user-flows"}
     if layer in restart_layers and not no_restart:
         print("\n=== Layer gate Ollama prep ===")
         if not ensure_ollama_stack(repo):
@@ -201,7 +201,7 @@ def main() -> int:
     apply_release_prep_env(ROOT)
     hub_url = args.hub.rstrip("/")
     repo_cwd = args.cwd.resolve()
-    collab_layers = {"collab", "collab-core", "collab-full"}
+    collab_layers = {"collab", "collab-core", "collab-full", "user-flows"}
     if spec.name in collab_layers:
         os.environ["NJ_REQUIRE_FULL_BOOT"] = "1"
         os.environ.pop("SKIP_BOOT", None)
@@ -217,6 +217,13 @@ def main() -> int:
         # caused cascading generation timeouts and pending-task stalls.
         os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "2"
         os.environ["NJ_REGRESSION_COLLAB_EDGE"] = "1"
+    elif spec.name == "user-flows":
+        # Mixed implement + collab product journeys; keep VRAM pressure low.
+        os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "1"
+        # Greenfield implement needs headroom past the 512-token default.
+        os.environ["NJ_OLLAMA_NUM_PREDICT"] = "4096"
+        # Prefer coder for implement-heavy journeys (env.local may pin qwen3.5:9b).
+        os.environ["NJ_REGRESSION_AGENT_MODEL"] = "qwen2.5-coder:14b"
     testing_dir = Path(args.log_dir)
     testing_dir.mkdir(parents=True, exist_ok=True)
     stamp = args.stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")

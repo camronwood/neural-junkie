@@ -25,10 +25,7 @@ var (
 	destructiveCommandRE        = regexp.MustCompile(`(?i)\brm\s+-rf\b|\brm\s+-r\b|\brmdir\s+/\b|>\s*/dev/`)
 	contentDeliveryRE           = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
 	fileExportRE                = regexp.MustCompile(`(?i)\b(store (?:that|it|in|the)|save (?:it|as|in|the)|fill (?:the file|.* with)|create (?:that |the )?file|please create (?:that |the )?file|write (?:it |that ).*(?:file|\.md)|markdown file)\b`)
-	bareWorkspaceWrapperRE      = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
-	advisoryHypotheticalRE      = regexp.MustCompile(`(?i)\b(how would you|how could you|how should i|what would you|in one short paragraph|can you explain how)\b`)
-	advisoryPlacementRE         = regexp.MustCompile(`(?i)\b(where should .{0,80} live|where would you put)\b`)
-	advisoryPrerequisiteRE      = regexp.MustCompile(`(?i)\b(?:do|does|would|should)\s+(?:we|i|you)\s+(?:need to\s+)?(?:fix|change|update|implement)\b`)
+	bareWorkspaceWrapperRE = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
 )
 
 var workspaceDirectiveDocSeeds = []string{"README.md", "DOCS.md", "docs/README.md"}
@@ -51,28 +48,9 @@ func userRequestsDestructiveCommand(content string) bool {
 }
 
 // isAdvisoryImplementationQuestion reports hypothetical or placement-only asks that should
-// stay conversational in chat mode (no [FILE_CHANGE] / implementation session).
+// stay conversational (no [FILE_CHANGE] / implementation session).
 func isAdvisoryImplementationQuestion(content string) bool {
-	lower := strings.ToLower(strings.TrimSpace(content))
-	if lower == "" {
-		return false
-	}
-	if advisoryHypotheticalRE.MatchString(lower) {
-		return true
-	}
-	if advisoryPrerequisiteRE.MatchString(lower) {
-		return true
-	}
-	if advisoryPlacementRE.MatchString(lower) {
-		shipVerbs := []string{"implement", "add ", "build ", "fix ", "go ahead", "please do", "ship ", "wire "}
-		for _, p := range shipVerbs {
-			if strings.Contains(lower, p) {
-				return false
-			}
-		}
-		return true
-	}
-	return false
+	return semantic.LooksLikeAdvisoryImplementationQuestion(content)
 }
 
 // agentMessageIsConversationalClosure reports canned closure replies that end an impl thread.
@@ -788,6 +766,21 @@ func shouldProactiveScanWorkspaceForMessage(a *Agent, msg *protocol.Message) boo
 		return true
 	}
 	return shouldProactiveScanWorkspace(msg.Content)
+}
+
+// shouldForceWorkspaceGroundingOpener is false for chat / context_scope=none turns
+// (e.g. dm-topic-switch casual opinions must not open with "Grounding: I loaded").
+func shouldForceWorkspaceGroundingOpener(msg *protocol.Message) bool {
+	if msg == nil {
+		return true
+	}
+	if ConversationModeFromMessage(msg) == ConversationModeChat {
+		return false
+	}
+	if ResolveContextScope(msg) == ContextScopeNone {
+		return false
+	}
+	return true
 }
 
 func workspaceGroundingRequirement(totalLoaded int, content string, implementation ...bool) string {

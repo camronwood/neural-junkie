@@ -75,6 +75,28 @@ See [ADAPTIVE-ORCHESTRATION-NOTES.md](ADAPTIVE-ORCHESTRATION-NOTES.md) — maps 
 Possible follow-ups (not scheduled):
 - **Scenario archetype demos** — “seven paths” narrative for marketing/onboarding (closure / memory / code / delegation / collab light / collab deep)
 
+### Share Agent (gift bundle for friends / coworkers)
+
+**Today:** Repo agents can MCP export/import ([MCP_EXPORTS.md](MCP_EXPORTS.md)), but import **re-indexes from the absolute repo path** in the JSON — embedded resources are mostly for MCP consumers, not live agent hydration. Learnings, custom rules, and LoRA tags travel on separate paths (or not at all). Specialists/pack agents are not exportable. UX is slash-command oriented.
+
+**Idea:** One **Share Agent** action that packages an agent so a friend or coworker can import it on their hub and **retain its knowledge** without needing the same absolute path.
+
+**Target bundle (`.nj-agent` or extended MCP export):**
+- Identity — name, type, expertise, system prompt, custom rules
+- Knowledge — self-contained index/resources (hydrate-from-bundle, not only re-index-from-path)
+- Learnings — optional agent-scoped confirmed personal learnings
+- Behavior pointer — LoRA HF id / compose tag when present (populate the existing unused `lora` export field)
+
+**UX:** Agent Info → **Share** → download file; friend → **Import Agent** (file picker) → remap workspace path *or* knowledge-only mode from the bundle.
+
+**Phased sketch:**
+1. Hydrate import from embedded resources + path remap UI (repo agents)
+2. Include agent-scoped learnings + custom rules in the bundle
+3. Write LoRA metadata on export; optional “pull HF adapter” on import
+4. Extend beyond repo agents (specialists / pack experts) where knowledge is portable
+
+Not real-time multi-hub sync — portable file handoff (git, AirDrop, Slack, etc.). See also Context Stack sharing notes in [CONTEXT_MODEL.md](CONTEXT_MODEL.md).
+
 ### Rate Limiting & Cost Management
 - Per-agent API cost tracking
 - Budget alerts and limits
@@ -86,6 +108,28 @@ Possible follow-ups (not scheduled):
 - ~~Frontend, Security, Code Review, Architecture, Rust MCP servers~~ — **Done**
 - ~~Repo and Confluence in-process runtime search tools~~ — **Done**
 - ~~Tool calling for LM Studio / OpenAI-compat providers~~ — **Done** (native OpenAI Chat Completions tool loop + ReAct fallback when native unsupported)
+
+### MCP Tool Wizard (user-defined tools → agents)
+
+**Today:** Agents get tools from first-party in-process MCP servers and pack sidecars ([MCP_INTEGRATION.md](MCP_INTEGRATION.md)). Custom experts (`/create-expert`) are persona/rules only — no tool loop. Users cannot register an arbitrary MCP server or attach a home-grown tool to an agent. Closest workaround: built-in `fetch_url` / WebBrowserExpert, or author a pack sidecar + core wiring.
+
+**Idea:** A desktop **MCP Tool Wizard** that lets users create (or connect) a tool and grant access to chosen agents — e.g. “read this page/API from my website and return structured data.”
+
+**UX sketch:**
+1. **Create / Connect** — wizard steps: name, description, input schema, implementation (HTTP fetch template, script stub, or “connect existing MCP server URL/stdio”)
+2. **Test** — run the tool once with sample args; preview output in the wizard
+3. **Grant access** — pick agents (custom experts, specialists, “all in this channel”) that may call it
+4. **Use** — tool appears in those agents’ MCP catalogs; Context Stack / tool loop already know how to execute approved tools
+
+**Phased sketch:**
+1. Hub MCP-client registry — Settings: add remote MCP server (URL / stdio); enable for selected agents
+2. HTTP-fetch tool template in the wizard (public URL, headers, JSON path extract) — covers the “read my website” case without writing Go
+3. Attach tools to `AgentTypeExpert` (custom experts get a real tool loop when grants exist)
+4. Script/sidecar stubs + optional export of user tools into Share Agent / pack bundles
+
+Security stays local-first: user approval for sensitive tools, same private-IP / consent gates as `fetch_url` where applicable. Complements pack MCP sidecars — packs ship domain tools; the wizard is for personal/team one-offs.
+
+See also Plugin System (below) and [MCP_INTEGRATION.md](MCP_INTEGRATION.md#future-enhancements).
 
 ## Low Priority
 
@@ -118,6 +162,7 @@ See [MOBILE_COMPANION_NOTES.md](MOBILE_COMPANION_NOTES.md). This is a reference/
 - Custom analyzers for specific languages/frameworks
 - User-defined slash commands
 - Integration hooks for external tools
+- **MCP Tool Wizard** — user-created/connected tools with per-agent grants (see Medium Priority above)
 
 ### Agent Memory & Learning
 - Long-term context retention across sessions

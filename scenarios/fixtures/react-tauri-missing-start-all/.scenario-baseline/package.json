@@ -1,0 +1,32 @@
+{
+  "name": "react-tauri-missing-start-all",
+  "version": "1.0.0",
+  "main": "src/main.tsx",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "lint": "eslint .",
+    "prepare": "husky install",
+    "setup": "npm install && npm run tauri init",
+    "start-all": "npm run dev"
+  },
+  "dependencies": {
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "devDependencies": {
+    "@types/react": "^17.0.34",
+    "@types/react-dom": "^17.0.11",
+    "@vitejs/plugin-react": "^1.0.0",
+    "eslint": "^7.30.0",
+    "husky": "^7.0.4",
+    "lint-staged": "^11.1.2",
+    "typescript": "^4.4.3",
+    "vite": "^2.6.14"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}

@@ -93,6 +93,10 @@ make conversation-scenarios-regression
 
 Steps: `send`, `wait_reply`, `channel_interject`, `wait_no_reply`, `assert_messages`, `assert_reply_count` (`since_baseline: true` counts from last send/interject baseline), `assert_debug_context`.
 
+`assert_messages` supports hard `none_match` / `max_chars`, optional soft `any_match` (`"optional": true` or `"any_match_optional": true`), and optional `semantic_turn_decision` (hub-stamped routing). Prefer semantic/metadata asserts when checking routing; phrase match is a soft signal only.
+
+For **implement / parity / user-flow implement** completion, do **not** gate on chat phrases — use disk waits (`until_file_match`, `until_file_absent`) and/or `until_metadata_keys: ["implementation_session_outcome"]`. See [TESTING.md](TESTING.md).
+
 `channel_interject` calls `POST /api/channels/:channel/interject`. `wait_no_reply` asserts no new agent messages for `duration` (use after interject; optional `retries` + `reinterject_on_retry`).
 
 ```json
@@ -128,9 +132,10 @@ DM scenarios use `"channel_type": "dm"` — channel created via `/api/channels/c
 ## Adding a scenario
 
 1. Copy a similar JSON from `scenarios/chat/`.
-2. Set `tags`, `target_agent`, `required_agents`, and assertions (`any_match` / `none_match`).
-3. Run `make chat-scenario SCENARIO=your-name VERBOSE=1`.
-4. Add a matching **Layer A** case in `chat_quality_router_test.go` or `chat_quality_coverage_test.go` if the bug was routing-related.
+2. Set `tags`, `target_agent`, `required_agents`, and assertions (`none_match` hard gates; `any_match` for content quality; use `semantic_turn_decision` when checking routing).
+3. For implement-style scenarios, declare `expect_deliverables` and wait on disk/metadata — not canned session phrases.
+4. Run `make chat-scenario SCENARIO=your-name VERBOSE=1`.
+5. Add a matching **Layer A** case in `chat_quality_router_test.go` or `chat_quality_coverage_test.go` if the bug was routing-related.
 
 ### Auto-authored scenarios (test-growth loop)
 

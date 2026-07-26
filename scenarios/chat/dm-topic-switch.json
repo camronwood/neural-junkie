@@ -1,36 +1,77 @@
 {
   "name": "dm-topic-switch",
-  "description": "BackendEngineer DM: code task → casual chat opinion → back to code must not dump workspace blocks on the chat turn.",
-  "tags": ["dm", "backend", "topic-switch", "regression"],
+  "description": "BackendEngineer DM: code task \u2192 casual chat opinion \u2192 back to code must not dump workspace blocks on the chat turn.",
+  "tags": [
+    "dm",
+    "backend",
+    "topic-switch",
+    "regression"
+  ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
+  "required_agents": [
+    "BackendEngineer"
+  ],
   "steps": [
     {
       "action": "send",
       "content": "review internal/hub/hub.go for error handling gaps",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "180s"
+    },
     {
       "action": "send",
       "content": "what do you think about go vs rust for backend services?",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "180s"
+    },
     {
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "BackendEngineer",
-      "none_match": ["Grounding: I loaded", "FILE_CHANGE", "kubectl apply"]
+      "none_match": [
+        "Grounding: I loaded",
+        "FILE_CHANGE",
+        "kubectl apply"
+      ]
+    },
+    {
+      "action": "assert_messages",
+      "semantic_turn_decision": {
+        "optional": true,
+        "user_match": "what do you think about go vs rust",
+        "action": "answer",
+        "mutation": "none"
+      }
     },
     {
       "action": "send",
       "content": "now outline the hook changes you'd make in hub.go for better errors",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "180s"
+    },
     {
       "action": "assert_messages",
       "last_reply_only": true,

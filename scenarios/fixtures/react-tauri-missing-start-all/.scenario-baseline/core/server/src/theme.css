@@ -1,0 +1,96 @@
+/**
+ * Theme CSS Variables - Minimal Repository
+ * 
+ * Architecture:
+ * - Location: src/theme.css (relative to core/server/)
+ * - Served by: /theme.css HTTP endpoint
+ * - Used by: HTML/React components loaded in the application
+ */
+
+/* ===========================================
+   Light Theme Variables
+   =========================================== */
+:root,
+[data-theme="light"] {
+    /* Primary Colors */
+    --color-primary: #2563eb;
+    --color-primary-dark: #1d4ed8;
+    --color-primary-light: #3b82f6;
+    
+    /* Neutral Colors */
+    --bg-body: #ffffff;
+    --bg-surface: #f9fafb;
+    --bg-elevated: #ffffff;
+    
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    
+    /* Border Colors */
+    --border-default: #e5e7eb;
+    --border-focus: #3b82f6;
+    
+    /* Semantic Colors */
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+    --color-info: #3b82f6;
+    
+    /* Shadows & Effects */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+/* ===========================================
+   Dark Theme Variables  
+   =========================================== */
+[data-theme="dark"] {
+    /* Primary Colors */
+    --color-primary: #60a5fa;
+    --color-primary-dark: #3b82f6;
+    --color-primary-light: #93c5fd;
+    
+    /* Neutral Colors (Dark Mode) */
+    --bg-body: #111827;
+    --bg-surface: #1f2937;
+    --bg-elevated: #374151;
+    
+    --text-primary: #f9fafb;
+    --text-secondary: #d1d5db;
+    --text-muted: #6b7280;
+    
+    /* Border Colors (Dark Mode) */
+    --border-default: #374151;
+    --border-focus: #60a5fa;
+    
+    /* Semantic Colors (Dark Mode) */
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+    --color-info: #60a5fa;
+    
+    /* Shadows & Effects (Dark Mode) */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+}
+
+/* ===========================================
+   Theme Toggle Utility Classes
+   =========================================== */
+.theme-toggle-light {
+    cursor: pointer;
+    font-size: var(--text-secondary);
+    padding: 8px 16px;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.theme-toggle-dark {
+    cursor: pointer;
+    font-size: var(--text-primary);
+    padding: 8px 16px;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}

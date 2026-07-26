@@ -34,6 +34,7 @@ ALLOWED_EXACT = (
     "scripts/lib/scenario_assert.py",
     "scripts/lib/scenario_contract.py",
     "scripts/lib/scenario_flake_retry.py",
+    "scripts/lib/scenario_wait.py",
 )
 
 # Product code prefixes — edits here trigger repair handoff unless explicitly allowed.
@@ -204,12 +205,39 @@ def detect_assertion_weakening(
                         f"{rel}: widened any_match without none_match guard ({sorted(new)!r})"
                     )
 
+        # Soft chat-phrase removal is allowed (disk/metadata is the modern pass gate).
+        # Do not flag dropping optional session prose any_match patterns.
+
         # Detect removal of expect_deliverables quality bars
         before_expect = before.get("expect_deliverables")
         after_expect = after.get("expect_deliverables")
         if isinstance(before_expect, list) and isinstance(after_expect, list):
             if len(after_expect) < len(before_expect):
                 violations.append(f"{rel}: removed expect_deliverables entries")
+
+        # Reject reintroducing phrase-only waits on implement/parity/user-flow implement.
+        if any(
+            rel.replace("\\", "/").startswith(prefix)
+            for prefix in (
+                "scenarios/implement/",
+                "scenarios/parity/",
+                "scenarios/user-flows/implement/",
+            )
+        ):
+            for step in after.get("steps") or []:
+                if not isinstance(step, dict) or step.get("action") != "wait_reply":
+                    continue
+                if step.get("until_any_match") and not (
+                    step.get("until_file_match")
+                    or step.get("until_file_exists")
+                    or step.get("until_files_exist")
+                    or step.get("until_file_absent")
+                    or step.get("until_files_absent")
+                    or step.get("until_metadata_keys")
+                ):
+                    violations.append(
+                        f"{rel}: wait_reply uses until_any_match alone; use disk/metadata waits"
+                    )
     return violations
 
 
@@ -264,6 +292,9 @@ def guardrail_rules_text() -> str:
             "",
             "- ADD tests or TIGHTEN assertions only.",
             "- Do NOT remove `none_match`, `contains_all`, or `expect_deliverables` quality bars.",
+            "- Implement/parity waits: use `until_file_match` / `until_metadata_keys` — not `until_any_match` alone.",
+            "- Soft chat-phrase `any_match` cleanup is OK; pass = disk + metadata.",
+            "- Prefer `scripts/lib/scenario_assert.py` / `scenario_contract.py` / `scenario_wait.py` helpers.",
             "- Do NOT widen regex patterns to greenwash flakes.",
             "- New live scenarios must follow patterns in docs/CHAT_SCENARIOS.md and docs/TESTING.md.",
             "- Pair new chat scenarios with Layer A cases when the bug was routing-related.",

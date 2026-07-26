@@ -150,6 +150,7 @@ func deriveTurnGoal(a *Agent, msg *protocol.Message, intent TurnIntent) TurnGoal
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
 		goal.Mutation = MutationWorkspace
 	}
+	applyChatModeAdvisoryGoal(msg, &goal)
 	return goal
 }
 
@@ -202,11 +203,82 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 		goal.Action = ActionAnswer
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
 	}
+	// Explicit image requests outrank weak Answer/AskUser classifications so chat
+	// cover-art turns still take the generate_image shortcut.
+	if UserRequestsGeneratedImage(request) &&
+		(goal.Action == ActionAnswer || goal.Action == ActionAskUser || goal.Action == ActionPlan) {
+		goal.Action = ActionImage
+		goal.RequiredCapabilities = []string{generateImageToolName}
+		goal.ExpectedEvidence = []EvidenceKind{EvidenceImagePosted}
+		goal.Mutation = MutationExternal
+	}
 	caps := protocol.ResolveTurnCapabilities(msg)
 	// Respect explicit implementation_session metadata even when RequiresWorkspace
 	// was not stamped (semantic may classify as edit without setting the flag).
 	explicitSession := msg != nil && msg.ImplementationSession()
-	goal.ImplementationSession = (goal.Action == ActionDebug || goal.Action == ActionEdit || goal.Action == ActionContinue) &&
+	// conversation_mode=chat without an explicit session stays advisory Answer —
+	// do not let semantic Edit/Debug drive workspace-mutation goals.
+	if msg != nil && ConversationModeFromMessage(msg) == ConversationModeChat && !explicitSession &&
+		!msg.IdeEditorModeIsExport() {
+		switch goal.Action {
+		case ActionEdit, ActionDebug, ActionContinue, ActionRun, ActionInspect, ActionPlan:
+			goal.Action = ActionAnswer
+			goal.RequiredCapabilities = nil
+			goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
+			goal.Mutation = MutationNone
+		}
+	}
+	// Scenario/IDE asked for an implementation session, but the classifier often
+	// under-calls boot-fix pastes as inspect/run/answer + mutation=none. Upgrade those
+	// when the paste clearly needs a fix. Leave plain ActionAnswer alone so
+	// artifact/canvas/chat classifications without fix cues still stick.
+	if explicitSession && caps.CanRunImplSession && msg != nil &&
+		!msg.IdeEditorModeIsAsk() && !msg.IdeEditorModeIsPlan() {
+		bootOrFix := messageHasBootOrBuildError(request) || messageImpliesFixLikeIntent(request, nil)
+		switch goal.Action {
+		case ActionInspect, ActionPlan:
+			if bootOrFix {
+				goal.Action = ActionDebug
+				goal.RequiredCapabilities = []string{"workspace_read", "workspace_edit", "run_command"}
+				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied, EvidenceCommandRun}
+			} else {
+				goal.Action = ActionEdit
+				goal.RequiredCapabilities = []string{"workspace_edit"}
+				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
+			}
+			goal.Mutation = MutationWorkspace
+		case ActionAnswer:
+			// SoftArch/vite and selection-extract pastes often classify as Answer.
+			// With an explicit implementation_session, upgrade to a workspace mutation
+			// action so turnGoalRunsImplementationSession matches shouldRunImplementationSession.
+			if UserRequestsArtifact(request) {
+				break
+			}
+			if bootOrFix {
+				goal.Action = ActionDebug
+				goal.RequiredCapabilities = []string{"workspace_read", "workspace_edit", "run_command"}
+				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied, EvidenceCommandRun}
+			} else {
+				goal.Action = ActionEdit
+				goal.RequiredCapabilities = []string{"workspace_edit"}
+				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
+			}
+			goal.Mutation = MutationWorkspace
+		case ActionRun:
+			// Classifier often stamps run+mutation=none for boot-fix pastes; hub already
+			// treats Run as impl-worthy when implementation_session is set.
+			if goal.Mutation != MutationWorkspace {
+				goal.Mutation = MutationWorkspace
+			}
+			if bootOrFix {
+				goal.Action = ActionDebug
+				goal.RequiredCapabilities = []string{"workspace_read", "workspace_edit", "run_command"}
+				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied, EvidenceCommandRun}
+			}
+		}
+	}
+	goal.ImplementationSession = (goal.Action == ActionDebug || goal.Action == ActionEdit ||
+		goal.Action == ActionContinue || goal.Action == ActionRun) &&
 		caps.CanRunImplSession && (caps.RequiresWorkspace || explicitSession)
 	if msg != nil && (msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan()) {
 		goal.ImplementationSession = false
@@ -214,7 +286,53 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 	if goal.ImplementationSession {
 		goal.Intent = IntentTask
 	}
+	applyChatModeAdvisoryGoal(msg, &goal)
 	return goal
+}
+
+// applyChatModeAdvisoryGoal forces advisory conversation_mode=chat turns and
+// hypothetical design questions to Answer. Hub may stamp implementation_session for
+// semantic Edit; advisory questions still stay conversational unless export mode.
+func applyChatModeAdvisoryGoal(msg *protocol.Message, goal *TurnGoal) {
+	if msg == nil || goal == nil {
+		return
+	}
+	if msg.IdeEditorModeIsExport() {
+		return
+	}
+	advisoryQuestion := isAdvisoryImplementationQuestion(goal.NormalizedRequest) ||
+		isAdvisoryImplementationQuestion(msg.Content)
+	advisoryChat := ConversationModeFromMessage(msg) == ConversationModeChat &&
+		!msg.ImplementationSession()
+	// Hub-stamped implementation_session must not veto advisory questions — the stamp
+	// is semantic promotion, not an explicit client "ship it" opt-in.
+	if advisoryQuestion {
+		advisoryChat = true
+	}
+	if !advisoryChat && !advisoryQuestion {
+		return
+	}
+	request := goal.NormalizedRequest
+	if strings.TrimSpace(request) == "" && msg != nil {
+		request = msg.Content
+	}
+	// Keep real image/artifact asks; demote classifier false-positives (e.g. "Design a
+	// theme settings flow" classified as ActionImage) so chat scenarios get prose.
+	switch goal.Action {
+	case ActionImage:
+		if UserRequestsGeneratedImage(request) {
+			return
+		}
+	case ActionArtifact:
+		if UserRequestsArtifact(request) {
+			return
+		}
+	}
+	goal.Action = ActionAnswer
+	goal.Mutation = MutationNone
+	goal.RequiredCapabilities = nil
+	goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
+	goal.ImplementationSession = false
 }
 
 func actionIntentFromSemantic(action intent.Action) ActionIntent {

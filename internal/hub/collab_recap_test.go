@@ -1,9 +1,13 @@
 package hub
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
+	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -453,5 +457,103 @@ func TestCancelCollaboration_ClearsFinalizeAndSessionRecap(t *testing.T) {
 	}
 	if after.Phase != collaboration.PhaseCancelled {
 		t.Fatalf("phase=%s want cancelled", after.Phase)
+	}
+}
+
+func TestDispatchCollaborationRecap_AbortsPeerGenerations(t *testing.T) {
+	h := NewHub()
+	chName := "recap-abort-peers"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	handler, ok := h.GetCommandHandler().(*CommandHandler)
+	if !ok || handler == nil {
+		t.Fatal("expected *CommandHandler")
+	}
+
+	peer := agent.NewAgent(
+		protocol.AgentTypeBackend,
+		"PeerPlanner",
+		nil,
+		ai.NewMockProvider(),
+		h,
+	)
+	facilitator := agent.NewAgent(
+		protocol.AgentTypeArchitecture,
+		"Facilitator",
+		nil,
+		ai.NewMockProvider(),
+		h,
+	)
+	handler.RegisterRuntimeAgent(peer)
+	handler.RegisterRuntimeAgent(facilitator)
+	_ = h.RegisterAgent(&peer.Info)
+	_ = h.RegisterAgent(&facilitator.Info)
+
+	peerCtx, peerCancel := context.WithCancel(context.Background())
+	defer peerCancel()
+	agent.RegisterGenCancelForTest(peer, chName, peerCancel)
+
+	facCtx, facCancel := context.WithCancel(context.Background())
+	defer facCancel()
+	agent.RegisterGenCancelForTest(facilitator, chName, facCancel)
+
+	peerDone := make(chan struct{})
+	go func() {
+		<-peerCtx.Done()
+		close(peerDone)
+	}()
+	facDone := make(chan struct{})
+	go func() {
+		<-facCtx.Done()
+		close(facDone)
+	}()
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration(
+		"abort peers before recap",
+		[]string{peer.Info.ID, facilitator.Info.ID},
+		chName,
+		"tester",
+		collaboration.DiscussionConfig{},
+	)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// Seed last speaker = facilitator so SelectRecapFacilitator picks them.
+	for _, a := range []*agent.Agent{peer, facilitator} {
+		msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, chName, a.Info, "planning note")
+		msg.SetCollaborationID(collab.ID)
+		if err := cm.RecordMessage(collab.ID, msg); err != nil {
+			t.Fatalf("record %s: %v", a.Info.Name, err)
+		}
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("reviewing: %v", err)
+	}
+	snap, err := cm.GetCollaborationSnapshot(collab.ID)
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	// Transition may already have dispatched via onEnterReviewing; force another
+	// dispatch path only if needed for coverage of abortCollabChannelGensExcept.
+	if snap.PlanningRecapAgentID == "" {
+		h.dispatchCollaborationRecap(snap, collaboration.RecapKindPreApproval)
+	}
+
+	select {
+	case <-peerDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected peer planning generation aborted before/during recap dispatch")
+	}
+	select {
+	case <-facDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected facilitator stale generation aborted before fresh recap turn")
+	}
+	if agent.ActiveGenCountForTest(peer, chName) != 0 {
+		t.Fatalf("peer still has active gens")
+	}
+	if agent.ActiveGenCountForTest(facilitator, chName) != 0 {
+		t.Fatalf("facilitator still has active gens after abort-all before dispatch")
 	}
 }

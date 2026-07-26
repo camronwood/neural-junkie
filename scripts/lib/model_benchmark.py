@@ -29,6 +29,7 @@ SCRIPT_BY_KIND = {
     "implement": "implement-scenarios.py",
     "chat": "chat-scenarios.py",
     "collab": "collab-scenarios.py",
+    "user_flow": "user-flow-scenarios.py",
     "arena": "arena-benchmark.py",
     "cad": "cad-benchmark.py",
     "external": "external-humaneval.py",
@@ -171,13 +172,20 @@ class SuiteTracks:
     implement: list[str] = field(default_factory=list)
     chat: list[str] = field(default_factory=list)
     collab: list[str] = field(default_factory=list)
+    user_flows: list[str] = field(default_factory=list)
     arena: list[str] = field(default_factory=list)
     cad: list[str] = field(default_factory=list)
     external: list[str] = field(default_factory=list)
 
     def has_any(self) -> bool:
         return bool(
-            self.implement or self.chat or self.collab or self.arena or self.cad or self.external
+            self.implement
+            or self.chat
+            or self.collab
+            or self.user_flows
+            or self.arena
+            or self.cad
+            or self.external
         )
 
     def __iter__(self) -> Iterator[list[str]]:
@@ -434,6 +442,8 @@ def _string_list(raw: Any) -> list[str]:
 
 
 def resolve_suite_scenarios(suite: dict[str, Any]) -> SuiteTracks:
+    from lib.user_flow_scenarios import user_flow_names
+
     implement_raw = suite.get("implement") or []
     chat_raw = suite.get("chat") or []
     chat_tag = (suite.get("chat_tag") or "").strip() or None
@@ -456,10 +466,17 @@ def resolve_suite_scenarios(suite: dict[str, Any]) -> SuiteTracks:
     else:
         collab = _string_list(collab_raw)
 
+    user_flows_raw = suite.get("user_flows")
+    if user_flows_raw == "all":
+        user_flows = user_flow_names()
+    else:
+        user_flows = _string_list(user_flows_raw)
+
     return SuiteTracks(
         implement=implement,
         chat=chat,
         collab=collab,
+        user_flows=user_flows,
         arena=_string_list(suite.get("arena")),
         cad=_string_list(suite.get("cad")),
         external=_string_list(suite.get("external")),
@@ -750,6 +767,31 @@ def resolve_judge_provider_note() -> str:
     return provider or "claude"
 
 
+def _user_flow_scenario_path(name: str) -> Path | None:
+    """Resolve JSON path for a user-flow suite member (user-flows dir or core reuse)."""
+    from lib.user_flow_scenarios import USER_FLOW_SCENARIOS
+
+    for entry in USER_FLOW_SCENARIOS:
+        if entry.name != name:
+            continue
+        if entry.source == "user-flows":
+            return ROOT / "scenarios" / "user-flows" / entry.kind / f"{name}.json"
+        if entry.kind == "implement":
+            return ROOT / "scenarios" / "implement" / f"{name}.json"
+        if entry.kind == "collab":
+            return ROOT / "scenarios" / "collab" / f"{name}.json"
+    # Fallback: search user-flows dirs then core.
+    for kind in ("implement", "collab"):
+        candidate = ROOT / "scenarios" / "user-flows" / kind / f"{name}.json"
+        if candidate.is_file():
+            return candidate
+    for kind, folder in (("implement", "implement"), ("collab", "collab")):
+        candidate = ROOT / "scenarios" / folder / f"{name}.json"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def load_scenario_meta(kind: str, name: str) -> dict[str, Any]:
     if kind == "implement":
         path = ROOT / "scenarios" / "implement" / f"{name}.json"
@@ -757,6 +799,8 @@ def load_scenario_meta(kind: str, name: str) -> dict[str, Any]:
         path = ROOT / "scenarios" / "chat" / f"{name}.json"
     elif kind == "collab":
         path = ROOT / "scenarios" / "collab" / f"{name}.json"
+    elif kind == "user_flow":
+        path = _user_flow_scenario_path(name)
     elif kind in ("arena", "cad", "external"):
         descriptions = {
             "arena": f"Arena track scenario {name}",
@@ -773,7 +817,7 @@ def load_scenario_meta(kind: str, name: str) -> dict[str, Any]:
         }
     else:
         return {"name": name, "kind": kind, "description": "", "llm_judge": False, "tags": []}
-    if not path.is_file():
+    if path is None or not path.is_file():
         return {"name": name, "kind": kind, "description": "", "llm_judge": False, "tags": []}
     data = load_json_config(path)
     llm_judge = False
@@ -796,6 +840,7 @@ def build_scenario_catalog(
     chat_names: list[str] | None = None,
     *,
     collab_names: list[str] | None = None,
+    user_flow_names: list[str] | None = None,
     arena_names: list[str] | None = None,
     cad_names: list[str] | None = None,
     external_names: list[str] | None = None,
@@ -808,6 +853,7 @@ def build_scenario_catalog(
         implement_names = tracks.implement
         chat_names = tracks.chat
         collab_names = tracks.collab
+        user_flow_names = tracks.user_flows
         arena_names = tracks.arena
         cad_names = tracks.cad
         external_names = tracks.external
@@ -818,6 +864,8 @@ def build_scenario_catalog(
         catalog.append(load_scenario_meta("chat", name))
     for name in collab_names or []:
         catalog.append(load_scenario_meta("collab", name))
+    for name in user_flow_names or []:
+        catalog.append(load_scenario_meta("user_flow", name))
     for name in arena_names or []:
         catalog.append(load_scenario_meta("arena", name))
     for name in cad_names or []:
@@ -847,6 +895,7 @@ def render_markdown_report(
     implement_names: list[str],
     chat_names: list[str],
     collab_names: list[str] | None = None,
+    user_flow_names: list[str] | None = None,
     arena_names: list[str] | None = None,
     cad_names: list[str] | None = None,
     external_names: list[str] | None = None,
@@ -854,6 +903,7 @@ def render_markdown_report(
     judge_provider: str = "",
 ) -> str:
     collab_names = collab_names or []
+    user_flow_names = user_flow_names or []
     arena_names = arena_names or []
     cad_names = cad_names or []
     external_names = external_names or []
@@ -903,6 +953,7 @@ def render_markdown_report(
         [("implement", n) for n in implement_names]
         + [("chat", n) for n in chat_names]
         + [("collab", n) for n in collab_names]
+        + [("user_flow", n) for n in user_flow_names]
         + [("arena", n) for n in arena_names]
         + [("cad", n) for n in cad_names]
         + [("external", n) for n in external_names]
@@ -933,6 +984,7 @@ def render_markdown_report(
             f"- **Implement:** {', '.join(implement_names) or '(none)'}",
             f"- **Chat:** {', '.join(chat_names) or '(none)'}",
             f"- **Collab:** {', '.join(collab_names) or '(none)'}",
+            f"- **User flows:** {', '.join(user_flow_names) or '(none)'}",
             f"- **Arena:** {', '.join(arena_names) or '(none)'}",
             f"- **CAD:** {', '.join(cad_names) or '(none)'}",
             f"- **External:** {', '.join(external_names) or '(none)'}",
@@ -963,6 +1015,7 @@ def write_reports(
     implement_names: list[str],
     chat_names: list[str],
     collab_names: list[str] | None = None,
+    user_flow_names: list[str] | None = None,
     arena_names: list[str] | None = None,
     cad_names: list[str] | None = None,
     external_names: list[str] | None = None,
@@ -970,6 +1023,7 @@ def write_reports(
     judge_provider: str = "",
 ) -> tuple[Path, Path, Path]:
     collab_names = collab_names or []
+    user_flow_names = user_flow_names or []
     arena_names = arena_names or []
     cad_names = cad_names or []
     external_names = external_names or []
@@ -988,6 +1042,7 @@ def write_reports(
             implement_names=implement_names,
             chat_names=chat_names,
             collab_names=collab_names,
+            user_flow_names=user_flow_names,
             arena_names=arena_names,
             cad_names=cad_names,
             external_names=external_names,
@@ -1005,6 +1060,7 @@ def write_reports(
         implement=list(implement_names),
         chat=list(chat_names),
         collab=list(collab_names),
+        user_flows=list(user_flow_names),
         arena=list(arena_names),
         cad=list(cad_names),
         external=list(external_names),
@@ -1021,6 +1077,7 @@ def write_reports(
         "implement_scenarios": implement_names,
         "chat_scenarios": chat_names,
         "collab_scenarios": collab_names,
+        "user_flow_scenarios": user_flow_names,
         "arena_scenarios": arena_names,
         "cad_scenarios": cad_names,
         "external_scenarios": external_names,
@@ -1196,7 +1253,7 @@ def derive_capability_profiles(
         raise ValueError(f"no benchmark run found for suite {suite!r}")
 
     # Enrich with newest run that carries extra tracks when the day-to-day source lacks them.
-    for kind in ("collab", "arena", "cad"):
+    for kind in ("collab", "user_flow", "arena", "cad"):
         if not _run_has_kind(run, kind):
             richer = latest_run_with_kinds(catalog, [kind], prefer_suite=None)
             if richer is not None and _run_has_kind(richer, kind):
@@ -1288,7 +1345,11 @@ def derive_capability_profiles(
         "implement_heavy": rank_tags(kind="implement", params_min=14.0),
     }
 
-    for kind, class_name in (("arena", "arena_logic"), ("cad", "cad_compile")):
+    for kind, class_name in (
+        ("arena", "arena_logic"),
+        ("cad", "cad_compile"),
+        ("user_flow", "user_flows"),
+    ):
         if any(isinstance(r, dict) and _run_has_kind(r, kind) for r in (catalog.get("runs") or [])):
             _, kind_active = results_for_kind(kind)
             task_classes[class_name] = rank_tags(kind=kind, candidates=kind_active)

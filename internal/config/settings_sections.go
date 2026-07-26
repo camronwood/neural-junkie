@@ -26,15 +26,22 @@ func DefaultSecurityConfig() SecurityConfig {
 	}
 }
 
-// SessionConfig controls last-session.json restore behavior at hub boot.
+// SessionConfig controls optional last-session.json snapshot (debug / opt-in resume).
+// Defaults are off: durable history lives in SQLite; the JSON file is for agent review dumps.
 type SessionConfig struct {
+	// PersistEnabled writes ~/.neural-junkie/last-session.json on a timer and shutdown.
+	PersistEnabled bool `json:"persist_enabled"`
+	// RestoreOnStartup loads last-session.json when the hub boots.
 	RestoreOnStartup  bool `json:"restore_on_startup"`
 	SkipRestoreOnce   bool `json:"skip_restore_once"`
 	ForceRestoreLarge bool `json:"force_restore_large"`
 }
 
 func DefaultSessionConfig() SessionConfig {
-	return SessionConfig{RestoreOnStartup: true}
+	return SessionConfig{
+		PersistEnabled:   false,
+		RestoreOnStartup: false,
+	}
 }
 
 // SessionSummaryConfig configures async hub session summaries.

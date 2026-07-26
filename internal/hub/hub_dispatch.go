@@ -1828,7 +1828,7 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	proposalExecutor.SetWorkspaceIO(workspaceIO)
 
 	manifest := agent.DetectStackManifest(wsRoot)
-	proposal.FilePath = agent.RedirectProposalPath(proposal.FilePath, manifest)
+	proposal.FilePath = agent.RedirectProposalPathForOp(proposal.FilePath, manifest, proposal.Operation)
 	filePath, err = h.resolveWorkspacePath(proposal.FilePath, wsRoot)
 	if err != nil {
 		return fmt.Errorf("resolve redirected file path %q: %w", proposal.FilePath, err)
@@ -1843,9 +1843,13 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	if operation == filechange.FileOperationEdit {
 		propOp = agent.ProposalOpEdit
 	}
-	if err := agent.ValidateProposal(wsRoot, proposal.FilePath, propOp, manifest); err != nil {
-		log.Printf("[FileChange] Preflight rejected %q: %v", proposal.FilePath, err)
-		return fmt.Errorf("preflight rejected %q: %w", proposal.FilePath, err)
+	// Deletes/moves are not create/edit — create preflight rejects src/App.js when the
+	// stack entry is App.tsx, which blocks the corrupt App.js boot-fix delete.
+	if operation != filechange.FileOperationDelete && operation != filechange.FileOperationMove {
+		if err := agent.ValidateProposal(wsRoot, proposal.FilePath, propOp, manifest); err != nil {
+			log.Printf("[FileChange] Preflight rejected %q: %v", proposal.FilePath, err)
+			return fmt.Errorf("preflight rejected %q: %w", proposal.FilePath, err)
+		}
 	}
 
 	if looksLikePlaceholderDeliverableContent(proposal.NewContent) {

@@ -66,7 +66,7 @@ The central message broker and state manager.
 - **Collaboration Orchestration** -- Multi-agent planning/review/execution lifecycle via `CollaborationManager`
 - **File Changes** -- Register proposals from agents, manage approval/rejection workflow
 - **Workspace Management** -- Add/list/remove workspaces, persisted to disk
-- **Session Persistence** -- Periodic save to `~/.neural-junkie/last-session.json`
+- **Session Persistence** -- Optional debug snapshot to `~/.neural-junkie/last-session.json` (off by default; on-demand dump for agent review)
 
 ```go
 type Hub struct {

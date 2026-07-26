@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.16">v1.2.0-beta.16</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.17">v1.2.0-beta.17</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.17">1.2.0-beta.17</a>
+      ·
       <a href="#v1.2.0-beta.16">1.2.0-beta.16</a>
       <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.12">1.2.0-beta.12</a>
@@ -250,6 +252,24 @@
       <h3>Known limitation</h3>
       <ul>
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
+      </ul>
+
+      <h2 id="v1.2.0-beta.17" class="release-version-heading">1.2.0-beta.17 <span class="release-date">— 2026-07-26</span></h2>
+
+      <p><strong>Neural Canvas, quieter session files, and a user-flow test harness.</strong> Agents can ship revisioned Canvas artifacts with trusted renderers; <code>last-session.json</code> is debug-only by default (SQLite remains durable history); and real-world user-flow scenarios land under <code>scenarios/user-flows/</code> with multi-turn journeys available but opted out of the default suite until they stabilize. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.17">GitHub Releases</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Neural Canvas</strong> — revisioned agent artifacts (Markdown, Mermaid, code, tables, charts, timelines, images, graphs) with chat cards, workspace tabs, and approved export.</li>
+        <li><strong>Pack artifact renderers</strong> — packs declare media/glob → host renderer maps without executing pack UI code.</li>
+        <li><strong>User-flow scenarios</strong> — product journeys + optional multi-turn <code>journey-*</code> flows (<code>make user-flow-scenarios</code>). WIP entries skip in <code>--all</code>.</li>
+        <li><strong>Context Stack article</strong> — how mode → intent → memory → grounding → persona → budget builds each turn.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Session snapshot</strong> — periodic <code>last-session.json</code> write/restore off by default; dump on demand from Settings or API.</li>
+        <li><strong>Implement routing</strong> — turn-goal and semantic routing hardening for live implement/parity scenarios.</li>
       </ul>
 
       <h2 id="v1.2.0-beta.16" class="release-version-heading">1.2.0-beta.16 <span class="release-date">— 2026-07-23</span></h2>

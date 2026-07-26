@@ -14,8 +14,17 @@ make layer-gate LAYER=chat              # chat + conversation regression
 make layer-gate LAYER=collab            # collab edge-case regression (~11)
 make layer-gate LAYER=collab-full       # full collab sweep (~15, 1–3h)
 make layer-gate LAYER=bundle            # implement + chat + conversation
+make layer-gate LAYER=user-flows        # real-world product journeys (~7)
 make layer-gate LAYER=parity            # 3× implement with hub restart
 make layer-climb                        # run layers in order until first failure
+```
+
+**User-flow suite** (product journeys — see [USER_FLOW_SCENARIOS.md](USER_FLOW_SCENARIOS.md)):
+
+```bash
+make user-flow-scenarios-list
+make user-flow-scenario SCENARIO=trip-research-vacation
+make user-flow-scenarios
 ```
 
 **Automated fix loop** (layer test → Cursor agent → commit → targeted verify):
@@ -71,6 +80,7 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Verify/repair loop | `implementation_session_outcome` metadata | `verify-failure-one-repair` |
 | Destructive command denial | `assert_suggested_commands` + no writes | `deny-destructive-command` |
 | Plan mode no-write | Plan composer + read-only gates | `plan-mode-no-write` |
+| **Implement wait gates** | `until_file_match` / `until_file_absent` / `until_metadata_keys` (chat phrases optional) | `make implement-scenarios` |
 | **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (20/20 PASS) |
 | **Agent Runtime v2 (open loop)** | [CURSOR_PARITY.md](CURSOR_PARITY.md), `features.agent_runtime_v2` | `make parity-scenarios`; model-aware budgets |
 | **Large-repo semantic discovery** | `internal/codeindex` + SQLite store | `large-repo-semantic-find` parity scenario |
@@ -180,6 +190,8 @@ Options: `SKIP_LIVE=1` (CI only), `NO_FULL=1` (skip collab-scenarios-all), `SKIP
 make model-benchmark-list
 make model-benchmark SUITE=quick MODELS='qwen2.5-coder:14b,qwen3.5:9b'
 make model-benchmark SUITE=collab   # core multi-agent track
+make model-benchmark SUITE=user-flows-quick  # real-world product journeys (sample)
+make model-benchmark SUITE=user-flows        # full user-flow layer
 make model-benchmark SUITE=arena    # Arena logic + Connect4
 make model-benchmark SUITE=external # HumanEval-25 calibration (does not drive routing)
 # reports: docs/testing/model-benchmark-*.md|.json|.tsv
@@ -187,7 +199,7 @@ make model-benchmark SUITE=external # HumanEval-25 calibration (does not drive r
 
 Suites also capture optional **metrics** (tokens / TTFT / tok/s / repairs), **layered scores** (structural / quality / capability), and publish Arena / CAD / HumanEval tracks into `docs/data/model-benchmarks.json`.
 
-**Manual spot-check (real app):** Share workspace on a React+Tailwind repo (e.g. dickory-docs with `.neural-junkie/rules.md`), Agent mode + `auto_apply_edits`, prompt: implement light/dark theme. Expect root `tailwind.config.js` with `darkMode`, `.tsx` paths only (no `.vue`), and honest session summary (`applied and verified` or `proposals submitted`).
+**Manual spot-check (real app):** Share workspace on a React+Tailwind repo (e.g. dickory-docs with `.neural-junkie/rules.md`), Agent mode + `auto_apply_edits`, prompt: implement light/dark theme. Expect root `tailwind.config.js` with `darkMode`, `.tsx` paths only (no `.vue`), and `implementation_session_outcome` on the agent reply (chat summary phrasing is optional).
 
 ## Test tiers
 
@@ -215,7 +227,7 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 
 1. CI green on branch (`make test-all` locally if needed).
 2. `ollama serve` and `ollama pull qwen3.5:9b` (specialists + tool loop; set `OLLAMA_CODE_MODEL=qwen3.5:9b` in `env.local`).
-3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
+3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0`, `NEURAL_JUNKIE_DEBUG=1`, and disables `last-session.json` persist/restore on the **server process**. Never use `make start-all` for sweeps.
 4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
 5. **`make layer-climb`** — runs `ci` → `implement` → `chat` → `collab` → … until first failure; or gate individually: `make layer-gate LAYER=bundle` (implement + chat + conversation)
 6. Optional: **`make layer-gate LAYER=parity`** — 3× implement with hub restart between sweeps (avoids OOM on memory-limited hosts)

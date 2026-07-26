@@ -219,6 +219,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/system/memory", corsMiddleware(handleSystemMemory))
 	http.HandleFunc("/api/inference/usage", corsMiddleware(handleInferenceUsage))
 	http.HandleFunc("/api/system/security", corsMiddleware(handleSystemSecurity))
+	http.HandleFunc("/api/system/session-snapshot", corsMiddleware(localOnly(handleSystemSessionSnapshot)))
 
 	http.HandleFunc("/api/hf/status", corsMiddleware(handleHfStatus))
 	http.HandleFunc("/api/hf/catalog", corsMiddleware(handleHfCatalog))

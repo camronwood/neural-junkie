@@ -1,0 +1,97 @@
+{
+  "name": "trip-research-vacation",
+  "description": "Real user flow: research STL\u2192Seaside FL trip and write vacation_2026.md with drive, halfway stay, cost, and food stops.",
+  "tags": [
+    "user-flow",
+    "research",
+    "document",
+    "implement"
+  ],
+  "channel": "user-flow-scenarios",
+  "channel_type": "public",
+  "target_agent": "Assistant",
+  "required_agents": [
+    "Assistant"
+  ],
+  "workspace": {
+    "fixture": "user-flow-empty"
+  },
+  "expect_deliverables": [
+    {
+      "path": "vacation_2026.md",
+      "min_bytes": 400,
+      "for_question": {
+        "contains_all": [
+          "St. Louis",
+          "Seaside",
+          "Florida"
+        ],
+        "any_match": [
+          "drive|route|I-55|miles|hours",
+          "stay|hotel|motel|lodging|halfway",
+          "cost|budget|estimate|\\$",
+          "eat|restaurant|food|dining"
+        ],
+        "none_match": [
+          "lorem ipsum",
+          "TODO: fill in",
+          "\\[Insert"
+        ]
+      },
+      "llm_judge": true
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "I want to plan a trip from St. Louis, MO to Seaside, Florida. Can you help me research this trip. I need a few things:\n1. Map out the drive\n2. We need a place to stay halfway through\n3. We need to estimate the cost of the trip\n4. We will need at least 2 places to eat along the way\n\nLets create a document with the trip plans in it called, vacation_2026.md",
+      "metadata": {
+        "editor_mode": "agent",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "600s",
+      "until_file_match": {
+        "path": "vacation_2026.md",
+        "any_match": [
+          "drive|route|I-55|miles|hours",
+          "stay|hotel|motel|lodging|halfway",
+          "cost|budget|estimate|\\$",
+          "eat|restaurant|food|dining"
+        ],
+        "none_match": [
+          "lorem ipsum",
+          "TODO: fill in",
+          "\\[Insert"
+        ],
+        "contains_all": [
+          "St. Louis",
+          "Seaside",
+          "Florida"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_messages",
+      "from": "Assistant",
+      "last_reply_only": true,
+      "none_match": [
+        "finished without file changes"
+      ]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "vacation_2026.md",
+      "min_bytes": 400
+    }
+  ],
+  "cleanup": "clear"
+}

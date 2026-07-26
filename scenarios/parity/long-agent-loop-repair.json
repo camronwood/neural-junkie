@@ -1,16 +1,38 @@
 {
   "name": "long-agent-loop-repair",
   "description": "Agent runtime fixes failing go test without manual go-ahead",
-  "tags": ["parity", "agent-runtime"],
+  "tags": [
+    "parity",
+    "agent-runtime"
+  ],
   "channel": "parity-scenarios",
   "channel_type": "public",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
-  "workspace": { "fixture": "go-verify-repair" },
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "go-verify-repair"
+  },
+  "expect_deliverables": [
+    {
+      "path": "core/sample/math.go",
+      "for_question": {
+        "any_match": [
+          "func Multiply",
+          "\\*"
+        ],
+        "none_match": [
+          "return a \\+ b[^*]"
+        ]
+      },
+      "llm_judge": true
+    }
+  ],
   "steps": [
     {
       "action": "send",
-      "content": "please implement: fix the failing tests in core/sample — make Add return correct sum and ensure go test ./... passes",
+      "content": "please implement: fix the failing tests in core/sample — Multiply is wrong (returns a+b). Make go test ./... pass.",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "backend",
@@ -24,14 +46,27 @@
       "action": "wait_reply",
       "from": "BackendEngineer",
       "timeout": "900s",
-      "until_any_match": ["applied and verified|verification failed|proposals submitted"]
+      "until_file_match": {
+        "path": "core/sample/math.go",
+        "any_match": [
+          "func Multiply",
+          "\\*"
+        ],
+        "none_match": [
+          "return a \\+ b[^*]"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["applied and verified|applied but verification failed"],
-      "none_match": ["finished without file changes"]
+      "none_match": [
+        "finished without file changes"
+      ]
     },
     {
       "action": "assert_shell",

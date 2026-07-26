@@ -26,6 +26,23 @@ func TestDetectBareFilenames(t *testing.T) {
 	}
 }
 
+func TestDetectFilePaths_atFilePrefersFullPath(t *testing.T) {
+	t.Parallel()
+	paths := DetectFilePaths("What does the main function in @file:core/sample/main.go do?")
+	foundFull := false
+	for _, p := range paths {
+		if p == "core/sample/main.go" {
+			foundFull = true
+		}
+		if p == "main.go" {
+			t.Fatalf("basename-only main.go should not win over @file:core/sample/main.go; got %v", paths)
+		}
+	}
+	if !foundFull {
+		t.Fatalf("expected core/sample/main.go in %v", paths)
+	}
+}
+
 func TestAppendImplementationSeedFiles_loadsTailwind(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

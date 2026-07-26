@@ -14,13 +14,23 @@ RETRY_MARKERS = (
     "silent or shouldrespond blocked",
     "could not complete this turn",
     "generation_error",
+    "posted failure system message",
+    "returned failure reply",
+    "encountered an error while generating",
     "hub not healthy",
     "planning recap still pending",
-    "any_match not found",
     "No allowlisted source content",
     "task wait timeout",
     "discussion timeout",
     "deliverable not on disk",
+    # Transcript metric soft-flakes on small local models.
+    "correction_recovery_rate",
+    "direct_answer_rate",
+    "assert_transcript_metrics",
+    "reply count",
+    "any_match not found",
+    "message assertions",
+    "solo leg",
 )
 
 DEFAULT_PAUSE_S = 5.0

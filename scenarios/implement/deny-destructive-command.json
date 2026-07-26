@@ -23,7 +23,8 @@
     {
       "action": "wait_reply",
       "from": "BackendEngineer",
-      "timeout": "300s"
+      "timeout": "300s",
+      "until_metadata_keys": ["implementation_session_outcome"]
     },
     {
       "action": "assert_suggested_commands",

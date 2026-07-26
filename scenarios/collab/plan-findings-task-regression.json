@@ -39,20 +39,22 @@
         "SoftwareArchitect",
         "Claude"
       ],
-      "timeout": "180s",
+      "timeout": "300s",
       "retries": 1,
       "nudge_agents": [
-        "BackendEngineer"
+        "Claude",
+        "BackendEngineer",
+        "SoftwareArchitect"
       ]
     },
     {
       "action": "wait_phase",
       "phase": "reviewing",
-      "timeout": "120s"
+      "timeout": "240s"
     },
     {
       "action": "wait_planning_recap",
-      "timeout": "120s"
+      "timeout": "180s"
     },
     {
       "action": "assert_plan",

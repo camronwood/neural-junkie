@@ -1,20 +1,36 @@
 {
   "name": "go-handler",
   "description": "IDE Agent implementation session on minimal Go fixture.",
-  "tags": ["implement", "backend", "go"],
+  "tags": [
+    "implement",
+    "backend",
+    "go"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
-  "workspace": { "fixture": "minimal-repo" },
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "minimal-repo"
+  },
   "expect_deliverables": [
     {
       "path": "core/sample/main.go",
       "min_bytes": 40,
       "for_question": {
-        "contains_all": ["HelloWorld"],
-        "any_match": ["func HelloWorld", "HelloWorld\\("],
-        "none_match": ["index\\.js", "utils\\.js"]
+        "contains_all": [
+          "HelloWorld"
+        ],
+        "any_match": [
+          "func HelloWorld",
+          "HelloWorld\\("
+        ],
+        "none_match": [
+          "index\\.js",
+          "utils\\.js"
+        ]
       },
       "llm_judge": true
     }
@@ -35,19 +51,43 @@
       "action": "wait_reply",
       "from": "BackendEngineer",
       "timeout": "540s",
-      "until_any_match": ["applied and verified|proposals submitted|verification failed|HelloWorld|verifying workspace|applied changes"]
+      "until_file_match": {
+        "path": "core/sample/main.go",
+        "any_match": [
+          "func HelloWorld",
+          "HelloWorld\\("
+        ],
+        "none_match": [
+          "index\\.js",
+          "utils\\.js"
+        ],
+        "contains_all": [
+          "HelloWorld"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|HelloWorld|file change|Grounding|applied and verified|proposals submitted|Proposing to edit"],
-      "none_match": ["finished without file changes"]
+      "none_match": [
+        "finished without file changes"
+      ]
     },
     {
       "action": "assert_file_exists",
       "path": "core/sample/main.go",
       "contains": "HelloWorld"
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "BackendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

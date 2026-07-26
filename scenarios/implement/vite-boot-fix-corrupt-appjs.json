@@ -1,12 +1,21 @@
 {
   "name": "vite-boot-fix-corrupt-appjs",
   "description": "SoftwareArchitect fixes corrupt src/App.js blocking Vite boot (Qwen 14B benchmark).",
-  "tags": ["implement", "boot-fix", "react", "benchmark"],
+  "tags": [
+    "implement",
+    "boot-fix",
+    "react",
+    "benchmark"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "SoftwareArchitect",
-  "required_agents": ["SoftwareArchitect"],
-  "workspace": { "fixture": "react-vite-corrupt-appjs" },
+  "required_agents": [
+    "SoftwareArchitect"
+  ],
+  "workspace": {
+    "fixture": "react-vite-corrupt-appjs"
+  },
   "expect_deliverables": [
     {
       "path": "src/App.js",
@@ -15,15 +24,21 @@
     {
       "path": "src/App.tsx",
       "for_question": {
-        "any_match": ["export|function|const|App"],
-        "none_match": ["diff --git", "your valid javascript", "Expected \";\" but found \"git\""]
+        "any_match": [
+          "export|function|const|App"
+        ],
+        "none_match": [
+          "diff --git",
+          "your valid javascript",
+          "Expected \";\" but found \"git\""
+        ]
       }
     }
   ],
   "steps": [
     {
       "action": "send",
-      "content": "the app in this workspace is not booting up can you help me fix it?\n\nvite dev error log:\n\n✘ [ERROR] Expected \";\" but found \"git\"\n\n    src/App.js:1:7:\n      1 │ diff --git a/tailwind.config.js b/tailwind.config.js\n        │        ~~~\n        ╵        ;\n\nFailed to scan for dependencies from entries.",
+      "content": "the app in this workspace is not booting up can you help me fix it?\n\nvite dev error log:\n\n\u2718 [ERROR] Expected \";\" but found \"git\"\n\n    src/App.js:1:7:\n      1 \u2502 diff --git a/tailwind.config.js b/tailwind.config.js\n        \u2502        ~~~\n        \u2575        ;\n\nFailed to scan for dependencies from entries.",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "architecture",
@@ -36,18 +51,53 @@
       "action": "wait_reply",
       "from": "SoftwareArchitect",
       "timeout": "1200s",
-      "until_any_match": ["applied and verified|verification failed|proposals submitted|implementation session complete|src/App"]
+      "until_file_absent": "src/App.js",
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "any_match": [
+          "export|function|const|App"
+        ],
+        "none_match": [
+          "diff --git",
+          "your valid javascript",
+          "Expected \";\" but found \"git\""
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_messages",
       "from": "SoftwareArchitect",
       "last_reply_only": true,
-      "any_match": ["implementation session|applied and verified|App.js|App.tsx"],
-      "none_match": ["finished without file changes", "your valid javascript code here", "No matches found"]
+      "none_match": [
+        "finished without file changes",
+        "your valid javascript code here",
+        "No matches found"
+      ]
     },
     {
       "action": "assert_file_absent",
       "path": "src/App.js"
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "src/App.tsx",
+      "any_match": [
+        "export|function|const|App"
+      ],
+      "none_match": [
+        "diff --git",
+        "your valid javascript"
+      ]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "SoftwareArchitect",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "send",
@@ -60,14 +110,17 @@
     {
       "action": "wait_reply",
       "from": "SoftwareArchitect",
-      "timeout": "240s",
-      "until_any_match": ["applied and verified|verification failed|npm run build|implementation session|App.js"]
+      "timeout": "240s"
     },
     {
       "action": "assert_messages",
       "from": "SoftwareArchitect",
       "last_reply_only": true,
-      "none_match": ["command not allowlisted: npm", "npm  install", "No matches found"]
+      "none_match": [
+        "command not allowlisted: npm",
+        "npm  install",
+        "No matches found"
+      ]
     }
   ],
   "cleanup": "clear"

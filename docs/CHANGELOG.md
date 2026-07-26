@@ -6,9 +6,19 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.17] - 2026-07-26
+
+Neural Canvas, debug-only session snapshots, user-flow harness (opt-in WIP journeys), and implement/routing hardening.
+
 ### Added
 - **Neural Canvas** — app-managed, revisioned agent artifacts with trusted Markdown, Mermaid, code, table, chart, timeline, image, and graph renderers; chat cards, workspace tabs, provenance, history, and approved workspace export.
 - **Declarative artifact renderers for packs** — packs can map media types and file globs to versioned host-owned renderers without executing pack UI code.
+- **User-flow scenario suite** — product journeys under `scenarios/user-flows/` plus `make user-flow-scenarios` / `make layer-gate LAYER=user-flows`. Multi-turn `journey-*` scenarios and a few greenfield flows are registered but **skipped in `--all`** until they stabilize (`--scenario` still force-runs). See [USER_FLOW_SCENARIOS.md](USER_FLOW_SCENARIOS.md).
+- **Context Stack article** — LinkedIn/campaign + site article on the six-stage conversation context stack.
+
+### Changed
+- **`last-session.json` is debug-only by default** — hub no longer periodically writes or restores the snapshot (`persist_enabled` / `restore_on_startup` default off). Durable history remains SQLite. On-demand dump: Settings → “Dump snapshot now”, `POST /api/system/session-snapshot`, or `python3 scripts/nj_last_session.py dump`. Regression hubs set `NEURAL_JUNKIE_DISABLE_SESSION_PERSIST=1` + `NEURAL_JUNKIE_SKIP_SESSION_RESTORE=1`.
+- **Implement / turn-goal / semantic routing** — stronger session completion, correction recovery, and workspace-grounded routing across live scenarios.
 
 ## [1.2.0-beta.16] - 2026-07-23
 

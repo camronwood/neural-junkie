@@ -28,6 +28,12 @@ from lib.scenario_assert import (  # noqa: E402
     merge_deliverable_step,
     scenario_question,
 )
+from lib.scenario_wait import (  # noqa: E402
+    disk_wait_satisfied,
+    metadata_get,
+    normalize_meta_keys,
+    step_has_disk_wait,
+)
 from lib.fixture_baseline import reset_all_fixture_baselines, reset_fixture_baseline  # noqa: E402
 from lib.workspace_context import enrich_send_metadata  # noqa: E402
 
@@ -103,13 +109,35 @@ def step_wait_reply(ctx: ParityContext, step: dict) -> tuple[bool, str]:
             pass
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     until_any = step.get("until_any_match")
+    until_meta_keys = normalize_meta_keys(step)
+    has_disk = step_has_disk_wait(step)
     baseline = int(step.get("baseline", ctx.baseline_agent_count.get(from_name, _chat_baseline(ctx, from_name))))
+    root = Path(scenario_repo_root(ctx.scenario))
     deadline = time.time() + secs
     while time.time() < deadline:
+        disk_ok, disk_detail = disk_wait_satisfied(root, step)
         msgs = hub.list_messages(ctx.base, ctx.channel, 200)
-        pool = hub.chat_agent_messages(msgs)
-        for msg in [m for m in pool if m.get("from", {}).get("name") == from_name][baseline:]:
+        pool = hub.agent_messages(
+            msgs,
+            types=hub.CHAT_REPLY_TYPES | {"file_change"},
+        )
+        candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
+
+        if has_disk and disk_ok and not until_meta_keys:
+            return True, f"disk ready ({disk_detail})"
+
+        for msg in candidates[baseline:]:
             text = msg.get("content") or ""
+            meta = msg.get("metadata") if isinstance(msg.get("metadata"), dict) else {}
+            if until_meta_keys:
+                if not all(metadata_get(meta, key) is not None for key in until_meta_keys):
+                    continue
+                if has_disk and not disk_ok:
+                    continue
+                suffix = f"; {disk_detail}" if disk_detail else ""
+                return True, f"reply from {from_name} (metadata: {', '.join(until_meta_keys)}{suffix})"
+            if has_disk:
+                continue
             if until_any:
                 ok, detail = check_text_patterns(text, any_match=until_any)
                 if ok:
@@ -130,7 +158,10 @@ def step_assert_messages(ctx: ParityContext, step: dict) -> tuple[bool, str]:
     if any_match := step.get("any_match"):
         ok, detail = check_text_patterns(text, any_match=any_match)
         if not ok:
-            return False, detail
+            if step.get("optional") or step.get("any_match_optional"):
+                print(f"  soft any_match miss: {detail}", flush=True)
+            else:
+                return False, detail
     if none_match := step.get("none_match"):
         ok, detail = check_text_patterns(text, none_match=none_match)
         if not ok:

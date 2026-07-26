@@ -40,6 +40,8 @@ PYTHONUNBUFFERED=1 make model-benchmark SUITE=quick VERBOSE=1
 | `implement` | Full `scenarios/implement/` |
 | `chat-regression` | All chat scenarios with `regression` tag |
 | `collab` | Collab core track (`collab: "core"`) |
+| `user-flows` | Full real-world product journeys (~7; trip, games, APIs, websites, boot fix) |
+| `user-flows-quick` | Lighter user-flow sample (trip, blackjack, Node CRUD, boot fix) |
 | `arena` | Arena track: `logic-set`, `connect4-smoke` |
 | `cad` | CAD compile track: `cad-compile` |
 | `external` | HumanEval-25 calibration |

@@ -16,10 +16,24 @@ func TestShouldIgnoreEntry(t *testing.T) {
 		{"docs/REPO_AGENTS.md", "REPO_AGENTS.md", false},
 		{"internal/repo/analyzer.go", "analyzer.go", false},
 		{"desktop/src-tauri/icons/icon.icns", "icon.icns", true},
+		{".scenario-baseline/Makefile", "Makefile", true},
+		{"Makefile", "Makefile", false},
 	}
 	for _, tt := range tests {
 		if got := ShouldIgnoreEntry(tt.relPath, tt.name); got != tt.want {
 			t.Errorf("ShouldIgnoreEntry(%q, %q) = %v, want %v", tt.relPath, tt.name, got, tt.want)
 		}
+	}
+}
+
+func TestIsScenarioBaselinePath(t *testing.T) {
+	if !IsScenarioBaselinePath(".scenario-baseline/Makefile") {
+		t.Fatal("expected baseline path")
+	}
+	if !IsScenarioBaselinePath("nested/.scenario-baseline/x") {
+		t.Fatal("expected nested baseline path")
+	}
+	if IsScenarioBaselinePath("Makefile") {
+		t.Fatal("live Makefile must not be treated as baseline")
 	}
 }

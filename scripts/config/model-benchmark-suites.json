@@ -116,5 +116,34 @@
     "implement": [],
     "chat": [],
     "max_size_gb": 9
+  },
+  "user-flows": {
+    "description": "Real-world product journeys (trip research, games, APIs, websites, boot fix) — full layer (~7 scenarios).",
+    "user_flows": "all",
+    "implement": [],
+    "chat": [],
+    "models": [
+      "qwen2.5-coder:14b",
+      "gemma3:12b",
+      "qwen3.5:9b"
+    ],
+    "max_size_gb": 9
+  },
+  "user-flows-quick": {
+    "description": "Faster user-flow sample — trip research, Rust blackjack, Node CRUD, boot fix (no heavy website collabs).",
+    "user_flows": [
+      "trip-research-vacation",
+      "rust-blackjack-2d",
+      "nodejs-user-crud",
+      "vite-boot-fix-corrupt-appjs"
+    ],
+    "implement": [],
+    "chat": [],
+    "models": [
+      "qwen2.5-coder:14b",
+      "gemma3:12b",
+      "qwen3.5:9b"
+    ],
+    "max_size_gb": 9
   }
 }

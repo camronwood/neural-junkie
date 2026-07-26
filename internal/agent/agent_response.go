@@ -86,7 +86,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		}
 	}
 
-	if collaborationWorkspaceGroundingLine(msg, collabInfo) {
+	if shouldForceWorkspaceGroundingOpener(msg) && collaborationWorkspaceGroundingLine(msg, collabInfo) {
 		openFileLoaded := len(collectIncludedFilePaths(msg))
 		totalLoaded := openFileLoaded + referencedLoaded + scannedLoaded
 		if g := workspaceGroundingRequirement(totalLoaded, msg.Content, userRequestsImplementationForMessage(a, msg)); g != "" {
@@ -261,7 +261,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		}
 	}
 
-	if collaborationWorkspaceGroundingLine(msg, collabInfo) {
+	if shouldForceWorkspaceGroundingOpener(msg) && collaborationWorkspaceGroundingLine(msg, collabInfo) {
 		openFileLoaded := len(collectIncludedFilePaths(msg))
 		totalLoaded := openFileLoaded + referencedLoaded + scannedLoaded
 		if g := workspaceGroundingRequirement(totalLoaded, msg.Content, userRequestsImplementationForMessage(a, msg)); g != "" {

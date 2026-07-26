@@ -1,19 +1,35 @@
 {
   "name": "long-horizon-mid-session-correction",
   "description": "Carry an implementation through a corrected target, prior-turn reference, and final verification request.",
-  "tags": ["implement", "long-horizon", "correction", "regression"],
-  "evaluation": {"long_horizon": true, "min_user_turns": 4},
+  "tags": [
+    "implement",
+    "long-horizon",
+    "correction",
+    "regression"
+  ],
+  "evaluation": {
+    "long_horizon": true,
+    "min_user_turns": 4
+  },
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
-  "workspace": {"fixture": "go-api-with-tests"},
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "go-api-with-tests"
+  },
   "expect_deliverables": [
     {
       "path": "core/sample/math.go",
       "for_question": {
-        "contains_all": ["func Add"],
-        "none_match": ["return a + b + 1"]
+        "contains_all": [
+          "func Add"
+        ],
+        "none_match": [
+          "return a + b + 1"
+        ]
       },
       "llm_judge": {
         "criteria": "PASS when Add returns the exact sum and the implementation remains focused on core/sample/math.go."
@@ -24,43 +40,107 @@
     {
       "action": "send",
       "content": "Inspect the failing Add test and plan the smallest correction in core/sample/math.go.",
-      "metadata": {"editor_mode": "plan", "conversation_mode": "code", "context_scope": "workspace"}
+      "metadata": {
+        "editor_mode": "plan",
+        "ide_route_agent_type": "backend",
+        "conversation_mode": "code",
+        "context_scope": "workspace"
+      }
     },
-    {"action": "wait_reply", "from": "BackendEngineer", "timeout": "300s"},
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "300s"
+    },
     {
       "action": "send",
       "content": "Approve that plan and implement it now.",
       "metadata": {
         "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
         "implementation_session": true,
         "editor_agent_trust": "auto_apply_edits",
         "conversation_mode": "code"
       }
     },
-    {"action": "wait_reply", "from": "BackendEngineer", "timeout": "540s"},
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "540s",
+      "until_file_match": {
+        "path": "core/sample/math.go",
+        "contains_all": [
+          "func Add"
+        ],
+        "none_match": [
+          "return a \\+ b \\+ 1"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
     {
       "action": "send",
       "content": "Correction: keep the edit scoped to math.go; do not change math_test.go.",
       "metadata": {
         "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
         "implementation_session": true,
         "editor_agent_trust": "auto_apply_edits",
         "conversation_mode": "code"
       }
     },
-    {"action": "wait_reply", "from": "BackendEngineer", "timeout": "420s"},
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "420s",
+      "until_file_match": {
+        "path": "core/sample/math.go",
+        "contains_all": [
+          "func Add"
+        ],
+        "none_match": [
+          "return a \\+ b \\+ 1"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
     {
       "action": "send",
       "content": "Continue from the approved plan, verify go test ./..., and report only evidence-backed completion.",
       "metadata": {
         "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
         "implementation_session": true,
         "editor_agent_trust": "auto_apply_edits",
         "conversation_mode": "code"
       }
     },
-    {"action": "wait_reply", "from": "BackendEngineer", "timeout": "540s"},
-    {"action": "assert_shell", "command": "go test ./...", "timeout_s": 120}
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "540s",
+      "until_file_match": {
+        "path": "core/sample/math.go",
+        "contains_all": [
+          "func Add"
+        ],
+        "none_match": [
+          "return a \\+ b \\+ 1"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_shell",
+      "command": "go test ./...",
+      "timeout_s": 120
+    }
   ],
   "cleanup": "clear"
 }

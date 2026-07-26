@@ -72,6 +72,10 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if ConversationModeFromMessage(msg) == ConversationModeClarify {
 		appendConversationModeClarifyPrompt(&system)
 	}
+	if ConversationModeFromMessage(msg) == ConversationModeChat &&
+		!msg.ImplementationSession() && !msg.IdeEditorModeIsExport() {
+		appendConversationModeChatPrompt(&system)
+	}
 	if isSocialOrStatusPing(msg.Content) {
 		appendHereOrSocialPingPrompt(&system)
 	}

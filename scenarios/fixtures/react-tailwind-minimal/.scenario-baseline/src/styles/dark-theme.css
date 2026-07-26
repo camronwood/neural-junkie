@@ -1,0 +1,9 @@
+/* Dark theme styles */
+body {
+  background-color: #333;
+  color: #fff;
+}
+.sidebar {
+  background-color: #444;
+  color: #fff;
+}

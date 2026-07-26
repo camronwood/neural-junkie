@@ -38,7 +38,7 @@ Product screenshots stay in `assets/screenshots/` (synced into the gallery as sc
 | `nondev` | Non-developer audience + second opinion |
 | `beta12` / `beta13` / `beta21` / `beta25` | Release-wave ads |
 | `launch` | v1 beta launch + download creative |
-| `inference-layer` / `modular-ai` / `hub` / `model-layering` / `loop-stack` / `hardware` / `semantic-turn-routing` | Architecture article series |
+| `inference-layer` / `modular-ai` / `hub` / `context-stack` / `model-layering` / `loop-stack` / `hardware` / `semantic-turn-routing` | Architecture article series |
 | `lora` / `lora-v2` / `two-tier-lora` / `mcp-lora` / `personal-learning` / `conversation-memory` | Learning / LoRA |
 | `collaboration` / `collab-craft` / `solo-vs-collab-parity` / `stream-subscriptions` | Collab + streams |
 | `byom` / `community` / `test-harness` / `try-local-ai` / `product` | Product feature ads |

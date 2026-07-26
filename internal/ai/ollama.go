@@ -256,8 +256,16 @@ func ollamaChatOptions(model string) map[string]interface{} {
 	if runtime.NumCtx > 0 {
 		opts["num_ctx"] = runtime.NumCtx
 	}
-	if runtime.NumPredict > 0 {
-		opts["num_predict"] = runtime.NumPredict
+	numPredict := runtime.NumPredict
+	// NJ_OLLAMA_NUM_PREDICT overrides config (used by regression/user-flow gates
+	// so greenfield implement turns are not starved by the 512 default).
+	if raw := strings.TrimSpace(os.Getenv("NJ_OLLAMA_NUM_PREDICT")); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			numPredict = n
+		}
+	}
+	if numPredict > 0 {
+		opts["num_predict"] = numPredict
 	} else {
 		// Keep local-agent turns bounded by default. Native-tool models can
 		// otherwise stream thousands of tiny chunks during simple collab

@@ -1,12 +1,19 @@
 {
   "name": "ask-mode-no-write",
   "description": "IDE Ask mode must not run implementation session or propose edits.",
-  "tags": ["implement", "ask"],
+  "tags": [
+    "implement",
+    "ask"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
-  "workspace": { "fixture": "minimal-repo" },
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "minimal-repo"
+  },
   "expect_no_deliverables": true,
   "steps": [
     {
@@ -20,14 +27,32 @@
         "conversation_mode": "code"
       }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "300s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "300s"
+    },
     {
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "none_match": ["\\[FILE_CHANGE\\]", "Proposing to edit", "Proposing to create"]
+      "none_match": [
+        "\\[FILE_CHANGE\\]",
+        "Proposing to edit",
+        "Proposing to create"
+      ]
     },
-    { "action": "assert_no_file_change" }
+    {
+      "action": "assert_no_file_change"
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "BackendEngineer",
+      "optional": true,
+      "match": {
+        "implementation_session_outcome.outcome": "no_changes|session_not_run|blocked|skipped"
+      }
+    }
   ],
   "cleanup": "clear"
 }

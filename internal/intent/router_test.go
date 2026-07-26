@@ -364,3 +364,14 @@ func TestPolicyPresenceCheckDemotesAskUser(t *testing.T) {
 		t.Fatalf("action=%s, want answer (not ask_user echo)", decision.Action)
 	}
 }
+
+func TestLooksLikeAdvisoryImplementationQuestion_outlineHooks(t *testing.T) {
+	if !LooksLikeAdvisoryImplementationQuestion(
+		"now outline the hook changes you'd make in hub.go for better errors",
+	) {
+		t.Fatal("outline you'd-make ask must stay advisory")
+	}
+	if LooksLikeAdvisoryImplementationQuestion("please implement hub.go error hooks now") {
+		t.Fatal("explicit implement must not be advisory")
+	}
+}

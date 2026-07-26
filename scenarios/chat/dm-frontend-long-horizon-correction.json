@@ -36,7 +36,7 @@
       "action": "assert_transcript_metrics",
       "cases": [
         {"metric": "direct_answer", "user_match": "Design a theme settings flow", "assistant_match": "(Appearance|ThemeSettings|toggle)"},
-        {"metric": "repeated_question", "assistant_match": "(theme|component|accessibility)"},
+        {"metric": "repeated_question", "assistant_match": "(?i)shall i|would you like|do you want me to"},
         {"metric": "correction_recovery", "user_match": "Correction", "assistant_match": "DisplayPreferences"},
         {
           "metric": "instruction_retention",

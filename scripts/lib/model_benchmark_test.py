@@ -111,6 +111,27 @@ class TestModelBenchmark(unittest.TestCase):
         self.assertFalse(tracks.implement)
         self.assertTrue(tracks.has_any())
 
+    def test_resolve_user_flows_all_suite(self) -> None:
+        from lib.user_flow_scenarios import user_flow_names
+
+        tracks = resolve_suite_scenarios({"user_flows": "all", "implement": [], "chat": []})
+        self.assertEqual(tracks.user_flows, user_flow_names())
+        self.assertIn("trip-research-vacation", tracks.user_flows)
+        self.assertFalse(tracks.implement)
+        self.assertTrue(tracks.has_any())
+
+    def test_resolve_user_flows_named_list(self) -> None:
+        tracks = resolve_suite_scenarios(
+            {
+                "user_flows": ["trip-research-vacation", "rust-blackjack-2d"],
+                "implement": [],
+                "chat": [],
+            }
+        )
+        self.assertEqual(
+            tracks.user_flows, ["trip-research-vacation", "rust-blackjack-2d"]
+        )
+
     def test_resolve_suite_max_size_fallback(self) -> None:
         self.assertEqual(resolve_suite_max_size_gb({}), 9.0)
 

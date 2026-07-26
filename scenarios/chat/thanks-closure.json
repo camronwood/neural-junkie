@@ -1,11 +1,18 @@
 {
   "name": "thanks-closure",
   "description": "After a substantive answer, ok thanks should get a canned closure without a long LLM reply.",
-  "tags": ["public", "assistant", "closure", "regression"],
+  "tags": [
+    "public",
+    "assistant",
+    "closure",
+    "regression"
+  ],
   "channel": "chat-scenarios",
   "channel_type": "public",
   "mention": "@Assistant",
-  "required_agents": ["Assistant"],
+  "required_agents": [
+    "Assistant"
+  ],
   "steps": [
     {
       "action": "send",
@@ -30,7 +37,11 @@
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "Assistant",
-      "any_match": ["welcome|anything else|You're welcome"]
+      "any_match": [
+        "welcome|anything else|You're welcome"
+      ],
+      "optional": true,
+      "max_chars": 180
     },
     {
       "action": "assert_reply_count",

@@ -26,6 +26,7 @@ ARTICLE_ORDER = [
     "semantic-turn-routing",
     "hardware",
     "hub",
+    "context-stack",
     "model-layering",
     "modular-ai-composition",
     "inference-layer",
@@ -53,6 +54,7 @@ SOURCE_BY_SLUG = {
     "semantic-turn-routing": "campaigns/semantic-turn-routing/SEMANTIC-TURN-ROUTING-LINKEDIN.md",
     "hardware": "campaigns/hardware/HARDWARE-LINKEDIN.md",
     "hub": "campaigns/hub/HUB-LINKEDIN.md",
+    "context-stack": "campaigns/context-stack/CONTEXT-STACK-LINKEDIN.md",
     "model-layering": "campaigns/model-layering/MODEL-LAYERING-LINKEDIN.md",
     "modular-ai-composition": "campaigns/modular-ai/MODULAR-AI-COMPOSITION-LINKEDIN.md",
     "inference-layer": "campaigns/inference-layer/INFERENCE-LAYER-LINKEDIN.md",
@@ -100,6 +102,15 @@ META_OVERRIDES: dict[str, dict[str, object]] = {
         ),
         "tags": ["ai", "localai", "multiagent", "opensource", "developertools", "architecture", "routing"],
     },
+    "context-stack": {
+        "title": "How Neural Junkie Builds, Uses, and Shares Agent Context",
+        "teaser": (
+            "Every turn flows through a six-stage Conversation Context Stack — mode, intent, memory, "
+            "grounding, persona, budget — then shares only what's needed via channels, delegation, "
+            "collabs, learnings, and retrieve-on-demand memory. Scoped context, not a hive mind."
+        ),
+        "tags": ["ai", "localai", "multiagent", "opensource", "developertools", "architecture", "context"],
+    },
     "beta-5": {
         "title": "v1.2.0-beta.5: The Release Where the Loops Close",
         "teaser": (
@@ -142,6 +153,7 @@ TOPIC_BY_SLUG = {
     "semantic-turn-routing": "architecture",
     "hardware": "hardware",
     "hub": "architecture",
+    "context-stack": "architecture",
     "model-layering": "architecture",
     "modular-ai-composition": "architecture",
     "inference-layer": "architecture",

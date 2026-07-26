@@ -1,4 +1,4 @@
-.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-transcript-metrics test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-preflight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads sync-sd-pack
+.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-transcript-metrics test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-preflight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads sync-sd-pack user-flow-scenario user-flow-scenarios user-flow-scenarios-list
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -57,18 +57,20 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo ""
 	@echo "LAYERS (make layer-gate LAYER=<name>)"
 	@echo "  ci            test-all + conversation-contract"
-	@echo "  implement     implement-scenarios (20/20)"
+	@echo "  implement     implement-scenarios user-flow-scenario user-flow-scenarios user-flow-scenarios-list (20/20)"
 	@echo "  chat          chat + conversation regression"
 	@echo "  collab        collab edge-case regression (~13)"
 	@echo "  collab-core   participation/planning core (~8; fix-loop target)"
 	@echo "  collab-full   all collab scenarios (25)"
 	@echo "  bundle        implement + chat + conversation"
+	@echo "  user-flows    real-world product journeys (~7)"
 	@echo "  parity        3x implement with hub restart"
 	@echo ""
 	@echo "DEBUG (single scenario)"
 	@echo "  make implement-scenario SCENARIO=go-handler"
 	@echo "  make chat-scenario SCENARIO=thanks-closure"
 	@echo "  make collab-scenario SCENARIO=planning-two-agent"
+	@echo "  make user-flow-scenario SCENARIO=trip-research-vacation"
 	@echo "  make *-scenarios-list                   # list scenario names"
 	@echo ""
 	@echo "  make gen-pack-capabilities             # regenerate TS capability tokens from JSON"
@@ -147,8 +149,8 @@ server-debug: setup-env ## Hub with NEURAL_JUNKIE_DEBUG=1 (pprof + /api/debug/hu
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_DEBUG=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
 
 server-regression: setup-env ## Hub for live scenario regression (RATE_LIMIT=0 + DEBUG=1); logs to /tmp/nj-hub.log
-	@echo "🔧 Regression hub → /tmp/nj-hub.log  (NEURAL_JUNKIE_RATE_LIMIT=0 NJ_OLLAMA_MAX_CONCURRENCY=2 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
-	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 NJ_OLLAMA_MAX_CONCURRENCY=2 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
+	@echo "🔧 Regression hub → /tmp/nj-hub.log  (RATE_LIMIT=0 DEBUG=1 SLACK_DISABLED=1 no last-session persist/restore) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 NJ_OLLAMA_MAX_CONCURRENCY=2 NJ_OLLAMA_NUM_PREDICT=4096 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1 NEURAL_JUNKIE_DISABLE_SESSION_PERSIST=1 NEURAL_JUNKIE_SKIP_SESSION_RESTORE=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
 
 server-log: ## Tail collab-related lines from /tmp/nj-hub.log (run server-debug first)
 	@python3 scripts/debug-collab.py watch --log /tmp/nj-hub.log
@@ -293,7 +295,7 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
-	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py transcript_contract_test.py test_growth_candidates_test.py test_growth_guardrails_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py release_prep_failures_test.py fix_loop_git_test.py hub_cleanup_test.py scenario_flake_retry_test.py release_prep_layers_test.py regression_boot_test.py regression_models_test.py regression_collab_test.py
+	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py user_flow_scenarios_test.py transcript_contract_test.py test_growth_candidates_test.py test_growth_guardrails_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py release_prep_failures_test.py fix_loop_git_test.py hub_cleanup_test.py scenario_flake_retry_test.py release_prep_layers_test.py regression_boot_test.py regression_models_test.py regression_collab_test.py
 	@PYTHONPATH=scripts python3 scripts/lib/scenario_contract.py
 
 test-transcript-metrics: ## Deterministic sanitized conversation metrics (no hub, judge, retry, or network)
@@ -338,6 +340,20 @@ implement-scenarios: ## Run all scenarios under scenarios/implement/
 
 implement-scenarios-list: ## List implementation scenarios
 	@python3 scripts/implement-scenarios.py --list
+
+user-flow-scenario: ## Run one real-world user-flow scenario (SCENARIO=trip-research-vacation)
+	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make user-flow-scenario SCENARIO=trip-research-vacation"; exit 1; fi
+	@chmod +x scripts/user-flow-scenarios.py
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/user-flow-scenarios.py --scenario "$(SCENARIO)" \
+		$(if $(VERBOSE),--verbose,)
+
+user-flow-scenarios: ## Run real-world product journey suite (scenarios/user-flows/)
+	@chmod +x scripts/user-flow-scenarios.py
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/user-flow-scenarios.py --all \
+		$(if $(VERBOSE),--verbose,)
+
+user-flow-scenarios-list: ## List real-world user-flow scenarios
+	@python3 scripts/user-flow-scenarios.py --list
 
 parity-scenario: ## Run one parity scenario (SCENARIO=large-repo-semantic-find)
 	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make parity-scenario SCENARIO=large-repo-semantic-find"; exit 1; fi

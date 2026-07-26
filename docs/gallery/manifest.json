@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-16T15:23:31Z",
-  "count": 79,
+  "updated": "2026-07-25T12:32:17Z",
+  "count": 83,
   "items": [
     {
       "id": "edge-ide-agents-panel",
@@ -176,15 +176,6 @@
       "filename": "neural-junkie-beta21-test-ad-1200.png"
     },
     {
-      "id": "neural-junkie-beta6-1200",
-      "src": "../media/gallery/ads/neural-junkie-beta6-1200.png",
-      "title": "Beta.6 release cover",
-      "caption": "v1.2.0-beta.6 — A Memory of Its Own Code",
-      "category": "ads",
-      "tags": ["release", "beta"],
-      "filename": "neural-junkie-beta6-1200.png"
-    },
-    {
       "id": "neural-junkie-beta5-1200",
       "src": "../media/gallery/ads/neural-junkie-beta5-1200.png",
       "title": "Beta5 1200",
@@ -192,6 +183,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-beta5-1200.png"
+    },
+    {
+      "id": "neural-junkie-beta6-1200",
+      "src": "../media/gallery/ads/neural-junkie-beta6-1200.png",
+      "title": "Beta6 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-beta6-1200.png"
     },
     {
       "id": "neural-junkie-biology-pack-ad-1080",
@@ -270,6 +270,24 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-context-scope-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-context-stack-1200",
+      "src": "../media/gallery/ads/neural-junkie-context-stack-1200.png",
+      "title": "Context Stack 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-context-stack-1200.png"
+    },
+    {
+      "id": "neural-junkie-context-stack-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-context-stack-ad-1080.png",
+      "title": "Context Stack",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-context-stack-ad-1080.png"
     },
     {
       "id": "neural-junkie-conversation-memory-1200",
@@ -571,6 +589,15 @@
         "security"
       ],
       "filename": "neural-junkie-security-local-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-semantic-turn-routing-1200",
+      "src": "../media/gallery/ads/neural-junkie-semantic-turn-routing-1200.png",
+      "title": "Semantic Turn Routing 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-semantic-turn-routing-1200.png"
     },
     {
       "id": "neural-junkie-session-memory-ad-1080",

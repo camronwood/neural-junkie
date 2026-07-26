@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/config"
@@ -136,3 +137,35 @@ func isRedactedPlaceholder(s string) bool {
 	s = strings.TrimSpace(s)
 	return s == "" || s == "***" || strings.Contains(s, "...")
 }
+
+// handleSystemSessionSnapshot writes an on-demand last-session.json dump for debugging
+// (agent review). Works even when session.persist_enabled is false.
+func handleSystemSessionSnapshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
+	if chatHub == nil {
+		http.Error(w, "hub not ready", http.StatusServiceUnavailable)
+		return
+	}
+	path := hub.DefaultSessionPath()
+	if err := chatHub.SaveSessionToFile(path); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fi, _ := os.Stat(path)
+	size := int64(0)
+	if fi != nil {
+		size = fi.Size()
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "saved",
+		"path":   path,
+		"bytes":  size,
+	})
+}
+

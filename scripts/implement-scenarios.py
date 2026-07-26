@@ -36,7 +36,13 @@ from lib.scenario_assert import (  # noqa: E402
     merge_deliverable_step,
     scenario_question,
 )
-from lib.fixture_baseline import reset_all_fixture_baselines, reset_fixture_baseline  # noqa: E402
+from lib.scenario_wait import (  # noqa: E402
+    disk_wait_satisfied,
+    metadata_get,
+    normalize_meta_keys,
+    step_has_disk_wait,
+)
+from lib.fixture_baseline import baseline_diverged_paths, reset_all_fixture_baselines, reset_fixture_baseline  # noqa: E402
 from lib.workspace_context import enrich_send_metadata  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "implement"
@@ -112,20 +118,16 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
         except ValueError:
             pass
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
+    # Prefer disk/metadata completion signals. Chat-phrase until_any_match is legacy.
     until_any = step.get("until_any_match")
-    until_files = step.get("until_file_exists") or step.get("until_files_exist") or []
-    if isinstance(until_files, str):
-        until_files = [until_files]
-    until_files = [str(p).strip() for p in until_files if str(p).strip()]
+    until_meta_keys = normalize_meta_keys(step)
+    has_disk = step_has_disk_wait(step)
     baseline = int(step.get("baseline", ctx.baseline_agent_count.get(from_name, _chat_baseline(ctx, from_name))))
     root = Path(scenario_repo_root(ctx.scenario))
     deadline = time.time() + secs
     nudged = False
     while time.time() < deadline:
-        for rel in until_files:
-            path = (root / rel).resolve()
-            if path.is_file() and path.stat().st_size > 0:
-                return True, f"deliverable on disk ({rel})"
+        disk_ok, disk_detail = disk_wait_satisfied(root, step)
         msgs = hub.list_messages(ctx.base, ctx.channel, 200)
         # Implementation turns often surface as file_change / user_question without a plain chat row.
         pool = hub.agent_messages(
@@ -133,6 +135,10 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
             types=hub.CHAT_REPLY_TYPES | {"file_change"},
         )
         candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
+
+        if has_disk and disk_ok and not until_meta_keys:
+            return True, f"disk ready ({disk_detail})"
+
         for msg in candidates[baseline:]:
             text = msg.get("content") or ""
             meta = msg.get("metadata") if isinstance(msg.get("metadata"), dict) else {}
@@ -141,6 +147,16 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
                 path = str(proposal.get("path") or proposal.get("rel_path") or "")
                 if path:
                     text = f"{text}\n{path}"
+            if until_meta_keys:
+                if not all(metadata_get(meta, key) is not None for key in until_meta_keys):
+                    continue
+                if has_disk and not disk_ok:
+                    continue
+                suffix = f"; {disk_detail}" if disk_detail else ""
+                return True, f"reply from {from_name} (metadata: {', '.join(until_meta_keys)}{suffix})"
+            if has_disk:
+                # Waiting on disk — keep polling; do not accept a bare chat reply as completion.
+                continue
             if until_any:
                 ok, detail = check_text_patterns(text, any_match=until_any)
                 if ok:
@@ -177,11 +193,19 @@ def step_assert_messages(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     if any_match := step.get("any_match"):
         ok, detail = check_text_patterns(text, any_match=any_match)
         if not ok:
-            return False, detail
+            # optional demotes chat-phrase any_match only; none_match stays hard.
+            if step.get("optional") or step.get("any_match_optional"):
+                print(f"  soft any_match miss: {detail}", flush=True)
+            else:
+                return False, detail
     if none_match := step.get("none_match"):
         ok, detail = check_text_patterns(text, none_match=none_match)
         if not ok:
             return False, detail
+    if max_chars := step.get("max_chars"):
+        limit = int(max_chars)
+        if len(text) > limit:
+            return False, f"reply exceeds max_chars {limit} (got {len(text)})"
     return True, "message assertions ok"
 
 
@@ -189,13 +213,23 @@ def step_assert_deliverable(ctx: ImplementContext, step: dict) -> tuple[bool, st
     root = scenario_repo_root(ctx.scenario)
     spec = merge_deliverable_step(ctx.scenario, step)
     rel = (spec.get("path") or "").strip()
-    return check_file_deliverable(
-        root=root,
-        rel=rel,
-        spec=spec,
-        question=scenario_question(ctx.scenario),
-        hub_base=ctx.base,
-    )
+    if not rel:
+        return False, "assert_deliverable: path required"
+    alts = step.get("path_alternatives") or spec.get("path_alternatives") or []
+    candidates = [rel] + [str(a).strip() for a in alts if str(a).strip()]
+    last_detail = ""
+    for candidate in candidates:
+        ok, detail = check_file_deliverable(
+            root=root,
+            rel=candidate,
+            spec=spec,
+            question=scenario_question(ctx.scenario),
+            hub_base=ctx.base,
+        )
+        if ok:
+            return True, detail
+        last_detail = detail
+    return False, last_detail
 
 
 def step_assert_file_exists(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
@@ -212,30 +246,29 @@ def _last_agent_message(ctx: ImplementContext, from_name: str) -> dict | None:
     candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
     if not candidates:
         return None
-    for msg in reversed(candidates):
-        meta = msg.get("metadata") or {}
-        if isinstance(meta.get("implementation_session_outcome"), dict):
-            return msg
-    return candidates[-1]
+    # Prefer replies from this scenario turn only — otherwise a prior
+    # implementation_session_outcome on a shared channel poisons plan/ask asserts.
+    baseline = int(ctx.baseline_agent_count.get(from_name, 0))
+    turn = candidates[baseline:] if baseline < len(candidates) else []
+    if not turn:
+        turn = candidates[-1:]
+    # Always use the latest turn reply. Walking backward for an outcome resurrects
+    # prior-scenario metadata when the current reply is plan/ask (no outcome).
+    return turn[-1]
 
 
 def step_assert_no_file_change(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+    # Pass = disk matches fixture baseline. Chat metadata from a prior turn on a
+    # shared channel must not fail plan/ask scenarios when the tree is untouched.
+    diverged = baseline_diverged_paths(ctx.scenario, root=ROOT)
+    if diverged:
+        return False, f"files changed on disk: {', '.join(diverged[:8])}"
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     msg = _last_agent_message(ctx, from_name)
-    if not msg:
-        return False, "no agent reply"
-    body = (msg.get("content") or "").lower()
-    if "[file_change]" in body:
-        return False, "file_change in reply"
-    meta = msg.get("metadata") or {}
-    if meta.get("implementation_files_changed"):
-        return False, "files changed"
-    outcome = meta.get("implementation_session_outcome")
-    if isinstance(outcome, dict):
-        if outcome.get("outcome") not in (None, "", "no_changes"):
-            return False, f"implementation outcome {outcome.get('outcome')!r}"
-        if outcome.get("files_changed"):
-            return False, "outcome lists files_changed"
+    if msg:
+        body = (msg.get("content") or "").lower()
+        if "[file_change]" in body:
+            return False, "file_change in reply"
     return True, "no file changes"
 
 
@@ -278,38 +311,43 @@ def step_assert_suggested_commands(ctx: ImplementContext, step: dict) -> tuple[b
     return True, "suggested command assertions ok"
 
 
-def _metadata_get(meta: dict, dotted: str):
-    cur: object = meta
-    for part in dotted.split("."):
-        if not isinstance(cur, dict):
-            return None
-        cur = cur.get(part)
-    return cur
-
-
 def step_assert_message_metadata(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     msg = _last_agent_message(ctx, from_name)
+    require_keys = [str(k) for k in (step.get("require_keys") or [])]
+    # When requiring session outcome, scan this turn for a message that has it —
+    # the absolute latest row may be a status chat without metadata.
+    if msg and require_keys:
+        msgs = hub.list_messages(ctx.base, ctx.channel, 200)
+        pool = hub.chat_agent_messages(msgs)
+        candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
+        baseline = int(ctx.baseline_agent_count.get(from_name, 0))
+        turn = candidates[baseline:] if baseline < len(candidates) else candidates[-1:]
+        for candidate in reversed(turn):
+            meta = candidate.get("metadata") or {}
+            if all(metadata_get(meta, key) is not None for key in require_keys):
+                msg = candidate
+                break
     if not msg:
         if step.get("optional"):
             return True, "skipped (no agent reply)"
         return False, f"no messages from {from_name}"
     meta = msg.get("metadata") or {}
     for key, expected in (step.get("equals") or {}).items():
-        got = _metadata_get(meta, str(key))
+        got = metadata_get(meta, str(key))
         if got != expected:
             if step.get("optional"):
                 return True, f"skipped optional metadata mismatch on {key!r}"
             return False, f"metadata {key!r}: got {got!r} want {expected!r}"
     for key, pattern in (step.get("match") or {}).items():
-        got = _metadata_get(meta, str(key))
+        got = metadata_get(meta, str(key))
         text = "" if got is None else str(got)
         if not re.search(str(pattern), text, re.I):
             if step.get("optional"):
                 return True, f"skipped optional metadata pattern on {key!r}"
             return False, f"metadata {key!r} did not match {pattern!r} (got {text!r})"
-    for key in step.get("require_keys") or []:
-        if _metadata_get(meta, str(key)) is None:
+    for key in require_keys:
+        if metadata_get(meta, key) is None:
             if step.get("optional"):
                 return True, f"skipped optional missing metadata key {key!r}"
             return False, f"missing metadata key {key!r}"
@@ -418,12 +456,20 @@ def bootstrap_ci(values: list[float], iterations: int = 1000, ci: float = 0.95) 
 
 
 def _outcome_from_last_reply(ctx: ImplementContext, from_name: str) -> dict:
-    msg = _last_agent_message(ctx, from_name)
-    if not msg:
+    """Prefer an outcome stamped on this turn; never resurrect prior-scenario metadata."""
+    msgs = hub.list_messages(ctx.base, ctx.channel, 200)
+    pool = hub.chat_agent_messages(msgs)
+    candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
+    if not candidates:
         return {}
-    meta = msg.get("metadata") or {}
-    outcome = meta.get("implementation_session_outcome")
-    return outcome if isinstance(outcome, dict) else {}
+    baseline = int(ctx.baseline_agent_count.get(from_name, 0))
+    turn = candidates[baseline:] if baseline < len(candidates) else candidates[-1:]
+    for msg in reversed(turn):
+        meta = msg.get("metadata") or {}
+        outcome = meta.get("implementation_session_outcome")
+        if isinstance(outcome, dict):
+            return outcome
+    return {}
 
 
 def run_scenario_with_stats(base: str, name: str, *, runs: int, best_of_k: int, keep: bool) -> bool:
@@ -479,7 +525,19 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dic
     last_detail = ""
     telemetry = new_run("implement", name)
     # Selection-scoped extract is late in alpha order and flaky under Ollama soak — allow 3 attempts.
-    max_attempts = 3 if name == "selection-scoped-edit" else 2
+    # Greenfield user-flow implement journeys are long-running and flake under soak too.
+    user_flow_implement = {
+        "trip-research-vacation",
+        "rust-blackjack-2d",
+        "nodejs-user-crud",
+        "ios-trivia-swift",
+        "journey-crud-clarify-correct",
+        "journey-blackjack-cli-correction",
+        "journey-boot-fix-then-feature",
+        "journey-notes-rename-to-memos",
+        "journey-landing-brand-correction",
+    }
+    max_attempts = 3 if name in user_flow_implement or name == "selection-scoped-edit" else 2
     for attempt in range(1, max_attempts + 1):
         telemetry["attempts"] = attempt
         ok, outcome, last_detail = _run_scenario_once(

@@ -68,8 +68,20 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 		return false
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		// Stamped decisions are authoritative — image phrases must not override.
-		return decision.Action != semantic.ActionImage
+		if decision.Action == semantic.ActionImage {
+			return false
+		}
+		// Workspace-mutation turns stay off image gen even if phrasing mentions "cover".
+		if decision.Mutation == semantic.MutationWorkspace ||
+			decision.Action == semantic.ActionEdit || decision.Action == semantic.ActionDebug ||
+			decision.Action == semantic.ActionContinue || decision.Action == semantic.ActionRun {
+			return true
+		}
+		// Answer/AskUser/etc.: honor an explicit generate-image phrase (chat cover art, etc.).
+		if UserRequestsGeneratedImage(msg.Content) {
+			return false
+		}
+		return true
 	}
 	explicitImageIntent := UserRequestsGeneratedImage(msg.Content)
 	if msg.ImplementationSession() {
@@ -92,7 +104,9 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
 		return true
 	}
-	return false
+	// Chat / unset mode: keep generate_image off unless the user explicitly asked
+	// (avoids "theme support" / workspace visibility false-positive tool calls).
+	return true
 }
 
 func agentTypeSupportsHubImageGen(t protocol.AgentType) bool {
@@ -107,8 +121,8 @@ func agentTypeSupportsHubImageGen(t protocol.AgentType) bool {
 // tryHubImageGenerationShortcut posts a hub-generated image when the user asked for one.
 func (a *Agent) tryHubImageGenerationShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
 	explicitImageIntent := msg != nil && UserRequestsGeneratedImage(msg.Content)
-	if goal, ok := turnGoalFromContext(ctx); ok {
-		explicitImageIntent = goal.Action == ActionImage
+	if goal, ok := turnGoalFromContext(ctx); ok && goal.Action == ActionImage {
+		explicitImageIntent = true
 	}
 	if msg == nil || a.Hub == nil || protocol.IsGeneratedImageDelivery(msg) || !explicitImageIntent {
 		return "", false

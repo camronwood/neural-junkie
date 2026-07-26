@@ -51,6 +51,7 @@
         },
         {
           "metric": "unsupported_claim",
+          "user_match": "generate a cover art image",
           "assistant_match": "(generated|created|here.*cover|cover image)",
           "evidence_label": "generated_image"
         }

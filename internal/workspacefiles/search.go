@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/git"
+	"github.com/camronwood/neural-junkie/internal/repo"
 )
 
 var ignoreDirs = map[string]bool{
 	".git": true, "node_modules": true, "target": true,
 	"dist": true, "build": true, ".neural-junkie": true,
+	repo.ScenarioBaselineDir: true,
 }
 
 const defaultSearchLimit = 50
@@ -70,9 +72,14 @@ func gitLsFiles(ctx context.Context, root string) ([]string, error) {
 	var lines []string
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
-		if line != "" {
-			lines = append(lines, filepath.ToSlash(line))
+		if line == "" {
+			continue
 		}
+		slash := filepath.ToSlash(line)
+		if repo.IsScenarioBaselinePath(slash) {
+			continue
+		}
+		lines = append(lines, slash)
 	}
 	return lines, nil
 }

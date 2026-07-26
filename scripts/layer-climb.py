@@ -282,6 +282,17 @@ def main() -> int:
         return 0
 
     apply_release_prep_env(ROOT)
+    # Detach from the launcher process group (IDE/shell teardown often SIGKILLs the
+    # group). layer-gate already uses start_new_session; without this, climb dies
+    # mid-ci while the orphaned gate finishes alone.
+    try:
+        os.setsid()
+    except OSError:
+        pass
+    try:
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    except (AttributeError, ValueError, OSError):
+        pass
     # Pin one agent model for the whole climb unless already set.
     pinned = (os.environ.get("NJ_REGRESSION_AGENT_MODEL") or "").strip()
     if not pinned:
@@ -344,6 +355,12 @@ def main() -> int:
         write_status(status_path, status_snapshot(note=f"ABORTED — {abort_reason['value']}"))
         raise SystemExit(130 if signum == signal.SIGINT else 143)
 
+    # Survive launcher shell exit (nohup/make/IDE) so multi-hour climbs are not orphaned
+    # after the first layer while layer-gate (start_new_session) keeps running alone.
+    try:
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    except (AttributeError, ValueError, OSError):
+        pass
     signal.signal(signal.SIGINT, on_signal)
     signal.signal(signal.SIGTERM, on_signal)
 

@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-22T12:07:43Z",
-  "count": 23,
+  "updated": "2026-07-25T12:32:16Z",
+  "count": 24,
   "items": [
     {
       "slug": "beta-6",
@@ -99,6 +99,26 @@
       "sourceFile": "HUB-LINKEDIN.md",
       "sourcePath": "campaigns/hub/HUB-LINKEDIN.md",
       "href": "hub.html"
+    },
+    {
+      "slug": "context-stack",
+      "title": "How Neural Junkie Builds, Uses, and Shares Agent Context",
+      "teaser": "Every turn flows through a six-stage Conversation Context Stack \u2014 mode, intent, memory, grounding, persona, budget \u2014 then shares only what's needed via channels, delegation, collabs, learnings, and retrieve-on-demand memory. Scoped context, not a hive mind.",
+      "cover": "campaigns/context-stack/creatives/neural-junkie-context-stack-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-context-stack-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "opensource",
+        "developertools",
+        "architecture",
+        "context"
+      ],
+      "sourceFile": "CONTEXT-STACK-LINKEDIN.md",
+      "sourcePath": "campaigns/context-stack/CONTEXT-STACK-LINKEDIN.md",
+      "href": "context-stack.html"
     },
     {
       "slug": "model-layering",

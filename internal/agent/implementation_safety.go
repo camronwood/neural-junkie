@@ -146,6 +146,15 @@ func (s *ImplementationSessionState) recordEditResult(path, newContent string) {
 	}
 }
 
+// releaseSnapshot drops the rollback snapshot for path so a successful direct-apply
+// (e.g. Makefile playbook under auto_apply) is not restored on session exit.
+func (s *ImplementationSessionState) releaseSnapshot(path string) {
+	if s == nil || s.FileSnapshots == nil {
+		return
+	}
+	delete(s.FileSnapshots, normalizeFileChangeRelPath(path))
+}
+
 func (s *ImplementationSessionState) shouldRollback() bool {
 	if s == nil || s.TrustMode != editorTrustAutoApply || len(s.FileSnapshots) == 0 {
 		return false

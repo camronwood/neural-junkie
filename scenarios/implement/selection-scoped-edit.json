@@ -1,16 +1,28 @@
 {
   "name": "selection-scoped-edit",
   "description": "Extract selected sidebar footer block to a helper file without touching config.",
-  "tags": ["implement", "cursor-parity", "react", "selection"],
+  "tags": [
+    "implement",
+    "cursor-parity",
+    "react",
+    "selection"
+  ],
   "channel": "implement-scenarios",
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
+  "required_agents": [
+    "FrontendEngineer"
+  ],
   "workspace": {
     "fixture": "react-tailwind-minimal",
-    "open_files": ["src/App.tsx"],
+    "open_files": [
+      "src/App.tsx"
+    ],
     "active_file": "src/App.tsx",
-    "unchanged_files": ["tailwind.config.js", "package.json"],
+    "unchanged_files": [
+      "tailwind.config.js",
+      "package.json"
+    ],
     "selection": {
       "start_line": 4,
       "end_line": 12,
@@ -22,8 +34,12 @@
       "path": "src/App.tsx",
       "min_bytes": 80,
       "for_question": {
-        "any_match": ["SidebarFooter|renderSidebarFooter|import"],
-        "none_match": ["\\.jsx"]
+        "any_match": [
+          "SidebarFooter|renderSidebarFooter|import"
+        ],
+        "none_match": [
+          "\\.jsx"
+        ]
       }
     }
   ],
@@ -43,22 +59,49 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "420s",
-      "until_any_match": ["applied and verified|implementation session complete|SidebarFooter|footer"],
-      "until_file_exists": "src/components/SidebarFooter.tsx"
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "any_match": [
+          "import SidebarFooter|from ['\\\"].*SidebarFooter"
+        ],
+        "none_match": [
+          "function renderSidebarFooter"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
     },
     {
       "action": "assert_files_unchanged",
-      "paths": ["tailwind.config.js", "package.json"]
+      "paths": [
+        "tailwind.config.js",
+        "package.json"
+      ]
     },
     {
       "action": "assert_file_exists",
       "path": "src/components/SidebarFooter.tsx",
-      "any_match": ["footer|SidebarFooter|Neural Junkie fixture"]
+      "any_match": [
+        "footer|SidebarFooter|Neural Junkie fixture"
+      ]
     },
     {
       "action": "assert_file_exists",
       "path": "src/App.tsx",
-      "any_match": ["SidebarFooter|renderSidebarFooter|import"]
+      "any_match": [
+        "import SidebarFooter|from ['\\\"].*SidebarFooter"
+      ],
+      "none_match": [
+        "function renderSidebarFooter"
+      ]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "FrontendEngineer",
+      "require_keys": [
+        "implementation_session_outcome"
+      ]
     }
   ],
   "cleanup": "clear"

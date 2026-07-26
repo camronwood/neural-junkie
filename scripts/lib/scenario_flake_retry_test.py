@@ -23,6 +23,16 @@ class ScenarioFlakeRetryTest(unittest.TestCase):
     def test_retryable_401(self) -> None:
         self.assertTrue(sfr.is_retryable_failure("send failed (401)"))
 
+    def test_retryable_generation_failure_message(self) -> None:
+        self.assertTrue(
+            sfr.is_retryable_failure("@BackendEngineer posted failure system message")
+        )
+        self.assertTrue(
+            sfr.is_retryable_failure(
+                "Sorry, I encountered an error while generating a response."
+            )
+        )
+
     def test_not_retryable_assertion(self) -> None:
         self.assertFalse(sfr.is_retryable_failure("metadata outcome: got 'proposals_submitted'"))
 
