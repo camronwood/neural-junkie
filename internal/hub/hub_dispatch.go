@@ -263,6 +263,9 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 
 // echoUserTurnToUI persists and UI-broadcasts an eligible user message before
 // semantic classification so the chat timeline updates immediately.
+//
+// The echo is a clone: resolveSemanticTurn mutates msg.Metadata after this returns,
+// and agent history replay / UI subscribers must not share that map.
 func (h *Hub) echoUserTurnToUI(msg *protocol.Message) bool {
 	if h == nil || msg == nil || !semanticTurnEligible(msg) {
 		return false
@@ -273,6 +276,10 @@ func (h *Hub) echoUserTurnToUI(msg *protocol.Message) bool {
 	if msg.IsInThread() {
 		return false
 	}
+	echo, err := protocol.CloneMessage(msg)
+	if err != nil || echo == nil {
+		return false
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if _, ok := h.channels[msg.Channel]; !ok {
@@ -281,8 +288,8 @@ func (h *Hub) echoUserTurnToUI(msg *protocol.Message) bool {
 	if h.shouldSkipHumanJoinAnnouncementLocked(msg.Channel, msg) {
 		return false
 	}
-	h.appendChannelMessageLocked(msg.Channel, msg)
-	h.deliverToSubscribers(h.uiSubscribers[msg.Channel], msg)
+	h.appendChannelMessageLocked(msg.Channel, echo)
+	h.deliverToSubscribers(h.uiSubscribers[msg.Channel], echo)
 	return true
 }
 
