@@ -105,6 +105,16 @@
       "download_url": "https://github.com/camronwood/neural-junkie-pack-model-arena/releases/download/v1.0.0/model-arena-1.0.0.zip"
     },
     {
+      "id": "maps",
+      "version": "1.0.0",
+      "title": "Maps",
+      "description": "MapsExpert — geocode and walking/driving routes via OpenStreetMap (Nominatim + OSRM), interactive Neural Canvas maps.",
+      "icon_key": "code",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-maps/releases/download/v1.0.0/maps-1.0.0.zip"
+    },
+    {
       "id": "room-chat",
       "version": "1.0.0",
       "title": "Room chat",
