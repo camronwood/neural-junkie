@@ -21,9 +21,6 @@ class UserFlowEntry:
     skip_reason: str = ""
 
 
-_WIP = "still landing; not release-blocking (force with --scenario)"
-
-
 # Canonical order: research → games/APIs → websites → fix → multi-turn journeys.
 USER_FLOW_SCENARIOS: tuple[UserFlowEntry, ...] = (
     UserFlowEntry(
@@ -38,7 +35,6 @@ USER_FLOW_SCENARIOS: tuple[UserFlowEntry, ...] = (
         kind="implement",
         source="user-flows",
         description="Local 2D/CLI Rust blackjack against the house",
-        skip_reason=_WIP,
     ),
     UserFlowEntry(
         name="nodejs-user-crud",
@@ -51,7 +47,6 @@ USER_FLOW_SCENARIOS: tuple[UserFlowEntry, ...] = (
         kind="implement",
         source="user-flows",
         description="Local Swift trivia game under Xcode-like structure",
-        skip_reason=_WIP,
     ),
     UserFlowEntry(
         name="collaboration-station-branded",
@@ -77,35 +72,30 @@ USER_FLOW_SCENARIOS: tuple[UserFlowEntry, ...] = (
         kind="implement",
         source="user-flows",
         description="Vague user API → Node/TS constraints → /health correction → finish",
-        skip_reason=_WIP,
     ),
     UserFlowEntry(
         name="journey-blackjack-cli-correction",
         kind="implement",
         source="user-flows",
         description="Plan Rust blackjack → implement → CLI-only correction → finish",
-        skip_reason=_WIP,
     ),
     UserFlowEntry(
         name="journey-boot-fix-then-feature",
         kind="implement",
         source="user-flows",
         description="Fix corrupt Vite App.js → add Workspace Ready heading",
-        skip_reason=_WIP,
     ),
     UserFlowEntry(
         name="journey-notes-rename-to-memos",
         kind="implement",
         source="user-flows",
         description="Notes CRUD → rename to /memos mid-session → scrub /notes",
-        skip_reason=_WIP,
     ),
     UserFlowEntry(
         name="journey-landing-brand-correction",
         kind="implement",
         source="user-flows",
         description="Landing page → brand rename → tagline → finish",
-        skip_reason=_WIP,
     ),
 )
 

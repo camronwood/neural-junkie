@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-25T12:32:16Z",
-  "count": 24,
+  "updated": "2026-07-26T22:00:04Z",
+  "count": 25,
   "items": [
     {
       "slug": "beta-6",
@@ -60,6 +60,26 @@
       "sourceFile": "SEMANTIC-TURN-ROUTING-LINKEDIN.md",
       "sourcePath": "campaigns/semantic-turn-routing/SEMANTIC-TURN-ROUTING-LINKEDIN.md",
       "href": "semantic-turn-routing.html"
+    },
+    {
+      "slug": "composition-model",
+      "title": "The Composition Model: Agents, Tools, and Runbooks You Can Actually Take With You",
+      "teaser": "Neural Junkie treats agents, tools, and runbooks as portable, composable units \u2014 Share Agent bundles knowledge you can hydrate anywhere, the MCP Tool Wizard grants a home-grown tool to one agent by name, and runbook definitions export/import with a provenance trail back to the events that produced each run.",
+      "cover": "campaigns/composition-model/creatives/neural-junkie-composition-model-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-composition-model-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "opensource",
+        "developertools",
+        "architecture",
+        "mcp"
+      ],
+      "sourceFile": "COMPOSITION-MODEL-LINKEDIN.md",
+      "sourcePath": "campaigns/composition-model/COMPOSITION-MODEL-LINKEDIN.md",
+      "href": "composition-model.html"
     },
     {
       "slug": "hardware",

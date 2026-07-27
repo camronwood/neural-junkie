@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, GitChangeProposal, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, ResolvedCapability, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, GitChangeProposal, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, RunbookDefinitionBundle, RunbookRunProvenance, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, ResolvedCapability, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
 export type { ResolvedCapability } from '../types/protocol';
 import {
   getHubBaseURL,
@@ -299,6 +299,27 @@ export interface UserLearning {
   updated_at?: string;
   use_count?: number;
   active: boolean;
+}
+
+/** Share Agent bundle: extended MCP export with custom rules, learnings, and LoRA metadata. */
+export interface AgentShareBundle {
+  version: string;
+  agent: {
+    name: string;
+    type: string;
+    expertise?: string[];
+    description?: string;
+    createdAt?: string;
+    repository?: string;
+  };
+  resources: Array<{ uri: string; name: string; mimeType: string; content: string; size?: number }>;
+  prompts: Array<{ name: string; description: string; prompt: string }>;
+  systemPrompt: string;
+  exportedAt?: string;
+  lora?: { composed_tag?: string; base_ollama_tag?: string; hf_repo_id?: string; training_manifest?: unknown };
+  custom_rules_markdown?: string;
+  learnings?: Array<{ content: string; category?: string; scope?: string; agent_name?: string; agent_type?: string }>;
+  hydrated_from_resources?: boolean;
 }
 
 export interface LearningStats {
@@ -937,6 +958,39 @@ export class ChatAPI {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(def),
     });
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async exportRunbookDefinition(id: string, version?: number): Promise<RunbookDefinitionBundle> {
+    const qs = version ? `?version=${version}` : '';
+    const response = await this.hubFetch(`/api/runbook-definitions/${encodeURIComponent(id)}/export${qs}`);
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async importRunbookDefinition(
+    bundleOrDefinition: RunbookDefinitionBundle | RunbookDefinition,
+    options?: { keepId?: boolean }
+  ): Promise<RunbookDefinition> {
+    const qs = options?.keepId ? '?keep_id=true' : '';
+    const response = await this.hubFetch(`/api/runbook-definitions/import${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bundleOrDefinition),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async getRunbookRunProvenance(collaborationId: string): Promise<RunbookRunProvenance> {
+    const response = await this.hubFetch(`/api/runbook-runs/${encodeURIComponent(collaborationId)}/provenance`);
     if (!response.ok) {
       throw new Error(await response.text() || response.statusText);
     }
@@ -2076,6 +2130,47 @@ export class ChatAPI {
       { name: 'User', type: 'user' },
       'chat'
     );
+  }
+
+  /**
+   * Build a Share Agent bundle (export + custom rules + agent-scoped
+   * learnings + LoRA metadata, when present) for a repo agent so it can be
+   * offered as a download from Agent Info -> Share.
+   */
+  async shareAgent(agentId: string): Promise<AgentShareBundle> {
+    const response = await this.hubFetch(`/api/agents/${agentId}/share`, { method: 'POST' });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  /**
+   * Import an agent from an MCP export / Share Agent bundle file already
+   * accessible on the hub's filesystem. Set `hydrate` to rebuild the
+   * agent's knowledge from the bundle's embedded resources instead of
+   * re-indexing the original repository path; the hub auto-hydrates when
+   * the original path isn't available even if this isn't set.
+   */
+  async importAgentBundle(options: {
+    filePath: string;
+    hydrate?: boolean;
+    repositoryPath?: string;
+  }): Promise<{ success: boolean; message: string; name?: string; lora_train_suggestion?: unknown }> {
+    const response = await this.hubFetch('/api/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        file_path: options.filePath,
+        hydrate: options.hydrate ?? false,
+        repository_path: options.repositoryPath ?? '',
+      }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
   }
 
   // Test Anthropic connection

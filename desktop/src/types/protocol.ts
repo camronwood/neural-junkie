@@ -1584,6 +1584,41 @@ export interface RunbookRunRecord {
   phase: string;
   channel?: string;
   title?: string;
+  event_log_path?: string;
+  outcome?: string;
+}
+
+// Portable, shareable form of a RunbookDefinition returned by
+// GET /api/runbook-definitions/{id}/export and accepted by
+// POST /api/runbook-definitions/import. Mirrors runbooklibrary.DefinitionBundle.
+export interface RunbookDefinitionBundle {
+  schema_version: number;
+  exported_at: string;
+  definition: RunbookDefinition;
+}
+
+// One append-only workflow trace event (phase transitions, task
+// dispatch/completion/failure). Mirrors workflow.Event.
+export interface RunbookWorkflowEvent {
+  ts: string;
+  type: string;
+  collab_id?: string;
+  from?: string;
+  to?: string;
+  task_id?: string;
+  dispatch_token?: string;
+  output_preview?: string;
+  attrs?: Record<string, unknown>;
+}
+
+// Response from GET /api/runbook-runs/{id}/provenance: links a run back to
+// the definition it was instantiated from and its full event trace.
+export interface RunbookRunProvenance {
+  run_id: string;
+  run: RunbookRunRecord | null;
+  definition: RunbookDefinition | null;
+  collaboration: Collaboration | null;
+  events: RunbookWorkflowEvent[];
 }
 
 export interface ConnectorProfile {

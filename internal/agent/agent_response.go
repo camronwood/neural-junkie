@@ -122,6 +122,12 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if resp, ok := a.tryBiologyScanToolShortcut(approvalCtx, msg); ok {
 		return resp, nil
 	}
+	if resp, ok := a.tryMapsRouteShortcut(approvalCtx, msg); ok {
+		return resp, nil
+	}
+	if resp, ok := a.tryNeuralCanvasMermaidShortcut(approvalCtx, msg, prompt, eff); ok {
+		return resp, nil
+	}
 	if resp, ok := a.tryHubImageGenerationShortcut(approvalCtx, msg); ok {
 		return a.completeMixedImageResponse(approvalCtx, msg, prompt, history, eff, resp), nil
 	}
@@ -309,6 +315,20 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	// Tool loop (MCP / image generation) uses batch API; stream the final answer as one chunk.
 	// Run whenever tools exist — generateWithAgentTools falls back to qwen when the chat model (e.g. koesn) lacks native tools.
 	if resp, ok := a.tryBiologyScanToolShortcut(approvalCtx, msg); ok {
+		tokenCh := make(chan ai.StreamToken, 2)
+		tokenCh <- ai.StreamToken{Content: resp}
+		tokenCh <- ai.StreamToken{Done: true}
+		close(tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+	}
+	if resp, ok := a.tryMapsRouteShortcut(approvalCtx, msg); ok {
+		tokenCh := make(chan ai.StreamToken, 2)
+		tokenCh <- ai.StreamToken{Content: resp}
+		tokenCh <- ai.StreamToken{Done: true}
+		close(tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+	}
+	if resp, ok := a.tryNeuralCanvasMermaidShortcut(approvalCtx, msg, prompt, eff); ok {
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}
@@ -565,7 +585,8 @@ finishStream:
 func (a *Agent) agentHasDedicatedContext() bool {
 	switch a.Info.Type {
 	case protocol.AgentTypeRepo, protocol.AgentTypeCLI,
-		protocol.AgentTypeModerator, protocol.AgentTypeAssistant, protocol.AgentTypeConfluence:
+		protocol.AgentTypeModerator, protocol.AgentTypeAssistant, protocol.AgentTypeConfluence,
+		protocol.AgentTypeMaps, protocol.AgentTypeMusic, protocol.AgentTypeArena:
 		return true
 	default:
 		return false

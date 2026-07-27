@@ -48,6 +48,8 @@ func (a *Agent) attemptCommandFailurePlaybook(
 		return a.attemptMissingStartAllMakefileFix(ctx, msg, wsPath, channel, state)
 	case "tauri_vite_port_mismatch":
 		return a.attemptTauriVitePortPlaybook(ctx, msg, wsPath, channel, state)
+	case "rust_missing_crate":
+		return a.attemptMissingRustCrateFix(ctx, msg, wsPath, channel, state, "")
 	default:
 		return false, nil
 	}

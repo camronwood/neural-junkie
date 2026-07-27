@@ -157,12 +157,17 @@
         "path_alternatives": [
           "src/lib.rs"
         ],
+        "contains_all": [
+          "hit|stand",
+          "dealer|Dealer"
+        ],
         "any_match": [
           "blackjack|Blackjack",
           "hit|stand|dealer|Hand|Deck|card"
         ],
         "none_match": [
-          "bevy::|wgpu"
+          "bevy::|wgpu",
+          "Hello world|Hello, world"
         ]
       },
       "until_metadata_keys": [
@@ -186,6 +191,13 @@
       "path": "src/main.rs",
       "path_alternatives": [
         "src/lib.rs"
+      ],
+      "contains_all": [
+        "hit|stand",
+        "dealer|Dealer"
+      ],
+      "none_match": [
+        "Hello world|Hello, world"
       ]
     },
     {

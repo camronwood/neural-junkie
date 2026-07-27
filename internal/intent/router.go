@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -265,6 +266,24 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			RetrievalPriorReference, RetrievalCodebase, RetrievalCodeGraph, RetrievalCollaboration,
 		)
 		decision.PolicyOverrides = append(decision.PolicyOverrides, "presence_check")
+	}
+
+	// Open Neural Canvas in-channel: revisions stay artifact (external), not workspace edit.
+	// Structural — driven by open_artifact_* features, not user-text phrase lists.
+	if features.OpenArtifactRenderer != "" && features.ExplicitAction == "" &&
+		strings.ToLower(strings.TrimSpace(features.ComposerMode)) != "export" &&
+		features.PendingAction != ActionEdit && features.PendingAction != ActionDebug {
+		switch decision.Action {
+		case ActionEdit, ActionRun, ActionInspect, ActionImage:
+			decision.Action = ActionArtifact
+			decision.RequestedAction = ActionArtifact
+			decision.Mutation = MutationExternal
+			if !slices.Contains(decision.Retrieval, RetrievalPriorReference) {
+				decision.Retrieval = append(decision.Retrieval, RetrievalPriorReference)
+			}
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "open_canvas_artifact")
+			decision.ReasonCodes = append(decision.ReasonCodes, "durable_artifact")
+		}
 	}
 
 	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))

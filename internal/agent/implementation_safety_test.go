@@ -163,4 +163,32 @@ func TestDestructiveRewriteTrustTiers(t *testing.T) {
 	if !CanAutoApproveDestructiveRewrite("ollama", map[string]interface{}{"deterministic_edit": true}) {
 		t.Fatal("deterministically validated rewrite should be eligible")
 	}
+	meta := map[string]interface{}{
+		"channel":            "user-flow-scenarios",
+		"editor_agent_trust": editorTrustAutoApply,
+	}
+	if !CanAutoApproveDestructiveRewrite("ollama", meta) {
+		t.Fatal("ollama should auto-approve destructive rewrite on regression scenario channel with auto_apply trust")
+	}
+	meta["editor_agent_trust"] = "ask_before_edits"
+	if CanAutoApproveDestructiveRewrite("ollama", meta) {
+		t.Fatal("ollama must not auto-approve without auto_apply/yolo trust")
+	}
+}
+
+func TestRegressionHarnessAllowsDestructiveAutoApply(t *testing.T) {
+	t.Setenv("NJ_REGRESSION", "")
+	if regressionHarnessAllowsDestructiveAutoApply(map[string]interface{}{"channel": "general"}) {
+		t.Fatal("general channel should not allow destructive auto-apply")
+	}
+	if !regressionHarnessAllowsDestructiveAutoApply(map[string]interface{}{"channel": "user-flow-scenarios"}) {
+		t.Fatal("user-flow-scenarios should allow destructive auto-apply")
+	}
+	if !regressionHarnessAllowsDestructiveAutoApply(map[string]interface{}{"channel": "collab-scenarios"}) {
+		t.Fatal("-scenarios suffix channels should allow destructive auto-apply")
+	}
+	t.Setenv("NJ_REGRESSION", "1")
+	if !regressionHarnessAllowsDestructiveAutoApply(nil) {
+		t.Fatal("NJ_REGRESSION=1 should allow destructive auto-apply")
+	}
 }

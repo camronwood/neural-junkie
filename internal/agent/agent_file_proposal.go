@@ -926,7 +926,31 @@ func (a *Agent) proposeFileCreateInChannel(ctx context.Context, channel, path, c
 
 	err := a.Hub.SendMessage(msg)
 	a.noteProposalResult(ctx, path, err)
+	if err == nil {
+		a.maybeScaffoldGreenfieldCargoTomlAfterRustFile(ctx, sourceMsg, path)
+	}
 	return err
+}
+
+func (a *Agent) maybeScaffoldGreenfieldCargoTomlAfterRustFile(ctx context.Context, sourceMsg *protocol.Message, path string) {
+	if a == nil || sourceMsg == nil || !sourceMsg.ImplementationSession() {
+		return
+	}
+	path = normalizeFileChangeRelPath(path)
+	if !strings.HasSuffix(strings.ToLower(path), ".rs") {
+		return
+	}
+	wsPath := a.resolveWorkspacePath(sourceMsg)
+	if wsPath == "" || !workspaceMissingCargoToml(wsPath) {
+		return
+	}
+	state := implementationSessionStateFromContext(ctx)
+	if state == nil {
+		return
+	}
+	if a.tryGreenfieldCargoTomlScaffold(ctx, sourceMsg, wsPath, state, path) {
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{"Cargo.toml"})
+	}
 }
 
 // ProposeFileDelete proposes deleting a file

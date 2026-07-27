@@ -198,7 +198,72 @@ func (h *Hub) semanticTurnFeatures(msg *protocol.Message) intent.TurnFeatures {
 		}
 	}
 	features.RecentExchanges = h.semanticRecentExchanges(msg.Channel, msg.ID, 6)
+	if id, renderer, title := h.semanticOpenCanvasArtifact(msg.Channel, msg.ID); id != "" {
+		features.OpenArtifactID = id
+		features.OpenArtifactRenderer = renderer
+		features.OpenArtifactTitle = title
+	}
 	return features
+}
+
+func (h *Hub) semanticOpenCanvasArtifact(channel, skipID string) (id, renderer, title string) {
+	h.mu.RLock()
+	messages := append([]*protocol.Message(nil), h.messages[channel]...)
+	h.mu.RUnlock()
+	seen := 0
+	for i := len(messages) - 1; i >= 0 && seen < 40; i-- {
+		message := messages[i]
+		if message == nil || message.ID == skipID {
+			continue
+		}
+		seen++
+		ref, ok := messageArtifactReference(message)
+		if !ok || strings.TrimSpace(ref.ID) == "" {
+			continue
+		}
+		rid := strings.TrimSpace(ref.RendererID)
+		if rid == "" {
+			continue
+		}
+		return ref.ID, rid, strings.TrimSpace(ref.Title)
+	}
+	return "", "", ""
+}
+
+func messageArtifactReference(msg *protocol.Message) (protocol.ArtifactReference, bool) {
+	if msg == nil || msg.Metadata == nil {
+		return protocol.ArtifactReference{}, false
+	}
+	raw, ok := msg.Metadata["artifact_ref"]
+	if !ok || raw == nil {
+		return protocol.ArtifactReference{}, false
+	}
+	switch v := raw.(type) {
+	case protocol.ArtifactReference:
+		return v, strings.TrimSpace(v.ID) != ""
+	case *protocol.ArtifactReference:
+		if v == nil {
+			return protocol.ArtifactReference{}, false
+		}
+		return *v, strings.TrimSpace(v.ID) != ""
+	case map[string]interface{}:
+		ref := protocol.ArtifactReference{}
+		if id, _ := v["id"].(string); id != "" {
+			ref.ID = id
+		}
+		if t, _ := v["title"].(string); t != "" {
+			ref.Title = t
+		}
+		if rid, _ := v["renderer_id"].(string); rid != "" {
+			ref.RendererID = rid
+		}
+		if media, _ := v["media_type"].(string); media != "" {
+			ref.MediaType = media
+		}
+		return ref, strings.TrimSpace(ref.ID) != ""
+	default:
+		return protocol.ArtifactReference{}, false
+	}
 }
 
 func pendingActionTime(state *ChannelConversationState, id string) (zeroTime time.Time) {

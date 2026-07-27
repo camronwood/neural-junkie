@@ -28,6 +28,36 @@ var (
 	buildFailLineRE = regexp.MustCompile(`(?m)(?:error:|Error:|ELIFECYCLE|exit_code=[1-9]|command failed|build failed)`)
 )
 
+func rustBuildRepairHints(output string) string {
+	lower := strings.ToLower(strings.TrimSpace(output))
+	if lower == "" {
+		return ""
+	}
+	var hints []string
+	if strings.Contains(lower, "e0432") || strings.Contains(lower, "e0433") ||
+		strings.Contains(lower, "undeclared crate") || strings.Contains(lower, "unlinked crate") ||
+		strings.Contains(lower, "unresolved import") {
+		hints = append(hints,
+			"Rust E0432/E0433: every external `use crate` must be listed under [dependencies] in Cargo.toml — either add the crate there or rewrite to std-only code (no undeclared imports).",
+		)
+	}
+	if strings.Contains(lower, "use rand") || strings.Contains(lower, "`rand`") ||
+		strings.Contains(lower, "unresolved import `rand`") {
+		hints = append(hints,
+			"If the task asked for std-only Rust, remove `use rand` and shuffle with std-only logic; otherwise add e.g. `rand = \"0.8\"` under [dependencies] in Cargo.toml.",
+		)
+	}
+	if strings.Contains(lower, "e0507") || strings.Contains(lower, "does not implement the `copy` trait") {
+		hints = append(hints,
+			"Rust E0507: derive `Copy, Clone` (and `Debug` when printed) on small enums used in iterators (e.g. `#[derive(Copy, Clone, Debug)]` on Suit/Rank/Card) or clone values explicitly.",
+		)
+	}
+	if len(hints) == 0 {
+		return ""
+	}
+	return strings.Join(hints, " ")
+}
+
 // VerifyFailureInfo captures structured verify failure metadata for repair notes and outcomes.
 type VerifyFailureInfo struct {
 	Kind          RepairFailureKind
@@ -198,7 +228,14 @@ func formatVerifyRepairNote(info VerifyFailureInfo, rawOutput string) string {
 	if cmd := strings.TrimSpace(info.FailedCommand); cmd != "" {
 		headline += " Command: " + cmd + "."
 	}
-	return formatTypedRepairNote(info.Kind, headline, info.Summary, rawOutput)
+	detail := strings.TrimSpace(info.Summary)
+	if hints := rustBuildRepairHints(rawOutput); hints != "" {
+		if detail != "" {
+			detail += " "
+		}
+		detail += hints
+	}
+	return formatTypedRepairNote(info.Kind, headline, detail, rawOutput)
 }
 
 func formatPolicyRepairNote(err error) string {

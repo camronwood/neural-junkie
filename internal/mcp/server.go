@@ -32,6 +32,7 @@ var defaultPorts = map[string]int{
 	"ARCHITECTURE": 8090,
 	"CAD":            8091,
 	"MANUFACTURING":  8098,
+	"MAPS":           8099,
 	"AWS":            8092,
 	"INCIDENT":     8093,
 	"BROWSER":      8094,
@@ -215,6 +216,15 @@ func CreateObjectInputSchema(properties map[string]interface{}, required []strin
 		Properties: properties,
 		Required:   required,
 	}
+}
+
+// GetArgumentsAsMap returns tool call arguments as a map (empty if missing or wrong type).
+func GetArgumentsAsMap(request mcpgo.CallToolRequest) map[string]any {
+	args := request.GetArguments()
+	if args == nil {
+		return map[string]any{}
+	}
+	return args
 }
 
 // HandleToolError creates a standardized error response

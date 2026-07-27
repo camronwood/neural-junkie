@@ -9,7 +9,40 @@ import (
 )
 
 func isImplementScenariosChannel(msg *protocol.Message) bool {
-	return msg != nil && strings.TrimSpace(msg.Channel) == "implement-scenarios"
+	if msg == nil {
+		return false
+	}
+	ch := strings.TrimSpace(msg.Channel)
+	switch ch {
+	case "implement-scenarios", "user-flow-scenarios", "parity-scenarios":
+		return true
+	default:
+		return false
+	}
+}
+
+// scenarioHarnessRequestsImplementationSession reports harness metadata that must not be
+// demoted to advisory Answer by applyChatModeAdvisoryGoal (message-only; any specialist).
+func scenarioHarnessRequestsImplementationSession(msg *protocol.Message) bool {
+	if msg == nil || !isImplementScenariosChannel(msg) || !msg.ImplementationSession() {
+		return false
+	}
+	return msg.IdeEditorModeIsAgent() && !msg.IdeEditorModeIsAsk() && !msg.IdeEditorModeIsPlan()
+}
+
+// scenarioHarnessForcesImplementationSession reports regression harness turns that must
+// enter the bounded implementation loop regardless of classifier/advisory gates.
+func scenarioHarnessForcesImplementationSession(a *Agent, msg *protocol.Message) bool {
+	if !scenarioHarnessRequestsImplementationSession(msg) {
+		return false
+	}
+	if a == nil {
+		return false
+	}
+	if !agentTypeCanShipFileChanges(a.Info.Type) || a.Info.Type == protocol.AgentTypeCodeReview {
+		return false
+	}
+	return !chatModeBlocksImplementationSession(a, msg)
 }
 
 const (
@@ -69,7 +102,7 @@ func implSessionLimits(msg *protocol.Message) (maxToolIter, maxEditRounds, maxFi
 func implSessionTimeoutForMessage(msg *protocol.Message, frontend bool) time.Duration {
 	// Live implement-scenarios must finish within scenario wait_reply windows (≤1200s),
 	// not the open-ended agent-runtime v2 default (up to 180m).
-	if msg != nil && strings.TrimSpace(msg.Channel) == "implement-scenarios" {
+	if isImplementScenariosChannel(msg) {
 		if frontend {
 			return implScenarioSessionFrontendTimeout
 		}

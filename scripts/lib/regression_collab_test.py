@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.regression_collab import (  # noqa: E402
     COLLAB_CORE_KEEP_AGENTS,
     COLLAB_EDGE_KEEP_AGENTS,
+    USER_FLOW_KEEP_AGENTS,
     _claude_cloud_mode,
     apply_core_scenario_defaults,
     is_collab_core_scenario,
@@ -49,7 +50,9 @@ class TestRegressionCollab(unittest.TestCase):
         import os
 
         prev = os.environ.get("NJ_REGRESSION_COLLAB_EDGE")
+        prev_user = os.environ.get("NJ_REGRESSION_USER_FLOWS")
         os.environ["NJ_REGRESSION_COLLAB_EDGE"] = "1"
+        os.environ.pop("NJ_REGRESSION_USER_FLOWS", None)
         try:
             roster = slim_roster_keep_agents()
             self.assertEqual(roster, list(COLLAB_EDGE_KEEP_AGENTS))
@@ -61,6 +64,27 @@ class TestRegressionCollab(unittest.TestCase):
                 os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
             else:
                 os.environ["NJ_REGRESSION_COLLAB_EDGE"] = prev
+            if prev_user is None:
+                os.environ.pop("NJ_REGRESSION_USER_FLOWS", None)
+            else:
+                os.environ["NJ_REGRESSION_USER_FLOWS"] = prev_user
+
+    def test_slim_roster_keep_agents_user_flows(self) -> None:
+        import os
+
+        prev = os.environ.get("NJ_REGRESSION_USER_FLOWS")
+        os.environ["NJ_REGRESSION_USER_FLOWS"] = "1"
+        try:
+            roster = slim_roster_keep_agents()
+            self.assertEqual(roster, list(USER_FLOW_KEEP_AGENTS))
+            self.assertIn("FrontendEngineer", roster)
+            self.assertIn("BackendEngineer", roster)
+            self.assertIn("SoftwareArchitect", roster)
+        finally:
+            if prev is None:
+                os.environ.pop("NJ_REGRESSION_USER_FLOWS", None)
+            else:
+                os.environ["NJ_REGRESSION_USER_FLOWS"] = prev
 
     def test_resolve_preflight_roster_default(self) -> None:
         import os

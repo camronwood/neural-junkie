@@ -14,6 +14,30 @@ const (
 	editorTrustYolo      = "yolo"
 )
 
+func destructiveApproveMetadata(msg *protocol.Message) map[string]interface{} {
+	meta := map[string]interface{}{}
+	if msg != nil && msg.Metadata != nil {
+		for k, v := range msg.Metadata {
+			meta[k] = v
+		}
+	}
+	if msg != nil && strings.TrimSpace(msg.Channel) != "" {
+		meta["channel"] = strings.TrimSpace(msg.Channel)
+	}
+	if msg != nil {
+		trust := strings.TrimSpace(msg.EditorAgentTrust())
+		if trust == "" && msg.Metadata != nil {
+			if t, ok := msg.Metadata["editor_agent_trust"].(string); ok {
+				trust = strings.TrimSpace(t)
+			}
+		}
+		if trust != "" {
+			meta["editor_agent_trust"] = trust
+		}
+	}
+	return meta
+}
+
 func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filechange.FileChange, operation filechange.FileOperation, wsRoot string) {
 	if h == nil || msg == nil || change == nil || h.fileChangeManager == nil {
 		return
@@ -62,7 +86,7 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 			ratio = gitRatio
 		}
 	}
-	if (destructive || gitDestructive) && !agent.CanAutoApproveDestructiveRewrite(routedProvider, msg.Metadata) {
+	if (destructive || gitDestructive) && !agent.CanAutoApproveDestructiveRewrite(routedProvider, destructiveApproveMetadata(msg)) {
 		log.Printf("[IDE] Holding destructive rewrite for approval: %s (replacement=%.0f%% provider=%s)",
 			change.FilePath, ratio*100, routedProvider)
 		return

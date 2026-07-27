@@ -61,6 +61,7 @@ const (
 	AgentTypeIncident          AgentType = "incident"
 	AgentTypeBrowser           AgentType = "browser"
 	AgentTypeMusic             AgentType = "music"
+	AgentTypeMaps              AgentType = "maps"
 	AgentTypeArena             AgentType = "arena"
 	AgentTypeGeneral           AgentType = "general"
 	AgentTypeRepo              AgentType = "repo"

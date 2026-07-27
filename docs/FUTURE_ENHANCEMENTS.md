@@ -75,7 +75,21 @@ See [ADAPTIVE-ORCHESTRATION-NOTES.md](ADAPTIVE-ORCHESTRATION-NOTES.md) — maps 
 Possible follow-ups (not scheduled):
 - **Scenario archetype demos** — “seven paths” narrative for marketing/onboarding (closure / memory / code / delegation / collab light / collab deep)
 
+### Composition Model (umbrella)
+
+NJ-owned framing for portable agents, cheap tool extensions, shareable runbooks, and execution polish — the composition subset of [COMFY_COMPARISON.md](COMFY_COMPARISON.md). Design note: [COMPOSITION_MODEL.md](COMPOSITION_MODEL.md).
+
+Pillars (detail below or linked):
+- **Share Agent** — hydrate-from-bundle packages (not path-only re-index)
+- **MCP Tool Wizard** — user-defined tools with grants
+- **Runbook packages / templates / provenance** — see [RUNBOOKS_V2.md](RUNBOOKS_V2.md)
+- **Queue / progress** + optional **external media HTTP MCP** (`internal/mcp/externalmedia/`; no Comfy in repo)
+
+Campaign / article: [composition-model](articles/composition-model.html).
+
 ### Share Agent (gift bundle for friends / coworkers)
+
+Part of the [Composition Model](COMPOSITION_MODEL.md) umbrella.
 
 **Today:** Repo agents can MCP export/import ([MCP_EXPORTS.md](MCP_EXPORTS.md)), but import **re-indexes from the absolute repo path** in the JSON — embedded resources are mostly for MCP consumers, not live agent hydration. Learnings, custom rules, and LoRA tags travel on separate paths (or not at all). Specialists/pack agents are not exportable. UX is slash-command oriented.
 

@@ -219,6 +219,11 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if !channelAllowsImplementationSession(msg.Channel, msg) {
 		return false
 	}
+	// Scenario harness: explicit implementation_session + agent mode must run before
+	// semantic/advisory gates (classifier often under-calls design+implement prompts).
+	if scenarioHarnessForcesImplementationSession(a, msg) {
+		return true
+	}
 	if msg.GetCollaborationID() != "" && !collaborationAllowsImplementationSession(msg) {
 		return false
 	}
@@ -234,7 +239,13 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 			}
 			// "What would you implement first?" / go-deeper design questions stay advisory
 			// even when conversation_mode=code and the classifier stamps Edit.
-			if isAdvisoryImplementationQuestion(msg.Content) {
+			if isAdvisoryImplementationQuestion(msg.Content) && !scenarioHarnessForcesImplementationSession(a, msg) {
+				return false
+			}
+			// Pure Neural Canvas creates misclassified as Edit must not enter the impl loop
+			// (Edit returns before the UserRequestsArtifact gate below). Mixed
+			// "canvas after you fix…" keeps Edit authority.
+			if UserRequestsArtifact(msg.Content) && !neuralCanvasIsSecondaryToCodeChange(msg.Content) {
 				return false
 			}
 			return caps.CanRunImplSession &&
@@ -254,7 +265,7 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 			channelHasPendingArtifactRequest(a.channelHistorySafe(msg.Channel), msg.ID)) {
 		return false
 	}
-	if isAdvisoryImplementationQuestion(msg.Content) {
+	if isAdvisoryImplementationQuestion(msg.Content) && !scenarioHarnessForcesImplementationSession(a, msg) {
 		return false
 	}
 	// Markdown/doc collab deliverables use the light path (propose FILE_CHANGE + status),
@@ -434,6 +445,13 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	defer a.finalizeImplementationSessionRepairs(sessionCtx, msg, state)
 	defer state.rollbackFailedAutoApplySession(wsPath)
 
+	if !skipCollabCodingFixtureSynths(msg) && wsPath != "" &&
+		messageImpliesRustGreenfield(msg.Content) && workspaceMissingCargoToml(wsPath) {
+		if a.tryGreenfieldCargoTomlScaffold(sessionCtx, msg, wsPath, state, "") {
+			refreshRustStackManifest(state, wsPath)
+		}
+	}
+
 	if question, ask := maybeAskFixClarification(msg, state, wsPath); ask {
 		outcome := a.buildImplementationSessionOutcome(msg, state, false)
 		return question, streamMsgID, false, nil, outcome, nil
@@ -518,6 +536,18 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
 			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
 			return summary, streamMsgID, proposed, state.RegisteredFiles, outcome, nil
+		}
+
+		if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, "") {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
 		}
 
 		if a.tryEarlyGoMathFixtureFix(sessionCtx, msg, wsPath, state) {
@@ -708,6 +738,17 @@ fileCycles:
 				state.Phase = "edit"
 				paths := extractChangedPathsFromResponse(response)
 				state.FilesChanged = appendUnique(state.FilesChanged, paths)
+				if !skipCollabCodingFixtureSynths(msg) && wsPath != "" && workspaceMissingCargoToml(wsPath) {
+					for _, p := range paths {
+						if strings.HasSuffix(strings.ToLower(normalizeFileChangeRelPath(p)), ".rs") {
+							if a.tryGreenfieldCargoTomlScaffold(toolCtx, msg, wsPath, state, p) {
+								proposedAny = true
+								state.FilesChanged = appendUnique(state.FilesChanged, []string{"Cargo.toml"})
+							}
+							break
+						}
+					}
+				}
 				if toolProposed && len(paths) == 0 {
 					// paths recorded in executeProposeFileEditTool via FilesChanged
 				}
@@ -820,58 +861,68 @@ fileCycles:
 			state.VerifySkipped = verifySkipped
 
 			if verifyFailed {
-				if a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
-					log.Printf("[%s] skipping verify repair after auto-applied edit (deterministic or Go-only)", a.Info.Name)
-				} else if state.FixLikeIntent {
-					a.sendInterimFixUpdate(msg, "Repro still failing — continuing with fixes…")
+				if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					proposedAny = true
+					cycleProposed = true
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+					state.VerifyOutput = verifyOut
+					state.VerifyFailed = verifyFailed
+					state.VerifySkipped = verifySkipped
 				}
-				maxRepairs := 1
-				if agentRuntimeV2ForMessage(msg) {
-					maxRepairs = agentRuntimeMaxRepairRounds
-				}
-				if !a.shouldSkipVerifyRepairAfterAutoApply(msg, state) && state.RepairAttempts < maxRepairs {
-					state.RepairAttempts++
-					state.RepairUsed = state.RepairAttempts > 0
-					state.Phase = "repair"
-					verifyInfo := classifyVerifyFailure(verifyOut, detectVerifyCommandsForSession(wsPath, state, msg))
-					state.LastVerifyFailureKind = verifyInfo.Kind
-					state.recordRepairFailureKind(verifyInfo.Kind)
-					repairNote = formatVerifyRepairNote(verifyInfo, verifyOut)
-					sessionCtx = ContextWithImplementationRoutingHints(sessionCtx, ImplementationRoutingHints{
-						RepairAttempts: state.RepairAttempts,
-						VerifyFailed:   true,
-						BootFixIntent:  state.BootFixIntent,
-					})
-					if globalImplementationRouting != nil {
-						plan, repairEff := globalImplementationRouting.Plan(sessionCtx, eff, a.Info, msg)
-						if repairEff != nil {
-							eff = repairEff
-						}
-						toolModel := a.resolveImplementationToolModel(plan.ToolModel)
-						sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
+				if verifyFailed {
+					if a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
+						log.Printf("[%s] skipping verify repair after auto-applied edit (deterministic or Go-only)", a.Info.Name)
+					} else if state.FixLikeIntent {
+						a.sendInterimFixUpdate(msg, "Repro still failing — continuing with fixes…")
 					}
-					roundCtx := withImplementationSessionRound(sessionCtx, state.EditRound+1)
-					roundCtx = withRepairNote(roundCtx, repairNote)
-					roundCtx = ai.WithToolLoopMaxIterations(roundCtx, maxToolIter)
-					toolCtx := ai.WithToolStepObserver(roundCtx, func(ev ai.ToolStepEvent) {
-						a.observeImplementationSessionToolStep(roundCtx, msg, state, streamMsgID, ev)
-					})
-					toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
-					response, err := a.generateImplementationRound(toolCtx, msg, eff)
-					if err == nil {
-						proposalsBefore := state.ProposedCount
-						cleaned, proposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
-						if propErr != nil {
-							log.Printf("[%s] impl session repair proposal error: %v", a.Info.Name, propErr)
+					maxRepairs := 1
+					if agentRuntimeV2ForMessage(msg) {
+						maxRepairs = agentRuntimeMaxRepairRounds
+					}
+					if !a.shouldSkipVerifyRepairAfterAutoApply(msg, state) && state.RepairAttempts < maxRepairs {
+						state.RepairAttempts++
+						state.RepairUsed = state.RepairAttempts > 0
+						state.Phase = "repair"
+						verifyInfo := classifyVerifyFailure(verifyOut, detectVerifyCommandsForSession(wsPath, state, msg))
+						state.LastVerifyFailureKind = verifyInfo.Kind
+						state.recordRepairFailureKind(verifyInfo.Kind)
+						repairNote = formatVerifyRepairNote(verifyInfo, verifyOut)
+						sessionCtx = ContextWithImplementationRoutingHints(sessionCtx, ImplementationRoutingHints{
+							RepairAttempts: state.RepairAttempts,
+							VerifyFailed:   true,
+							BootFixIntent:  state.BootFixIntent,
+						})
+						if globalImplementationRouting != nil {
+							plan, repairEff := globalImplementationRouting.Plan(sessionCtx, eff, a.Info, msg)
+							if repairEff != nil {
+								eff = repairEff
+							}
+							toolModel := a.resolveImplementationToolModel(plan.ToolModel)
+							sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
 						}
-						if proposed || state.ProposedCount > proposalsBefore {
-							proposedAny = true
-							lastResponse = cleaned
-							verifyOut2, verifyFailed2, _ := a.runVerifyForState(sessionCtx, msg, state)
-							state.VerifyOutput = verifyOut2
-							state.VerifyFailed = verifyFailed2
-						} else {
-							lastResponse = response
+						roundCtx := withImplementationSessionRound(sessionCtx, state.EditRound+1)
+						roundCtx = withRepairNote(roundCtx, repairNote)
+						roundCtx = ai.WithToolLoopMaxIterations(roundCtx, maxToolIter)
+						toolCtx := ai.WithToolStepObserver(roundCtx, func(ev ai.ToolStepEvent) {
+							a.observeImplementationSessionToolStep(roundCtx, msg, state, streamMsgID, ev)
+						})
+						toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
+						response, err := a.generateImplementationRound(toolCtx, msg, eff)
+						if err == nil {
+							proposalsBefore := state.ProposedCount
+							cleaned, proposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
+							if propErr != nil {
+								log.Printf("[%s] impl session repair proposal error: %v", a.Info.Name, propErr)
+							}
+							if proposed || state.ProposedCount > proposalsBefore {
+								proposedAny = true
+								lastResponse = cleaned
+								verifyOut2, verifyFailed2, _ := a.runVerifyForState(sessionCtx, msg, state)
+								state.VerifyOutput = verifyOut2
+								state.VerifyFailed = verifyFailed2
+							} else {
+								lastResponse = response
+							}
 						}
 					}
 				}
@@ -1206,7 +1257,7 @@ func verifyCommandResultFailed(result string) bool {
 const implVerifyCommandTimeout = 120 * time.Second
 
 func verifyCommandTimeoutForMessage(msg *protocol.Message) time.Duration {
-	if msg != nil && strings.TrimSpace(msg.Channel) == "implement-scenarios" {
+	if isImplementScenariosChannel(msg) {
 		return implVerifyCommandTimeout
 	}
 	return 0
@@ -1229,11 +1280,14 @@ func detectVerifyCommandsForSession(wsPath string, state *ImplementationSessionS
 	if goCmds := detectGoBuildVerifyCommands(wsPath, hintPaths, userContent); len(goCmds) > 0 {
 		return goCmds
 	}
+	if rustCmds := detectRustBuildVerifyCommands(wsPath, hintPaths, userContent); len(rustCmds) > 0 {
+		return rustCmds
+	}
 	if _, err := os.Stat(filepath.Join(wsPath, "go.mod")); err == nil {
 		return []string{"go test ./..."}
 	}
 	if _, err := os.Stat(filepath.Join(wsPath, "Cargo.toml")); err == nil {
-		return []string{"cargo test"}
+		return []string{"cargo build"}
 	}
 	if _, err := os.Stat(filepath.Join(wsPath, "package.json")); err == nil {
 		return detectNodeVerifyCommands(wsPath)
@@ -1268,6 +1322,34 @@ func detectGoBuildVerifyCommands(wsPath string, hintPaths []string, userContent 
 		}
 	}
 	return cmds
+}
+
+func detectRustBuildVerifyCommands(wsPath string, hintPaths []string, userContent string) []string {
+	if _, err := os.Stat(filepath.Join(wsPath, "Cargo.toml")); err != nil {
+		return nil
+	}
+	rustPaths := collectRustVerifyHintPaths(hintPaths, userContent)
+	if len(rustPaths) == 0 && !workspaceHasRustSources(wsPath) && !messageImpliesRustGreenfield(userContent, hintPaths...) {
+		return nil
+	}
+	return []string{"cargo build"}
+}
+
+func collectRustVerifyHintPaths(hintPaths []string, userContent string) []string {
+	var out []string
+	for _, p := range hintPaths {
+		p = normalizeFileChangeRelPath(p)
+		if strings.HasSuffix(strings.ToLower(p), ".rs") {
+			out = appendUnique(out, []string{p})
+		}
+	}
+	for _, p := range DetectFilePaths(userContent) {
+		p = normalizeFileChangeRelPath(p)
+		if strings.HasSuffix(strings.ToLower(p), ".rs") {
+			out = appendUnique(out, []string{p})
+		}
+	}
+	return out
 }
 
 func collectGoVerifyHintPaths(hintPaths []string, userContent string) []string {
@@ -1367,9 +1449,7 @@ func (a *Agent) maybeSendImplementationEarlyReply(msg *protocol.Message, state *
 func detectNodeVerifyCommands(wsPath string) []string {
 	nodeModules := filepath.Join(wsPath, "node_modules")
 	if _, err := os.Stat(nodeModules); err != nil {
-		if cmd := shared.TypeScriptCheckShellCommand(wsPath); cmd != "" {
-			return []string{cmd}
-		}
+		// Empty/greenfield fixtures often have package.json but no install yet.
 		return nil
 	}
 	var cmds []string

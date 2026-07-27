@@ -66,17 +66,31 @@
       "action": "wait_reply",
       "from": "SoftwareArchitect",
       "timeout": "720s",
+      "until_files_exist": [
+        "TriviaGame/TriviaGameApp.swift"
+      ],
       "until_file_match": {
-        "path": "TriviaGame/TriviaGameApp.swift",
+        "path": "TriviaGame/ContentView.swift",
         "path_alternatives": [
-          "TriviaGameApp.swift"
+          "TriviaGame/GameView.swift",
+          "TriviaGame/Views/ContentView.swift",
+          "ContentView.swift",
+          "GameView.swift"
+        ],
+        "contains_all": [
+          "lives|life|Life",
+          "timer|Timer|countdown",
+          "question|Question|score|Score"
         ],
         "any_match": [
-          "@main|App|WindowGroup|SwiftUI|UIApplication"
+          "lives|timer|question|score|Trivia|Text\\(|Button|@State"
         ],
         "none_match": [
-          "lorem ipsum"
-        ]
+          "lorem ipsum",
+          "\\[Insert",
+          "Hello world|Hello, world"
+        ],
+        "min_bytes": 80
       },
       "until_metadata_keys": [
         "implementation_session_outcome"

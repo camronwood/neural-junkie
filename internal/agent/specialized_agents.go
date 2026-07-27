@@ -7,15 +7,20 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
+	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/mcp/aws"
 	"github.com/camronwood/neural-junkie/internal/mcp/biology"
 	"github.com/camronwood/neural-junkie/internal/mcp/browser"
 	"github.com/camronwood/neural-junkie/internal/mcp/cad"
+	"github.com/camronwood/neural-junkie/internal/mcp/externalmedia"
 	"github.com/camronwood/neural-junkie/internal/mcp/incident"
 	"github.com/camronwood/neural-junkie/internal/mcp/manufacturing"
+	mapsmcp "github.com/camronwood/neural-junkie/internal/mcp/maps"
+	"github.com/camronwood/neural-junkie/internal/mcp/usertools"
 	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
 	"github.com/camronwood/neural-junkie/internal/packs"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 var sharedBiologyMCPStartOnce sync.Once
@@ -425,6 +430,26 @@ func NewMusicAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return NewAgent(protocol.AgentTypeMusic, name, expertise, ai, hub)
 }
 
+// NewMapsAgent creates a maps/routing agent with geocode, route, and canvas map tools.
+func NewMapsAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Maps", "Geocoding", "Walking routes", "Driving routes",
+		"OpenStreetMap", "OSRM", "Nominatim", "Itineraries", "Directions",
+	}
+
+	agent := NewAgent(protocol.AgentTypeMaps, name, expertise, ai, hub)
+	// Native maps_create/maps_update publish artifacts; MCP keeps geocode/route only.
+	agent.MCPToolAllowlist = []string{"maps_geocode", "maps_route"}
+
+	if mapsMCP, err := mapsmcp.NewMapsMCP(); err != nil {
+		log.Printf("Failed to create Maps MCP server: %v", err)
+	} else {
+		startDomainAgentMCP(agent, "Maps", mapsMCP)
+	}
+
+	return agent
+}
+
 // NewArenaAgent creates a model comparison agent for chess, Connect Four, and logic puzzles.
 func NewArenaAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	expertise := []string{
@@ -434,12 +459,52 @@ func NewArenaAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 }
 
 // NewCustomExpertAgent creates a user-defined domain expert (any slug/persona).
+// When the MCP Tool Wizard has granted this agent (by name) one or more
+// user-defined tools, they're attached here so the tool loop can call them —
+// custom experts otherwise have no MCP server at all.
 func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvider, hub HubClient) *Agent {
 	if len(expertise) == 0 {
 		expertise = []string{"General"}
 	}
-	return NewAgent(protocol.AgentTypeExpert, name, expertise, aiProvider, hub)
+	agent := NewAgent(protocol.AgentTypeExpert, name, expertise, aiProvider, hub)
+	attachUserToolsMCP(agent, name)
+	return agent
 }
+
+// attachUserToolsMCP wires granted MCP Tool Wizard user tools and/or granted
+// external-media tools (media_submit/media_status/media_fetch) onto agent,
+// sharing one in-process MCP server so a custom expert with both kinds of
+// grants gets a single unified tool call surface. No-ops (and leaves
+// agent.MCPServer nil) when nothing is granted, so custom experts without
+// tools keep their current zero-overhead behavior.
+func attachUserToolsMCP(agent *Agent, agentName string) {
+	mcpServer, err := mcp.NewInProcessMCPServer("custom-expert-tools-mcp", "1.0.0")
+	if err != nil {
+		log.Printf("Failed to create custom expert tools MCP for %s: %v", agentName, err)
+		return
+	}
+
+	attached := usertools.AttachGranted(mcpServer, agentName) > 0
+	if media, err := externalmedia.AttachGranted(mcpServer, agentName); err != nil {
+		log.Printf("Failed to attach external media tools for %s: %v", agentName, err)
+	} else if media != nil {
+		attached = true
+	}
+
+	if !attached {
+		return
+	}
+	startDomainAgentMCP(agent, "Custom Tools", &rawMCPServer{srv: mcpServer})
+}
+
+// rawMCPServer adapts a bare mcp-go server.MCPServer to MCPServerInterface,
+// so multiple tool-registration helpers can share one in-process server.
+type rawMCPServer struct {
+	srv *server.MCPServer
+}
+
+func (r *rawMCPServer) GetMCPServer() *server.MCPServer { return r.srv }
+func (r *rawMCPServer) Start() error                    { return nil }
 
 // NewRepoAgentWrapper creates a repository expert agent wrapper
 func NewRepoAgentWrapper(name string, ai ai.AIProvider, hub HubClient) *Agent {
@@ -496,6 +561,8 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewBrowserAgent(name, ai, hub), nil
 	case protocol.AgentTypeMusic:
 		return NewMusicAgent(name, ai, hub), nil
+	case protocol.AgentTypeMaps:
+		return NewMapsAgent(name, ai, hub), nil
 	case protocol.AgentTypeArena:
 		return NewArenaAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:

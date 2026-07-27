@@ -243,3 +243,47 @@ func TestDeriveTurnGoal_chatModeWithoutDecisionStaysAnswer(t *testing.T) {
 		t.Fatalf("action=%s want answer without decision; goal=%+v", goal.Action, goal)
 	}
 }
+
+func TestDeriveTurnGoal_userFlowRustBlackjackForcesSession(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBackend, Name: "BackendEngineer"}}
+	content := "Let's design and implement a simple game using Rust. This will be a local CLI card game where the user can play blackjack against the house. Keep everything local (no network). Prefer a terminal/CLI or simple text UI — not a 3D engine. Put the crate at the workspace root with Cargo.toml and src/main.rs. Include hit/stand, dealer play, and win/lose so cargo build works and the game is playable."
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"user-flow-scenarios",
+		protocol.AgentInfo{ID: "u1", Name: "User"},
+		content,
+	)
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"ide_route_agent_type":   "backend",
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"conversation_mode":      "code",
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: false, CanRunImplSession: false, RequiresWorkspace: false,
+		Provenance: "test_demoted_caps",
+	})
+	decision := intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Interaction:     intent.InteractionTask,
+		RequestedAction: intent.ActionAnswer,
+		Action:          intent.ActionAnswer,
+		Mutation:        intent.MutationNone,
+		Confidence:      0.9,
+		Source:          intent.SourceLocalModel,
+	}
+	if err := protocol.StampTurnDecision(msg, decision); err != nil {
+		t.Fatal(err)
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("shouldRunImplementationSession must force user-flow harness turns")
+	}
+	goal := deriveTurnGoal(a, msg, IntentTask)
+	if !turnGoalRunsImplementationSession(goal) {
+		t.Fatalf("turn goal must run implementation session; goal=%+v", goal)
+	}
+	if goal.Action != ActionEdit {
+		t.Fatalf("action=%s want edit after harness sync", goal.Action)
+	}
+}

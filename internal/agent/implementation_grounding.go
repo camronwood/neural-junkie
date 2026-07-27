@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -142,6 +143,20 @@ func isProtectedWorkspaceFile(msg *protocol.Message, path string) bool {
 	return false
 }
 
+
+func greenfieldCreatePath(wsPath, path string) bool {
+	if wsPath == "" {
+		return false
+	}
+	path = normalizeFileChangeRelPath(path)
+	if path == "" {
+		return false
+	}
+	abs := filepath.Join(wsPath, filepath.FromSlash(path))
+	_, err := os.Stat(abs)
+	return os.IsNotExist(err)
+}
+
 func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *protocol.Message, path string, op ProposalOperation) error {
 	path = a.ResolveProposalPath(ctx, sourceMsg, path)
 	if isProtectedWorkspaceFile(sourceMsg, path) {
@@ -175,12 +190,14 @@ func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *proto
 			return fmt.Errorf("grounding required: read the stack manifest and exact target file before proposing edits")
 		}
 	}
-	if st != nil && !st.targetGrounded(path) {
-		return fmt.Errorf("grounding required: read target file %s before proposing edits", path)
-	}
-
 	manifest := a.manifestForProposal(ctx, sourceMsg)
 	op = a.inferProposalOp(wsPath, path, op)
+
+	if st != nil && !st.targetGrounded(path) {
+		if op != ProposalOpCreate || !greenfieldCreatePath(wsPath, path) {
+			return fmt.Errorf("grounding required: read target file %s before proposing edits", path)
+		}
+	}
 
 	if err := ValidateProposal(wsPath, path, op, manifest); err != nil {
 		if st != nil {

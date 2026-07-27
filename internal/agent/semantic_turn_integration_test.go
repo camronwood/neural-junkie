@@ -189,6 +189,58 @@ func TestStampedInspectDecisionIgnoresCodeReviewPhrases(t *testing.T) {
 	}
 }
 
+func TestStampedEditPureNeuralCanvasBecomesArtifact(t *testing.T) {
+	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), nil)
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-user-assistant",
+		protocol.AgentInfo{ID: "user", Type: "human"},
+		"Create a Neural Canvas Mermaid diagram of this architecture",
+	)
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode:         "agent",
+		protocol.IdeMetaImplementationSession: true,
+		"workspace_context":                   map[string]interface{}{"workspace_path": "/tmp/project"},
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionEdit, Action: intent.ActionEdit,
+		RecipientType: "assistant", Mutation: intent.MutationWorkspace,
+		Confidence: 0.9, Source: intent.SourceLocalModel,
+		Retrieval:  []intent.RetrievalTarget{intent.RetrievalCodebase},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	goal := deriveTurnGoal(a, msg, IntentTask)
+	if goal.Action != ActionArtifact || goal.ImplementationSession {
+		t.Fatalf("goal=%+v, want pure canvas create as artifact", goal)
+	}
+	if shouldRunImplementationSession(a, msg) {
+		t.Fatal("pure Neural Canvas create must not enter implementation session")
+	}
+	if !artifactToolsEnabledForMessage(msg) {
+		t.Fatal("artifact tools must be enabled after restamp")
+	}
+	if userRequestsImplementationForMessage(a, msg) {
+		t.Fatal("pure canvas create must not force FILE_CHANGE")
+	}
+	tools := a.agentToolDefinitions(msg)
+	for _, tool := range tools {
+		if tool.Name == "run_command" || tool.Name == "propose_file_edit" {
+			t.Fatalf("Neural Canvas turn must not expose %s", tool.Name)
+		}
+	}
+	hasCreate := false
+	for _, tool := range tools {
+		if tool.Name == createArtifactToolName {
+			hasCreate = true
+		}
+	}
+	if !hasCreate {
+		t.Fatal("create_artifact must remain available on canvas turns")
+	}
+}
+
 func TestStampedEditDecisionDrivesAssistantImplGateWithoutPhrases(t *testing.T) {
 	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), nil)
 	msg := protocol.NewMessage(
@@ -220,3 +272,4 @@ func TestStampedEditDecisionDrivesAssistantImplGateWithoutPhrases(t *testing.T) 
 		t.Fatal("ActionEdit must not enable artifact tools despite canvas phrases")
 	}
 }
+

@@ -50,6 +50,8 @@ func DetectStackManifest(workspaceRoot string) *StackManifest {
 	}
 	if _, err := os.Stat(filepath.Join(workspaceRoot, "Cargo.toml")); err == nil {
 		m.HasRust = true
+	} else if workspaceHasRustSources(workspaceRoot) {
+		m.HasRust = true
 	}
 	for _, pyMarker := range []string{"pyproject.toml", "setup.py", "requirements.txt"} {
 		if _, err := os.Stat(filepath.Join(workspaceRoot, pyMarker)); err == nil {
@@ -191,6 +193,12 @@ func (m *StackManifest) FormatPromptBlock() string {
 	if m.HasTailwind {
 		parts = append(parts, "Tailwind")
 	}
+	if m.HasRust {
+		parts = append(parts, "Rust")
+	}
+	if m.HasGo {
+		parts = append(parts, "Go")
+	}
 	stack := "unknown"
 	if len(parts) > 0 {
 		stack = strings.Join(parts, " + ")
@@ -211,6 +219,10 @@ func (m *StackManifest) FormatPromptBlock() string {
 		b.WriteString(fmt.Sprintf("Extensions: tsx=%d, jsx=%d, vue=%d\n", m.ExtTSX, m.ExtJSX, m.ExtVue))
 	}
 	b.WriteString("Use ONLY paths that match this stack. Do not invent files for a different framework.\n")
+	if m.HasRust {
+		b.WriteString("Rust: only import crates declared in Cargo.toml [dependencies]. When [dependencies] is empty, use std only — do not `use rand` unless you add it to Cargo.toml.\n")
+		b.WriteString("Derive Copy+Clone on small enums (Suit, Rank) moved in loops/iterators.\n")
+	}
 	b.WriteString("Do NOT use src-tauri/tailwind.config.js when Tailwind is listed at repo root.\n")
 	if hint := DetectEntryConflicts(m.WorkspaceRoot, m); hint != "" {
 		b.WriteString(hint)

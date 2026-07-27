@@ -64,7 +64,7 @@ func (l *ActionEvidenceLedger) recordToolEvent(ev ai.ToolStepEvent) {
 	switch ev.Name {
 	case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName:
 		l.Record(ActionEvidence{Kind: EvidenceEditProposed, Tool: ev.Name, Status: status, Detail: ev.Preview})
-	case createArtifactToolName, updateArtifactToolName:
+	case createArtifactToolName, updateArtifactToolName, mapsCreateToolName, mapsUpdateToolName:
 		l.Record(ActionEvidence{Kind: EvidenceArtifactCreated, Tool: ev.Name, Status: status, Detail: ev.Preview})
 	}
 }
@@ -150,6 +150,7 @@ const (
 	issueUnsupportedPass     responseValidationIssue = "unsupported_pass_claim"
 	issueUnsupportedEdit     responseValidationIssue = "unsupported_edit_claim"
 	issueActionDeflection    responseValidationIssue = "action_deflection"
+	issueMissingRequiredEvidence responseValidationIssue = "missing_required_evidence"
 	issueDirectness          responseValidationIssue = "direct_answer_failure"
 )
 
@@ -173,11 +174,17 @@ func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger
 		issues = append(issues, issueUnsupportedEdit)
 	}
 	if goal.RequiresActionEvidence() && !goalHasExpectedEvidence(goal, ledger) {
-		// Missing tool evidence alone is not a failure when the model answered
-		// without claiming the action (common under misclassified turn goals).
-		// Soft-fail only for empty replies or explicit "I can help you / you can run" deflection.
-		if deflectRE.MatchString(response) || strings.TrimSpace(response) == "" {
-			issues = append(issues, issueActionDeflection)
+		switch goal.Action {
+		case ActionArtifact, ActionImage:
+			// Explicit canvas/image goals require tool evidence — FILE_CHANGE prose is not a substitute.
+			issues = append(issues, issueMissingRequiredEvidence)
+		default:
+			// Missing tool evidence alone is not a failure when the model answered
+			// without claiming the action (common under misclassified turn goals).
+			// Soft-fail only for empty replies or explicit "I can help you / you can run" deflection.
+			if deflectRE.MatchString(response) || strings.TrimSpace(response) == "" {
+				issues = append(issues, issueActionDeflection)
+			}
 		}
 	}
 	directFailure := looksLikeEchoOfPriorUserTurn(msg, response, history) ||
@@ -201,7 +208,7 @@ func shouldRewriteAsSafeFailure(issues []responseValidationIssue, response strin
 	for _, issue := range issues {
 		switch issue {
 		case issueUnsupportedArtifact, issueUnsupportedImage, issueUnsupportedRun,
-			issueUnsupportedPass, issueUnsupportedEdit:
+			issueUnsupportedPass, issueUnsupportedEdit, issueMissingRequiredEvidence:
 			return true
 		case issueActionDeflection:
 			if deflectRE.MatchString(response) || strings.TrimSpace(response) == "" {
@@ -210,6 +217,28 @@ func shouldRewriteAsSafeFailure(issues []responseValidationIssue, response strin
 		}
 	}
 	return false
+}
+
+// shouldRewriteAsSafeFailureForGoal keeps successful map/artifact replies when the
+// ledger proves the canvas deliverable landed, even if the turn goal was misclassified
+// as run/edit (local classifiers often map "map from A to B" onto ActionRun).
+func shouldRewriteAsSafeFailureForGoal(goal TurnGoal, ledger *ActionEvidenceLedger, issues []responseValidationIssue, response string) bool {
+	if !shouldRewriteAsSafeFailure(issues, response) {
+		return false
+	}
+	if ledger != nil && ledger.Has(EvidenceArtifactCreated) {
+		for _, issue := range issues {
+			switch issue {
+			case issueUnsupportedRun, issueUnsupportedPass, issueUnsupportedEdit, issueActionDeflection:
+				continue
+			case issueUnsupportedArtifact, issueUnsupportedImage, issueDirectness:
+				return true
+			}
+		}
+		return false
+	}
+	_ = goal
+	return true
 }
 
 func goalHasExpectedEvidence(goal TurnGoal, ledger *ActionEvidenceLedger) bool {

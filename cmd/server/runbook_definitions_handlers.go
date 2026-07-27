@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -34,6 +35,10 @@ func handleRunbookDefinitionsRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if path == "import" && r.Method == http.MethodPost {
+		handleRunbookDefinitionImport(w, r)
+		return
+	}
 	parts := strings.Split(path, "/")
 	id := parts[0]
 	if len(parts) == 2 && parts[1] == "instantiate" && r.Method == http.MethodPost {
@@ -42,6 +47,10 @@ func handleRunbookDefinitionsRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) == 2 && parts[1] == "trigger" && r.Method == http.MethodPost {
 		handleRunbookDefinitionTrigger(w, r, id)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "export" && r.Method == http.MethodGet {
+		handleRunbookDefinitionExport(w, r, id)
 		return
 	}
 	if len(parts) != 1 {
@@ -152,6 +161,73 @@ func handleRunbookDefinitionInstantiate(w http.ResponseWriter, r *http.Request, 
 		"collaboration_channel": result.CollaborationChannel,
 		"collaboration":         snap,
 	})
+}
+
+// handleRunbookDefinitionExport returns a portable DefinitionBundle for one
+// definition (optionally a specific ?version=), suitable for downloading and
+// later importing into another Neural Junkie installation.
+//
+// GET /api/runbook-definitions/{id}/export[?version=N]
+func handleRunbookDefinitionExport(w http.ResponseWriter, r *http.Request, id string) {
+	version := 0
+	if v := r.URL.Query().Get("version"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			version = n
+		}
+	}
+	def, err := runbooklibrary.LoadDefinition(id, version, chatHub.GetCollaborationAssetsRoot(), serverPackRunbookDefinitions())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	bundle := runbooklibrary.NewDefinitionBundle(*def)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"runbook-"+id+".json\"")
+	_ = json.NewEncoder(w).Encode(bundle)
+}
+
+// handleRunbookDefinitionImport accepts either a DefinitionBundle (from
+// handleRunbookDefinitionExport) or a bare RunbookDefinition JSON body and
+// saves it as a new user definition. Pass ?keep_id=true to preserve the
+// original definition ID instead of minting a fresh one.
+//
+// POST /api/runbook-definitions/import[?keep_id=true]
+func handleRunbookDefinitionImport(w http.ResponseWriter, r *http.Request) {
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read body", http.StatusBadRequest)
+		return
+	}
+	var bundle runbooklibrary.DefinitionBundle
+	def := bundle.Definition
+	if err := json.Unmarshal(raw, &bundle); err == nil && (bundle.Definition.ID != "" || len(bundle.Definition.Tasks) > 0) {
+		def = bundle.Definition
+	} else if err := json.Unmarshal(raw, &def); err != nil {
+		http.Error(w, "Invalid JSON: expected a runbook definition or export bundle", http.StatusBadRequest)
+		return
+	}
+	if len(def.Tasks) == 0 {
+		http.Error(w, "definition has no tasks", http.StatusBadRequest)
+		return
+	}
+	if warns := runbooklibrary.ValidateDefinition(&def, runbooklibrary.MergeInputDefaults(&def, nil)); len(warns) > 0 {
+		for _, msg := range warns {
+			if strings.Contains(msg, "cycle") || strings.Contains(msg, "unknown dependency") {
+				http.Error(w, msg, http.StatusBadRequest)
+				return
+			}
+		}
+	}
+	keepID := r.URL.Query().Get("keep_id") == "true"
+	saved, err := runbooklibrary.ImportDefinitionBundle(def, keepID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeCollabJSON(w, saved)
 }
 
 func handleRunbookDefinitionTrigger(w http.ResponseWriter, r *http.Request, id string) {

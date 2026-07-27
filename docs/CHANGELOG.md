@@ -6,6 +6,27 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.18] - 2026-07-27
+
+Neural Canvas Mermaid reliability, Maps canvas artifacts, Composition Model docs/campaign, Share Agent / tool-grant exports, and implement grounding.
+
+### Added
+- **Mermaid Canvas shortcut** — tree-grounded `nj.mermaid` creates (workspace file tree first), revision updates via open-artifact routing, and hard deny of shell/`npx mermaid` on canvas deliverable turns.
+- **Maps canvas** — `nj.map` renderer + Maps MCP/tools for interactive OSM maps with markers and route polylines.
+- **Composition Model** — design note, LinkedIn campaign creative, and site article on portable, grant-scoped composition units.
+- **Share Agent / user-tools / runbook library export** — hub + HTTP handlers for packaging agents, tool grants, and runbook definitions.
+- **Optional external media MCP bridge** — URL-gated Comfy-style media sidecar (`internal/mcp/externalmedia/`); empty by default, never a core dependency.
+
+### Fixed
+- **Canvas vs implement misroute** — pure canvas asks no longer enter FILE_CHANGE / impl sessions; image-gen shortcut suppressed on canvas turns.
+- **Mermaid label/path syntax** — quote unsafe bracket labels (e.g. `package-lock.json`); skip lockfiles in tree diagrams.
+- **Mermaid zoom blur** — user zoom resizes SVG display size instead of CSS `scale()`, so diagrams stay sharp after zoom.
+- **Full-bleed Mermaid / map workbench** — canvas renderers fill the workbench without inset padding that fought pan/zoom.
+
+### Changed
+- **Open-artifact semantic routing** — canvas revisions prefer structural open-artifact signals over brittle style/phrase matching.
+- **Implement bootfix / Rust grounding** — stronger repair feedback, safety, and stack-manifest paths for live user-flow scenarios.
+
 ## [1.2.0-beta.17] - 2026-07-26
 
 Neural Canvas, debug-only session snapshots, user-flow harness (opt-in WIP journeys), and implement/routing hardening.

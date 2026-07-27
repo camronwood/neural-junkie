@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"bufio"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -89,4 +90,43 @@ func EventLogPath(collabID string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, collabID+".jsonl"), nil
+}
+
+// ReadEvents loads the full append-only event trace for a collaboration, in
+// the order they were written. Used by the runbook provenance API to link a
+// run back to the individual task-dispatch/completion/phase-transition
+// events that produced it. Returns an empty slice (not an error) when no
+// events have been recorded yet for collabID.
+func ReadEvents(collabID string) ([]Event, error) {
+	path, err := EventLogPath(collabID)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Event{}, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	events := []Event{}
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var ev Event
+		if err := json.Unmarshal(line, &ev); err != nil {
+			continue
+		}
+		events = append(events, ev)
+	}
+	if err := scanner.Err(); err != nil {
+		return events, err
+	}
+	return events, nil
 }

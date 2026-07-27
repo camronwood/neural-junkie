@@ -24,6 +24,7 @@ ARTICLE_ORDER = [
     "beta-6",
     "beta-5",
     "semantic-turn-routing",
+    "composition-model",
     "hardware",
     "hub",
     "context-stack",
@@ -52,6 +53,7 @@ SOURCE_BY_SLUG = {
     "beta-6": "campaigns/beta26/BETA26-LINKEDIN.md",
     "beta-5": "campaigns/beta25/BETA25-LINKEDIN.md",
     "semantic-turn-routing": "campaigns/semantic-turn-routing/SEMANTIC-TURN-ROUTING-LINKEDIN.md",
+    "composition-model": "campaigns/composition-model/COMPOSITION-MODEL-LINKEDIN.md",
     "hardware": "campaigns/hardware/HARDWARE-LINKEDIN.md",
     "hub": "campaigns/hub/HUB-LINKEDIN.md",
     "context-stack": "campaigns/context-stack/CONTEXT-STACK-LINKEDIN.md",
@@ -102,6 +104,16 @@ META_OVERRIDES: dict[str, dict[str, object]] = {
         ),
         "tags": ["ai", "localai", "multiagent", "opensource", "developertools", "architecture", "routing"],
     },
+    "composition-model": {
+        "title": "The Composition Model: Agents, Tools, and Runbooks You Can Actually Take With You",
+        "teaser": (
+            "Neural Junkie treats agents, tools, and runbooks as portable, composable units — Share "
+            "Agent bundles knowledge you can hydrate anywhere, the MCP Tool Wizard grants a home-grown "
+            "tool to one agent by name, and runbook definitions export/import with a provenance trail "
+            "back to the events that produced each run."
+        ),
+        "tags": ["ai", "localai", "multiagent", "opensource", "developertools", "architecture", "mcp"],
+    },
     "context-stack": {
         "title": "How Neural Junkie Builds, Uses, and Shares Agent Context",
         "teaser": (
@@ -151,6 +163,7 @@ TOPIC_BY_SLUG = {
     "beta-6": "release",
     "beta-5": "release",
     "semantic-turn-routing": "architecture",
+    "composition-model": "architecture",
     "hardware": "hardware",
     "hub": "architecture",
     "context-stack": "architecture",

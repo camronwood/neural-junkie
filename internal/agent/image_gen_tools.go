@@ -67,7 +67,14 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 	if msg == nil {
 		return false
 	}
+	// Neural Canvas deliverables never use FLUX — even if phrasing includes "diagram".
+	if UserRequestsArtifact(msg.Content) || neuralCanvasDeliverableTurn(msg) {
+		return true
+	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		if decision.Action == semantic.ActionArtifact {
+			return true
+		}
 		if decision.Action == semantic.ActionImage {
 			return false
 		}
@@ -115,7 +122,7 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 
 func agentTypeSupportsHubImageGen(t protocol.AgentType) bool {
 	switch t {
-	case protocol.AgentTypeCLI, protocol.AgentTypeModerator:
+	case protocol.AgentTypeCLI, protocol.AgentTypeModerator, protocol.AgentTypeMaps:
 		return false
 	default:
 		return true
@@ -127,6 +134,20 @@ func (a *Agent) tryHubImageGenerationShortcut(ctx context.Context, msg *protocol
 	explicitImageIntent := msg != nil && UserRequestsGeneratedImage(msg.Content)
 	if goal, ok := turnGoalFromContext(ctx); ok && goal.Action == ActionImage {
 		explicitImageIntent = true
+	}
+	// Map/route asks must never take the FLUX image path (even if turn goal says image).
+	if msg != nil && UserRequestsMapOrRoute(msg.Content) {
+		return "", false
+	}
+	// Neural Canvas / Mermaid asks must use create_artifact, not FLUX.
+	if msg != nil && (UserRequestsArtifact(msg.Content) || neuralCanvasDeliverableTurn(msg)) {
+		return "", false
+	}
+	if goal, ok := turnGoalFromContext(ctx); ok && goal.Action == ActionArtifact {
+		return "", false
+	}
+	if a != nil && a.Info.Type == protocol.AgentTypeMaps {
+		return "", false
 	}
 	if msg == nil || a.Hub == nil || protocol.IsGeneratedImageDelivery(msg) || !explicitImageIntent {
 		return "", false
@@ -215,6 +236,9 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 	if a.musicGenerationToolsEnabledForMessage(msg) {
 		tools = append(tools, generateMusicToolDefinition(), extractStemsToolDefinition())
 	}
+	if a.mapsToolsEnabledForMessage(msg) {
+		tools = append(tools, mapsCreateToolDefinition(), mapsUpdateToolDefinition())
+	}
 	if a.arenaToolsEnabledForMessage(msg) {
 		tools = append(tools,
 			arenaListChallengesToolDefinition(),
@@ -231,6 +255,14 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 		if helpTool, ok := a.capabilityHelpToolDefinition(msg); ok {
 			tools = append(tools, helpTool)
 		}
+	}
+	// Neural Canvas deliverables must not expose shell/file tools — local models
+	// otherwise call `npx mermaid` / edit App.tsx instead of create_artifact.
+	if neuralCanvasDeliverableTurn(msg) {
+		if shouldOfferAskUserTool(a, msg) {
+			tools = append(tools, askUserToolDefinition())
+		}
+		return tools
 	}
 	// Presence / casual answer turns must not receive workspace MCP tools.
 	// Prompt tooling is already suppressed for IntentLowSignal, but the tool list
@@ -297,6 +329,12 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	}
 	if name == extractStemsToolName {
 		return a.executeExtractStemsTool(ctx, msg, input)
+	}
+	if name == mapsCreateToolName {
+		return a.executeMapsCreateTool(ctx, msg, input)
+	}
+	if name == mapsUpdateToolName {
+		return a.executeMapsUpdateTool(ctx, msg, input)
 	}
 	if name == arenaCreateSessionToolName {
 		return a.executeArenaCreateSessionTool(ctx, msg, input)

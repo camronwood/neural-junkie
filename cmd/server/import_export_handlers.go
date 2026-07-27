@@ -26,7 +26,9 @@ func handleImport(w http.ResponseWriter, r *http.Request) {
 
 	// Parse request body
 	var request struct {
-		FilePath string `json:"file_path"`
+		FilePath       string `json:"file_path"`
+		Hydrate        bool   `json:"hydrate"`
+		RepositoryPath string `json:"repository_path"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -46,13 +48,22 @@ func handleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build the /import-agent-mcp command, forwarding hydrate/repo overrides.
+	cmdContent := fmt.Sprintf("/import-agent-mcp %s", request.FilePath)
+	if request.Hydrate {
+		cmdContent += " --hydrate"
+	}
+	if strings.TrimSpace(request.RepositoryPath) != "" {
+		cmdContent += fmt.Sprintf(" --repo %s", request.RepositoryPath)
+	}
+
 	// Create a mock message for the import command
 	msg := &protocol.Message{
 		ID:        "import-" + strconv.FormatInt(time.Now().UnixNano(), 10),
 		Type:      protocol.MessageTypeSystemInfo,
 		Channel:   "general",
 		From:      protocol.AgentInfo{ID: "cli", Name: "CLI", Type: "system"},
-		Content:   fmt.Sprintf("/import-agent-mcp %s", request.FilePath),
+		Content:   cmdContent,
 		Timestamp: time.Now(),
 	}
 

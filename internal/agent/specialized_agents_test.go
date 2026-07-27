@@ -45,6 +45,58 @@ func TestCADAgentSkipsWorkspaceTools(t *testing.T) {
 	}
 }
 
+func TestNewCustomExpertAgent_CombinesUserToolsAndExternalMediaOnOneServer(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MCP.Enabled = true
+	cfg.MCP.UserTools = []config.UserMCPTool{
+		{ID: "abc12345", Name: "Read My Site", URL: "https://example.com/api", GrantedAgents: []string{"Media Widget Expert"}},
+	}
+	cfg.MCP.ExternalMedia = config.ExternalMediaConfig{
+		BaseURL:       "https://media.example.com/v1",
+		GrantedAgents: []string{"Media Widget Expert"},
+	}
+	mcp.SetAppConfig(cfg)
+	defer mcp.SetAppConfig(nil)
+
+	agent := &Agent{}
+	attachUserToolsMCP(agent, "Media Widget Expert")
+	if agent.MCPServer == nil {
+		t.Fatal("expected a combined MCP server to be attached")
+	}
+	srv := mcpServerFromInterface(agent.MCPServer)
+	if srv == nil {
+		t.Fatal("expected non-nil underlying MCP server")
+	}
+	if srv.GetTool("media_submit") == nil {
+		t.Fatal("expected media_submit to be registered on the shared server")
+	}
+	if srv.GetTool("media_status") == nil {
+		t.Fatal("expected media_status to be registered on the shared server")
+	}
+	found := false
+	for name := range srv.ListTools() {
+		if strings.HasPrefix(name, "user_read_my_site") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected the granted user tool to be registered on the same shared server")
+	}
+}
+
+func TestNewCustomExpertAgent_NoGrantsLeavesMCPServerNil(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MCP.Enabled = true
+	mcp.SetAppConfig(cfg)
+	defer mcp.SetAppConfig(nil)
+
+	agent := &Agent{}
+	attachUserToolsMCP(agent, "Ungranted Expert")
+	if agent.MCPServer != nil {
+		t.Fatal("expected nil MCPServer when no tools/media are granted")
+	}
+}
+
 func TestAppendMCPToolsPromptCADGreetingGuidance(t *testing.T) {
 	enableCADPackForTest(t)
 

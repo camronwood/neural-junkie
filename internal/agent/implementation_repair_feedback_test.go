@@ -34,6 +34,29 @@ func TestFormatTypedRepairNote_includesCategory(t *testing.T) {
 	}
 }
 
+func TestFormatVerifyRepairNote_rustMissingCrateHints(t *testing.T) {
+	raw := "$ cargo build\n" +
+		"error[E0432]: unresolved import `rand`\n" +
+		"error[E0433]: failed to resolve: use of undeclared crate `rand`\n" +
+		"error[E0507]: cannot move out of `*rank` which is behind a shared reference\n" +
+		"exit_code=1"
+	note := formatVerifyRepairNote(VerifyFailureInfo{
+		Kind:          RepairFailureBuild,
+		FailedCommand: "cargo build",
+		Summary:       "unresolved import rand",
+	}, raw)
+	for _, want := range []string{
+		"E0432/E0433",
+		"Cargo.toml",
+		"std-only",
+		"Copy, Clone",
+	} {
+		if !strings.Contains(note, want) {
+			t.Fatalf("note missing %q:\n%s", want, note)
+		}
+	}
+}
+
 func TestOutcomeScore(t *testing.T) {
 	if outcomeScore(map[string]interface{}{"outcome": "applied_and_verified"}) != 100 {
 		t.Fatal("expected 100 for verified")

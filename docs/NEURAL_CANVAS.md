@@ -9,6 +9,8 @@ writing generated files into a workspace.
 - `nj.markdown`, `nj.mermaid`, and `nj.code`
 - `nj.table`, `nj.chart`, and `nj.timeline`
 - `nj.image` and `nj.graph`
+- `nj.map` — interactive OSM maps with markers and walking/driving route polylines
+  (Maps pack; media type `application/vnd.neural-junkie.map+json`)
 - Host-owned adapters for knowledge graph, runbook, CAD, structure, music,
   Model Arena, scan, and comparator workbenches
 

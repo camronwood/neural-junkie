@@ -65,23 +65,21 @@ class UserFlowScenariosTest(unittest.TestCase):
         trip = next(e for e in USER_FLOW_SCENARIOS if e.name == "trip-research-vacation")
         self.assertTrue(trip.skip_reason)
 
-    def test_wip_journeys_skipped_from_default_suite(self) -> None:
+    def test_only_trip_research_skipped_from_default_suite(self) -> None:
         active = set(user_flow_names(include_skipped=False))
-        for name in (
+        self.assertNotIn("trip-research-vacation", active)
+        for want in (
             "rust-blackjack-2d",
+            "nodejs-user-crud",
             "ios-trivia-swift",
+            "collaboration-station-branded",
+            "admin-cms-website",
+            "vite-boot-fix-corrupt-appjs",
             "journey-crud-clarify-correct",
             "journey-blackjack-cli-correction",
             "journey-boot-fix-then-feature",
             "journey-notes-rename-to-memos",
             "journey-landing-brand-correction",
-        ):
-            self.assertNotIn(name, active)
-        for want in (
-            "nodejs-user-crud",
-            "collaboration-station-branded",
-            "admin-cms-website",
-            "vite-boot-fix-corrupt-appjs",
         ):
             self.assertIn(want, active)
 

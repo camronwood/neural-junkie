@@ -14,7 +14,8 @@ func channelAllowsImplementationSession(channel string, msg *protocol.Message) b
 		return true
 	}
 	ch := strings.TrimSpace(channel)
-	if ch == "implement-scenarios" {
+	switch ch {
+	case "implement-scenarios", "user-flow-scenarios", "parity-scenarios":
 		return true
 	}
 	if isRegressionHarnessChatChannel(ch) {

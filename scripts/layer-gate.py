@@ -224,6 +224,10 @@ def main() -> int:
         os.environ["NJ_OLLAMA_NUM_PREDICT"] = "4096"
         # Prefer coder for implement-heavy journeys (env.local may pin qwen3.5:9b).
         os.environ["NJ_REGRESSION_AGENT_MODEL"] = "qwen2.5-coder:14b"
+        # User-flows need FrontendEngineer/BackendEngineer online — do not use collab-core slim roster.
+        os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "0"
+        os.environ["NJ_REGRESSION_USER_FLOWS"] = "1"
+        os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
     testing_dir = Path(args.log_dir)
     testing_dir.mkdir(parents=True, exist_ok=True)
     stamp = args.stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
@@ -264,6 +268,9 @@ def main() -> int:
         stage_timeout = None
         if mult > 0 and spec.est_minutes > 0:
             stage_timeout = max(600.0, (spec.est_minutes * 60.0 * mult) / max(1, total_stages))
+        # user-flows journeys can exceed 3h wall (10 scenarios + flake retries).
+        if spec.name == "user-flows" and stage_timeout is not None:
+            stage_timeout = max(stage_timeout, 21600.0)
         rc, out = run_cmd(cmd, env=stage_env, cwd=repo_cwd, timeout_s=stage_timeout)
         duration = time.time() - t0
         log_lines.append(out.rstrip())

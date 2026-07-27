@@ -12,6 +12,7 @@ export interface MermaidCanvasProps {
 const WHEEL_ZOOM_INTENSITY = 0.002;
 const BUTTON_ZOOM_FACTOR = 1.2;
 const MIN_SCALE = 1e-4;
+
 function formatZoomLabel(scale: number): string {
   const pct = scale * 100;
   if (pct >= 10000 || pct < 0.1) return `${scale.toFixed(2)}×`;
@@ -41,7 +42,10 @@ function readSvgNativeSize(svg: SVGSVGElement): { width: number; height: number 
   return { width: 800, height: 600 };
 }
 
-/** Size the SVG element directly so initial fit stays sharp (avoid CSS scale for fit). */
+/**
+ * Size the SVG element directly for fit + user zoom so the browser re-rasters
+ * vectors at the display size (CSS scale() leaves zoom permanently soft).
+ */
 function applySvgDisplaySize(
   svg: SVGSVGElement,
   nativeWidth: number,
@@ -56,6 +60,9 @@ function applySvgDisplaySize(
   svg.style.height = `${h}px`;
   svg.style.maxWidth = 'none';
   svg.style.display = 'block';
+  // Prefer precise strokes/text over pixel-snapping while zoomed.
+  svg.style.shapeRendering = 'geometricPrecision';
+  svg.style.textRendering = 'geometricPrecision';
 }
 
 export function MermaidCanvas({
@@ -76,8 +83,19 @@ export function MermaidCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const diagramRef = useRef<HTMLDivElement>(null);
   const fitScaleRef = useRef(1);
+  const userScaleRef = useRef(1);
   const nativeSizeRef = useRef({ width: 800, height: 600 });
   const displayScale = () => fitScaleRef.current * userScale;
+
+  userScaleRef.current = userScale;
+
+  const applyDisplayScale = useCallback((scale: number) => {
+    const svgElement = diagramRef.current?.querySelector('svg');
+    if (!svgElement) return;
+    const native = nativeSizeRef.current;
+    if (native.width <= 0 || native.height <= 0) return;
+    applySvgDisplaySize(svgElement, native.width, native.height, scale);
+  }, []);
 
   const applyZoomAtPoint = useCallback(
     (factor: number, centerX: number, centerY: number) => {
@@ -102,6 +120,43 @@ export function MermaidCanvas({
     setUserScale(1);
   }, [active, content]);
 
+  const fitDiagramToContainer = useCallback((resetUserView: boolean) => {
+    if (!diagramRef.current || !containerRef.current) return;
+    const svgElement = diagramRef.current.querySelector('svg');
+    if (!svgElement) return;
+
+    const native = nativeSizeRef.current.width > 0
+      ? nativeSizeRef.current
+      : readSvgNativeSize(svgElement);
+    nativeSizeRef.current = native;
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    if (containerRect.width < 8 || containerRect.height < 8) return;
+
+    const padding = 48;
+    const availableWidth = Math.max(1, containerRect.width - padding);
+    const availableHeight = Math.max(1, containerRect.height - padding);
+    const scaleX = availableWidth / native.width;
+    const scaleY = availableHeight / native.height;
+    const fitScale = Math.max(MIN_SCALE, Math.min(scaleX, scaleY));
+    fitScaleRef.current = fitScale;
+
+    const zoom = resetUserView ? 1 : userScaleRef.current;
+    applySvgDisplaySize(svgElement, native.width, native.height, fitScale * zoom);
+
+    if (resetUserView) {
+      setUserScale(1);
+      setPosition({ x: 0, y: 0 });
+      setLastPosition({ x: 0, y: 0 });
+    }
+  }, []);
+
+  // Keep SVG pixel size in sync with user zoom (sharp); pan stays on translate only.
+  useEffect(() => {
+    if (!active || renderError) return;
+    applyDisplayScale(fitScaleRef.current * userScale);
+  }, [active, userScale, renderError, applyDisplayScale]);
+
   useEffect(() => {
     if (!active || !diagramRef.current || !containerRef.current) return;
 
@@ -116,27 +171,10 @@ export function MermaidCanvas({
 
         requestAnimationFrame(() => {
           if (!diagramRef.current || !containerRef.current) return;
-
           const svgElement = diagramRef.current.querySelector('svg');
           if (!svgElement) return;
-
-          const native = readSvgNativeSize(svgElement);
-          nativeSizeRef.current = native;
-
-          const containerRect = containerRef.current.getBoundingClientRect();
-          const padding = 32;
-          const availableWidth = containerRect.width - padding;
-          const availableHeight = containerRect.height - padding;
-
-          const scaleX = availableWidth / native.width;
-          const scaleY = availableHeight / native.height;
-          const fitScale = Math.max(MIN_SCALE, Math.min(scaleX, scaleY));
-          fitScaleRef.current = fitScale;
-
-          applySvgDisplaySize(svgElement, native.width, native.height, fitScale);
-          setUserScale(1);
-          setPosition({ x: 0, y: 0 });
-          setLastPosition({ x: 0, y: 0 });
+          nativeSizeRef.current = readSvgNativeSize(svgElement);
+          fitDiagramToContainer(true);
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -150,7 +188,18 @@ export function MermaidCanvas({
     };
 
     renderDiagram();
-  }, [active, content, retryCount]);
+  }, [active, content, retryCount, fitDiagramToContainer]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !active) return;
+
+    const observer = new ResizeObserver(() => {
+      fitDiagramToContainer(false);
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [active, fitDiagramToContainer, content, retryCount]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -178,6 +227,7 @@ export function MermaidCanvas({
     setUserScale(1);
     setPosition({ x: 0, y: 0 });
     setLastPosition({ x: 0, y: 0 });
+    applyDisplayScale(fitScaleRef.current);
   };
 
   const stopDrag = () => setIsDragging(false);
@@ -200,9 +250,8 @@ export function MermaidCanvas({
     }
   };
 
-  // Pan + user zoom only on transform; initial fit uses SVG width/height (sharp).
-  // No CSS transition on transform — avoids compositor smear on macOS when zooming.
-  const diagramTransform = `translate(${position.x}px, ${position.y}px) scale(${userScale})`;
+  // Pan only — zoom is applied by resizing the SVG (sharp). No CSS scale.
+  const diagramTransform = `translate(${position.x}px, ${position.y}px)`;
 
   return (
     <div className={`relative flex flex-col flex-1 min-h-0 ${className}`}>
@@ -263,23 +312,23 @@ export function MermaidCanvas({
       ) : (
         <div
           ref={containerRef}
-          className='relative flex-1 min-h-0 overflow-hidden cursor-grab active:cursor-grabbing flex items-center justify-center'
+          className='relative flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden bg-white cursor-grab active:cursor-grabbing'
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={stopDrag}
           onMouseLeave={stopDrag}
         >
           {isRendering && (
-            <div className='absolute inset-0 flex items-center justify-center bg-black/40 z-10'>
+            <div className='absolute inset-0 z-10 flex items-center justify-center bg-black/40'>
               <div className='flex items-center gap-2 text-slack-text'>
-                <div className='w-5 h-5 border-2 border-slack-accent border-t-transparent rounded-full animate-spin' />
+                <div className='w-5 h-5 animate-spin rounded-full border-2 border-slack-accent border-t-transparent' />
                 <span className='text-sm'>Rendering diagram...</span>
               </div>
             </div>
           )}
           <div
             ref={diagramRef}
-            className='p-4 bg-white rounded border border-slack-border flex items-center justify-center'
+            className='flex items-center justify-center'
             style={{
               transform: diagramTransform,
               transformOrigin: 'center center',

@@ -51,7 +51,6 @@ export function AgentInfoModal({
   isOpen, 
   onClose,
   onProviderSwitch,
-  onExport,
   onRemove,
   onDelete,
   deletingAgent = false,
@@ -92,6 +91,31 @@ export function AgentInfoModal({
   const [loraRefresh, setLoraRefresh] = useState(false);
   const [loraSuggest, setLoraSuggest] = useState(false);
   const [loraAdapterVersion, setLoraAdapterVersion] = useState(0);
+  const [sharingAgent, setSharingAgent] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+
+  const handleShareAgent = async () => {
+    if (!agent) return;
+    setSharingAgent(true);
+    setShareError(null);
+    try {
+      const api = new ChatAPI(serverAddr);
+      const bundle = await api.shareAgent(agent.id);
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${agent.name.replace(/[^a-z0-9-]+/gi, '-').toLowerCase()}-share-bundle.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : 'Failed to build share bundle');
+    } finally {
+      setSharingAgent(false);
+    }
+  };
 
   const loraLifecycleLabel = loraSuggest || loraReady
     ? loraRefresh
@@ -882,6 +906,9 @@ export function AgentInfoModal({
 
         {/* Footer */}
         <div className="shrink-0 p-6 border-t border-slack-border bg-slack-bgHover">
+          {shareError && (
+            <div className="mb-3 text-xs text-red-400">Share failed: {shareError}</div>
+          )}
           <div className="flex justify-between items-center gap-3">
             <div className="flex gap-2 flex-wrap">
               {offlineMode && onLoadOfflineAgent && (
@@ -928,16 +955,17 @@ export function AgentInfoModal({
                   🎯 {loraLifecycleLabel}
                 </button>
               )}
-              {/* Export Button - repo agents only */}
-              {!offlineMode && agent.type === 'repo' && onExport && (
+              {/* Share Button - repo agents only. Downloads a Share Agent bundle
+                  (knowledge + custom rules + learnings + LoRA metadata) that a
+                  friend/coworker can import elsewhere with retained knowledge. */}
+              {!offlineMode && agent.type === 'repo' && (
                 <button
-                  onClick={() => {
-                    onExport(agent.name);
-                  }}
-                  className="px-4 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors border border-blue-500/30"
-                  title={`Export ${agent.name} to MCP format`}
+                  onClick={handleShareAgent}
+                  disabled={sharingAgent}
+                  className="px-4 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors border border-blue-500/30 disabled:opacity-50"
+                  title={`Share ${agent.name} as a portable bundle (knowledge, rules, learnings)`}
                 >
-                  📦 Export
+                  {sharingAgent ? 'Sharing…' : '📤 Share'}
                 </button>
               )}
               

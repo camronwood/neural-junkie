@@ -268,6 +268,11 @@ func handleAgentProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if action == "share" {
+		handleShareAgent(w, r, parts[0])
+		return
+	}
+
 	if action != "provider" {
 		http.Error(w, "Invalid endpoint", http.StatusBadRequest)
 		return

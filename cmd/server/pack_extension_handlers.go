@@ -5,13 +5,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/camronwood/neural-junkie/internal/cadcsidecar"
-	"github.com/camronwood/neural-junkie/internal/browser"
-	"github.com/camronwood/neural-junkie/internal/awssidecar"
 	"github.com/camronwood/neural-junkie/internal/arenasidecar"
+	"github.com/camronwood/neural-junkie/internal/awssidecar"
 	"github.com/camronwood/neural-junkie/internal/biologysidecar"
+	"github.com/camronwood/neural-junkie/internal/browser"
+	"github.com/camronwood/neural-junkie/internal/cadcsidecar"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/incidentsidecar"
+	"github.com/camronwood/neural-junkie/internal/maps"
 	"github.com/camronwood/neural-junkie/internal/music"
 	"github.com/camronwood/neural-junkie/internal/packsidecar"
 )
@@ -49,6 +50,17 @@ func initIncidentSidecarClient() {
 		return packSidecarMgr.BaseURL(config.PackIncidentManagement)
 	}
 	incidentsidecar.SidecarBaseURL = baseURL
+}
+
+func initMapsSidecarClient() {
+	baseURL := func() string {
+		if packSidecarMgr == nil {
+			return ""
+		}
+		return packSidecarMgr.BaseURL(config.PackMaps)
+	}
+	maps.SidecarBaseURL = baseURL
+	maps.DefaultSidecarClient = maps.NewSidecarClient(baseURL)
 }
 
 func initAWSSidecarClient() {
@@ -148,7 +160,7 @@ func handlePackExtensionRoute(w http.ResponseWriter, r *http.Request) {
 
 func packExtensionRoutePrefix(path string) string {
 	path = strings.TrimSpace(path)
-	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music", "/api/arena", "/api/ai-interview", "/api/browser", "/api/aws", "/api/biology", "/api/cad", "/api/lora/sidecar"} {
+	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music", "/api/arena", "/api/ai-interview", "/api/browser", "/api/aws", "/api/biology", "/api/cad", "/api/maps", "/api/lora/sidecar"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return prefix
 		}
@@ -186,6 +198,8 @@ func routeCapabilityForRoute(prefix string) string {
 		return "biology-sidecar"
 	case "/api/cad":
 		return "cad-sidecar"
+	case "/api/maps":
+		return "maps-sidecar"
 	default:
 		return ""
 	}
@@ -237,6 +251,14 @@ func handleCADRoute(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func handleMapsRoute(w http.ResponseWriter, r *http.Request) {
+	if appConfig != nil && appConfig.RouteOwnerPackID("/api/maps") != "" {
+		handlePackExtensionRoute(w, r)
+		return
+	}
+	http.Error(w, "Maps API requires the Maps pack", http.StatusForbidden)
 }
 
 func handleBiologyRoute(w http.ResponseWriter, r *http.Request) {

@@ -20,6 +20,9 @@ var allowedCommandPrefixes = []string{
 	"go build",
 	"go vet",
 	"cargo test",
+	"cargo build",
+	"cargo check",
+	"cargo run",
 	"pytest",
 }
 

@@ -33,6 +33,8 @@ var (
 
 // UserRequestsArtifact reports explicit requests for a standalone Neural Canvas
 // deliverable. Generic visuals with a code target remain implementation work.
+// Canvas *revisions* are routed via semantic ActionArtifact + open-canvas features,
+// not additional update/style phrase lists.
 func UserRequestsArtifact(content string) bool {
 	content = strings.TrimSpace(content)
 	if content == "" {
@@ -44,6 +46,27 @@ func UserRequestsArtifact(content string) bool {
 			strings.Contains(strings.ToLower(content), "artifact")
 	}
 	return explicitVisualRequestRE.MatchString(content) && !artifactCodeTargetRE.MatchString(content)
+}
+
+// neuralCanvasIsSecondaryToCodeChange reports mixed turns where a canvas is asked
+// only after a code fix/impl (e.g. "create a canvas after you fix the typo").
+// Those keep ActionEdit authority; pure canvas creates must not.
+func neuralCanvasIsSecondaryToCodeChange(content string) bool {
+	if !UserRequestsArtifact(content) {
+		return false
+	}
+	lower := strings.ToLower(content)
+	cues := []string{
+		"after you fix", "after fixing", "fix the typo", "fix the bug",
+		"fix it then", "then create a canvas", "then show a canvas",
+		"then make a canvas", "then generate a canvas",
+	}
+	for _, cue := range cues {
+		if strings.Contains(lower, cue) {
+			return true
+		}
+	}
+	return false
 }
 
 func channelHasPendingArtifactRequest(history []*protocol.Message, skipMsgID string) bool {
@@ -92,11 +115,35 @@ func messageHasArtifactAction(msg *protocol.Message) bool {
 	return ActionIntent(strings.TrimSpace(action)) == ActionArtifact
 }
 
+// neuralCanvasDeliverableTurn reports turns that must ship create/update_artifact rather
+// than FILE_CHANGE or shell work. Mixed "canvas after you fix…" stays implementation-capable.
+// Stamped Answer/AskUser/Plan keep conversational authority (no artifact tool force).
+func neuralCanvasDeliverableTurn(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		switch decision.Action {
+		case semantic.ActionArtifact:
+			return true
+		case semantic.ActionAnswer, semantic.ActionAskUser, semantic.ActionPlan:
+			return false
+		}
+	}
+	if messageHasArtifactAction(msg) {
+		return true
+	}
+	if !UserRequestsArtifact(msg.Content) {
+		return false
+	}
+	return !neuralCanvasIsSecondaryToCodeChange(msg.Content)
+}
+
 var createArtifactToolSchema = json.RawMessage(`{
   "type": "object",
   "properties": {
     "title": {"type": "string", "description": "Short descriptive artifact title"},
-    "renderer_id": {"type": "string", "enum": ["nj.markdown","nj.mermaid","nj.code","nj.table","nj.chart","nj.timeline","nj.image","nj.graph"]},
+    "renderer_id": {"type": "string", "enum": ["nj.markdown","nj.mermaid","nj.code","nj.table","nj.chart","nj.timeline","nj.image","nj.graph","nj.map"]},
     "media_type": {"type": "string", "description": "Renderer media type"},
     "kind": {"type": "string"},
     "data": {"description": "Declarative JSON payload for the renderer"},
@@ -140,9 +187,23 @@ func artifactToolsEnabledForMessage(msg *protocol.Message) bool {
 	if msg == nil {
 		return true
 	}
+	if neuralCanvasDeliverableTurn(msg) {
+		return true
+	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		// Stamped decisions are authoritative — never fall back to canvas/visual phrases.
-		return decision.Action == semantic.ActionArtifact
+		if decision.Action == semantic.ActionArtifact {
+			return true
+		}
+		// Stamped answer/edit/debug stay authoritative. Run/inspect are frequent
+		// misroutes for Neural Canvas create asks — re-enable create_artifact when
+		// create phrases match. Revisions rely on ActionArtifact (open-canvas policy).
+		if UserRequestsArtifact(msg.Content) {
+			switch decision.Action {
+			case semantic.ActionRun, semantic.ActionInspect:
+				return true
+			}
+		}
+		return false
 	}
 	if msg.ImplementationSession() && !UserRequestsArtifact(msg.Content) && !messageHasArtifactAction(msg) {
 		return false
@@ -155,6 +216,9 @@ func appendArtifactPrompt(system *strings.Builder) {
 	system.WriteString("NEURAL CANVAS:\n")
 	system.WriteString("Use create_artifact for substantial standalone analytical deliverables such as reports, charts, tables, timelines, Mermaid diagrams, and graph explorations. Keep short factual answers in chat.\n")
 	system.WriteString("When the user explicitly requests a Neural Canvas or standalone artifact, call create_artifact in this turn. Do not promise to create it later and do not start a file implementation session.\n")
+	system.WriteString("When the user asks to update/revise an existing canvas (colors, layout, black-and-white, content), call update_artifact with artifact_id, expected_revision, and the full new data payload. Do not edit repo files (tauri.conf.json, CSS, themes) for canvas style changes.\n")
+	system.WriteString("Never emit [FILE_CHANGE], propose_file_edit, or workspace file edits for Neural Canvas requests — the canvas is app-managed, not a repo file.\n")
+	system.WriteString("Never call generate_image for Neural Canvas / Mermaid / chart / table requests — call create_artifact instead.\n")
 	system.WriteString("Artifact payloads must be declarative JSON. Never place executable JavaScript, React code, or arbitrary HTML in an artifact.\n\n")
 }
 
@@ -165,7 +229,7 @@ func getAgentArtifactStore() (*artifacts.Store, error) {
 	return agentArtifactStore, agentArtifactStoreErr
 }
 
-func (a *Agent) executeArtifactTool(_ context.Context, msg *protocol.Message, name string, input json.RawMessage) (string, error) {
+func (a *Agent) executeArtifactTool(ctx context.Context, msg *protocol.Message, name string, input json.RawMessage) (string, error) {
 	if !artifactToolsEnabledForMessage(msg) {
 		return "", fmt.Errorf("%s is unavailable during implementation or collaboration planning", name)
 	}
@@ -222,6 +286,14 @@ func (a *Agent) executeArtifactTool(_ context.Context, msg *protocol.Message, na
 			return "", err
 		}
 		a.postArtifactReference(msg, created, "created")
+		if ledger := actionEvidenceFromContext(ctx); ledger != nil {
+			ledger.Record(ActionEvidence{
+				Kind:   EvidenceArtifactCreated,
+				Tool:   createArtifactToolName,
+				Status: "succeeded",
+				Detail: created.ID,
+			})
+		}
 		return fmt.Sprintf("Created Neural Canvas artifact `%s` at revision %d.", created.ID, created.Revision), nil
 	case updateArtifactToolName:
 		var args struct {
@@ -259,6 +331,14 @@ func (a *Agent) executeArtifactTool(_ context.Context, msg *protocol.Message, na
 			return "", err
 		}
 		a.postArtifactReference(msg, updated, "updated")
+		if ledger := actionEvidenceFromContext(ctx); ledger != nil {
+			ledger.Record(ActionEvidence{
+				Kind:   EvidenceArtifactCreated,
+				Tool:   updateArtifactToolName,
+				Status: "succeeded",
+				Detail: updated.ID,
+			})
+		}
 		return fmt.Sprintf("Updated Neural Canvas artifact `%s` to revision %d.", updated.ID, updated.Revision), nil
 	default:
 		return "", fmt.Errorf("unknown artifact tool %q", name)

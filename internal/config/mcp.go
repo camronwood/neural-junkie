@@ -19,20 +19,149 @@ type MCPConfig struct {
 	CAD CadMCPConfig `json:"cad"`
 	// Music holds ACE-Step generation settings for the Music creation pack.
 	Music MusicMCPConfig `json:"music"`
+	// UserServers are user-connected remote MCP servers (URL/stdio registry entries).
+	// Connection wiring is a future enhancement; today this is a persisted registry
+	// that Settings can list/manage.
+	UserServers []UserMCPServer `json:"user_servers,omitempty"`
+	// UserTools are user-defined tools (HTTP-fetch template today) grantable to
+	// custom expert agents by name — the "MCP Tool Wizard".
+	UserTools []UserMCPTool `json:"user_tools,omitempty"`
+	// ExternalMedia optionally wires media_submit/media_status/media_fetch
+	// tools to a third-party media generation API. Disabled (BaseURL empty)
+	// by default — see internal/mcp/externalmedia.
+	ExternalMedia ExternalMediaConfig `json:"external_media,omitempty"`
+}
+
+// ExternalMediaConfig configures an optional external media-generation HTTP
+// API (e.g. image/video/audio job submission) exposed to granted custom
+// expert agents as media_submit / media_status / media_fetch MCP tools.
+// BaseURL defaults to empty, which disables the feature entirely — no tools
+// are attached until an operator configures a real endpoint.
+type ExternalMediaConfig struct {
+	// BaseURL is the media API root, e.g. "https://media.example.com/v1".
+	// Empty (default) disables the tools.
+	BaseURL string `json:"base_url,omitempty"`
+	// APIKey is sent as "Authorization: Bearer <APIKey>" when set.
+	APIKey string `json:"api_key,omitempty"`
+	// GrantedAgents lists custom expert agent display names (case-insensitive)
+	// allowed to call the media tools.
+	GrantedAgents []string `json:"granted_agents,omitempty"`
+}
+
+// Enabled reports whether the external media tools should be attached at all.
+func (e ExternalMediaConfig) Enabled() bool {
+	return strings.TrimSpace(e.BaseURL) != ""
+}
+
+// GrantedTo reports whether agentName (case-insensitive) may use the media tools.
+func (e ExternalMediaConfig) GrantedTo(agentName string) bool {
+	agentName = strings.TrimSpace(agentName)
+	if agentName == "" {
+		return false
+	}
+	for _, g := range e.GrantedAgents {
+		if strings.EqualFold(strings.TrimSpace(g), agentName) {
+			return true
+		}
+	}
+	return false
+}
+
+// ExternalMediaSettings returns a copy of the external media config (thread-safe).
+func (c *Config) ExternalMediaSettings() ExternalMediaConfig {
+	if c == nil {
+		return ExternalMediaConfig{}
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.MCP.ExternalMedia
+}
+
+// UserMCPServer is a user-connected remote MCP server registry entry
+// (e.g. "read this page/API from my website"). Connection transport is
+// recorded but not yet dialed automatically — see MCP Tool Wizard phase 1
+// in FUTURE_ENHANCEMENTS.md.
+type UserMCPServer struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	URL           string `json:"url,omitempty"`
+	TransportType string `json:"transport_type,omitempty"` // "http" (default) | "stdio"
+	CreatedAt     string `json:"created_at,omitempty"`
+}
+
+// UserMCPTool is a user-created tool (HTTP-fetch template) that can be
+// granted to chosen custom expert agents by name. Grants are keyed by agent
+// display name (case-insensitive) rather than agent ID, since custom expert
+// agent IDs are regenerated across hub restarts but names are stable.
+type UserMCPTool struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// URL is the HTTP endpoint template this tool fetches. Must be a public
+	// http(s) URL — private/loopback hosts are rejected at call time (SSRF gate).
+	URL     string            `json:"url"`
+	Method  string            `json:"method,omitempty"` // GET (default) or POST
+	Headers map[string]string `json:"headers,omitempty"`
+	// JSONPath optionally extracts a nested value from a JSON response using
+	// dot-separated keys / numeric array indices (e.g. "data.items.0.title").
+	JSONPath string `json:"json_path,omitempty"`
+	// GrantedAgents lists custom expert agent display names allowed to call
+	// this tool (case-insensitive).
+	GrantedAgents []string `json:"granted_agents,omitempty"`
+	CreatedAt     string   `json:"created_at,omitempty"`
+}
+
+// MethodOrDefault returns the configured HTTP method, defaulting to GET.
+func (t UserMCPTool) MethodOrDefault() string {
+	m := strings.ToUpper(strings.TrimSpace(t.Method))
+	if m == "" {
+		return "GET"
+	}
+	return m
+}
+
+// GrantedTo reports whether agentName (case-insensitive) is granted this tool.
+func (t UserMCPTool) GrantedTo(agentName string) bool {
+	agentName = strings.TrimSpace(agentName)
+	if agentName == "" {
+		return false
+	}
+	for _, g := range t.GrantedAgents {
+		if strings.EqualFold(strings.TrimSpace(g), agentName) {
+			return true
+		}
+	}
+	return false
+}
+
+// UserToolsForAgent returns user tools granted to agentName (case-insensitive).
+func (c *Config) UserToolsForAgent(agentName string) []UserMCPTool {
+	if c == nil {
+		return nil
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var out []UserMCPTool
+	for _, t := range c.MCP.UserTools {
+		if t.GrantedTo(agentName) {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // BiologyMCPConfig is persisted in config.json and edited in Settings.
 type BiologyMCPConfig struct {
-	ChatModel                   string `json:"chat_model,omitempty"`
-	ToolModel                   string `json:"tool_model,omitempty"`
-	ESMFoldModel                string `json:"esmfold_model,omitempty"`
-	MaxAnalyzeLength            int    `json:"max_analyze_length,omitempty"`
-	MaxFoldLength               int    `json:"max_fold_length,omitempty"`
-	ArtifactsDir                string `json:"artifacts_dir,omitempty"`
-	SecondaryAnalysisToolsPath  string `json:"secondary_analysis_tools_path,omitempty"`
-	PythonExecutable            string `json:"python_executable,omitempty"`
-	CumulativeQCDir             string `json:"cumulative_qc_dir,omitempty"`
-	DefaultPanelProfile         string `json:"default_panel_profile,omitempty"`
+	ChatModel                  string `json:"chat_model,omitempty"`
+	ToolModel                  string `json:"tool_model,omitempty"`
+	ESMFoldModel               string `json:"esmfold_model,omitempty"`
+	MaxAnalyzeLength           int    `json:"max_analyze_length,omitempty"`
+	MaxFoldLength              int    `json:"max_fold_length,omitempty"`
+	ArtifactsDir               string `json:"artifacts_dir,omitempty"`
+	SecondaryAnalysisToolsPath string `json:"secondary_analysis_tools_path,omitempty"`
+	PythonExecutable           string `json:"python_executable,omitempty"`
+	CumulativeQCDir            string `json:"cumulative_qc_dir,omitempty"`
+	DefaultPanelProfile        string `json:"default_panel_profile,omitempty"`
 }
 
 const (

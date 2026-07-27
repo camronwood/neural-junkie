@@ -21,6 +21,7 @@ export {
   TableArtifactRenderer,
   TimelineArtifactRenderer,
 } from './renderers';
+export { MapArtifactRenderer } from './MapArtifactRenderer';
 export type {
   ArtifactCardProps,
   ArtifactProvenance,

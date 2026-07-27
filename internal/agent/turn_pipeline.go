@@ -495,6 +495,12 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 			st.outcome = turnCancelled
 			return st.handleGenerationCancelled()
 		}
+		// Implementation sessions build outcome metadata even on partial failure;
+		// post_process must run so harness wait_reply can observe implementation_session_outcome.
+		if st.implSessionOutcome != nil && turnGoalRunsImplementationSession(st.goal) {
+			log.Printf("[%s] implementation session error with outcome — continuing to post_process: %v", a.Info.Name, err)
+			return nil
+		}
 		st.outcome = turnFailed
 		return st.handleGenerationError(err)
 	}
@@ -610,7 +616,7 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 		}
 		responseMsg.Metadata["delegation_consulted"] = consulted
 	}
-	if st.implSessionOutcome != nil || (turnGoalRunsImplementationSession(st.goal) && st.implSessionProposed) {
+	if st.implSessionOutcome != nil || (turnGoalRunsImplementationSession(st.goal) && (st.implSessionProposed || st.implSessionOutcome != nil)) {
 		if responseMsg.Metadata == nil {
 			responseMsg.Metadata = make(map[string]interface{})
 		}
@@ -690,7 +696,7 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 	st.actionValidated = len(issues) == 0 && goalHasExpectedEvidence(st.goal, st.evidence)
 	if len(issues) > 0 {
 		switch {
-		case st.goal.RequiresActionEvidence() && shouldRewriteAsSafeFailure(issues, st.response):
+		case st.goal.RequiresActionEvidence() && shouldRewriteAsSafeFailureForGoal(st.goal, st.evidence, issues, st.response):
 			st.response = safeActionFailure(st.goal, st.evidence)
 		case st.goal.RequiresActionEvidence():
 			// Misclassified action goals often still get a good conversational answer.

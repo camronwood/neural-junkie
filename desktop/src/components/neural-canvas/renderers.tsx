@@ -3,6 +3,7 @@ import '@xyflow/react/dist/style.css';
 import { useMemo } from 'react';
 import { MermaidCanvas } from '../MermaidCanvas';
 import { RichMarkdownView } from '../RichMarkdownView';
+import { MapArtifactRenderer } from './MapArtifactRenderer';
 import type { ArtifactRendererProps, ArtifactRendererRegistration } from './types';
 import {
   ArenaArtifactRenderer,
@@ -17,16 +18,21 @@ const textFrom = (value: unknown): string =>
   typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 
 export function MarkdownArtifactRenderer({ artifact, compact }: ArtifactRendererProps) {
-  return <RichMarkdownView content={textFrom(artifact.data)} compact={compact} />;
+  return (
+    <div className={compact ? '' : 'h-full overflow-auto p-4'}>
+      <RichMarkdownView content={textFrom(artifact.data)} compact={compact} />
+    </div>
+  );
 }
 
 export function MermaidArtifactRenderer({ artifact, compact }: ArtifactRendererProps) {
   return (
-    <div className={compact ? 'h-48' : 'h-full min-h-[360px]'}>
+    <div className={compact ? 'h-48' : 'flex h-full min-h-0 flex-col'}>
       <MermaidCanvas
         content={textFrom(artifact.data)}
         active
         showZoomControls={!compact}
+        className="h-full w-full"
       />
     </div>
   );
@@ -45,7 +51,7 @@ export function CodeArtifactRenderer({ artifact, compact }: ArtifactRendererProp
   const language = typeof value?.language === 'string' ? value.language : 'text';
 
   return (
-    <div className="overflow-auto rounded border border-slate-700 bg-slate-950">
+    <div className={`overflow-auto rounded border border-slate-700 bg-slate-950 ${compact ? '' : 'm-4 h-[calc(100%-2rem)]'}`}>
       {!compact && (
         <div className="border-b border-slate-800 px-3 py-1 text-[11px] text-slate-400">
           {language}
@@ -99,7 +105,7 @@ export function TableArtifactRenderer({ artifact, compact }: ArtifactRendererPro
   const visibleRows = compact ? rows.slice(0, 4) : rows;
 
   return (
-    <div className="overflow-auto rounded border border-slate-700">
+    <div className={`overflow-auto rounded border border-slate-700 ${compact ? '' : 'm-4 h-[calc(100%-2rem)]'}`}>
       <table className="w-full border-collapse text-left text-sm">
         <thead className="sticky top-0 bg-slate-900 text-slate-300">
           <tr>{columns.map((column) => (
@@ -328,7 +334,7 @@ export function GraphArtifactRenderer({ artifact, compact }: ArtifactRendererPro
   if (!nodes.length) return <EmptyArtifact message="No graph nodes" />;
 
   return (
-    <div className={compact ? 'h-48' : 'h-full min-h-[360px]'}>
+    <div className={compact ? 'h-48' : 'h-full min-h-0'}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -370,6 +376,7 @@ export const BUILT_IN_RENDERERS: readonly ArtifactRendererRegistration[] = [
   { id: 'nj.timeline', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['application/vnd.neural-canvas.timeline+json', 'application/vnd.neural-junkie.timeline+json'], component: TimelineArtifactRenderer },
   { id: 'nj.image', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'application/vnd.neural-canvas.image+json', 'application/vnd.neural-junkie.image+json'], component: ImageArtifactRenderer },
   { id: 'nj.graph', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['application/vnd.neural-canvas.graph+json', 'application/vnd.neural-junkie.graph+json'], component: GraphArtifactRenderer },
+  { id: 'nj.map', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['application/vnd.neural-junkie.map+json'], component: MapArtifactRenderer },
   { id: 'nj.knowledge-graph', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['application/vnd.neural-junkie.knowledge-graph+json'], component: KnowledgeGraphArtifactRenderer },
   { id: 'nj.cad', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['application/vnd.neural-junkie.cad+json', 'model/stl'], component: CadArtifactRenderer },
   { id: 'nj.structure', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['chemical/x-pdb', 'chemical/x-mmcif'], component: StructureArtifactRenderer },

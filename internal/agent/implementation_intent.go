@@ -568,7 +568,16 @@ func userRequestsImplementationForMessage(a *Agent, msg *protocol.Message) bool 
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
 		switch decision.Action {
-		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue, semantic.ActionRun:
+		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue:
+			if UserRequestsArtifact(msg.Content) && !neuralCanvasIsSecondaryToCodeChange(msg.Content) {
+				return false
+			}
+			return true
+		case semantic.ActionRun:
+			// Small classifiers stamp run for Neural Canvas asks; do not force FILE_CHANGE.
+			if UserRequestsArtifact(msg.Content) {
+				return false
+			}
 			return true
 		default:
 			return false

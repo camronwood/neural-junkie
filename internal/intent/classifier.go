@@ -36,6 +36,9 @@ Interpret meaning rather than matching words:
 - prior_reference only when the user points at an earlier assistant reply (e.g. "what you wrote", "previous reply", "few messages back").
 - continue advances one pending action. When interaction is continuation, requested_action must be continue and continuation_target must copy pending_action_id.
 - artifact creates a durable chat-side report/canvas; image creates image media. Neither means a source-code component with a similar name.
+- "Neural Canvas", Mermaid/diagram/chart/timeline/table canvas requests, and durable visual artifacts are always artifact — never run, inspect, edit, or ask_user.
+- Revising an existing Neural Canvas (style, colors, layout, content, monochrome/black-and-white, "update the diagram/canvas") is always artifact with retrieval prior_reference (and collab_artifact when relevant) — never edit, and never workspace mutation. Do not route canvas style changes to source files (CSS, tauri.conf, theme tokens).
+- When open_artifact_id / open_artifact_renderer is set in features, prefer artifact for turns that change that open canvas; include prior_reference.
 - artifact and image require external mutation. edit requires workspace mutation. answer, inspect, plan, and ask_user require no mutation.
 - questions about whether or how something should be changed are non-mutating unless the user also asks to carry it out.
 - negation, corrections, retractions, reply targets, and unresolved actions override isolated verbs.

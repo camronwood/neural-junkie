@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-25T12:32:17Z",
-  "count": 83,
+  "updated": "2026-07-26T22:00:09Z",
+  "count": 84,
   "items": [
     {
       "id": "edge-ide-agents-panel",
@@ -261,6 +261,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-compose-specialist-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-composition-model-1200",
+      "src": "../media/gallery/ads/neural-junkie-composition-model-1200.png",
+      "title": "Composition Model 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-composition-model-1200.png"
     },
     {
       "id": "neural-junkie-context-scope-ad-1080",

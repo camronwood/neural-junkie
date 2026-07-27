@@ -1,0 +1,74 @@
+id: maps
+version: "1.0.0"
+title: Maps
+description: MapsExpert — geocode and walking/driving routes via OpenStreetMap (Nominatim + OSRM), interactive Neural Canvas maps.
+layout_profile: team
+capabilities:
+  - maps-tools
+  - maps-sidecar
+  - maps-canvas
+capability_defs:
+  maps-tools:
+    kind: mcp-tools
+    label: Maps tools
+    description: Geocode places, compute walking/driving routes, and publish map artifacts.
+    exposure: safe
+    mcp_agents:
+      - maps
+  maps-sidecar:
+    kind: hub-sidecar
+    routes:
+      - /api/maps
+    sidecar:
+      module: assets/hub/routes/maps.py
+    settings:
+      - nominatim_base_url
+      - osrm_base_url
+      - osm_tile_url_template
+      - maps_user_agent
+      - maps_rate_limit_rps
+  maps-canvas:
+    kind: artifact-renderer
+    renderer: nj.map
+    media_types:
+      - application/vnd.neural-junkie.map+json
+    match_glob: "**/*.nj-map.json"
+    renderer_api_version: 1
+    schema_version_min: 1
+    schema_version_max: 1
+    fallback: nj.code
+agents:
+  - type: maps
+    name: MapsExpert
+    implementation: builtin/maps
+    ollama_model: qwen2.5:7b
+    compose:
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - map
+        - maps
+        - route
+        - routes
+        - directions
+        - walking
+        - driving
+        - geocode
+        - navigate
+        - itinerary
+        - distance
+models_to_ensure:
+  - qwen2.5:7b
+  - qwen3.5:9b
+ollama_model: qwen2.5:7b
+expert_slug: maps
+expert_label: Maps / routing
+mcp_agents:
+  - maps
+settings_overlay:
+  nominatim_base_url: https://nominatim.openstreetmap.org
+  osrm_base_url: https://router.project-osrm.org
+  osm_tile_url_template: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+  maps_user_agent: NeuralJunkieMaps/1.0 (https://github.com/camronwood/neural-junkie)
+  maps_rate_limit_rps: "1"
+assets:
+  workspace_guide: assets/WORKSPACE.md

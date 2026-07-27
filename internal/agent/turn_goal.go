@@ -67,7 +67,9 @@ var explicitAskUserRequestRE = regexp.MustCompile(`(?i)^\s*(ask me|question me|c
 
 func deriveTurnGoal(a *Agent, msg *protocol.Message, intent TurnIntent) TurnGoal {
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		return deriveTurnGoalFromDecision(msg, decision)
+		goal := deriveTurnGoalFromDecision(msg, decision)
+		syncTurnGoalImplementationSession(a, msg, &goal)
+		return goal
 	}
 	request := ""
 	id := ""
@@ -132,6 +134,11 @@ func deriveTurnGoal(a *Agent, msg *protocol.Message, intent TurnIntent) TurnGoal
 		goal.Action = ActionAskUser
 		goal.RequiredCapabilities = []string{askUserToolName}
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceUserAnswer}
+	case UserRequestsMapOrRoute(request):
+		goal.Action = ActionArtifact
+		goal.RequiredCapabilities = []string{mapsCreateToolName}
+		goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
+		goal.Mutation = MutationExternal
 	case userAffirmsPendingImplementation(request) && (parent != "" || (a != nil &&
 		(channelHasRecentImplementationAsk(a.channelHistory(msg.Channel), msg.ID) ||
 			channelHasRecentImplementationActivity(a.channelHistory(msg.Channel), msg.ID, a.Info.ID)))):
@@ -211,6 +218,63 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 		goal.RequiredCapabilities = []string{generateImageToolName}
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceImagePosted}
 		goal.Mutation = MutationExternal
+	}
+	// Map/route asks are Neural Canvas artifacts — never run_command / workspace edit.
+	if UserRequestsMapOrRoute(request) {
+		goal.Action = ActionArtifact
+		goal.RequiredCapabilities = []string{mapsCreateToolName}
+		goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
+		goal.Mutation = MutationExternal
+		goal.ImplementationSession = false
+	}
+	// Explicit Neural Canvas / durable visual asks are artifacts. Small local classifiers
+	// often stamp run/inspect/edit (same failure mode as maps) and disable create_artifact.
+	// Mixed "canvas after you fix…" keeps Edit. Pure canvas creates restamp to Artifact.
+	// Revisions also arrive as ActionArtifact via intent open_canvas_artifact policy.
+	if UserRequestsArtifact(request) {
+		override := false
+		switch goal.Action {
+		case ActionRun, ActionInspect, ActionImage:
+			override = true
+		case ActionEdit, ActionContinue:
+			override = !neuralCanvasIsSecondaryToCodeChange(request)
+		}
+		if override {
+			goal.Action = ActionArtifact
+			goal.RequiredCapabilities = []string{createArtifactToolName, updateArtifactToolName}
+			goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
+			goal.Mutation = MutationExternal
+			goal.ImplementationSession = false
+			decision.Action = intent.ActionArtifact
+			decision.RequestedAction = intent.ActionArtifact
+			decision.Mutation = intent.MutationExternal
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "explicit_neural_canvas")
+			_ = protocol.StampTurnDecision(msg, decision)
+			if msg.Metadata != nil {
+				delete(msg.Metadata, protocol.IdeMetaImplementationSession)
+			}
+		}
+	}
+	if goal.Action == ActionArtifact {
+		goal.Mutation = MutationExternal
+		goal.ImplementationSession = false
+		if len(goal.ExpectedEvidence) == 0 {
+			goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
+		}
+		if len(goal.RequiredCapabilities) == 0 {
+			goal.RequiredCapabilities = []string{createArtifactToolName, updateArtifactToolName}
+		} else {
+			hasUpdate := false
+			for _, cap := range goal.RequiredCapabilities {
+				if cap == updateArtifactToolName {
+					hasUpdate = true
+					break
+				}
+			}
+			if !hasUpdate {
+				goal.RequiredCapabilities = append(goal.RequiredCapabilities, updateArtifactToolName)
+			}
+		}
 	}
 	caps := protocol.ResolveTurnCapabilities(msg)
 	// Respect explicit implementation_session metadata even when RequiresWorkspace
@@ -298,6 +362,9 @@ func applyChatModeAdvisoryGoal(msg *protocol.Message, goal *TurnGoal) {
 		return
 	}
 	if msg.IdeEditorModeIsExport() {
+		return
+	}
+	if scenarioHarnessRequestsImplementationSession(msg) {
 		return
 	}
 	advisoryQuestion := isAdvisoryImplementationQuestion(goal.NormalizedRequest) ||
@@ -401,6 +468,41 @@ func (g TurnGoal) RequiresActionEvidence() bool {
 
 func turnGoalRunsImplementationSession(goal TurnGoal) bool {
 	return goal.ImplementationSession
+}
+
+// syncTurnGoalImplementationSession aligns TurnGoal with shouldRunImplementationSession so
+// turn_pipeline stepGenerate and post_process metadata match the session gate.
+func syncTurnGoalImplementationSession(a *Agent, msg *protocol.Message, goal *TurnGoal) {
+	if a == nil || msg == nil || goal == nil {
+		return
+	}
+	if goal.Action == ActionArtifact || goal.Action == ActionImage {
+		return
+	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		switch decision.Action {
+		case intent.ActionArtifact, intent.ActionImage:
+			return
+		}
+	}
+	if UserRequestsMapOrRoute(msg.Content) {
+		return
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		return
+	}
+	goal.ImplementationSession = true
+	goal.Intent = IntentTask
+	switch goal.Action {
+	case ActionAnswer, ActionPlan, ActionInspect, ActionAskUser:
+		if UserRequestsArtifact(goal.NormalizedRequest) {
+			return
+		}
+		goal.Action = ActionEdit
+		goal.Mutation = MutationWorkspace
+		goal.RequiredCapabilities = []string{"workspace_edit"}
+		goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
+	}
 }
 
 type turnGoalContextKey struct{}

@@ -26,6 +26,14 @@ COLLAB_EDGE_KEEP_AGENTS: tuple[str, ...] = (
     "SecurityReviewer",
 )
 
+# Agents required by user-flow implement/collab journeys (FE landing pages, BE services, planning).
+USER_FLOW_KEEP_AGENTS: tuple[str, ...] = (
+    "SoftwareArchitect",
+    "BackendEngineer",
+    "FrontendEngineer",
+    "Claude",
+)
+
 CORE_WAIT_DISCUSSION_DEFAULTS: dict[str, object] = {
     "retry_on_generation_error": True,
     "nudge_silent_agents": True,
@@ -240,7 +248,9 @@ def route_claude_for_regression(hub_url: str) -> tuple[bool, str]:
 
 def slim_roster_keep_agents() -> list[str]:
     """Agents to leave online when NJ_REGRESSION_SLIM_ROSTER is enabled."""
-    if _env_truthy("NJ_REGRESSION_COLLAB_EDGE"):
+    if _env_truthy("NJ_REGRESSION_USER_FLOWS"):
+        keep = list(USER_FLOW_KEEP_AGENTS)
+    elif _env_truthy("NJ_REGRESSION_COLLAB_EDGE"):
         keep = list(COLLAB_EDGE_KEEP_AGENTS)
     else:
         keep = list(COLLAB_CORE_KEEP_AGENTS)

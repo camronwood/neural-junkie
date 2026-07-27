@@ -84,6 +84,11 @@ type TurnFeatures struct {
 	CanProposeFiles      bool       `json:"can_propose_files,omitempty"`
 	CanRunImplementation bool       `json:"can_run_implementation,omitempty"`
 	FrontierAllowed      bool       `json:"frontier_allowed,omitempty"`
+	// Open canvas artifact in the channel (from recent artifact_changed), when present.
+	// Classifier/policy use this for revisions without phrase matching.
+	OpenArtifactID       string `json:"open_artifact_id,omitempty"`
+	OpenArtifactRenderer string `json:"open_artifact_renderer,omitempty"`
+	OpenArtifactTitle    string `json:"open_artifact_title,omitempty"`
 }
 
 type Exchange struct {

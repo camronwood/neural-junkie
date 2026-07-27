@@ -107,6 +107,53 @@ func TestShouldRunImplementationSession_vagueContinuationWithoutThread(t *testin
 	}
 }
 
+func TestShouldRunImplementationSession_scenarioChannelForce(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
+		Context: &ConversationContext{
+			History: map[string][]*protocol.Message{
+				"user-flow-scenarios": {
+					{
+						ID:      "join",
+						Type:    protocol.MessageTypeAgentJoin,
+						From:    protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+						Content: "FrontendEngineer has joined the channel",
+					},
+				},
+			},
+		},
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"user-flow-scenarios",
+		protocol.AgentInfo{ID: "u1", Name: "User"},
+		"can you pick up where you left off?",
+	)
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"implementation_session": true,
+		"conversation_mode":      "code",
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("scenario channel with explicit implementation_session should force session")
+	}
+
+	msg2 := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		protocol.AgentInfo{ID: "u1", Name: "User"},
+		"can you pick up where you left off?",
+	)
+	msg2.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"implementation_session": true,
+		"conversation_mode":      "code",
+	}
+	if shouldRunImplementationSession(a, msg2) {
+		t.Fatal("non-scenario channel should still block vague continuation without thread")
+	}
+}
+
 func TestShouldRunImplementationSession_weakAffirmAfterFailedSession(t *testing.T) {
 	a := &Agent{
 		Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
@@ -317,13 +364,34 @@ func TestDetectVerifyCommands_nodeWithoutModules(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"scripts":{"build":"vite build"},"devDependencies":{"typescript":"5.0.0"}}`)
 	writeFile(t, dir, "tsconfig.json", `{}`)
 	cmds := detectVerifyCommands(dir)
-	for _, c := range cmds {
-		if strings.Contains(c, "npm run build") {
-			t.Fatalf("should not npm build without node_modules, got %v", cmds)
-		}
+	if len(cmds) != 0 {
+		t.Fatalf("should skip node verify without node_modules, got %v", cmds)
 	}
-	if len(cmds) == 0 {
-		t.Fatal("expected tsc/npm exec fallback when node_modules missing but TS dep declared")
+}
+
+func TestDetectVerifyCommands_cargoBuild(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte("[package]\nname=\"test\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmds := detectVerifyCommands(dir)
+	if len(cmds) != 1 || cmds[0] != "cargo build" {
+		t.Fatalf("got %v", cmds)
+	}
+}
+
+func TestDetectVerifyCommands_cargoBuildWithRustHints(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", minimalCargoTomlBody("demo"))
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, dir, "src/main.rs", "fn main() {}\n")
+	state := &ImplementationSessionState{FilesChanged: []string{"src/main.rs"}, RegisteredFiles: []string{"src/main.rs"}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "user-flow-scenarios", protocol.AgentInfo{}, "Rust CLI with src/main.rs")
+	cmds := detectVerifyCommandsForSession(dir, state, msg)
+	if len(cmds) != 1 || cmds[0] != "cargo build" {
+		t.Fatalf("got %v", cmds)
 	}
 }
 

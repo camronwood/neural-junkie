@@ -56,6 +56,9 @@ def run_cmd(args: list[str], *, env: dict[str, str] | None = None) -> int:
     print(f"\n>>> {' '.join(args)}")
     merged = os.environ.copy()
     merged["NEURAL_JUNKIE_RATE_LIMIT"] = "0"
+    # Keep implement/collab specialists online (slim roster pauses FrontendEngineer).
+    merged["NJ_REGRESSION_SLIM_ROSTER"] = "0"
+    merged["NJ_REGRESSION_USER_FLOWS"] = "1"
     if env:
         merged.update(env)
     return subprocess.call(args, cwd=str(ROOT), env=merged)
@@ -69,7 +72,6 @@ def scenarios_dir_for(entry: UserFlowEntry) -> Path | None:
 
 def run_entry(entry: UserFlowEntry, *, verbose: bool) -> int:
     wipe_empty_fixture()
-    verbose_args = ["--verbose"] if verbose else []
     env: dict[str, str] = {}
     pack_dir = scenarios_dir_for(entry)
     if pack_dir is not None:
@@ -83,9 +85,9 @@ def run_entry(entry: UserFlowEntry, *, verbose: bool) -> int:
             entry.name,
             "--hub",
             os.environ.get("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765"),
-            *verbose_args,
         ]
     elif entry.kind == "collab":
+        verbose_args = ["--verbose"] if verbose else []
         cmd = [
             "python3",
             "scripts/collab-scenarios.py",

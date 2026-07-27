@@ -84,6 +84,24 @@ func TestDetectEntryConflicts_appJSAndTSX(t *testing.T) {
 	}
 }
 
+func TestDetectStackManifest_rustPromptHints(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n")
+	writeFile(t, dir, "src/main.rs", "fn main() {}\n")
+
+	m := DetectStackManifest(dir)
+	if m == nil || !m.HasRust {
+		t.Fatalf("expected rust manifest, got %+v", m)
+	}
+	block := m.FormatPromptBlock()
+	for _, want := range []string{"Rust:", "Cargo.toml", "std only", "Copy+Clone"} {
+		if !strings.Contains(block, want) {
+			t.Fatalf("prompt block missing %q:\n%s", want, block)
+		}
+	}
+}
+
 func writeFile(t *testing.T, root, rel, content string) {
 	t.Helper()
 	path := filepath.Join(root, rel)

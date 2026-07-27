@@ -47,7 +47,8 @@ func isRegressionHarnessChatChannel(channel string) bool {
 // file edits from implement-scenarios into chat scenario channels.
 func hubChannelAllowsIDEAutoApprove(channel string, msg *protocol.Message) bool {
 	ch := strings.TrimSpace(channel)
-	if ch == "implement-scenarios" {
+	switch ch {
+	case "implement-scenarios", "user-flow-scenarios", "parity-scenarios":
 		return true
 	}
 	if isRegressionHarnessChatChannel(ch) {

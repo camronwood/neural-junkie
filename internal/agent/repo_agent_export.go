@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -415,4 +416,128 @@ func (ra *RepoAgent) getLanguages() []string {
 	}
 
 	return languages
+}
+
+// HydrateFromExport builds ra.index from embedded MCP resources (knowledge-only import).
+// Does not re-index from disk. repoPathOverride becomes index.Path when non-empty.
+func (ra *RepoAgent) HydrateFromExport(export *mcp_export.AgentExport, repoPathOverride string) error {
+	if export == nil {
+		return fmt.Errorf("nil export")
+	}
+	path := strings.TrimSpace(repoPathOverride)
+	if path == "" {
+		path = strings.TrimSpace(export.Agent.Repository)
+	}
+	if path == "" {
+		path = "(hydrated)"
+	}
+	name := export.Agent.Name
+	if name == "" {
+		name = "Imported Repo"
+	}
+
+	idx := &repo.RepositoryIndex{
+		Path:         path,
+		Name:         name,
+		LastIndexed:  time.Now(),
+		KeyFiles:     map[string]string{},
+		Dependencies: map[string][]string{},
+		SourceFiles:  map[string]*repo.SourceFile{},
+		FileModTimes: map[string]time.Time{},
+	}
+
+	var totalSize int64
+	for _, r := range export.Resources {
+		uri := r.URI
+		content := r.Content
+		switch {
+		case uri == "repo://architecture":
+			idx.ArchitectureDoc = content
+		case uri == "repo://patterns":
+			for _, line := range strings.Split(content, "\n") {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					idx.CodePatterns = append(idx.CodePatterns, line)
+				}
+			}
+		case uri == "repo://dependencies":
+			// Keep as a single synthetic key for prompt grounding
+			idx.Dependencies["exported"] = []string{content}
+		case uri == "repo://git":
+			idx.GitInfo = &repo.GitInfo{LastCommitMsg: content}
+		case strings.HasPrefix(uri, "repo://files/"):
+			rel := strings.TrimPrefix(uri, "repo://files/")
+			if isLikelyKeyFile(rel) {
+				idx.KeyFiles[rel] = content
+			} else {
+				compressed, compressedSize, err := repo.CompressContent(content)
+				if err != nil {
+					idx.KeyFiles[rel] = content
+					continue
+				}
+				lang := languageFromFilename(rel)
+				idx.SourceFiles[rel] = &repo.SourceFile{
+					Path:           rel,
+					Language:       lang,
+					Size:           int64(len(content)),
+					CompressedSize: compressedSize,
+					Content:        compressed,
+					ModTime:        time.Now(),
+				}
+			}
+			totalSize += int64(len(content))
+		}
+	}
+
+	idx.FileCount = len(idx.KeyFiles) + len(idx.SourceFiles)
+	idx.TotalSize = totalSize
+	if idx.ArchitectureDoc == "" && export.SystemPrompt != "" {
+		idx.ArchitectureDoc = "Hydrated from Share Agent export.\n\n" + truncateForArch(export.SystemPrompt, 4000)
+	}
+
+	ra.mu.Lock()
+	ra.index = idx
+	if path != "(hydrated)" {
+		ra.repoPath = path
+	}
+	ra.mu.Unlock()
+
+	ra.Info.Expertise = export.Agent.Expertise
+	export.HydratedFromResources = true
+	return nil
+}
+
+func isLikelyKeyFile(name string) bool {
+	base := filepath.Base(name)
+	for _, k := range repo.KeyFileTypes {
+		if strings.EqualFold(base, k) {
+			return true
+		}
+	}
+	return false
+}
+
+func languageFromFilename(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	if lang, ok := repo.LanguageExtensions[ext]; ok {
+		return lang
+	}
+	return ""
+}
+
+func truncateForArch(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
+// StartHydrated starts the agent without disk indexing (index already set via HydrateFromExport).
+func (ra *RepoAgent) StartHydrated(ctx context.Context, channel string) error {
+	ra.Context.CurrentChannel = channel
+	if err := ra.AddChannel(ctx, channel); err != nil {
+		return err
+	}
+	go ra.discoverChannels(ctx)
+	return nil
 }

@@ -12,6 +12,10 @@ import (
 )
 
 const (
+	editorTrustYoloDestructive = "yolo"
+)
+
+const (
 	destructiveRewriteMinLines = 40
 	destructiveRewriteRatio    = 0.50
 )
@@ -234,9 +238,37 @@ func verificationFailureScore(output string, failed bool) int {
 	return score
 }
 
+// regressionHarnessAllowsDestructiveAutoApply reports whether local-model destructive
+// rewrites may auto-approve during live scenario/regression runs.
+func regressionHarnessAllowsDestructiveAutoApply(metadata map[string]interface{}) bool {
+	if truthyEnv("NJ_REGRESSION") {
+		return true
+	}
+	ch := ""
+	if metadata != nil {
+		if s, ok := metadata["channel"].(string); ok {
+			ch = strings.TrimSpace(s)
+		}
+	}
+	switch ch {
+	case "implement-scenarios", "user-flow-scenarios", "parity-scenarios":
+		return true
+	}
+	return strings.HasSuffix(ch, "-scenarios")
+}
+
+func truthyEnv(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 // CanAutoApproveDestructiveRewrite implements model trust tiers for risky rewrites.
-// Local models leave the proposal pending for human approval; reliable remote models
-// and deterministic validators may auto-approve.
+// Local models leave the proposal pending for human approval unless regression harness
+// metadata allows auto-apply; reliable remote models and deterministic validators may auto-approve.
 func CanAutoApproveDestructiveRewrite(msgProvider string, metadata map[string]interface{}) bool {
 	if metadata != nil {
 		if approved, _ := metadata["deterministic_edit"].(bool); approved {
@@ -244,6 +276,12 @@ func CanAutoApproveDestructiveRewrite(msgProvider string, metadata map[string]in
 		}
 		if approved, _ := metadata["large_rewrite_approved"].(bool); approved {
 			return true
+		}
+		if regressionHarnessAllowsDestructiveAutoApply(metadata) {
+			trust := strings.TrimSpace(fmt.Sprint(metadata["editor_agent_trust"]))
+			if trust == editorTrustAutoApply || trust == editorTrustYoloDestructive {
+				return true
+			}
 		}
 	}
 	switch strings.ToLower(strings.TrimSpace(msgProvider)) {

@@ -61,6 +61,8 @@ func TestUserRequestsGeneratedImage(t *testing.T) {
 		{name: "unrelated question", content: "what time is it?", want: false},
 		{name: "delivery boilerplate", content: "🖼️ Generated image.", want: false},
 		{name: "past tense status", content: "generated image attached for review", want: false},
+		{name: "neural canvas mermaid", content: "Create a Neural Canvas Mermaid diagram of this architecture", want: false},
+		{name: "neural canvas chart", content: "Show me a Neural Canvas chart of coverage", want: false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

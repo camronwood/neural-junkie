@@ -23,6 +23,8 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 | IDE v4 (LSP, remote SSH) | [IDE_V4.md](docs/IDE_V4.md) · [feature guide](docs/features/ide-v4.html) |
 | Remote workspaces | [REMOTE_WORKSPACES.md](docs/REMOTE_WORKSPACES.md) |
 | Context model v2 | [CONTEXT_MODEL.md](docs/CONTEXT_MODEL.md) |
+| Composition Model | [COMPOSITION_MODEL.md](docs/COMPOSITION_MODEL.md) |
+| ComfyUI comparison (learnings) | [COMFY_COMPARISON.md](docs/COMFY_COMPARISON.md) |
 | Slack Connect | [SLACK_INTEGRATION.md](docs/SLACK_INTEGRATION.md) |
 | Personal learning v2 | [PERSONAL_LEARNING_V2.md](docs/PERSONAL_LEARNING_V2.md) |
 | Repo indexing agents | [REPO_AGENTS.md](docs/REPO_AGENTS.md) |

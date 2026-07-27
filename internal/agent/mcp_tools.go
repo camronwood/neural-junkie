@@ -175,6 +175,8 @@ func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, 
 		system.WriteString("You have access to the following OpenSCAD tools:\n")
 	case protocol.AgentTypeManufacturing:
 		system.WriteString("You have access to the following manufacturing tools:\n")
+	case protocol.AgentTypeMaps:
+		system.WriteString("You have access to the following maps tools:\n")
 	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		system.WriteString("You have access to the following life-sciences analysis tools:\n")
 	default:
@@ -198,6 +200,9 @@ func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, 
 	case protocol.AgentTypeManufacturing:
 		system.WriteString("\nUse manufacturing tools when the user asks about printability, mesh repair, slicer export, G-code, or STEP/drawings.\n")
 		system.WriteString("Run check_printability on STL paths before recommending print.\n\n")
+	case protocol.AgentTypeMaps:
+		system.WriteString("\nUse maps_geocode and maps_route for lookups; publish maps with maps_create / maps_update.\n")
+		system.WriteString("Never invent coordinates — geocode first.\n\n")
 	case protocol.AgentTypeBiology, protocol.AgentTypeGenomics, protocol.AgentTypeStructuralBiology, protocol.AgentTypeCheminformatics:
 		system.WriteString("\nUse biology tools when the user asks about sequences, structures, or scan data.\n")
 		system.WriteString("When workspace context includes scan paths, call the matching summarize tool immediately.\n\n")
@@ -297,6 +302,11 @@ func (a *Agent) generateWithMCPTools(
 			if req.Name == "run_command" {
 				callCtx = shared.ContextWithRunCommandExtraAllows(callCtx, mcpAppConfig().RunCommandAllowExtra())
 				cmd := parseRunCommandToolInput(req.Input)
+				if lastMsg != nil && neuralCanvasDeliverableTurn(lastMsg) {
+					errMsg := "ERROR: run_command is unavailable for Neural Canvas turns — use create_artifact or update_artifact instead of shell tools (e.g. npx mermaid)."
+					storeRunCommandTurnResult(ctx, cmd, errMsg)
+					return errMsg, nil
+				}
 				if cached, ok := lookupOrStoreRunCommandResult(ctx, cmd, "", false); ok {
 					log.Printf("[%s] Skipping duplicate run_command this turn: %s", a.Info.Name, truncateImplLog(cmd, 120))
 					return cached + "\n\n[Note: identical run_command already executed this turn; reused prior result.]", nil

@@ -325,6 +325,16 @@ func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protoco
 	if intent == IntentLowSignal || intent == IntentMeta || intent == IntentClosure {
 		return false
 	}
+	// MapsExpert answers via geocode/route tools — shared IDE workspace must not
+	// flip the turn into codebase grounding / FILE_CHANGE mode.
+	if a != nil && a.Info.Type == protocol.AgentTypeMaps {
+		if msg != nil && (UserRequestsMapOrRoute(msg.Content) || mapEndpointsLookGeographic(msg.Content)) {
+			return false
+		}
+		if msg == nil || (!userRequestsImplementationForMessage(a, msg) && len(DetectFilePaths(msg.Content)) == 0) {
+			return false
+		}
+	}
 	if a.Info.Type == protocol.AgentTypeAssistant && a.isDMChannel(msg.Channel) &&
 		!assistantAllowsImplementationSession(a, msg) {
 		return false

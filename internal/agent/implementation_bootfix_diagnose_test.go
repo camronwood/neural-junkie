@@ -111,6 +111,8 @@ func TestCommandOutputMatchesPlaybook_expandedSignatures(t *testing.T) {
 		"bootfix_hint=dev_server_timeout\nDev server command timed out": "dev_server_timeout",
 		"Error: listen EADDRINUSE: address already in use :::5177":   "vite_strict_port_conflict",
 		"strictPort is true and port 5177 is in use, trying 5179":    "vite_strict_port_conflict",
+		"error[E0432]: unresolved import `rand`":                     "rust_missing_crate",
+		"error[E0433]: use of undeclared crate `rand`":               "rust_missing_crate",
 	}
 	for output, want := range cases {
 		if got := commandOutputMatchesPlaybook(output); got != want {

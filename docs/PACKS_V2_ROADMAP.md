@@ -253,6 +253,16 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ---
 
+### 9. Maps (`maps`)
+
+**v1 today:** **MapsExpert** — Nominatim geocode + OSRM walking/driving routes via pack sidecar, interactive Neural Canvas `nj.map` artifacts (Leaflet + OSM tiles). No API keys for public OSM endpoints.
+
+**v2 goals:** bike/transit profiles, optional self-hosted OSRM, traffic-aware providers behind settings, richer itinerary editing on canvas.
+
+**Repo:** [neural-junkie-pack-maps](https://github.com/camronwood/neural-junkie-pack-maps)
+
+---
+
 
 
 ## Suggested sequencing

@@ -258,7 +258,7 @@ Goal: talk to your home-hub agents from **NJ Pocket anywhere**, without turning 
 
 ### Product framing
 
-> Anywhere access = thin Cloudflare tunnel / session relay, **not** cloud AI.
+> Anywhere access = per-hub dedicated outbound tunnel (free edge), **not** cloud AI and **not** a shared multi-tenant chat broker.
 
 Slack already proves the *product* shape today: phone → agents on your machine (personal inbox / away mode), with the hub staying local. Pocket would be the first-party surface for that, without requiring Slack as the UI.
 
@@ -270,33 +270,99 @@ Slack already proves the *product* shape today: phone → agents on your machine
 | Slack Socket Mode bridge | Hub opens **outbound** connection; no public hub URL | Pattern for hub → edge durable connect |
 | Personal inbox / away mode | Phone DMs reach local agents | UX proof that "from phone while hub runs locally" works |
 
-The OAuth Worker itself is **not** enough — it is a one-shot HTTPS redirect. Pocket needs a **durable tunnel / session relay**.
+The OAuth Worker itself is **not** enough — it is a one-shot HTTPS redirect. Pocket needs a **per-hub durable tunnel**, not a shared chat proxy.
 
 ### Recommended shape
 
 ```mermaid
 flowchart LR
-  Phone[NJ Pocket] -->|HTTPS or WSS| Edge[CF Worker / Durable Object]
-  Hub[Local hub] -->|outbound persistent connect| Edge
-  Edge -.->|forward chat / sync| Hub
+  Hub[Local hub] -->|outbound tunnel| Tunnel[Per-hub unique hostname]
+  Phone[NJ Pocket] -->|HTTPS or WSS + device auth| Tunnel
+  Hub -.->|optional publish URL| Rendezvous[Thin rendezvous Worker]
+  Phone -.->|optional refresh URL| Rendezvous
 ```
 
-- Hub opens an **outbound** connection to the free edge (same idea as Slack Socket Mode — no inbound port, no public hub listen URL).
-- Pocket talks only to the relay (authenticated device credential).
+- On **Enable away / Pocket relay**, the hub auto-creates **its own outbound tunnel** to a free edge (e.g. Cloudflare Tunnel / `cloudflared`) and gets a unique hostname.
+- Pocket connects **directly to that hub’s tunnel**, not through a multi-tenant chat broker NJ operates.
 - Agents, tools, memory, and approvals still run on the **home hub**.
-- Edge stays thin: auth, fan-in, and short-lived forward — not model hosting, not long-term message storage as source of truth.
+- Optional shared Worker is **rendezvous only** (hand out / refresh the hostname) — it does **not** proxy chat payloads.
+
+### Architecture: dedicated relay per hub
+
+Security preference: **one private relay endpoint per hub**, auto-provisioned when away mode is enabled. Chat traffic for user A never shares a multi-tenant session broker with user B.
+
+| Approach | Meaning | Decision |
+| --- | --- | --- |
+| **Per-hub dedicated outbound tunnel** | Each hub runs its own tunnel client; unique hostname; Pocket dials that URL with device credentials | **Preferred** — smaller blast radius, no channel-mixup class of bug |
+| Shared Worker + per-user channel (DO) | One `nj-pocket-relay` proxies all tenants’ chat | Fallback only — if dedicated tunnels are unavailable or too flaky |
+| Shared Worker + E2E encrypted frames | Shared broker, payloads sealed with pairing keys | Optional hardening for the fallback path |
+
+**Product line:** “your own private channel” = a **dedicated tunnel endpoint per hub**, not merely a logical channel on a shared Worker.
+
+Why dedicated wins on security:
+
+| Risk | Shared multi-tenant Worker | Per-hub tunnel |
+| --- | --- | --- |
+| Channel mixup / wrong-hub bug | Possible | Much harder |
+| Compromised NJ edge | All tenants’ in-flight traffic | Blast radius = one hub |
+| Operator visibility | NJ-operated broker sees frames | Chat path is hub ↔ Cloudflare ↔ phone |
+
+#### Tunnel provisioning (auto-create per user/hub)
+
+1. User pairs Pocket ↔ hub on LAN (existing pairing flow) — exchanges device credentials and long-term keys.
+2. On desktop: **Enable away / Pocket relay**.
+3. Hub starts an outbound tunnel client (no inbound port, no public listen on the LAN).
+4. Free edge assigns a unique hostname (quick path: quick tunnel / `*.trycloudflare.com`; durable path: named Cloudflare Tunnel when we want stable URLs).
+5. Hub stores the hostname + a **relay grant** (rotatable). Pocket receives the URL via LAN pairing sync and/or optional rendezvous refresh.
+6. Pocket dials `https://<hub-tunnel>/…` (or WSS) with the device credential; hub authenticates before accepting Pocket chat frames.
+7. Revoke / disable away mode: tear down the tunnel, rotate grant, invalidate stored URLs on devices.
+
+Do **not** auto-enable away relay just because LAN pairing succeeded. Do **not** expose the full hub HTTP API on the tunnel — only the small Pocket chat / sync-cursor surface behind auth.
+
+#### Rendezvous Worker (optional, thin)
+
+A separate `nj-pocket-rendezvous` Worker (not Slack OAuth, not a chat proxy) may store:
+
+```text
+hub_install_id → { tunnel_hostname, relay_grant_fingerprint, updated_at }
+```
+
+Use it only so Pocket can refresh a rotated hostname when off LAN. Message bodies never transit the rendezvous. Same CF account as Slack OAuth is fine; **do not** bolt this onto `workers/slack-oauth-relay/`.
+
+| Concern | Slack OAuth relay | Pocket rendezvous | Per-hub tunnel |
+| --- | --- | --- | --- |
+| Lifetime | One-shot redirect | Hostname metadata | Durable hub ↔ phone path |
+| Carries chat? | No | **No** | Yes (to that hub only) |
+| Blast radius | Connect Slack | URL disclosure | One hub |
+
+#### Auth grant model
+
+Away relay is a **second capability** on top of LAN pairing — same device identity family, separate grant.
+
+1. LAN pair establishes device credential (+ optional E2E keys for fallback path).
+2. Away enable creates/rotates the per-hub tunnel and relay grant.
+3. Hub accepts Pocket connections only when `device ∈ grant` for that hub.
+4. Desktop Settings revoke drops grant and/or device and stops the tunnel immediately.
+
+#### Fallback: shared Worker broker
+
+If dedicated tunnels cannot ship first (client packaging, free-tier hostname churn, corporate network blocks):
+
+- Temporary `nj-pocket-relay` with Durable Object per hub channel is allowed as a **fallback**, preferably with **E2E encrypted frames** so the shared edge cannot read chat.
+- Treat fallback as explicitly lower isolation in Settings copy (“shared relay — encrypted”) vs dedicated (“private tunnel”).
+- Prefer migrating users to dedicated tunnels when available; do not make the shared broker the long-term default.
 
 ### Design constraints
 
 - Opt-in separately from LAN sync ("Enable away / Pocket relay").
 - Reuse the same **device pairing credential** model as local sync; revoke from desktop Settings.
-- Do not expose the full hub HTTP API on the public internet; keep a small Pocket surface (chat send/receive, optional sync cursor).
-- Prefer the same free Cloudflare footprint we already use for Slack OAuth; AWS Lambda is an optional alternate (same as OAuth relay).
-- When the hub is offline, Pocket falls back to on-device chat / offline queue — same as LAN-unavailable behavior.
+- Do not expose the full hub HTTP API on the public tunnel; keep a small Pocket surface (chat send/receive, optional sync cursor).
+- Prefer free Cloudflare Tunnel (per hub) for the chat path; optional thin rendezvous Worker on the same free CF footprint as Slack OAuth.
+- When the hub is offline (or tunnel down), Pocket falls back to on-device chat / offline queue — same as LAN-unavailable behavior.
 
 ### Implementation note (later phase)
 
-Land LAN pairing + offline-first Pocket first. Add the edge relay once pairing and the Pocket chat API are stable — otherwise "anywhere" couples tunnel ops to product discovery.
+Land LAN pairing + offline-first Pocket first. Add per-hub away tunnels once pairing and the Pocket chat API are stable — otherwise "anywhere" couples tunnel packaging (e.g. `cloudflared`) and hostname churn to product discovery.
 
 References:
 
@@ -360,7 +426,7 @@ The important design choice is not the exact path names. It is keeping sync as a
 4. Bidirectional sync for notes/tasks/reminders
 5. DM/thread sync
 6. Desktop handoff polish
-7. Optional: anywhere access via edge tunnel relay (after Pocket chat API is stable)
+7. Optional: anywhere access via per-hub dedicated tunnel (after Pocket chat API is stable)
 
 This order proves product value before taking on full mobile/desktop convergence, and keeps "from anywhere" off the critical path for v1.
 
@@ -371,8 +437,10 @@ This order proves product value before taking on full mobile/desktop convergence
 - Should synced conversations be limited to DMs and personal channels in v1?
 - How much of Assistant state should be editable on mobile vs view-only?
 - Should pairing be per-user, per-device, or per-desktop install?
-- For anywhere access: CF Durable Objects vs plain Worker + external session store? Same workers.dev account as Slack OAuth, or a separate `nj-pocket-relay` Worker?
-- Should Pocket anywhere share device credentials with LAN sync, or require a second "away relay" grant?
+- Anywhere access transport: **prefer per-hub dedicated outbound tunnel** (auto-create on away enable). Shared Worker broker is fallback only (ideally E2E encrypted). See [Architecture: dedicated relay per hub](#architecture-dedicated-relay-per-hub).
+- Optional thin `nj-pocket-rendezvous` Worker for hostname refresh only — never proxies chat; keep separate from Slack OAuth.
+- Auth: **same device credential family as LAN sync**, plus an explicit second **away relay grant** (opt-in, revocable from desktop).
+- Quick tunnel (`*.trycloudflare.com`) vs named Cloudflare Tunnel for stable hostnames — which ships first?
 - If a PWA is enough for chat + pairing + relay, should native Android APK stay optional forever?
 
 ## Distribution (stay free)
@@ -383,7 +451,7 @@ Prefer distribution that costs **$0**:
 
 | Path | When | Cost |
 | --- | --- | --- |
-| **PWA / mobile web** (LAN hub or edge relay) | Default v1 | $0 (Cloudflare free tier if using the relay) |
+| **PWA / mobile web** (LAN hub or per-hub tunnel) | Default v1 | $0 (Cloudflare Tunnel free path; optional thin rendezvous Worker) |
 | **Android APK** on GitHub Releases | Optional later | $0 (sideload; no Play Console) |
 | **Slack personal inbox / away mode** | Interim phone UI today | $0 (already shipped) |
 | App Store / Play Store | Only if discovery clearly requires it | Account fees even for free apps (~$99/yr Apple, ~$25 Google one-time) — **avoid by default** |
@@ -394,7 +462,7 @@ Do **not** plan native store submissions as a prerequisite for Pocket. Treat sto
 
 If this ships, it should ship as:
 
-> A separate NJ companion app with a small local model, offline-first chat, and explicit local sync to desktop NJ — with a later optional thin edge relay so Pocket can reach the home hub from anywhere without hosting the AI in the cloud. Distributed as a **free** PWA (and optional sideload), not as a paid-store product.
+> A separate NJ companion app with a small local model, offline-first chat, and explicit local sync to desktop NJ — with a later optional **per-hub dedicated outbound tunnel** so Pocket can reach the home hub from anywhere without hosting the AI in the cloud (shared Worker only as rendezvous or encrypted fallback). Distributed as a **free** PWA (and optional sideload), not as a paid-store product.
 
 Not:
 

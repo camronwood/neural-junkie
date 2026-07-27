@@ -74,7 +74,9 @@ export function ArtifactRendererHost({
     <NeuralCanvasErrorBoundary
       key={`${artifact.id}:${artifact.revision ?? 0}:${resolution.registration.id}`}
     >
-      {createElement(resolution.registration.component, { artifact, compact })}
+      <div className={compact ? undefined : 'h-full min-h-0'}>
+        {createElement(resolution.registration.component, { artifact, compact })}
+      </div>
     </NeuralCanvasErrorBoundary>
   );
 }

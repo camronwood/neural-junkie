@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from scenario_assert import check_text_patterns
+    from scenario_assert import check_contains_all, check_text_patterns
 except ImportError:  # imported as lib.scenario_wait (scripts/ on sys.path)
-    from lib.scenario_assert import check_text_patterns
+    from lib.scenario_assert import check_contains_all, check_text_patterns
 
 
 def metadata_get(meta: dict, dotted: str) -> Any:
@@ -58,9 +58,14 @@ def disk_wait_satisfied(root: Path, step: dict) -> tuple[bool, str]:
     if not has_disk:
         return True, ""
 
+    file_min_bytes = int(step.get("min_bytes") or 0)
+
     for rel in until_files:
         path = (root / rel).resolve()
-        if not (path.is_file() and path.stat().st_size > 0):
+        if not path.is_file():
+            return False, f"waiting for file {rel}"
+        size = path.stat().st_size
+        if size <= 0 or (file_min_bytes > 0 and size < file_min_bytes):
             return False, f"waiting for file {rel}"
         details.append(f"exists:{rel}")
 
@@ -80,9 +85,13 @@ def disk_wait_satisfied(root: Path, step: dict) -> tuple[bool, str]:
         candidates = [rel] + [str(a).strip() for a in alts if str(a).strip()]
         body = ""
         matched_rel = ""
+        match_min_bytes = int(until_file_match.get("min_bytes") or 0)
         for candidate in candidates:
             path = (root / candidate).resolve()
             if not path.is_file():
+                continue
+            size = path.stat().st_size
+            if size <= 0 or (match_min_bytes > 0 and size < match_min_bytes):
                 continue
             try:
                 body = path.read_text(encoding="utf-8", errors="replace")
@@ -91,7 +100,10 @@ def disk_wait_satisfied(root: Path, step: dict) -> tuple[bool, str]:
             matched_rel = candidate
             break
         if not matched_rel:
-            return False, f"waiting for file {rel}"
+            alt_note = ""
+            if len(candidates) > 1:
+                alt_note = f" (tried {', '.join(candidates)})"
+            return False, f"waiting for file {rel}{alt_note}"
         contains = str(until_file_match.get("contains") or "")
         if contains and contains not in body:
             return False, f"file:{matched_rel} missing contains {contains!r}"
@@ -101,12 +113,12 @@ def disk_wait_satisfied(root: Path, step: dict) -> tuple[bool, str]:
             none_match=until_file_match.get("none_match"),
             label=f"file:{matched_rel}",
         )
-        if ok:
-            for needle in until_file_match.get("contains_all") or []:
-                if str(needle) not in body:
-                    ok = False
-                    detail = f"file:{matched_rel} missing {needle!r}"
-                    break
+        if ok and until_file_match.get("contains_all"):
+            ok, detail = check_contains_all(
+                body,
+                list(until_file_match.get("contains_all") or []),
+                label=f"file:{matched_rel}",
+            )
         if not ok:
             return False, detail
         details.append(f"match:{matched_rel}")

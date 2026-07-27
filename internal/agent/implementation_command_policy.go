@@ -379,9 +379,12 @@ func commandOutputMatchesPlaybook(output string) string {
 		return "python_module_not_found"
 	case strings.Contains(output, "undefined:") && strings.Contains(output, ".go:"):
 		return "go_undefined_symbol"
-	case strings.Contains(output, "cannot find crate"),
+	case strings.Contains(output, "error[e0432]"),
+		strings.Contains(output, "error[e0433]"),
+		strings.Contains(output, "undeclared crate"),
+		strings.Contains(output, "cannot find crate"),
 		strings.Contains(output, "could not find `"):
-		return "rust_cannot_find_crate"
+		return "rust_missing_crate"
 	case strings.Contains(output, "assertionerror"),
 		strings.Contains(output, "assertion failed"),
 		strings.Contains(output, "--- fail:"):

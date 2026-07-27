@@ -183,6 +183,14 @@ func UserRequestsGeneratedImage(content string) bool {
 	if imageGenerationNegationRE.MatchString(c) {
 		return false
 	}
+	// Geographic map/route asks belong to MapsExpert (nj.map), not FLUX image gen.
+	if UserRequestsMapOrRoute(c) {
+		return false
+	}
+	// Neural Canvas / Mermaid / durable artifacts are create_artifact, not FLUX.
+	if UserRequestsArtifact(c) {
+		return false
+	}
 	phrases := []string{
 		"make it an image", "make this an image", "as an image", "as a png",
 		"generate an image", "generate a image", "create an image", "draw me",

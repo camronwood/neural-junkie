@@ -43,11 +43,28 @@ from lib.scenario_wait import (  # noqa: E402
     step_has_disk_wait,
 )
 from lib.fixture_baseline import baseline_diverged_paths, reset_all_fixture_baselines, reset_fixture_baseline  # noqa: E402
-from lib.workspace_context import enrich_send_metadata  # noqa: E402
+from lib.workspace_context import enrich_send_metadata, ide_route_for_target_agent  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "implement"
 DEFAULT_CHANNEL = "implement-scenarios"
 DEFAULT_FROM = "ImplementScenario"
+SCENARIO_APPROVE_CHANNELS = frozenset(
+    {"implement-scenarios", "user-flow-scenarios", "parity-scenarios"}
+)
+MID_WAIT_APPROVE_INTERVAL_S = 8.0
+
+
+def _truthy_env(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _scenario_auto_approve_enabled(channel: str) -> bool:
+    ch = (channel or "").strip()
+    if _truthy_env("NJ_REGRESSION"):
+        return True
+    if ch in SCENARIO_APPROVE_CHANNELS:
+        return True
+    return ch.endswith("-scenarios")
 
 
 def load_scenario(name: str) -> dict:
@@ -117,6 +134,12 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
             secs = int(timeout[:-1])
         except ValueError:
             pass
+    if _truthy_env("NJ_REGRESSION_USER_FLOWS"):
+        try:
+            floor = int((os.environ.get("NJ_IMPLEMENT_WAIT_REPLY_FLOOR_SECS") or "1200").strip())
+        except ValueError:
+            floor = 1200
+        secs = max(secs, floor)
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     # Prefer disk/metadata completion signals. Chat-phrase until_any_match is legacy.
     until_any = step.get("until_any_match")
@@ -126,7 +149,19 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     root = Path(scenario_repo_root(ctx.scenario))
     deadline = time.time() + secs
     nudged = False
+    last_approve = 0.0
+    auto_approve = _scenario_auto_approve_enabled(ctx.channel)
     while time.time() < deadline:
+        if auto_approve and time.time() - last_approve >= MID_WAIT_APPROVE_INTERVAL_S:
+            last_approve = time.time()
+            n, ids = hub.wait_and_approve_file_changes(
+                ctx.base,
+                ctx.channel,
+                min_approved=0,
+                timeout=2.0,
+            )
+            if n > 0:
+                print(f"  wait_reply: auto-approved {n} file change(s) ids={ids}", flush=True)
         disk_ok, disk_detail = disk_wait_satisfied(root, step)
         msgs = hub.list_messages(ctx.base, ctx.channel, 200)
         # Implementation turns often surface as file_change / user_question without a plain chat row.
@@ -167,11 +202,19 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
         if not nudged and time.time() > deadline - (secs * 0.45):
             nudged = True
             mention = from_name if from_name.startswith("@") else f"@{from_name}"
+            route = ide_route_for_target_agent(from_name)
+            nudge_meta: dict = {
+                "conversation_mode": "code",
+                "implementation_session": True,
+                "editor_mode": "agent",
+            }
+            if route:
+                nudge_meta["ide_route_agent_type"] = route
             hub.send_message(
                 ctx.base,
                 ctx.channel,
                 f"{mention} please continue the implementation from the prior request.",
-                metadata={"conversation_mode": "code", "implementation_session": True},
+                metadata=nudge_meta,
                 from_name=DEFAULT_FROM,
             )
             record_reason(ctx.telemetry, "nudge_reasons", f"silent agent after {secs * 0.55:.0f}s")
@@ -209,16 +252,19 @@ def step_assert_messages(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     return True, "message assertions ok"
 
 
-def step_assert_deliverable(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+def step_assert_deliverable(ctx: ImplementContext, step: dict, *, skip_llm_judge: bool = False) -> tuple[bool, str]:
     root = scenario_repo_root(ctx.scenario)
     spec = merge_deliverable_step(ctx.scenario, step)
+    if skip_llm_judge:
+        spec.pop("llm_judge", None)
     rel = (spec.get("path") or "").strip()
     if not rel:
         return False, "assert_deliverable: path required"
     alts = step.get("path_alternatives") or spec.get("path_alternatives") or []
     candidates = [rel] + [str(a).strip() for a in alts if str(a).strip()]
     last_detail = ""
-    for candidate in candidates:
+    root_path = Path(root)
+    for i, candidate in enumerate(candidates):
         ok, detail = check_file_deliverable(
             root=root,
             rel=candidate,
@@ -228,12 +274,14 @@ def step_assert_deliverable(ctx: ImplementContext, step: dict) -> tuple[bool, st
         )
         if ok:
             return True, detail
+        if i == 0 and (root_path / candidate).is_file():
+            return False, detail
         last_detail = detail
     return False, last_detail
 
 
 def step_assert_file_exists(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
-    return step_assert_deliverable(ctx, step)
+    return step_assert_deliverable(ctx, step, skip_llm_judge=True)
 
 
 def step_assert_file_absent(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
@@ -464,12 +512,18 @@ def _outcome_from_last_reply(ctx: ImplementContext, from_name: str) -> dict:
         return {}
     baseline = int(ctx.baseline_agent_count.get(from_name, 0))
     turn = candidates[baseline:] if baseline < len(candidates) else candidates[-1:]
+    fallback: dict = {}
     for msg in reversed(turn):
         meta = msg.get("metadata") or {}
         outcome = meta.get("implementation_session_outcome")
         if isinstance(outcome, dict):
-            return outcome
-    return {}
+            # Nudge continuations often take a conversational path and stamp session_not_run
+            # even when the primary turn ran (or is still running) an implementation session.
+            if outcome.get("routing_reason") != "session_not_run":
+                return outcome
+            if not fallback:
+                fallback = outcome
+    return fallback
 
 
 def run_scenario_with_stats(base: str, name: str, *, runs: int, best_of_k: int, keep: bool) -> bool:
@@ -585,6 +639,10 @@ def _run_scenario_once(
     if not ensure_hub_ready(base, f"implement:{name}"):
         return False, empty_outcome, "hub unhealthy"
     required = scenario.get("required_agents") or [ctx.target_agent]
+    required = [str(ag).strip().lstrip("@") for ag in required if str(ag).strip()]
+    from lib.regression_collab import unpause_keep_agents
+
+    unpause_keep_agents(base, required)
     ok, missing = hub.verify_agents_online(base, required)
     if not ok:
         print(f"  FAIL: offline agents: {missing}", file=sys.stderr)

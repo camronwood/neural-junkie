@@ -8,13 +8,26 @@ import (
 
 // AgentExport represents a complete MCP export of an agent's knowledge
 type AgentExport struct {
-	Version      string        `json:"version"`
-	Agent        AgentMetadata `json:"agent"`
-	Resources    []MCPResource `json:"resources"`
-	Prompts      []MCPPrompt   `json:"prompts"`
-	SystemPrompt string        `json:"systemPrompt"`
-	ExportedAt   time.Time     `json:"exportedAt"`
-	LoRA         *LoRAMetadata `json:"lora,omitempty"`
+	Version               string          `json:"version"`
+	Agent                 AgentMetadata   `json:"agent"`
+	Resources             []MCPResource   `json:"resources"`
+	Prompts               []MCPPrompt     `json:"prompts"`
+	SystemPrompt          string          `json:"systemPrompt"`
+	ExportedAt            time.Time       `json:"exportedAt"`
+	LoRA                  *LoRAMetadata   `json:"lora,omitempty"`
+	CustomRulesMarkdown   string          `json:"custom_rules_markdown,omitempty"`
+	Learnings             []LearningEntry `json:"learnings,omitempty"`
+	HydratedFromResources bool            `json:"hydrated_from_resources,omitempty"` // set on import when knowledge-only
+}
+
+// LearningEntry is a portable learning row (subset of learning.Entry for share bundles).
+type LearningEntry struct {
+	Content     string `json:"content"`
+	Category    string `json:"category,omitempty"`
+	Scope       string `json:"scope,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	AgentType   string `json:"agent_type,omitempty"`
+	ContentHash string `json:"content_hash,omitempty"`
 }
 
 // LoRAMetadata describes composed adapter metadata (v2).

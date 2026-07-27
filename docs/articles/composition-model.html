@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Composition Model: Agents, Tools, and Runbooks You Can Actually Take With You — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie treats agents, tools, and runbooks as portable, composable units — Share Agent bundles knowledge you can hydrate anywhere, the MCP Tool Wizard grants a home-grown tool to one agent by name, and runbook definitions export/import with a provenance trail back to the events that produced each run." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/articles/composition-model.html" />
+  <meta property="og:title" content="The Composition Model: Agents, Tools, and Runbooks You Can Actually Take With You — Neural Junkie" />
+  <meta property="og:description" content="Neural Junkie treats agents, tools, and runbooks as portable, composable units — Share Agent bundles knowledge you can hydrate anywhere, the MCP Tool Wizard grants a home-grown tool to one agent by name, and runbook definitions export/import with a provenance trail back to the events that produced each run." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/articles/composition-model.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-composition-model-1200.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="627" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="The Composition Model: Agents, Tools, and Runbooks You Can Actually Take With You — Neural Junkie" />
+  <meta name="twitter:description" content="Neural Junkie treats agents, tools, and runbooks as portable, composable units — Share Agent bundles knowledge you can hydrate anywhere, the MCP Tool Wizard grants a home-grown tool to one agent by name, and runbook definitions export/import with a provenance trail back to the events that produced each run." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-composition-model-1200.png" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "The Composition Model: Agents, Tools, and Runbooks You Can Actually Take With You",
+  "description": "Neural Junkie treats agents, tools, and runbooks as portable, composable units \u2014 Share Agent bundles knowledge you can hydrate anywhere, the MCP Tool Wizard grants a home-grown tool to one agent by name, and runbook definitions export/import with a provenance trail back to the events that produced each run.",
+  "url": "https://camronwood.github.io/neural-junkie/articles/composition-model.html",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Neural Junkie"
+  },
+  "image": [
+    "https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-composition-model-1200.png"
+  ]
+}
+  </script>
+<!-- NJ-SITE-SEO:END -->
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap site-header-bar">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+          <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+          <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+          <a class="btn btn-ghost" href="../packs.html">Packs</a>
+          <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+          <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+          <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+          <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+          <a class="btn btn-ghost" href="../security.html">Security</a>
+          <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+          <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+          <a class="btn btn-ghost" href="../download.html">Download</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · The Composition Model: Agents, Tools, and Runbooks You Can Actually Take With You
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>The Composition Model: Agents, Tools, and Runbooks You Can Actually Take With You</h1>
+      <p class="article-lead">Neural Junkie treats agents, tools, and runbooks as portable, composable units — Share Agent bundles knowledge you can hydrate anywhere, the MCP Tool Wizard grants a home-grown tool to one agent by name, and runbook definitions export/import with a provenance trail back to the events that produced each run.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">opensource</span><span class="article-tag">developertools</span><span class="article-tag">architecture</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-composition-model-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>We keep shipping features that solve the same underlying problem: <strong>how do you take a piece of AI work — an agent, a tool, a workflow — out of the machine it was built on, without losing what makes it useful?</strong></p>
+<p>Share Agent solves it for knowledge. The MCP Tool Wizard solves it for capability. Runbook export/import and provenance solve it for process. Individually they read like three features. Together they're one idea: the <strong>Composition Model</strong> — treat agents, tools, and runbooks as portable, composable units instead of hub-locked state.</p>
+<h2>The bet in one sentence</h2>
+<p><strong>A unit of AI work should be exportable as a file, importable with explicit consent, and traceable back to what produced it — without requiring a shared filesystem, a shared hub, or a leap of faith.</strong></p>
+<h2>Pillar 1: Share Agent — knowledge you can hydrate, not just re-index</h2>
+<p>Repo agents already supported MCP export/import, but import meant <strong>re-indexing from the same absolute path</strong> — useless the moment a friend or coworker doesn't have <code>/Users/you/dev/thing</code> on their machine. Learnings, custom rules, and LoRA metadata didn't travel with the bundle at all.</p>
+<p>Share Agent changes the contract:</p>
+<ul>
+<li><strong>Hydrate, don't re-index</strong> — <code>HydrateFromExport</code> rebuilds an agent's in-memory index directly from the resources embedded in the bundle. No disk scan, no path assumption.</li>
+<li><strong>Bring the whole agent, not just files</strong> — custom-rules markdown and agent-scoped learnings are merged in on import (<code>Hub.ImportShareLearnings</code> dedupes by content hash so re-importing the same bundle twice doesn't double up).</li>
+<li><strong>LoRA travels as metadata</strong> — when a specialist has an active adapter, its base and composed Ollama tags ride along in the bundle for the receiving hub to resolve.</li>
+</ul>
+<pre><code class="language-bash"># Export
+POST /api/agents/{id}/share  →  share-agent-bundle.json
+
+# Import with hydration (no local repo required)
+POST /api/import  { &quot;hydrate&quot;: true, &quot;repository_path&quot;: &quot;&quot; }
+</code></pre>
+<p>In the desktop app, Agent Info now has a <strong>Share</strong> button instead of a bare export link, and Import Agent exposes the hydrate option directly — the file picker path and the "trust this machine's copy of the code" path are finally two different, explicit choices.</p>
+<h2>Pillar 2: MCP Tool Wizard — grant a tool to one agent, not the world</h2>
+<p>Custom experts (<code>/create-expert</code>) were persona-and-rules only — no tool loop. If you wanted your homemade expert to fetch a public API, you were writing Go and a pack sidecar.</p>
+<p>The wizard's first template is deliberately narrow: an <strong>HTTP-fetch tool</strong> — name, URL, method, headers, optional JSON-path extraction — granted to chosen agents <strong>by display name</strong>, because agent IDs regenerate across hub restarts but names don't.</p>
+<pre><code>POST /api/mcp/user-tools               create a tool
+POST /api/mcp/user-tools/{id}/test     preview output before granting
+POST /api/mcp/user-tools/{id}/grant    { &quot;agent_name&quot;: &quot;Widget Expert&quot;, &quot;grant&quot;: true }
+</code></pre>
+<p>Grants are enforced through the same SSRF gate as <code>fetch_url</code>: no loopback, no private ranges, no non-HTTP schemes. Custom experts get a real in-process MCP server the moment a tool is granted — and it's empty overhead otherwise.</p>
+<p>The second template ships alongside it, off by default: <strong>external media tools</strong> (<code>media_submit</code> / <code>media_status</code> / <code>media_fetch</code>) for wiring a granted agent to a third-party image/video/audio API. <code>BaseURL</code> defaults to empty — the tools simply don't attach until an operator configures a real endpoint. Both templates share one in-process MCP server per custom expert, so an agent with both kinds of grants gets a single unified tool surface instead of two.</p>
+<h2>Pillar 3: Runbooks as portable, provenance-tracked definitions</h2>
+<p>Runbook definitions already lived in a versioned library. What was missing was <strong>getting one out of your library and into someone else's, and knowing where a run actually came from</strong> after the fact.</p>
+<pre><code>GET  /api/runbook-definitions/{id}/export        → DefinitionBundle (schema_version, exported_at, definition)
+POST /api/runbook-definitions/import             → mints a fresh ID by default (no collisions)
+POST /api/runbook-definitions/import?keep_id=true → round-trips the same ID, bumps the version
+</code></pre>
+<p>Provenance ties a run back to the definition and version that produced it, plus the full append-only event trace (phase transitions, task dispatch/completion/failure):</p>
+<pre><code>GET /api/runbook-runs/{collabID}/provenance
+→ { run, definition, collaboration, events[] }
+</code></pre>
+<p>And because "is this runbook actually moving" is a different question than "what happened historically," there's a lightweight progress endpoint that reuses the same dependency-ready logic the dispatcher uses internally:</p>
+<pre><code>GET /api/runbook-runs/{collabID}/progress
+→ { total_tasks, counts, percent_complete, queued_task_ids, in_progress_task_ids, blocked_task_ids }
+</code></pre>
+<h2>What ties it together</h2>
+<p>None of these three pillars share code by accident — they share a <strong>shape</strong>:</p>
+<ol>
+<li><strong>A bundle</strong> (JSON, self-describing, versioned) — the export</li>
+<li><strong>A grant or explicit import action</strong> — consent, not ambient trust</li>
+<li><strong>A way to check what's actually running or where something came from</strong> — provenance/progress, not vibes</li>
+</ol>
+<p>Agents, tools, and runbooks all get exported the same way, granted the same way, and audited the same way. That consistency is the point: once you understand Share Agent's bundle-and-hydrate pattern, the runbook export/import API and the tool grant model look exactly like what you'd expect.</p>
+<h2>Try it</h2>
+<p>Personal open-source project — macOS, Windows, Linux.</p>
+<pre><code class="language-bash">make pull-models
+make start-all
+</code></pre>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p><strong>Docs:</strong><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/MCP_INTEGRATION.md">MCP integration</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/MCP_EXPORTS.md">MCP exports</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/RUNBOOKS_V2.md">Runbooks v2</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/FUTURE_ENHANCEMENTS.md">Future enhancements</a></p>
+<p>If a Share Agent bundle hydrates wrong, a granted tool trips the SSRF gate when it shouldn't, or a provenance call comes back empty for a run you know happened — GitHub issues welcome. That feedback becomes the next test case.</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/campaigns/composition-model/COMPOSITION-MODEL-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="../timeline.html">Timeline</a>
+        <a class="btn btn-ghost btn-sm" href="../thanks.html">Thank you</a>
+        <a class="btn btn-ghost btn-sm" href="../install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+        <a class="btn btn-ghost btn-sm" href="mailto:neuraljunkie.app@gmail.com">Contact</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="composition-model.html">The Composition Model: Agents, Tools, and Runbooks You Can Actually Take With You</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

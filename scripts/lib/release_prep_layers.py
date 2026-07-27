@@ -140,7 +140,7 @@ LAYERS: dict[str, LayerSpec] = {
         name="user-flows",
         description="Real-world product journeys (trip research, games, APIs, websites, boot fix)",
         requires_hub=True,
-        est_minutes=120,
+        est_minutes=240,
         stages=(
             LayerStage(
                 "user-flow-scenarios",

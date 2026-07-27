@@ -365,6 +365,68 @@ func TestPolicyPresenceCheckDemotesAskUser(t *testing.T) {
 	}
 }
 
+func TestPolicyOpenCanvasArtifactPromotesEditToArtifact(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:                 "lets update the canvas to be black and white",
+		ComposerMode:         "agent",
+		HasWorkspace:         true,
+		CanProposeFiles:      true,
+		CanRunImplementation: true,
+		OpenArtifactID:       "art-1",
+		OpenArtifactRenderer: "nj.mermaid",
+		OpenArtifactTitle:    "dickory-docs architecture",
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionTask,
+		RequestedAction:   ActionEdit,
+		MutationRequested: MutationWorkspace,
+		Confidence:        0.9,
+		Retrieval:         []RetrievalTarget{RetrievalCodebase},
+	}, SourceLocalModel)
+	if decision.Action != ActionArtifact {
+		t.Fatalf("action=%s, want artifact via open_canvas_artifact", decision.Action)
+	}
+	if decision.Mutation != MutationExternal {
+		t.Fatalf("mutation=%s, want external", decision.Mutation)
+	}
+	if !containsRetrievalTarget(decision.Retrieval, RetrievalPriorReference) {
+		t.Fatalf("retrieval=%v, want prior_reference", decision.Retrieval)
+	}
+	found := false
+	for _, o := range decision.PolicyOverrides {
+		if o == "open_canvas_artifact" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("overrides=%v, want open_canvas_artifact", decision.PolicyOverrides)
+	}
+}
+
+func TestPolicyOpenCanvasDoesNotOverridePendingEdit(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:                 "ok sounds good",
+		ComposerMode:         "agent",
+		HasWorkspace:         true,
+		CanProposeFiles:      true,
+		CanRunImplementation: true,
+		PendingActionID:      "goal-1",
+		PendingAction:        ActionEdit,
+		OpenArtifactID:       "art-1",
+		OpenArtifactRenderer: "nj.mermaid",
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionContinuation,
+		RequestedAction:   ActionContinue,
+		MutationRequested: MutationWorkspace,
+		Confidence:        1,
+	}, SourceLocalModel)
+	if decision.Action == ActionArtifact {
+		t.Fatalf("pending edit continuation must not become artifact: %+v", decision)
+	}
+}
+
 func TestLooksLikeAdvisoryImplementationQuestion_outlineHooks(t *testing.T) {
 	if !LooksLikeAdvisoryImplementationQuestion(
 		"now outline the hook changes you'd make in hub.go for better errors",

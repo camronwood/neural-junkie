@@ -84,7 +84,7 @@ func (t *tools) handleFetchURL(ctx context.Context, request mcpgo.CallToolReques
 	if rawURL == "" {
 		return mcp.HandleToolError(fmt.Errorf("missing required parameter: url"), "fetch_url"), nil
 	}
-	if err := checkPublicURL(rawURL); err != nil {
+	if err := CheckPublicURL(rawURL); err != nil {
 		return mcp.HandleToolError(err, "fetch_url"), nil
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
@@ -107,7 +107,10 @@ func (t *tools) handleFetchURL(ctx context.Context, request mcpgo.CallToolReques
 	return mcp.HandleToolSuccess(summary), nil
 }
 
-func checkPublicURL(rawURL string) error {
+// CheckPublicURL rejects non-http(s) schemes and private/loopback/link-local
+// hosts. Shared by fetch_url and other outbound-HTTP MCP tools (e.g. the MCP
+// Tool Wizard's user-defined HTTP-fetch tools) to keep one SSRF gate.
+func CheckPublicURL(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return err

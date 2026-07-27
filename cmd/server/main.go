@@ -265,6 +265,7 @@ func main() {
 	initMusicSidecarGenerator()
 	initBrowserSidecarClient()
 	initIncidentSidecarClient()
+	initMapsSidecarClient()
 	initAWSSidecarClient()
 	initCADSidecarClient()
 	initBiologySidecarClient()

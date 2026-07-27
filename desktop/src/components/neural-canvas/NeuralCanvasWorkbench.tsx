@@ -88,8 +88,10 @@ export function NeuralCanvasWorkbench({
         )}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto p-4">
-        <ArtifactRendererHost artifact={artifact} />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="h-full min-h-0">
+          <ArtifactRendererHost artifact={artifact} />
+        </div>
       </div>
     </section>
   );
