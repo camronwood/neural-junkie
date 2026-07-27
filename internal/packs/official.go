@@ -3,13 +3,13 @@ package packs
 import "strings"
 
 // OfficialPackIDs are known official domain pack ids (catalog ordering and ID collision checks).
-var OfficialPackIDs = []string{"ide", "software-development", "life-sciences", "specialist-tuning", "cad", "aws", "incident-management", "web-browser", "music-creation", "model-arena", "room-chat"}
+var OfficialPackIDs = []string{"ide", "software-development", "life-sciences", "specialist-tuning", "cad", "aws", "incident-management", "web-browser", "music-creation", "model-arena", "room-chat", "maps"}
 
 // KnownSpecialistAgentTypes lists in-process specialist agent types gated by domain packs.
 var KnownSpecialistAgentTypes = []string{
 	"backend", "frontend", "devops", "security", "architecture", "code-review", "database",
 	"rust", "sre", "mobile", "data-ml",
-	"biology", "genomics", "structural-biology", "cheminformatics", "cad", "manufacturing", "aws", "incident", "browser", "music", "arena",
+	"biology", "genomics", "structural-biology", "cheminformatics", "cad", "manufacturing", "aws", "incident", "browser", "music", "arena", "maps",
 }
 
 // SoftwareDevelopmentExpertSlugs are /create-expert slugs from the software-development pack.
@@ -48,6 +48,8 @@ func PackIDForAgentType(agentType string) string {
 		return "music-creation"
 	case "arena":
 		return "model-arena"
+	case "maps":
+		return "maps"
 	default:
 		return ""
 	}

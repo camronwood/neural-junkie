@@ -47,6 +47,7 @@ var KnownArtifactRenderers = []string{
 	"nj.timeline",
 	"nj.image",
 	"nj.graph",
+	"nj.map",
 	"nj.knowledge-graph",
 	"nj.runbook",
 	"nj.cad",

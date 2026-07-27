@@ -100,7 +100,7 @@ The host rejects unknown renderer IDs and uses `fallback` when a client cannot
 support the requested renderer or schema version.
 
 Trusted renderer IDs include `nj.markdown`, `nj.mermaid`, `nj.code`, `nj.table`,
-`nj.chart`, `nj.timeline`, `nj.image`, `nj.graph`, and the host-owned specialized
+`nj.chart`, `nj.timeline`, `nj.image`, `nj.graph`, `nj.map`, and the host-owned specialized
 workbench adapters. Renderer IDs should be qualified by the host (`nj.*`);
 capability IDs remain qualified by the pack as described above.
 
