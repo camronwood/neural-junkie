@@ -6,25 +6,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 func TestUserAffirmsPendingImplementation_expanded(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		in   string
-		want bool
-	}{
-		{"approved", true},
-		{"its approved", true},
-		{"please keep going", true},
-		{"yes keep going", true},
-		{"yes that sounds good", true},
-		{"can you review the code for issues?", false},
-	}
-	for _, tc := range cases {
-		if got := userAffirmsPendingImplementation(tc.in); got != tc.want {
-			t.Fatalf("userAffirmsPendingImplementation(%q) = %v, want %v", tc.in, got, tc.want)
+	// Deprecated phrase helper — continuations are stamped ActionContinue.
+	for _, s := range []string{"approved", "go ahead", "please continue", "yes please"} {
+		if userAffirmsPendingImplementation(s) {
+			t.Fatalf("deprecated userAffirmsPendingImplementation(%q) must be false", s)
 		}
 	}
 }
@@ -50,12 +40,12 @@ func TestShouldForceWorkspaceGroundingOpener(t *testing.T) {
 }
 
 func TestUserRequestsImplementation_debugPhrases(t *testing.T) {
-	t.Parallel()
-	if !userRequestsImplementation("can you review the code for issues?") {
-		t.Fatal("expected code review to request implementation")
+	// Deprecated — routing uses stamped TurnDecision.
+	if userRequestsImplementation("can you review the code for issues?") {
+		t.Fatal("deprecated userRequestsImplementation must be false")
 	}
-	if !userRequestsImplementation("ok the app does not seem to be working now") {
-		t.Fatal("expected broken-app report to request implementation")
+	if userRequestsImplementation("ok the app does not seem to be working now") {
+		t.Fatal("deprecated userRequestsImplementation must be false")
 	}
 }
 
@@ -116,21 +106,9 @@ func TestChannelHasRecentImplementationActivity_stopsAtClosure(t *testing.T) {
 }
 
 func TestIsAdvisoryImplementationQuestion(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		in   string
-		want bool
-	}{
-		{"how would you add a light/dark theme toggle in a React settings page?", true},
-		{"One more thing — where should the theme toggle live in the settings UI?", true},
-		{"go deeper on the approach — what would you implement first?", true},
-		{"please add theme support to settings", false},
-		{"implement the theme toggle now", false},
-	}
-	for _, tc := range cases {
-		if got := isAdvisoryImplementationQuestion(tc.in); got != tc.want {
-			t.Fatalf("isAdvisoryImplementationQuestion(%q) = %v, want %v", tc.in, got, tc.want)
-		}
+	// Deprecated — advisory is classifier reason_codes.
+	if isAdvisoryImplementationQuestion("how would you add a light/dark theme toggle in a React settings page?") {
+		t.Fatal("deprecated isAdvisoryImplementationQuestion must be false")
 	}
 }
 
@@ -226,9 +204,13 @@ func TestUserRequestsImplementationForMessage_afterApproval(t *testing.T) {
 		Channel: "dm-u-fe",
 		From:    protocol.AgentInfo{Name: "camron", Type: protocol.AgentTypeGeneral},
 		Content: "approved",
+		Metadata: map[string]interface{}{
+			protocol.MetaFileChangeApproved: true,
+			protocol.MetaFileChangeAgentID:  "fe-1",
+		},
 	}
 	if !userRequestsImplementationForMessage(a, msg) {
-		t.Fatal("expected approved after file change to continue implementation")
+		t.Fatal("expected file-change approval metadata to continue implementation")
 	}
 }
 
@@ -267,9 +249,8 @@ func TestUserRequestsImplementationForMessage_weakAffirmAfterFailedSession(t *te
 }
 
 func TestUserRequestsImplementation_workspaceDirective(t *testing.T) {
-	t.Parallel()
-	if !userRequestsImplementation("use the open workspace it has all the files you need") {
-		t.Fatal("expected workspace directive to request implementation")
+	if userRequestsImplementation("use the open workspace it has all the files you need") {
+		t.Fatal("deprecated userRequestsImplementation must be false")
 	}
 }
 
@@ -330,16 +311,25 @@ func TestShouldUseFileChangeFenceFallback_contentDelivery(t *testing.T) {
 func TestShouldUseFileChangeFenceFallback_bareWorkspaceDirective(t *testing.T) {
 	t.Parallel()
 	a := &Agent{Info: protocol.AgentInfo{ID: "cr-1", Type: protocol.AgentTypeCodeReview}}
+	// Bare "use the workspace" is no longer a phrase veto — structural
+	// implementation_session metadata decides fence fallback.
 	msg := &protocol.Message{
 		Content:  "use the workspace",
 		Metadata: map[string]interface{}{protocol.IdeMetaImplementationSession: true},
 	}
-	if a.shouldUseFileChangeFenceFallback(msg) {
-		t.Fatal("bare workspace directive should not allow fence fallback")
+	if !a.shouldUseFileChangeFenceFallback(msg) {
+		t.Fatal("implementation_session should allow fence fallback without phrase veto")
 	}
 	msg2 := &protocol.Message{Content: "use the workspace to implement dark mode"}
+	if err := protocol.StampTurnDecision(msg2, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionEdit, Action: intent.ActionEdit,
+		Mutation: intent.MutationWorkspace, Confidence: 1, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if !a.shouldUseFileChangeFenceFallback(msg2) {
-		t.Fatal("workspace directive with implement ask should allow fence fallback")
+		t.Fatal("stamped edit should allow fence fallback")
 	}
 }
 
@@ -368,18 +358,17 @@ func TestUserRequestsContentDelivery(t *testing.T) {
 	}
 }
 
+// TestIsBareWorkspaceDirective — helper is deprecated; always false.
 func TestIsBareWorkspaceDirective(t *testing.T) {
 	t.Parallel()
-	if !isBareWorkspaceDirective("use the workspace") {
-		t.Fatal("expected bare workspace directive")
+	if isBareWorkspaceDirective("use the workspace") {
+		t.Fatal("deprecated isBareWorkspaceDirective must stay false")
 	}
-	if !isBareWorkspaceDirective("can you use the workspace for this?") {
-		t.Fatal("expected deictic follow-up to count as bare")
-	}
-	if isBareWorkspaceDirective("use the workspace to implement dark mode") {
-		t.Fatal("implement tail should not be bare")
+	if isBareWorkspaceDirective("can you use the workspace for this?") {
+		t.Fatal("deprecated isBareWorkspaceDirective must stay false")
 	}
 }
+
 
 func TestResolveImplementationToolModel_prefersAgentCoderModel(t *testing.T) {
 	t.Parallel()
@@ -404,13 +393,8 @@ func TestShouldForceSessionSummaryRefresh(t *testing.T) {
 }
 
 func TestUserRequestsImplementation_settingsModalSession(t *testing.T) {
-	t.Parallel()
-	msg := "yesterday we were working on adding a settings modal and button and some options under it for font size and themes dark/light, can we pick up where we left off and finish that work?"
-	if !userRequestsImplementation(msg) {
-		t.Fatal("expected settings modal continuation to request implementation")
-	}
-	if !userAffirmsPendingImplementation("ok goahead") {
-		t.Fatal("expected ok goahead to affirm implementation")
+	if userRequestsImplementation("please continue with the settings modal") {
+		t.Fatal("deprecated userRequestsImplementation must be false")
 	}
 }
 
@@ -443,6 +427,15 @@ func TestShouldProactiveScanWorkspaceForMessage_affirmationFollowUp(t *testing.T
 		Channel: "dm-u-fe",
 		From:    protocol.AgentInfo{Name: "camron", Type: protocol.AgentTypeGeneral},
 		Content: "ok goahead",
+	}
+	// The classifier stamps this short affirmation as a continuation of the pending
+	// implementation ask, rather than phrase-matching "ok goahead" directly.
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionContinuation,
+		RequestedAction: intent.ActionContinue, Action: intent.ActionContinue,
+		Mutation: intent.MutationWorkspace, Confidence: 0.9, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
 	}
 	if !shouldProactiveScanWorkspaceForMessage(a, msg) {
 		t.Fatal("expected affirmation follow-up to trigger workspace scan")
@@ -692,19 +685,15 @@ func TestImplementationSeedCandidates_bootErrorAddsAppJS(t *testing.T) {
 }
 
 func TestMessageHasBootOrBuildError(t *testing.T) {
-	t.Parallel()
-	if !messageHasBootOrBuildError("the app is not booting up can you help?") {
-		t.Fatal("expected booting phrase")
-	}
-	if !messageHasBootOrBuildError("✘ [ERROR] Expected \";\" but found \"git\" in src/App.js") {
-		t.Fatal("expected esbuild error")
+	if messageHasBootOrBuildError("the app is not booting") {
+		t.Fatal("deprecated messageHasBootOrBuildError must be false")
 	}
 }
 
 func TestShouldForceSessionSummaryRefresh_bootError(t *testing.T) {
-	t.Parallel()
-	if !ShouldForceSessionSummaryRefresh("vite dev failed with esbuild error in src/App.js") {
-		t.Fatal("expected boot error log to force summary refresh")
+	// Boot phrase alone no longer forces refresh — stamp/debug owns that path.
+	if ShouldForceSessionSummaryRefresh("exit_code=1 not booting vite") {
+		t.Fatal("boot phrase must not force summary refresh without stamp")
 	}
 }
 
@@ -746,12 +735,8 @@ func TestTryImplementationStatusCheckShortcut_appJSRemoved(t *testing.T) {
 }
 
 func TestUserRequestsImplementationStatusCheck(t *testing.T) {
-	t.Parallel()
-	if !userRequestsImplementationStatusCheck("is it fixed?") {
-		t.Fatal("expected status check")
-	}
-	if userRequestsImplementationStatusCheck("hello") {
-		t.Fatal("greeting should not be status check")
+	if userRequestsImplementationStatusCheck("is it fixed?") {
+		t.Fatal("deprecated userRequestsImplementationStatusCheck must be false")
 	}
 }
 

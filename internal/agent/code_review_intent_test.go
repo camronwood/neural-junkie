@@ -28,8 +28,8 @@ func TestUserRequestsImplementation_excludesProjectCodeReview(t *testing.T) {
 	if userRequestsImplementation("Can you review the code in the workspace?") {
 		t.Fatal("workspace code review should not route to implementation")
 	}
-	if !userRequestsImplementation("can you review the code for issues?") {
-		t.Fatal("fix review should still request implementation/delivery")
+	if userRequestsImplementation("can you review the code for issues?") {
+		t.Fatal("deprecated userRequestsImplementation must be false")
 	}
 }
 
@@ -47,17 +47,17 @@ func TestShouldRunImplementationSession_skipsCodeReview(t *testing.T) {
 	}
 }
 
-func TestShouldRunImplementationSession_skipsCodeReviewer(t *testing.T) {
+func TestShouldRunImplementationSession_skipsCodeReviewIntent(t *testing.T) {
 	a := &Agent{
-		Info: protocol.AgentInfo{Type: protocol.AgentTypeCodeReview, Name: "CodeReviewer"},
+		Info: protocol.AgentInfo{Type: protocol.AgentTypeBackend, Name: "BackendEngineer"},
 	}
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general", protocol.AgentInfo{Name: "User"}, "implement dark mode")
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general", protocol.AgentInfo{Name: "User"}, "code review this project")
 	msg.Metadata = map[string]interface{}{
 		"editor_mode":            "agent",
 		"implementation_session": true,
 	}
 	if shouldRunImplementationSession(a, msg) {
-		t.Fatal("CodeReviewer should never run implementation session")
+		t.Fatal("code review intent should never run implementation session")
 	}
 }
 

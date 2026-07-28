@@ -72,8 +72,27 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 	if raw, ok := msg.Metadata["conversation_mode"].(string); ok {
 		chatAdvisory = strings.EqualFold(strings.TrimSpace(raw), "chat")
 	}
-	advisoryQuestion := intent.LooksLikeAdvisoryImplementationQuestion(msg.Content)
-	if (chatAdvisory || advisoryQuestion) && !explicitSession {
+	// Trust the classifier's own advisory_question reason code — do not re-run a
+	// natural-language phrase check over the stamped decision.
+	advisoryQuestion := decisionHasReasonCode(decision, "advisory_question")
+	// Workspace fix/repair turns must keep debug|edit + mutation even in chat mode.
+	// Demoting them to answer causes greenfield "create the app" derailment.
+	preserveWorkspaceFix := !planOrAsk && features.HasWorkspace &&
+		(intent.LooksLikeWorkspaceFixAsk(msg.Content) ||
+			(wantsImpl && decisionHasFailureFixReason(decision)))
+	if preserveWorkspaceFix && !wantsImpl && intent.LooksLikeWorkspaceFixAsk(msg.Content) {
+		decision.Action = intent.ActionDebug
+		decision.RequestedAction = intent.ActionDebug
+		decision.Mutation = intent.MutationWorkspace
+		if !decisionHasFailureFixReason(decision) {
+			decision.ReasonCodes = append(decision.ReasonCodes, "runtime_failure")
+		}
+		if err := protocol.StampTurnDecision(msg, decision); err != nil {
+			return
+		}
+		wantsImpl = true
+	}
+	if (chatAdvisory || advisoryQuestion) && !explicitSession && !preserveWorkspaceFix {
 		wantsImpl = false
 		// Keep advisory turns as answer/none so design/topic-switch prompts
 		// are not stamped inspect/edit/image (scenarios and tooling rely on this).
@@ -94,7 +113,7 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		msg.Metadata[protocol.TurnMetaCanRunImplSession] = true
 		msg.Metadata[protocol.TurnMetaRequiresWorkspace] = true
 	}
-	if (chatAdvisory || advisoryQuestion) && !explicitSession && !planOrAsk {
+	if (chatAdvisory || advisoryQuestion) && !explicitSession && !planOrAsk && !preserveWorkspaceFix {
 		delete(msg.Metadata, protocol.IdeMetaImplementationSession)
 		delete(msg.Metadata, protocol.TurnMetaCanProposeFiles)
 		delete(msg.Metadata, protocol.TurnMetaCanRunImplSession)
@@ -105,9 +124,10 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		governance.ComposerMode = mode
 	}
 	governance.RequiresWorkspace = wantsImpl && !planOrAsk
-	governance.CanProposeFiles = (decision.Mutation == intent.MutationWorkspace || explicitSession) && !planOrAsk && !((chatAdvisory || advisoryQuestion) && !explicitSession)
+	chatBlocksMutation := (chatAdvisory || advisoryQuestion) && !explicitSession && !preserveWorkspaceFix
+	governance.CanProposeFiles = (decision.Mutation == intent.MutationWorkspace || explicitSession) && !planOrAsk && !chatBlocksMutation
 	governance.CanRunImplSession = wantsImpl && !planOrAsk
-	if (chatAdvisory || advisoryQuestion) && !explicitSession {
+	if chatBlocksMutation {
 		governance.CanProposeFiles = false
 		governance.CanRunImplSession = false
 		governance.RequiresWorkspace = false
@@ -121,6 +141,25 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		delete(msg.Metadata, protocol.TurnMetaRequiresWorkspace)
 	}
 	protocol.StampTurnGovernance(msg, governance)
+}
+
+// decisionHasReasonCode reports whether the classifier stamped the given reason code.
+func decisionHasReasonCode(decision intent.TurnDecision, code string) bool {
+	for _, r := range decision.ReasonCodes {
+		if strings.EqualFold(strings.TrimSpace(r), code) {
+			return true
+		}
+	}
+	return false
+}
+
+func decisionHasFailureFixReason(decision intent.TurnDecision) bool {
+	for _, code := range []string{"startup_failure", "runtime_failure", "build_failure", "boot_failure"} {
+		if decisionHasReasonCode(decision, code) {
+			return true
+		}
+	}
+	return false
 }
 
 // semanticTurnEligible reports whether a message is a real user turn that should
@@ -198,12 +237,49 @@ func (h *Hub) semanticTurnFeatures(msg *protocol.Message) intent.TurnFeatures {
 		}
 	}
 	features.RecentExchanges = h.semanticRecentExchanges(msg.Channel, msg.ID, 6)
-	if id, renderer, title := h.semanticOpenCanvasArtifact(msg.Channel, msg.ID); id != "" {
+	if id, renderer, title := openArtifactFromClientMetadata(msg); id != "" {
+		features.OpenArtifactID = id
+		features.OpenArtifactRenderer = renderer
+		features.OpenArtifactTitle = title
+	} else if id, renderer, title := h.semanticOpenCanvasArtifact(msg.Channel, msg.ID); id != "" {
 		features.OpenArtifactID = id
 		features.OpenArtifactRenderer = renderer
 		features.OpenArtifactTitle = title
 	}
 	return features
+}
+
+func openArtifactFromClientMetadata(msg *protocol.Message) (id, renderer, title string) {
+	if msg == nil || msg.Metadata == nil {
+		return "", "", ""
+	}
+	raw, ok := msg.Metadata["open_artifact"]
+	if !ok || raw == nil {
+		return "", "", ""
+	}
+	switch v := raw.(type) {
+	case map[string]interface{}:
+		id, _ = v["id"].(string)
+		renderer, _ = v["renderer_id"].(string)
+		if renderer == "" {
+			renderer, _ = v["rendererId"].(string)
+		}
+		title, _ = v["title"].(string)
+	case map[string]string:
+		id = v["id"]
+		renderer = v["renderer_id"]
+		if renderer == "" {
+			renderer = v["rendererId"]
+		}
+		title = v["title"]
+	}
+	id = strings.TrimSpace(id)
+	if id == "" || id == "__library__" {
+		return "", "", ""
+	}
+	renderer = strings.TrimSpace(renderer)
+	title = strings.TrimSpace(title)
+	return id, renderer, title
 }
 
 func (h *Hub) semanticOpenCanvasArtifact(channel, skipID string) (id, renderer, title string) {
@@ -310,6 +386,11 @@ func (h *Hub) semanticRecentExchanges(channel, skipID string, limit int) []inten
 
 func semanticMessageHasWorkspace(msg *protocol.Message) bool {
 	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	// context_scope=none is an explicit "no workspace sharing" signal — do not force
+	// RetrievalCodebase via workspace_requires_codebase_retrieval policy.
+	if scope, _ := msg.Metadata["context_scope"].(string); strings.EqualFold(strings.TrimSpace(scope), "none") {
 		return false
 	}
 	for _, key := range []string{"workspace_context", "workspace_path", "workspace_root", "repo_path"} {

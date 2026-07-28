@@ -322,6 +322,7 @@ func Load() (*Config, error) {
 	cfg.MigrateBiologyMCPModels()
 	cfg.migrateSoftwareDevelopmentPackIfNeeded()
 	cfg.migrateIdePackIfNeeded()
+	cfg.migrateRetiredAbilityPackExperts()
 	cfg.MigrateInstalledPacks()
 	cfg.EnsureMCPDefaults()
 	if err := cfg.DecryptSecretsAfterLoad(); err != nil {

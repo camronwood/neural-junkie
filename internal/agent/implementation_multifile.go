@@ -127,7 +127,7 @@ func shouldContinueImplementationSession(a *Agent, msg *protocol.Message, state 
 			if m == nil || m.ID == msg.ID {
 				continue
 			}
-			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+			if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 				seedMsg = m
 				break
 			}

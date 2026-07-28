@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -99,6 +100,15 @@ func TestIntentClassificationPersistsGoalCorrectionAndContinuation(t *testing.T)
 	a.replaceChannelHistory("general", []*protocol.Message{original, correction})
 	approval := protocol.NewMessage(protocol.MessageTypeChat, "general", user, "Yes, continue.")
 	approval.ReplyTo = "agent-plan-message"
+	// The classifier stamps this approval as a continuation (not phrase-matched "yes"/"continue").
+	if err := protocol.StampTurnDecision(approval, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionContinuation,
+		RequestedAction: intent.ActionContinue, Action: intent.ActionContinue,
+		ContinuationTarget: "agent-plan-message", Mutation: intent.MutationWorkspace,
+		Confidence: 0.9, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	approval.Metadata["goal_id"] = approval.ID
 	approvalState := classifyTurnForPersistenceTest(t, a, approval)
 	if approvalState.goal.Action != ActionContinue {

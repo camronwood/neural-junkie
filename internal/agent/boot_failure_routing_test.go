@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -20,15 +21,30 @@ func TestVagueBootFailureCanonicalizesImplementationTurn(t *testing.T) {
 		vagueBootFailureRequest,
 	)
 	msg.Metadata = map[string]interface{}{
-		protocol.IdeMetaEditorMode:         "agent",
-		protocol.TurnMetaComposerMode:      "agent",
-		protocol.TurnMetaCanProposeFiles:   true,
-		protocol.TurnMetaCanRunImplSession: false,
-		protocol.TurnMetaRequiresWorkspace: false,
-		MetadataConversationMode:           ConversationModeCode,
-		"context_scope":                    "full",
-		protocol.IdeMetaRouteAgentType:     "frontend",
-		"workspace_context":                map[string]interface{}{"workspace_path": "/tmp/project"},
+		protocol.IdeMetaEditorMode:     "agent",
+		MetadataConversationMode:       ConversationModeCode,
+		"context_scope":                "full",
+		protocol.IdeMetaRouteAgentType: "frontend",
+		"workspace_context":            map[string]interface{}{"workspace_path": "/tmp/project"},
+	}
+	// The semantic classifier stamps this boot-failure report as a workspace-mutating
+	// Edit (not a natural-language phrase match); governance grants the implementer
+	// the ability to run the file-edit loop against the shared workspace.
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: true,
+		Provenance: "test",
+	})
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Interaction:     intent.InteractionTask,
+		RequestedAction: intent.ActionEdit,
+		Action:          intent.ActionEdit,
+		Mutation:        intent.MutationWorkspace,
+		Confidence:      0.9,
+		Source:          intent.SourceLocalModel,
+		ReasonCodes:     []string{"runtime_failure"},
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	initialIntent := a.classifyTurnIntentForMessage(msg)
@@ -51,11 +67,14 @@ func TestVagueBootFailureCanonicalizesImplementationTurn(t *testing.T) {
 }
 
 func TestVagueBootFailureTriggersDiagnosticFixPath(t *testing.T) {
-	if !messageHasBootOrBuildError(vagueBootFailureRequest) {
-		t.Fatal("will-not-boot language did not match boot failure intent")
+	// Boot/build phrase detection is deprecated for routing — the semantic classifier's
+	// stamped TurnDecision (Action=edit/debug + reason codes) drives the diagnostic fix
+	// path now, not natural-language phrase matching.
+	if messageHasBootOrBuildError(vagueBootFailureRequest) {
+		t.Fatal("messageHasBootOrBuildError is deprecated and must always return false")
 	}
-	if !messageImpliesFixLikeIntent(vagueBootFailureRequest, nil) {
-		t.Fatal("will-not-boot language did not enter the diagnostic fix path")
+	if messageImpliesFixLikeIntent(vagueBootFailureRequest, nil) {
+		t.Fatal("messageImpliesFixLikeIntent must not phrase-match without a stamped decision")
 	}
 
 	a := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), nil)

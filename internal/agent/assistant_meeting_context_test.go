@@ -202,8 +202,68 @@ func TestBuildMeetingContextPrompt_AnchorsTodayToCurrentDate(t *testing.T) {
 	if !strings.Contains(prompt, "No synced meeting notes are dated today (May 26, 2026)") {
 		t.Fatalf("expected no-today guardrail in prompt, got:\n%s", prompt)
 	}
-	if !strings.Contains(prompt, "do not describe them as today's notes") {
-		t.Fatalf("expected instruction to avoid treating older notes as today, got:\n%s", prompt)
+	if !strings.Contains(prompt, "Do not volunteer older meetings") {
+		t.Fatalf("expected instruction not to volunteer older meetings, got:\n%s", prompt)
+	}
+	if strings.Contains(prompt, "PHOENIX TEAM MEETING") {
+		t.Fatalf("pure today ask with no today notes must not inject older Meeting 1 pages, got:\n%s", prompt)
+	}
+}
+
+func TestSelectMeetingNotesForPrompt_TodayNewDoesNotRankComposerKeyword(t *testing.T) {
+	newest := &MeetingNote{
+		Title:       "Notes: “PHOENIX TEAM MEETING” Jul 21, 2026",
+		Summary:     "Production migrations and QC reader deployment.",
+		MeetingDate: time.Date(2026, 7, 21, 15, 0, 0, 0, time.UTC),
+	}
+	composerJunk := &MeetingNote{
+		Title:       "New_in_Cursor_Composer_15",
+		Summary:     "The meeting discussed the new features in Composer 1.5 and allocated action items.",
+		Attendees:   []string{"Name1", "Name2", "Name3"},
+		Topics:      []string{"New features in Composer 1.5", "Action items assignment"},
+		MeetingDate: time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC),
+	}
+
+	selected, matched := selectMeetingNotesForPrompt(
+		[]*MeetingNote{composerJunk, newest},
+		"do we have any new meeting notes from today yet?",
+		3,
+	)
+	if matched {
+		t.Fatal("expected chronology fallback for pure today ask, not keyword match")
+	}
+	if len(selected) == 0 || selected[0] != newest {
+		t.Fatalf("expected chronologically latest first, got %#v", selected)
+	}
+}
+
+func TestBuildTodayMeetingNotesAvailabilityReply_NoTodayNotes(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	stubAssistantPromptNow(t, time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC))
+	assistant := NewAssistantAgent("Assistant", ai.NewMockProvider(), shouldRespondTestHub{})
+	if assistant.storage == nil {
+		t.Fatal("expected assistant storage")
+	}
+	if err := assistant.storage.SaveMeetingNote(&MeetingNote{
+		Title:       "New_in_Cursor_Composer_15",
+		Summary:     "The meeting discussed the new features in Composer 1.5 and allocated action items.",
+		Attendees:   []string{"Name1", "Name2", "Name3"},
+		MeetingDate: time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	reply, ok := assistant.buildTodayMeetingNotesAvailabilityReply(
+		"do we have any new meeting notes from today yet?",
+	)
+	if !ok {
+		t.Fatal("expected deterministic today-availability reply")
+	}
+	if !strings.Contains(reply, "No") || !strings.Contains(reply, "July 28, 2026") {
+		t.Fatalf("unexpected reply: %q", reply)
+	}
+	if strings.Contains(reply, "Composer") || strings.Contains(reply, "Name1") {
+		t.Fatalf("deterministic reply must not volunteer older junk notes: %q", reply)
 	}
 }
 

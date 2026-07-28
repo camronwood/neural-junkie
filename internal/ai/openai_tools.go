@@ -69,7 +69,7 @@ func (p *OpenAICompatProvider) GenerateResponseWithTools(
 	}
 
 	systemPrompt, userMessage := SplitSystemPrompt(prompt)
-	messages := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, nil)
+	messages, _ := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, nil)
 	openAITools := claudeToolsToOpenAI(tools)
 
 	maxIter := ToolLoopMaxIterationsFromContext(ctx)

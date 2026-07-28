@@ -73,6 +73,9 @@ func (ch *CommandHandler) RequestCapabilityHelp(ctx context.Context, req delegat
 	if req.Task == "" || req.CapabilityID == "" || strings.TrimSpace(req.SourceChannel) == "" {
 		return delegation.CapabilityHelpResult{}, fmt.Errorf("capability, bounded task, and source channel are required")
 	}
+	if err := agent.ValidateCapabilityHandoffTask(req.Task); err != nil {
+		return delegation.CapabilityHelpResult{}, err
+	}
 
 	target, candidate, err := ch.resolveCapabilityHelper(req)
 	if err != nil {

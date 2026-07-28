@@ -648,6 +648,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
                   artifact.links?.workspaceId ?? activeTab.workspaceId,
                   artifact.id,
                   artifact.title,
+                  artifact.renderer?.id,
                 )
               }
             />

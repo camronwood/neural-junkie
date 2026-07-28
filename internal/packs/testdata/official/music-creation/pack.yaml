@@ -1,7 +1,7 @@
 id: music-creation
-version: "2.0.0"
+version: "2.1.0"
 title: Music creation
-description: MusicExpert — lyrics via Ollama, ACE-Step 1.5 sidecar, music workbench, stems export, and EP workflow.
+description: Lyrics via Ollama, ACE-Step 1.5 sidecar, music workbench, stems export, and EP workflow — tools on Assistant when enabled.
 layout_profile: team
 capabilities:
   - music-generation
@@ -15,7 +15,10 @@ capability_defs:
     description: Generate music, lyrics, stems, and project artifacts.
     exposure: safe
     mcp_agents:
-      - music
+      - assistant
+    mcp_tools:
+      - generate_music
+      - extract_stems
   music-sidecar:
     kind: hub-sidecar
     routes:
@@ -39,34 +42,17 @@ capability_defs:
   music-canvas:
     kind: artifact-renderer
     renderer: nj.music
-    media_types: [application/vnd.neural-junkie.music+json, audio/wav, audio/mpeg]
+    media_types:
+      - application/vnd.neural-junkie.music+json
+      - audio/wav
+      - audio/mpeg
     match_glob: "**/*.{nj-music.json,wav,mp3}"
     renderer_api_version: 1
     schema_version_min: 1
     schema_version_max: 1
     fallback: nj.code
-agents:
-  - type: music
-    name: MusicExpert
-    implementation: builtin/music
-    ollama_model: qwen2.5:7b
-    compose:
-      tool_model: qwen3.5:9b
-      consult_triggers:
-        - music
-        - song
-        - lyrics
-        - melody
-        - jingle
-        - soundtrack
-models_to_ensure:
-  - qwen2.5:7b
-  - qwen3.5:9b
-ollama_model: qwen2.5:7b
-expert_slug: music
-expert_label: Music / songwriting
 mcp_agents:
-  - music
+  - assistant
 settings_overlay:
   ace_step_venv: ~/.neural-junkie/music/acestep-venv
   ace_step_project: ~/.neural-junkie/music/ACE-Step-1.5
@@ -79,3 +65,5 @@ settings_overlay:
   python_executable: python3
 assets:
   workspace_guide: assets/WORKSPACE.md
+  runbooks: assets/runbooks/
+  templates: assets/templates/

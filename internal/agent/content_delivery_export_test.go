@@ -7,6 +7,10 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+// TestShouldDeferImplSessionForCombinedDeliveryExport documents the stamp-first replacement
+// for the old phrase-based file-export detection (userRequestsFileExport is now a deprecated
+// stub — see implementation_intent.go): export intent must come from explicit composer export
+// mode metadata rather than "save/store the file" phrasing.
 func TestShouldDeferImplSessionForCombinedDeliveryExport(t *testing.T) {
 	a := &Agent{
 		Info: protocol.AgentInfo{ID: "a1", Name: "Assistant", Type: protocol.AgentTypeAssistant},
@@ -20,8 +24,9 @@ func TestShouldDeferImplSessionForCombinedDeliveryExport(t *testing.T) {
 		protocol.AgentInfo{ID: "u1", Name: "camronwood", Type: protocol.AgentTypeGeneral},
 		"Can you write me a LinkedIn artical about the app in the workspace and save the file to the root of the workspace?",
 	)
+	msg.Metadata = map[string]interface{}{"editor_mode": "export"}
 	if !shouldDeferImplSessionForCombinedDeliveryExport(a, msg) {
-		t.Fatal("expected combined write+save to defer impl session")
+		t.Fatal("expected combined write+export-mode to defer impl session")
 	}
 	msg2 := protocol.NewMessage(
 		protocol.MessageTypeChat,
@@ -31,6 +36,15 @@ func TestShouldDeferImplSessionForCombinedDeliveryExport(t *testing.T) {
 	)
 	if shouldDeferImplSessionForCombinedDeliveryExport(a, msg2) {
 		t.Fatal("export-only should not defer")
+	}
+	msg3 := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"general",
+		protocol.AgentInfo{ID: "u1", Name: "camronwood", Type: protocol.AgentTypeGeneral},
+		"Can you write me a LinkedIn artical about the app in the workspace and save the file to the root of the workspace?",
+	)
+	if shouldDeferImplSessionForCombinedDeliveryExport(a, msg3) {
+		t.Fatal("without explicit export-mode metadata, save/store phrasing must not defer")
 	}
 }
 

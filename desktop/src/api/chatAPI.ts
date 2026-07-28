@@ -778,6 +778,28 @@ export class ChatAPI {
     return response.json();
   }
 
+  /** Load a Neural Canvas artifact asset as a data URL (auth via hub session). */
+  async fetchArtifactAssetDataUrl(artifactId: string, name: string): Promise<string> {
+    const response = await this.hubFetch(
+      `/api/artifacts/${encodeURIComponent(artifactId)}/assets/${encodeURIComponent(name)}`,
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    const buf = await response.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]!);
+    }
+    const b64 = btoa(binary);
+    const ct = response.headers.get('Content-Type') || 'application/octet-stream';
+    const mime = ct.includes('octet-stream')
+      ? guessImageMimeFromName(name)
+      : ct.split(';')[0]!.trim();
+    return `data:${mime};base64,${b64}`;
+  }
+
   /** Read user-granted files/directories under ~/.neural-junkie for agent context. */
   async readHubDataAccess(
     targets: Array<{ kind: 'file' | 'directory'; relative_path: string }>
@@ -4316,5 +4338,14 @@ export class ChatAPI {
     }
     return response.json();
   }
+}
+
+function guessImageMimeFromName(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.svg')) return 'image/svg+xml';
+  return 'image/png';
 }
 

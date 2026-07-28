@@ -1,0 +1,63 @@
+{
+  "name": "dm-summary-continuity-long-horizon",
+  "description": "5+ turn Assistant chat: early constraint retained after enough turns for session summary.",
+  "tags": ["dm", "assistant", "dialogue", "long-horizon", "regression"],
+  "evaluation": { "long_horizon": true, "min_user_turns": 5 },
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "Assistant",
+  "required_agents": ["Assistant"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "Plan a reading club. Constraint: books must be under 250 pages.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "Suggest a fiction pick for month one.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "Now a nonfiction pick for month two.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "How should we structure the discussion questions?",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "Remind me of the page-count constraint and list both picks.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "180s" },
+    {
+      "action": "assert_transcript_metrics",
+      "cases": [
+        {
+          "metric": "instruction_retention",
+          "user_match": "under 250 pages",
+          "after_user_match": "Remind me of the page-count",
+          "assistant_match": "250"
+        },
+        {
+          "metric": "stale_plan",
+          "user_match": "under 250 pages",
+          "stale_match": "(?i)500 pages|no page limit|ignore the page"
+        }
+      ],
+      "thresholds": {
+        "instruction_retention_rate": 1.0,
+        "stale_plan_rate": 0.0
+      }
+    }
+  ],
+  "cleanup": "clear"
+}

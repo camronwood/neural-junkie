@@ -7,15 +7,32 @@ var OfficialPackIDs = []string{"ide", "software-development", "life-sciences", "
 
 // KnownSpecialistAgentTypes lists in-process specialist agent types gated by domain packs.
 var KnownSpecialistAgentTypes = []string{
-	"backend", "frontend", "devops", "security", "architecture", "code-review", "database",
+	"backend", "frontend", "devops", "security", "architecture", "database",
 	"rust", "sre", "mobile", "data-ml",
-	"biology", "genomics", "structural-biology", "cheminformatics", "cad", "manufacturing", "aws", "incident", "browser", "music", "arena", "maps",
+	"biology", "genomics", "structural-biology", "cheminformatics", "cad", "manufacturing", "aws", "incident", "arena",
 }
 
 // SoftwareDevelopmentExpertSlugs are /create-expert slugs from the software-development pack.
 var SoftwareDevelopmentExpertSlugs = []string{
-	"backend", "frontend", "devops", "security", "architecture", "code-review", "database",
+	"backend", "frontend", "devops", "security", "architecture", "database",
 	"rust", "sre", "mobile", "data-ml",
+}
+
+// RetiredAbilityPackAgentTypes are former pack specialists now delivered as Assistant abilities
+// (or core review behavior for code-review). Kept for config migration only.
+var RetiredAbilityPackAgentTypes = []string{
+	"maps", "music", "browser", "code-review",
+}
+
+// IsRetiredAbilityPackAgentType reports whether agentType is a removed ability-pack specialist.
+func IsRetiredAbilityPackAgentType(agentType string) bool {
+	t := strings.ToLower(strings.TrimSpace(agentType))
+	for _, r := range RetiredAbilityPackAgentTypes {
+		if t == r {
+			return true
+		}
+	}
+	return false
 }
 
 // IsOfficialPackID reports whether id is a reserved official pack id.
@@ -32,7 +49,7 @@ func IsOfficialPackID(packID string) bool {
 // PackIDForAgentType returns the official pack id that owns agentType, or "".
 func PackIDForAgentType(agentType string) string {
 	switch strings.ToLower(strings.TrimSpace(agentType)) {
-	case "backend", "frontend", "devops", "security", "architecture", "code-review", "database", "rust", "sre", "mobile", "data-ml":
+	case "backend", "frontend", "devops", "security", "architecture", "database", "rust", "sre", "mobile", "data-ml":
 		return "software-development"
 	case "biology", "genomics", "structural-biology", "cheminformatics":
 		return "life-sciences"
@@ -42,14 +59,8 @@ func PackIDForAgentType(agentType string) string {
 		return "aws"
 	case "incident":
 		return "incident-management"
-	case "browser":
-		return "web-browser"
-	case "music":
-		return "music-creation"
 	case "arena":
 		return "model-arena"
-	case "maps":
-		return "maps"
 	default:
 		return ""
 	}

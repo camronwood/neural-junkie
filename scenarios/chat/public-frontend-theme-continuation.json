@@ -31,7 +31,7 @@
         "editor_agent_trust": "auto_apply_edits"
       }
     },
-    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s", "accept_file_change": true },
     {
       "action": "assert_messages",
       "last_reply_only": true,

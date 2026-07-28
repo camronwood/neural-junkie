@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "catalog_url": "https://raw.githubusercontent.com/camronwood/neural-junkie/main/packs/catalog.json",
   "packs": [
     {
       "id": "ide",
@@ -13,13 +14,13 @@
     },
     {
       "id": "software-development",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "title": "Software development",
       "description": "Engineering specialists with pack-owned MCP sidecar and Qwen 3.5 models.",
       "icon_key": "code",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-software-development/releases/download/v2.1.0/software-development-2.1.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-software-development/releases/download/v2.2.0/software-development-2.2.0.zip"
     },
     {
       "id": "life-sciences",
@@ -35,7 +36,7 @@
       "id": "cad",
       "version": "2.0.0",
       "title": "CAD",
-      "description": "CADExpert and ManufacturingExpert \u2014 parametric OpenSCAD design through print-ready export, local-first.",
+      "description": "CADExpert and ManufacturingExpert — parametric OpenSCAD design through print-ready export, local-first.",
       "icon_key": "cad",
       "publisher": "Neural Junkie",
       "builtin": true,
@@ -55,7 +56,7 @@
       "id": "aws",
       "version": "2.0.0",
       "title": "AWS",
-      "description": "AWSExpert \u2014 account-aware SRE copilot with typed boto3 tools, IaC drift, cost/security lenses, and gated writes.",
+      "description": "AWSExpert — account-aware SRE copilot with typed boto3 tools, IaC drift, cost/security lenses, and gated writes.",
       "icon_key": "cloud",
       "publisher": "Neural Junkie",
       "builtin": true,
@@ -65,37 +66,33 @@
       "id": "incident-management",
       "version": "2.0.0",
       "title": "Incident management",
-      "description": "IncidentManager \u2014 multi-provider ticketing, severity rubric, handoff runbooks, and postmortem workflows.",
+      "description": "IncidentManager — multi-provider ticketing, severity rubric, handoff runbooks, and postmortem workflows.",
       "icon_key": "incident",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "requires_packs": [
-        "software-development"
-      ],
+      "requires_packs": ["software-development"],
       "download_url": "https://github.com/camronwood/neural-junkie-pack-incident-management/releases/download/v2.0.0/incident-management-2.0.0.zip"
     },
     {
       "id": "web-browser",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "title": "Web browser",
-      "description": "WebBrowserExpert with fetch_url, web search, HTML preview workbench, and Playwright QA (screenshots, a11y, visual diff, perf).",
+      "description": "Fetch URL, web search, HTML preview workbench, and Playwright QA — tools on Assistant when enabled.",
       "icon_key": "code",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "requires_packs": [
-        "software-development"
-      ],
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-web-browser/releases/download/v2.0.0/web-browser-2.0.0.zip"
+      "requires_packs": ["software-development"],
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-web-browser/releases/download/v2.1.0/web-browser-2.1.0.zip"
     },
     {
       "id": "music-creation",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "title": "Music creation",
-      "description": "MusicExpert \u2014 Ollama lyrics, ACE-Step 1.5 sidecar, music workbench, stems export, and EP workflow.",
+      "description": "ACE-Step music generation, workbench, stems export, and EP workflow — tools on Assistant when enabled.",
       "icon_key": "music",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-music-creation/releases/download/v2.0.0/music-creation-2.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-music-creation/releases/download/v2.1.0/music-creation-2.1.0.zip"
     },
     {
       "id": "model-arena",
@@ -108,6 +105,16 @@
       "download_url": "https://github.com/camronwood/neural-junkie-pack-model-arena/releases/download/v1.0.0/model-arena-1.0.0.zip"
     },
     {
+      "id": "maps",
+      "version": "1.1.0",
+      "title": "Maps",
+      "description": "Geocode and walking/driving routes via OpenStreetMap, interactive Neural Canvas maps — tools on Assistant when enabled.",
+      "icon_key": "code",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-maps/releases/download/v1.1.0/maps-1.1.0.zip"
+    },
+    {
       "id": "room-chat",
       "version": "1.0.0",
       "title": "Room chat",
@@ -116,16 +123,6 @@
       "publisher": "Neural Junkie",
       "builtin": true,
       "download_url": "https://github.com/camronwood/neural-junkie-pack-room-chat/releases/download/v1.0.0/room-chat-1.0.0.zip"
-    },
-    {
-      "id": "maps",
-      "version": "1.0.0",
-      "title": "Maps",
-      "description": "MapsExpert \u2014 geocode and walking/driving routes via OpenStreetMap (Nominatim + OSRM), interactive Neural Canvas maps.",
-      "icon_key": "code",
-      "publisher": "Neural Junkie",
-      "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-maps/releases/download/v1.0.0/maps-1.0.0.zip"
     }
   ]
 }

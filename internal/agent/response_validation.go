@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -131,14 +132,16 @@ func integerValue(v interface{}) (int, bool) {
 }
 
 var (
-	artifactClaimRE   = regexp.MustCompile(`(?i)\b(created|generated|posted|made|updated)\b.{0,48}\b(neural canvas|canvas|artifact|report|chart|timeline|diagram)\b|\b(neural canvas|canvas|artifact)\b.{0,48}\b(created|generated|posted|ready|updated)\b`)
-	imageClaimRE      = regexp.MustCompile(`(?i)\b(generated|created|posted|made)\b.{0,48}\b(image|picture|illustration|logo|visual)\b|\b(image|picture|illustration|logo|visual)\b.{0,48}\b(generated|created|posted|ready)\b`)
-	runClaimRE        = regexp.MustCompile(`(?i)\b(i|we)\s+(ran|executed|tested|built|linted)\b|\b(command|tests?|build|lint)\s+(ran|completed|finished)\b`)
-	passClaimRE       = regexp.MustCompile(`(?i)\b(tests?|build|lint|checks?)\s+(all\s+)?(pass|passed|succeeded|green)\b|\bpasses\b`)
-	actionPassClaimRE = regexp.MustCompile(`(?i)\b(pass|passed|succeeded|green)\b`)
-	actionEditClaimRE = regexp.MustCompile(`(?i)\b(applied|implemented|completed|complete|done|saved|written|updated)\b`)
-	editClaimRE       = regexp.MustCompile(`(?i)\b(applied|saved|written|updated|modified|implemented|completed)\b.{0,64}\b(file|code|change|implementation|fix)\b|\b(file|code|change|implementation|fix)\b.{0,64}\b(applied|saved|written|updated|complete|completed)\b`)
-	deflectRE         = regexp.MustCompile(`(?i)\b(i can help (you )?(with|do)|here(?:'s| is) how (you can|to)|you can (run|create|generate|edit)|would you like me to|i can guide you)\b`)
+	artifactClaimRE = regexp.MustCompile(`(?i)\b(created|generated|posted|made|updated|create|creating|will create|i will create)\b.{0,64}\b(neural\s+canvas|canvas|artifact|report|chart|timeline|diagram)\b|\b(neural\s+canvas|canvas|artifact)\b.{0,64}\b(created|generated|posted|ready|updated)\b`)
+	// Fake in-chat "Neural Canvas: Title" dumps without a real artifact tool call.
+	fakeNeuralCanvasHeaderRE = regexp.MustCompile(`(?i)(\*\*)?neural\s+canvas\s*:\s*\S`)
+	imageClaimRE             = regexp.MustCompile(`(?i)\b(generated|created|posted|made)\b.{0,48}\b(image|picture|illustration|logo|visual)\b|\b(image|picture|illustration|logo|visual)\b.{0,48}\b(generated|created|posted|ready)\b`)
+	runClaimRE               = regexp.MustCompile(`(?i)\b(i|we)\s+(ran|executed|tested|built|linted)\b|\b(command|tests?|build|lint)\s+(ran|completed|finished)\b`)
+	passClaimRE              = regexp.MustCompile(`(?i)\b(tests?|build|lint|checks?)\s+(all\s+)?(pass|passed|succeeded|green)\b|\bpasses\b`)
+	actionPassClaimRE        = regexp.MustCompile(`(?i)\b(pass|passed|succeeded|green)\b`)
+	actionEditClaimRE        = regexp.MustCompile(`(?i)\b(applied|implemented|completed|complete|done|saved|written|updated)\b`)
+	editClaimRE              = regexp.MustCompile(`(?i)\b(applied|saved|written|updated|modified|implemented|completed)\b.{0,64}\b(file|code|change|implementation|fix)\b|\b(file|code|change|implementation|fix)\b.{0,64}\b(applied|saved|written|updated|complete|completed)\b`)
+	deflectRE                = regexp.MustCompile(`(?i)\b(i can help (you )?(with|do)|here(?:'s| is) how (you can|to)|you can (run|create|generate|edit)|would you like me to|i can guide you)\b`)
 )
 
 type responseValidationIssue string
@@ -152,11 +155,14 @@ const (
 	issueActionDeflection    responseValidationIssue = "action_deflection"
 	issueMissingRequiredEvidence responseValidationIssue = "missing_required_evidence"
 	issueDirectness          responseValidationIssue = "direct_answer_failure"
+	issueCorrectionIgnored   responseValidationIssue = "correction_ignored"
 )
 
 func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger, msg *protocol.Message, response string, history []*protocol.Message) []responseValidationIssue {
 	var issues []responseValidationIssue
-	if artifactClaimRE.MatchString(response) && !ledger.Has(EvidenceArtifactCreated) {
+	claimedArtifact := artifactClaimRE.MatchString(response) ||
+		(fakeNeuralCanvasHeaderRE.MatchString(response) && msg != nil && intent.LooksLikeCanvasCreateOrFillAsk(msg.Content))
+	if claimedArtifact && !ledger.Has(EvidenceArtifactCreated) {
 		issues = append(issues, issueUnsupportedArtifact)
 	}
 	if imageClaimRE.MatchString(response) && !ledger.Has(EvidenceImagePosted) {
@@ -196,6 +202,34 @@ func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger
 		issues = append(issues, issueDirectness)
 	}
 	return uniqueValidationIssues(issues)
+}
+
+// validateActiveCorrectionsHonored flags continue/summary replies that drop or revive renamed labels.
+func validateActiveCorrectionsHonored(envelope protocol.TurnContextEnvelope, msg *protocol.Message, response string) []responseValidationIssue {
+	if msg == nil || strings.TrimSpace(response) == "" || len(envelope.Corrections) == 0 {
+		return nil
+	}
+	lowerAsk := strings.ToLower(msg.Content)
+	if !(strings.Contains(lowerAsk, "summar") || strings.Contains(lowerAsk, "continue") ||
+		strings.Contains(lowerAsk, "final") || strings.Contains(lowerAsk, "after the correction")) {
+		return nil
+	}
+	for _, correction := range envelope.Corrections {
+		target := correctionRenameTarget(correction.Instruction)
+		if target == "" {
+			continue
+		}
+		if !strings.Contains(response, target) {
+			return []responseValidationIssue{issueCorrectionIgnored}
+		}
+		if superseded := supersededComponentName(envelope, target); superseded != "" {
+			staleRE := regexp.MustCompile(`(?i)(final|component)\s+[^\n.]{0,40}` + regexp.QuoteMeta(superseded))
+			if staleRE.MatchString(response) {
+				return []responseValidationIssue{issueCorrectionIgnored}
+			}
+		}
+	}
+	return nil
 }
 
 // shouldRewriteAsSafeFailure reports whether validation issues should replace the
@@ -301,6 +335,7 @@ func safeActionFailure(goal TurnGoal, ledger *ActionEvidenceLedger) string {
 func buildResponseValidationRetryPrompt(goal TurnGoal, ledger *ActionEvidenceLedger, msg *protocol.Message) string {
 	return fmt.Sprintf(
 		"Answer the user's latest request directly. Do not repeat questions, ignore supplied context, or claim actions not shown by the evidence.\n"+
+			"Honor ACTIVE CORRECTION names from durable conversation state — never revive superseded labels.\n"+
 			"TURN GOAL: %s\nACTION: %s\nEVIDENCE: %+v\n",
 		goal.NormalizedRequest, goal.Action, ledger.Entries(),
 	) + ai.SystemPromptSeparator + strings.TrimSpace(msg.Content)

@@ -145,7 +145,8 @@ func (h *Hub) summaryRefreshInputLocked(channel string) summaryRefreshInput {
 		version = 1
 	}
 	prompt := fmt.Sprintf(
-		"Update the cumulative conversation digest. Preserve still-valid facts, decisions, corrections, and unfinished work. "+
+		"Update the cumulative conversation digest. Preserve still-valid facts, decisions, corrections, open questions, and unfinished work. "+
+			"Prefer dialogue facts (topic, constraints, user preferences) over coding task state when the transcript is casual chat. "+
 			"Never restore instructions marked superseded.\n\nPREVIOUS DIGEST (v%d):\n%s\n\nSTRUCTURED STATE:\n%s\n\nTRANSCRIPT DELTA:\n%s",
 		version, strings.TrimSpace(st.Summary), stateJSON, transcript,
 	)

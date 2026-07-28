@@ -386,10 +386,30 @@ func (m *Message) HasMentions() bool {
 	return len(m.Mentions) > 0
 }
 
-// IsReviewRequest checks if the message contains review trigger phrases
+// IsReviewRequest reports whether this turn should run the review-chain path.
+// Prefer stamped TurnDecision domain code_review or explicit review metadata;
+// fall back to review trigger phrases for mention-chain UX ("thoughts?", etc.).
 func (m *Message) IsReviewRequest() bool {
+	if m == nil {
+		return false
+	}
+	if depth := m.GetReviewDepth(); depth > 0 {
+		return true
+	}
+	if m.Metadata != nil {
+		if v, ok := m.Metadata["review_request"].(bool); ok && v {
+			return true
+		}
+	}
+	if decision, ok := ExtractTurnDecision(m); ok {
+		if strings.EqualFold(strings.TrimSpace(decision.Domain), "code_review") {
+			return true
+		}
+		if strings.EqualFold(strings.TrimSpace(decision.RecipientType), "code-review") {
+			return true
+		}
+	}
 	content := strings.ToLower(m.Content)
-
 	reviewKeywords := []string{
 		"thoughts?",
 		"what do you think",
@@ -406,13 +426,11 @@ func (m *Message) IsReviewRequest() bool {
 		"what's your take",
 		"do you agree",
 	}
-
 	for _, keyword := range reviewKeywords {
 		if strings.Contains(content, keyword) {
 			return true
 		}
 	}
-
 	return false
 }
 

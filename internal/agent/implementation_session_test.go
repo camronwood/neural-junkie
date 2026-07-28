@@ -59,6 +59,10 @@ func TestShouldRunImplementationSession_explicitSessionWinsOverAnswerDecision(t 
 	}
 }
 
+// TestShouldRunImplementationSession_continuationAfterFileChange documents the stamp-first
+// replacement for the old phrase-based "approved re-enters an active implementation thread"
+// heuristic: a classifier that stamps the approval turn ActionContinue is trusted directly —
+// routing no longer re-scans channel history for affirmation phrasing without a stamp.
 func TestShouldRunImplementationSession_continuationAfterFileChange(t *testing.T) {
 	a := &Agent{
 		Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
@@ -76,8 +80,19 @@ func TestShouldRunImplementationSession_continuationAfterFileChange(t *testing.T
 		},
 	}
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-fe", protocol.AgentInfo{ID: "u2", Name: "User"}, "approved")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"implementation_session": true,
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionContinue, Action: intent.ActionContinue,
+		Mutation: intent.MutationWorkspace, Confidence: 0.9, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if !shouldRunImplementationSession(a, msg) {
-		t.Fatal("expected implementation session after approval in active thread")
+		t.Fatal("expected implementation session after a stamped ActionContinue approval")
 	}
 }
 
@@ -154,38 +169,12 @@ func TestShouldRunImplementationSession_scenarioChannelForce(t *testing.T) {
 	}
 }
 
-func TestShouldRunImplementationSession_weakAffirmAfterFailedSession(t *testing.T) {
-	a := &Agent{
-		Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
-		Context: &ConversationContext{
-			History: map[string][]*protocol.Message{
-				"dm-u-fe": {
-					{
-						ID:      "u1",
-						Type:    protocol.MessageTypeQuestion,
-						From:    protocol.AgentInfo{ID: "u0", Name: "User"},
-						Content: "blank screen can you fix it?",
-					},
-					{
-						ID:      "a1",
-						Type:    protocol.MessageTypeChat,
-						From:    protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
-						Content: "Implementation session finished without file changes.",
-					},
-				},
-			},
-		},
-	}
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-fe", protocol.AgentInfo{ID: "u2", Name: "User"}, "looks good")
-	msg.Metadata = map[string]interface{}{
-		"editor_mode":            "agent",
-		"implementation_session": true,
-		"ide_route_agent_type":   "frontend",
-	}
-	if shouldRunImplementationSession(a, msg) {
-		t.Fatal("expected looks good after failed session not to run implementation session")
-	}
-}
+// Note: the old TestShouldRunImplementationSession_weakAffirmAfterFailedSession relied on a
+// phrase-based "weak affirmation after a failed session" veto (userAffirmsPendingImplementation
+// combined with channel-history phrase scanning) to keep a bare "looks good" from re-entering
+// the file-edit loop. That heuristic is deprecated — see implementation_intent.go. Routing now
+// trusts the stamped TurnDecision (or, with no stamp, the explicit implementation_session flag)
+// instead of re-deriving continuation intent from affirmation phrasing.
 
 func TestShouldRunImplementationSession_respectsChatMode(t *testing.T) {
 	a := &Agent{
@@ -580,7 +569,13 @@ func TestDeriveTurnGoalFromDecision_respectsExplicitImplementationSession(t *tes
 	}
 }
 
-func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesInspectBootFix(t *testing.T) {
+// TestDeriveTurnGoalFromDecision_stampedInspectStaysInspectDespiteBootFix documents the
+// stamp-first replacement for the old bootOrFix upgrade block: explicit implementation_session
+// metadata only promotes a turn into a running implementation session when the classifier
+// already selected a workspace-mutation action (Edit/Debug/Continue/Run). A stamped
+// ActionInspect never gets phrase/reason-matched into Debug — even with a "runtime_failure"
+// reason code and explicit session metadata.
+func TestDeriveTurnGoalFromDecision_stampedInspectStaysInspectDespiteBootFix(t *testing.T) {
 	msg := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
 		"implement-scenarios",
@@ -609,21 +604,25 @@ func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesInspectBootFix(t *tes
 	}
 	_ = protocol.StampTurnDecision(msg, decision)
 	goal := deriveTurnGoalFromDecision(msg, decision)
-	if goal.Action != ActionDebug {
-		t.Fatalf("action=%s want debug (boot-fix under inspect)", goal.Action)
+	if goal.Action != ActionInspect {
+		t.Fatalf("action=%s want ActionInspect (stamp authoritative)", goal.Action)
 	}
-	if goal.Mutation != MutationWorkspace {
-		t.Fatalf("mutation=%s want workspace", goal.Mutation)
+	if goal.Mutation != MutationNone {
+		t.Fatalf("mutation=%s want none — ActionInspect must not gain workspace mutation", goal.Mutation)
 	}
-	if !goal.ImplementationSession {
-		t.Fatal("expected implementation session after explicit-session upgrade")
+	if goal.ImplementationSession {
+		t.Fatal("ActionInspect must never be promoted into an implementation session")
 	}
-	if !turnGoalRunsImplementationSession(goal) {
-		t.Fatal("turnGoalRunsImplementationSession should be true")
+	if turnGoalRunsImplementationSession(goal) {
+		t.Fatal("turnGoalRunsImplementationSession should be false for a stamped ActionInspect")
 	}
 }
 
-func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesAnswerBootFix(t *testing.T) {
+// TestDeriveTurnGoalFromDecision_stampedAnswerStaysAnswerDespiteBootFix documents the
+// stamp-first replacement for the old bootOrFix upgrade block: a stamped ActionAnswer
+// never gets phrase-matched into Debug/Edit, even for boot-error message text with an
+// active implementation_session flag.
+func TestDeriveTurnGoalFromDecision_stampedAnswerStaysAnswerDespiteBootFix(t *testing.T) {
 	msg := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
 		"implement-scenarios",
@@ -650,15 +649,19 @@ func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesAnswerBootFix(t *test
 	}
 	_ = protocol.StampTurnDecision(msg, decision)
 	goal := deriveTurnGoalFromDecision(msg, decision)
-	if goal.Action != ActionDebug {
-		t.Fatalf("action=%s want debug (boot-fix under answer)", goal.Action)
+	if goal.Action != ActionAnswer {
+		t.Fatalf("action=%s want ActionAnswer (stamp authoritative)", goal.Action)
 	}
-	if !goal.ImplementationSession || goal.Mutation != MutationWorkspace {
-		t.Fatalf("goal=%+v", goal)
+	if goal.ImplementationSession || goal.Mutation != MutationNone {
+		t.Fatalf("goal=%+v, ActionAnswer must never be promoted into an implementation session", goal)
 	}
 }
 
-func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesAnswerExtract(t *testing.T) {
+// TestDeriveTurnGoalFromDecision_stampedAnswerStaysAnswerForExtractRequest documents the
+// stamp-first replacement for the old bootOrFix upgrade block applied to extract/refactor
+// asks: a stamped ActionAnswer stays advisory even for an explicit implementation_session
+// flag — the classifier must stamp ActionEdit directly to run the file-edit loop.
+func TestDeriveTurnGoalFromDecision_stampedAnswerStaysAnswerForExtractRequest(t *testing.T) {
 	msg := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
 		"implement-scenarios",
@@ -685,11 +688,11 @@ func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesAnswerExtract(t *test
 	}
 	_ = protocol.StampTurnDecision(msg, decision)
 	goal := deriveTurnGoalFromDecision(msg, decision)
-	if goal.Action != ActionEdit {
-		t.Fatalf("action=%s want edit (extract under answer)", goal.Action)
+	if goal.Action != ActionAnswer {
+		t.Fatalf("action=%s want ActionAnswer (stamp authoritative)", goal.Action)
 	}
-	if !goal.ImplementationSession {
-		t.Fatal("expected implementation session")
+	if goal.ImplementationSession {
+		t.Fatal("ActionAnswer must never be promoted into an implementation session")
 	}
 }
 
@@ -720,8 +723,8 @@ func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesRunBootFix(t *testing
 	}
 	_ = protocol.StampTurnDecision(msg, decision)
 	goal := deriveTurnGoalFromDecision(msg, decision)
-	if goal.Action != ActionDebug {
-		t.Fatalf("action=%s want debug", goal.Action)
+	if goal.Action != ActionRun {
+		t.Fatalf("action=%s want ActionRun (stamp authoritative)", goal.Action)
 	}
 	if !goal.ImplementationSession || goal.Mutation != MutationWorkspace {
 		t.Fatalf("goal=%+v", goal)

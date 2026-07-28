@@ -11,7 +11,6 @@ The **Software development** pack is the layout-owning orchestration hub for eng
 | PlatformEngineer | CI/CD, Kubernetes, deployment |
 | SecurityReviewer | Auth, OWASP, dependency audits |
 | SoftwareArchitect | Boundaries, migrations, system design |
-| CodeReviewer | Correctness, tests, maintainability |
 | DatabaseSpecialist | SQL, schema, query tuning |
 | RustExpert | Cargo, async Rust, WASM |
 | SREObservabilityEngineer | Prometheus, alerts, traces, on-call |
@@ -41,13 +40,14 @@ make build-mcp
 - **PlatformEngineer** — repo, k8s manifests, CI pipelines
 - **AWSExpert** — live AWS account truth (SSO, describe APIs)
 - **IncidentManager** — Jira triage, reproduction, handoff
-- **WebBrowserExpert** — fetch/preview, frontend verification
+- **Assistant** (with **Web browser** pack) — fetch/preview, frontend verification via Playwright tools
 
 ### Consult patterns
 
 - IAM or live EC2 issues → `@AWSExpert`
 - Bug ticket / stack trace → `@IncidentManager` then `@BackendEngineer`
-- HTML preview / localhost QA → `@WebBrowserExpert` then `@FrontendEngineer`
+- HTML preview / localhost QA → enable **Web browser** pack and ask Assistant (or `@FrontendEngineer`)
+- Code review / audit → ask the domain specialist (e.g. `@BackendEngineer`, `@SecurityReviewer`) — there is no separate CodeReviewer
 - Production alert → `@SREObservabilityEngineer` with `@PlatformEngineer` for rollout
 
 ## Models

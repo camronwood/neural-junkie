@@ -9,27 +9,42 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+// TestDeriveTurnGoalActions verifies deriveTurnGoal maps a stamped TurnDecision to the
+// matching ActionIntent/evidence. Routing is stamp-first: deriveTurnGoal no longer infers
+// the action from message text when a decision is present (see deriveTurnGoalFromDecision).
 func TestDeriveTurnGoalActions(t *testing.T) {
 	a := &Agent{Info: protocol.AgentInfo{ID: "agent-1", Type: protocol.AgentTypeFrontend}}
 	tests := []struct {
-		name     string
-		content  string
-		replyTo  string
-		want     ActionIntent
-		evidence EvidenceKind
+		name       string
+		content    string
+		decision   intent.Action
+		mutation   intent.Mutation
+		continueID string
+		want       ActionIntent
+		evidence   EvidenceKind
 	}{
-		{name: "answer", content: "Explain dependency injection.", want: ActionAnswer, evidence: EvidenceAnswer},
-		{name: "image", content: "Generate an image of a blue ship.", want: ActionImage, evidence: EvidenceImagePosted},
-		{name: "indirect image", content: "Let's see what a sample cover art image will look like.", want: ActionImage, evidence: EvidenceImagePosted},
-		{name: "edit", content: "Implement the login form in src/App.tsx.", want: ActionEdit, evidence: EvidenceEditProposed},
-		{name: "run", content: "Run the test suite.", want: ActionRun, evidence: EvidenceCommandRun},
-		{name: "continue", content: "Yes, continue.", replyTo: "prior-goal", want: ActionContinue, evidence: EvidenceEditProposed},
-		{name: "ask user", content: "Ask me which deployment target to use.", want: ActionAskUser, evidence: EvidenceUserAnswer},
+		{name: "answer", content: "Explain dependency injection.", decision: intent.ActionAnswer, mutation: intent.MutationNone, want: ActionAnswer, evidence: EvidenceAnswer},
+		{name: "image", content: "Generate an image of a blue ship.", decision: intent.ActionImage, mutation: intent.MutationExternal, want: ActionImage, evidence: EvidenceImagePosted},
+		{name: "edit", content: "Implement the login form in src/App.tsx.", decision: intent.ActionEdit, mutation: intent.MutationWorkspace, want: ActionEdit, evidence: EvidenceEditProposed},
+		{name: "run", content: "Run the test suite.", decision: intent.ActionRun, mutation: intent.MutationNone, want: ActionRun, evidence: EvidenceCommandRun},
+		{name: "continue", content: "Yes, continue.", decision: intent.ActionContinue, mutation: intent.MutationWorkspace, continueID: "prior-goal", want: ActionContinue, evidence: EvidenceEditProposed},
+		{name: "ask_user", content: "Ask me which deployment target to use.", decision: intent.ActionAskUser, mutation: intent.MutationNone, want: ActionAskUser, evidence: EvidenceUserAnswer},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			msg := protocol.NewMessage(protocol.MessageTypeChat, "ch", protocol.AgentInfo{ID: "user"}, tc.content)
-			msg.ReplyTo = tc.replyTo
+			if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+				SchemaVersion:      intent.SchemaVersion,
+				Interaction:        intent.InteractionTask,
+				RequestedAction:    tc.decision,
+				Action:             tc.decision,
+				Mutation:           tc.mutation,
+				ContinuationTarget: tc.continueID,
+				Confidence:         0.95,
+				Source:             intent.SourceLocalModel,
+			}); err != nil {
+				t.Fatal(err)
+			}
 			goal := deriveTurnGoal(a, msg, IntentTask)
 			if goal.Action != tc.want {
 				t.Fatalf("action=%q want %q", goal.Action, tc.want)
@@ -117,6 +132,29 @@ func TestValidateResponseStillRewritesUnsupportedRunClaim(t *testing.T) {
 	}
 }
 
+func TestValidateResponseRewritesFakeNeuralCanvasProse(t *testing.T) {
+	goal := TurnGoal{Action: ActionAnswer, ExpectedEvidence: []EvidenceKind{"answer"}}
+	ledger := &ActionEvidenceLedger{}
+	msg := &protocol.Message{Content: "create the canvans with this information please"}
+	claim := "Based on the meeting notes, I will create a neural canvas to visualize the key points.\n\n**Neural Canvas: PHOENIX TEAM MEETING (July 21, 2026)**\n\nSection 1: Meeting Summary\n"
+	issues := validateResponseAgainstEvidence(goal, ledger, msg, claim, nil)
+	if !containsValidationIssue(issues, issueUnsupportedArtifact) {
+		t.Fatalf("fake Neural Canvas prose must flag unsupported_artifact_claim; issues=%v", issues)
+	}
+	if !shouldRewriteAsSafeFailure(issues, claim) {
+		t.Fatal("fake Neural Canvas prose must rewrite")
+	}
+}
+
+func containsValidationIssue(issues []responseValidationIssue, want responseValidationIssue) bool {
+	for _, issue := range issues {
+		if issue == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestActionEvidenceRecordsToolOutcomes(t *testing.T) {
 	ledger := &ActionEvidenceLedger{}
 	ledger.recordToolEvent(ai.ToolStepEvent{Kind: "result", Name: proposeFileEditToolName, Preview: "proposal registered"})
@@ -185,7 +223,39 @@ func TestDeriveTurnGoal_chatModeKeepsAnswerDespiteDesignWording(t *testing.T) {
 	}
 }
 
-func TestDeriveTurnGoal_chatModeDemotesFalseImageClassification(t *testing.T) {
+func TestDeriveTurnGoal_chatModePreservesWorkspaceFix(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{ID: "fe", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
+		"fix the app")
+	msg.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		MetadataContextScope:     ContextScopeFull,
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionDebug, Action: intent.ActionDebug,
+		Mutation: intent.MutationWorkspace, Confidence: 1, Source: intent.SourceLocalModel,
+		ReasonCodes: []string{"runtime_failure"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: true,
+	})
+	goal := deriveTurnGoal(a, msg, IntentTask)
+	if goal.Action != ActionDebug {
+		t.Fatalf("action=%s want debug; goal=%+v", goal.Action, goal)
+	}
+	if goal.Mutation != MutationWorkspace {
+		t.Fatalf("mutation=%s want workspace", goal.Mutation)
+	}
+}
+
+// TestDeriveTurnGoal_chatModeTrustsImageStampRegardlessOfWording documents the stamp-first
+// replacement for the old UserRequestsGeneratedImage re-check: a stamped ActionImage // phrase-migration-shim
+// decision is authoritative and is never demoted back to Answer by inspecting the message
+// text for image phrases, even in advisory conversation_mode=chat.
+func TestDeriveTurnGoal_chatModeTrustsImageStampRegardlessOfWording(t *testing.T) {
 	a := &Agent{Info: protocol.AgentInfo{ID: "fe", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"}}
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
 		"Design a theme settings flow. Keep the toggle in an Appearance section and call the component ThemeSettings.")
@@ -204,8 +274,8 @@ func TestDeriveTurnGoal_chatModeDemotesFalseImageClassification(t *testing.T) {
 		ComposerMode: "agent", CanProposeFiles: false, CanRunImplSession: false,
 	})
 	goal := deriveTurnGoal(a, msg, IntentSubstantive)
-	if goal.Action != ActionAnswer {
-		t.Fatalf("false image stamp must demote to answer; got %s goal=%+v", goal.Action, goal)
+	if goal.Action != ActionImage {
+		t.Fatalf("stamped image must stay image regardless of wording; got %s goal=%+v", goal.Action, goal)
 	}
 }
 

@@ -30,6 +30,106 @@ type MCPConfig struct {
 	// tools to a third-party media generation API. Disabled (BaseURL empty)
 	// by default — see internal/mcp/externalmedia.
 	ExternalMedia ExternalMediaConfig `json:"external_media,omitempty"`
+	// PackToolGrants grant ability-pack MCP/native tools (maps, browser, music)
+	// to custom experts by display name via the Composition Model.
+	PackToolGrants []PackToolGrant `json:"pack_tool_grants,omitempty"`
+}
+
+// PackToolGrant grants a pack capability's tools to named custom experts.
+type PackToolGrant struct {
+	// CapabilityID is the pack capability id (e.g. maps-tools, web-browser, music-generation).
+	CapabilityID string `json:"capability_id"`
+	// ToolNames optionally limits the grant to a subset; empty means the full safe allowlist.
+	ToolNames []string `json:"tool_names,omitempty"`
+	// GrantedAgents lists custom expert display names (case-insensitive).
+	GrantedAgents []string `json:"granted_agents,omitempty"`
+}
+
+// GrantedTo reports whether agentName may use this pack tool grant.
+func (g PackToolGrant) GrantedTo(agentName string) bool {
+	agentName = strings.TrimSpace(agentName)
+	if agentName == "" {
+		return false
+	}
+	for _, n := range g.GrantedAgents {
+		if strings.EqualFold(strings.TrimSpace(n), agentName) {
+			return true
+		}
+	}
+	return false
+}
+
+// PackToolGrantedTo reports whether agentName has a grant for capabilityID
+// and the owning pack/capability is still available.
+func (c *Config) PackToolGrantedTo(agentName, capabilityID string) bool {
+	if c == nil {
+		return false
+	}
+	capabilityID = strings.TrimSpace(capabilityID)
+	agentName = strings.TrimSpace(agentName)
+	if capabilityID == "" || agentName == "" {
+		return false
+	}
+	if !packCapabilityAvailableForGrant(c, capabilityID) {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, g := range c.MCP.PackToolGrants {
+		if !strings.EqualFold(strings.TrimSpace(g.CapabilityID), capabilityID) {
+			continue
+		}
+		if g.GrantedTo(agentName) {
+			return true
+		}
+	}
+	return false
+}
+
+// PackToolGrantFor returns a copy of the grant row for capabilityID, or ok=false.
+func (c *Config) PackToolGrantFor(capabilityID string) (PackToolGrant, bool) {
+	if c == nil {
+		return PackToolGrant{}, false
+	}
+	capabilityID = strings.TrimSpace(capabilityID)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, g := range c.MCP.PackToolGrants {
+		if strings.EqualFold(strings.TrimSpace(g.CapabilityID), capabilityID) {
+			return g, true
+		}
+	}
+	return PackToolGrant{}, false
+}
+
+// UpsertPackToolGrant replaces or appends a pack tool grant row (thread-safe).
+func (c *Config) UpsertPackToolGrant(grant PackToolGrant) {
+	if c == nil {
+		return
+	}
+	grant.CapabilityID = strings.TrimSpace(grant.CapabilityID)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i := range c.MCP.PackToolGrants {
+		if strings.EqualFold(strings.TrimSpace(c.MCP.PackToolGrants[i].CapabilityID), grant.CapabilityID) {
+			c.MCP.PackToolGrants[i] = grant
+			return
+		}
+	}
+	c.MCP.PackToolGrants = append(c.MCP.PackToolGrants, grant)
+}
+
+func packCapabilityAvailableForGrant(c *Config, capabilityID string) bool {
+	switch strings.ToLower(strings.TrimSpace(capabilityID)) {
+	case "maps-tools":
+		return c.IsPackEnabled(PackMaps) || c.HasPackCapability("maps-tools")
+	case "web-browser":
+		return c.IsPackEnabled(PackWebBrowser) || c.HasPackCapability("web-browser")
+	case "music-generation":
+		return c.IsPackEnabled(PackMusicCreation) || c.HasPackCapability("music-generation")
+	default:
+		return c.HasPackCapability(capabilityID)
+	}
 }
 
 // ExternalMediaConfig configures an optional external media-generation HTTP

@@ -97,7 +97,7 @@ func preferImplementationTargetPathForMessage(a *Agent, msg *protocol.Message) s
 			if m == nil || m.ID == msg.ID {
 				continue
 			}
-			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+			if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 				if p := preferImplementationTargetPath(a.resolveWorkspacePath(msg), m.Content, ""); p != "" {
 					return p
 				}

@@ -393,3 +393,60 @@ describe('isPersonalAssistantDmChannel', () => {
     expect(isPersonalAssistantDmChannel('dm-camron-softwarearchitect')).toBe(false);
   });
 });
+
+describe('buildHumanOutboundMetadata open_artifact', () => {
+  it('attaches focused Neural Canvas tab as open_artifact', () => {
+    useEditorStore.setState({
+      tabs: [
+        {
+          id: 'tab-nc',
+          workspaceId: 'ws-1',
+          path: 'Weather Forecast',
+          content: '',
+          isDirty: false,
+          viewMode: 'neural-canvas',
+          artifactId: 'art-weather-1',
+          artifactRendererId: 'nj.markdown',
+        },
+      ],
+      activeTabId: 'tab-nc',
+    });
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'off',
+      message: 'why did you name it weather forcast?',
+      channel: 'dm-camron-assistant',
+      channelType: 'dm',
+      composerMetadata: { editor_mode: 'agent' },
+    });
+    expect(meta?.open_artifact).toEqual({
+      id: 'art-weather-1',
+      title: 'Weather Forecast',
+      renderer_id: 'nj.markdown',
+    });
+  });
+
+  it('skips library placeholder tabs', () => {
+    useEditorStore.setState({
+      tabs: [
+        {
+          id: 'tab-lib',
+          workspaceId: 'ws-1',
+          path: 'Neural Canvas',
+          content: '',
+          isDirty: false,
+          viewMode: 'neural-canvas',
+          artifactId: '__library__',
+        },
+      ],
+      activeTabId: 'tab-lib',
+    });
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'off',
+      message: 'hello',
+      channel: 'dm-camron-assistant',
+      channelType: 'dm',
+      composerMetadata: { editor_mode: 'agent' },
+    });
+    expect(meta?.open_artifact).toBeUndefined();
+  });
+});

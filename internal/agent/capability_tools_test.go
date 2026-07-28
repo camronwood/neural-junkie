@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/mcp"
@@ -60,6 +61,13 @@ func TestShouldOfferCapabilityTools_presencePing(t *testing.T) {
 		"you still there?",
 	} {
 		msg := &protocol.Message{Content: content}
+		if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+			SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionCasual,
+			RequestedAction: intent.ActionAnswer, Action: intent.ActionAnswer,
+			Mutation: intent.MutationNone, Confidence: 1, Source: intent.SourceLocalModel,
+		}); err != nil {
+			t.Fatal(err)
+		}
 		if shouldOfferCapabilityTools(msg) {
 			t.Fatalf("expected capability tools suppressed for %q", content)
 		}
@@ -81,6 +89,13 @@ func TestAgentToolDefinitions_presencePingOmitsWorkspaceTools(t *testing.T) {
 	// Force workspace tools path with a stub by setting WorkspacePath and using definitions that check hasWorkspaceTools.
 	// Instead assert conversational gate directly against tool assembly with MCP nil + workspace tools false:
 	msg := &protocol.Message{Content: "are you here and ready to help me?"}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionCasual,
+		RequestedAction: intent.ActionAnswer, Action: intent.ActionAnswer,
+		Mutation: intent.MutationNone, Confidence: 1, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	tools := a.agentToolDefinitions(msg)
 	for _, td := range tools {
 		switch td.Name {
@@ -122,5 +137,54 @@ func TestIsConversationalOnlyTurn_casualAskUserStaysChatOnly(t *testing.T) {
 	}
 	if !isConversationalOnlyTurn(msg) {
 		t.Fatal("expected casual+ask_user misclassification to stay conversational-only")
+	}
+}
+
+func TestIsConversationalOnlyTurn_contextScopeNone(t *testing.T) {
+	t.Parallel()
+	msg := &protocol.Message{
+		Content: "Correction: refer to the component as ThemeSettings, not SettingsPanel.",
+		Metadata: map[string]interface{}{
+			MetadataConversationMode: ConversationModeChat,
+			MetadataContextScope:     ContextScopeNone,
+			"workspace_context": map[string]interface{}{
+				"workspace_path": "/tmp/fixture",
+			},
+		},
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Interaction:     intent.InteractionCorrection,
+		RequestedAction: intent.ActionEdit,
+		Action:          intent.ActionEdit,
+		Mutation:        intent.MutationWorkspace,
+		Retrieval:       []intent.RetrievalTarget{intent.RetrievalCodebase},
+		Confidence:      1,
+		Source:          intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !isConversationalOnlyTurn(msg) {
+		t.Fatal("context_scope=none must stay conversational-only even for InteractionCorrection")
+	}
+}
+
+func TestShouldAugmentPromptWithWorkspace_contextScopeNone(t *testing.T) {
+	t.Parallel()
+	a := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	a.WorkspacePath = "/tmp/sticky"
+	msg := &protocol.Message{
+		Content: "Correction: refer to the component as ThemeSettings.",
+		Metadata: map[string]interface{}{
+			MetadataConversationMode: ConversationModeChat,
+			MetadataContextScope:     ContextScopeNone,
+			"workspace_context": map[string]interface{}{
+				"workspace_path": "/tmp/fixture",
+				"file_tree":      "README.md\n",
+			},
+		},
+	}
+	if a.shouldAugmentPromptWithWorkspace(IntentTask, msg) {
+		t.Fatal("context_scope=none must not augment prompt with workspace files")
 	}
 }

@@ -13,23 +13,14 @@ import (
 // semantic phrase authorities must be added to the typed classifier instead of
 // spreading into another desktop/server module.
 var legacySemanticRecognizerFiles = map[string]bool{
-	"internal/agent/artifact_tools.go":                true,
-	"internal/agent/code_review_intent.go":            true,
-	"internal/agent/conversation_mode.go":             true,
-	"internal/agent/conversation_trust.go":            true,
-	"internal/agent/implementation_intent.go":         true,
-	"internal/agent/implementation_fallback.go":       true,
-	"internal/agent/implementation_session.go":        true,
-	"internal/agent/response_validation.go":           true,
-	"internal/agent/response_images.go":               true,
-	"internal/agent/response_music.go":                true,
-	"internal/agent/turn_goal.go":                     true,
-	"internal/routing/knowledge_router.go":            true,
-	"desktop/src/constants/composerMode.ts":           true,
-	"desktop/src/utils/bootFixRouting.ts":             true,
-	"desktop/src/utils/codeReviewSignals.ts":          true,
-	"desktop/src/utils/conversationMode.ts":           true,
-	"desktop/src/utils/implementationContinuation.ts": true,
+	// Post-hoc quality / claim validators — not turn routing.
+	"internal/agent/response_validation.go": true,
+	// Conversation trust / playbook helpers still hold NL cues (not stamp overrides).
+	"internal/agent/conversation_trust.go":       true,
+	"internal/agent/implementation_fallback.go":  true,
+	"internal/agent/implementation_intent.go":    true, // unused RE vars pending delete
+	"internal/agent/implementation_session.go":   true, // export continuation RE
+	"internal/routing/knowledge_router.go":       true,
 }
 
 func TestSemanticPhraseRecognizersStayQuarantined(t *testing.T) {
@@ -64,5 +55,42 @@ func TestSemanticPhraseRecognizersStayQuarantined(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// TestAgentTestsAvoidUserRequestsPhraseHelpers fails when agent *_test.go files call
+// UserRequests* without an explicit // phrase-migration-shim comment on the same line
+// or the line above. Prefer StampTurnDecision fixtures instead.
+func TestAgentTestsAvoidUserRequestsPhraseHelpers(t *testing.T) {
+	_, filename, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "internal", "agent"))
+	helperRE := regexp.MustCompile(`\bUserRequests(Artifact|MapOrRoute|GeneratedImage|GeneratedMusic)\b`)
+	shimRE := regexp.MustCompile(`phrase-migration-shim`)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		lines := strings.Split(string(content), "\n")
+		for i, line := range lines {
+			if !helperRE.MatchString(line) {
+				continue
+			}
+			if shimRE.MatchString(line) {
+				continue
+			}
+			if i > 0 && shimRE.MatchString(lines[i-1]) {
+				continue
+			}
+			rel, _ := filepath.Rel(filepath.Join(root, "..", ".."), path)
+			t.Errorf("%s:%d: prefer StampTurnDecision over UserRequests*; add // phrase-migration-shim only while migrating", filepath.ToSlash(rel), i+1)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

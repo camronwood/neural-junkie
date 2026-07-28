@@ -406,7 +406,7 @@ func implementationUserContent(a *Agent, msg *protocol.Message) string {
 			if m == nil || m.ID == msg.ID {
 				continue
 			}
-			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+			if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 				return m.Content
 			}
 		}
@@ -915,7 +915,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 			if m == nil || m.ID == msg.ID {
 				continue
 			}
-			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+			if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 				userContent = m.Content
 				break
 			}
@@ -1050,7 +1050,7 @@ func (a *Agent) repairTailwindDarkModeIfNeeded(ctx context.Context, msg *protoco
 			if m == nil || m.ID == msg.ID {
 				continue
 			}
-			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+			if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 				userContent = m.Content
 				break
 			}
@@ -1108,7 +1108,7 @@ func (a *Agent) repairAppThemeIfNeeded(ctx context.Context, msg *protocol.Messag
 			if m == nil || m.ID == msg.ID {
 				continue
 			}
-			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+			if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 				userContent = m.Content
 				break
 			}
@@ -1228,8 +1228,10 @@ func (a *Agent) tryEarlyGoMathFixtureFix(ctx context.Context, msg *protocol.Mess
 		return false
 	}
 	// Affirmation turns ("approve that plan") omit math.go keywords — fold prior user asks.
+	// msg.ImplementationSession() is the structural signal that this turn continues an active
+	// session (the old userAffirmsPendingImplementation phrase check is a deprecated stub).
 	cue := implementationUserContent(a, msg) + "\n" + msg.Content
-	if userAffirmsPendingImplementation(msg.Content) {
+	if msg.ImplementationSession() {
 		for _, m := range a.channelHistorySafe(msg.Channel) {
 			if m == nil || m.ID == msg.ID || !protocol.IsUserLikeSender(m.From) {
 				continue
@@ -1362,7 +1364,7 @@ func (a *Agent) repairCorruptAppJSEntryIfNeeded(ctx context.Context, msg *protoc
 			if m == nil || m.ID == msg.ID {
 				continue
 			}
-			if protocol.IsUserLikeSender(m.From) && (userRequestsImplementation(m.Content) || messageHasBootOrBuildError(m.Content)) {
+			if protocol.IsUserLikeSender(m.From) && (messageStampedImplAction(m) || messageHasBootOrBuildError(m.Content)) {
 				userContent = m.Content
 				break
 			}

@@ -6,7 +6,50 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func TestClearChannelHistoryClearsConversationState(t *testing.T) {
+	h := NewHub()
+	ch := &protocol.Channel{Name: "dm-clear-test", Type: protocol.ChannelTypeDM}
+	h.channels = map[string]*protocol.Channel{ch.Name: ch}
+	h.messages = map[string][]*protocol.Message{ch.Name: {}}
+	h.SetCurrentGoal(ch.Name, "goal-1", "msg-1", "Implement the API")
+	h.RecordConversationActionPromise(ch.Name, "pending", "goal-1", "edit", "write tests", "promise-1")
+	if st := h.GetChannelConversationState(ch.Name); st == nil || st.CurrentGoal == nil {
+		t.Fatal("expected durable state before clear")
+	}
+	if err := h.ClearChannelHistory(ch.Name); err != nil {
+		t.Fatal(err)
+	}
+	if st := h.GetChannelConversationState(ch.Name); st != nil && st.CurrentGoal != nil {
+		t.Fatalf("clear history must drop durable conversation state, got %+v", st.CurrentGoal)
+	}
+}
+
+func TestSetCurrentGoal_retainsPinnedTextAcrossFixFollowUps(t *testing.T) {
+	h := NewHub()
+	h.SetCurrentGoal("dm-pin", "goal-1", "msg-1", "The blank screen in App.tsx needs a real fix")
+	h.SetCurrentGoal("dm-pin", "goal-2", "msg-2", "fix the app")
+	st := h.GetChannelConversationState("dm-pin")
+	if st == nil || st.CurrentGoal == nil {
+		t.Fatal("expected goal")
+	}
+	if st.CurrentGoal.PinnedText != "The blank screen in App.tsx needs a real fix" {
+		t.Fatalf("pinned=%q, want original task", st.CurrentGoal.PinnedText)
+	}
+	if st.CurrentGoal.MessageID != "msg-1" {
+		t.Fatalf("message_id=%q, want original msg-1 for history pin", st.CurrentGoal.MessageID)
+	}
+	if st.CurrentGoal.LastMessageID != "msg-2" {
+		t.Fatalf("last_message_id=%q, want msg-2", st.CurrentGoal.LastMessageID)
+	}
+	env := h.GetTurnConversationContext("dm-pin")
+	if env.Goal == nil || env.Goal.PinnedText != st.CurrentGoal.PinnedText {
+		t.Fatalf("turn context missing pinned text: %+v", env.Goal)
+	}
+}
 
 func TestChannelConversationState_CorrectionSupersedesAtomically(t *testing.T) {
 	h := NewHub()

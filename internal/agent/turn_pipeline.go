@@ -411,6 +411,9 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 
 	if resp, ok := a.tryImplementationStatusCheckShortcut(msg); ok {
 		response = resp
+	} else if resp, ok := a.tryWorkspaceVisibilityResponse(msg); ok {
+		log.Printf("[%s] Workspace visibility (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+		response = resp
 	} else if resp, redirectOutcome, ok := a.tryBootFixImplementerRedirect(msg); ok {
 		response = resp
 		implSessionOutcome = redirectOutcome
@@ -693,6 +696,8 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 	st.buildActionEvidence()
 	history := st.agent.conversationHistoryForIntent(st.msg, st.intent)
 	issues := validateResponseAgainstEvidence(st.goal, st.evidence, st.msg, st.response, history)
+	issues = append(issues, validateActiveCorrectionsHonored(st.context, st.msg, st.response)...)
+	issues = uniqueValidationIssues(issues)
 	st.actionValidated = len(issues) == 0 && goalHasExpectedEvidence(st.goal, st.evidence)
 	if len(issues) > 0 {
 		switch {
@@ -723,11 +728,13 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 						st.context = recoveredContext
 					}
 					st.ctx = contextWithTurnEnvelope(st.ctx, st.context)
-					retryPrompt = appendDurableConversationContext(retryPrompt, st.context)
 					st.contextRecovered = true
 					recovered = true
 					recoverySpan.End(contextSelectionTraceAttrs(st.context))
 				}
+				// Always re-inject durable corrections on quality-gate retries so
+				// rename targets are visible even when recovery was a no-op.
+				retryPrompt = appendDurableConversationContext(retryPrompt, st.context, st.msg)
 
 				attemptSpan := trace.StartSpan(ctx, "model_attempt", validationAttemptTraceAttrs(
 					st.validationAttempts, retryProvider, recovered,
@@ -740,6 +747,8 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 				retry = sanitizeInternalToolNames(retry)
 				retry = sanitizeAbsolutePathFileChangeFromResponse(retry)
 				retryIssues := validateResponseAgainstEvidence(st.goal, st.evidence, st.msg, retry, history)
+				retryIssues = append(retryIssues, validateActiveCorrectionsHonored(st.context, st.msg, retry)...)
+				retryIssues = uniqueValidationIssues(retryIssues)
 				if err == nil && strings.TrimSpace(retry) != "" && len(retryIssues) == 0 {
 					attemptSpan.End(map[string]any{"validation": "passed"})
 					st.response = retry

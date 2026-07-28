@@ -711,9 +711,14 @@ export function parseRoutingTelemetryPayload(raw: unknown): RoutingTelemetryPayl
 export function formatRoutingBadgeLabel(meta: RoutingMeta): string {
   const model = meta.model?.trim();
   if (!model) return '';
-  const retrieval = meta.knowledge_targets?.length
-    ? meta.knowledge_targets.join('+')
-    : meta.knowledge_route?.trim();
+  // Prefer executed retrieval — planned targets alone overstated what the model saw.
+  const executed = meta.knowledge_executed?.filter((t) => t.trim()) ?? [];
+  const planned = meta.knowledge_targets?.filter((t) => t.trim()) ?? [];
+  const retrieval = executed.length
+    ? executed.join('+')
+    : planned.length
+      ? planned.join('+')
+      : meta.knowledge_route?.trim();
   if (retrieval && retrieval !== 'general' && retrieval !== 'conversation_memory') {
     return `${model} · ${retrieval}`;
   }

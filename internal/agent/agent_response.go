@@ -122,7 +122,13 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if resp, ok := a.tryBiologyScanToolShortcut(approvalCtx, msg); ok {
 		return resp, nil
 	}
+	if resp, ok := a.tryOpenCanvasMetaAnswer(msg); ok {
+		return resp, nil
+	}
 	if resp, ok := a.tryMapsRouteShortcut(approvalCtx, msg); ok {
+		return resp, nil
+	}
+	if resp, ok := a.tryNeuralCanvasMarkdownShortcut(approvalCtx, msg, prompt, eff); ok {
 		return resp, nil
 	}
 	if resp, ok := a.tryNeuralCanvasMermaidShortcut(approvalCtx, msg, prompt, eff); ok {
@@ -155,7 +161,8 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		if a.useCompactAssistantOllamaPrompt(msg) {
 			retryPrompt = a.buildUltraCompactAssistantOllamaPrompt(msg)
 		}
-		retry, err2 := eff.GenerateResponse(approvalCtx, retryPrompt, nil)
+		retryHistory := shortenedConversationWindow(history, 4)
+		retry, err2 := eff.GenerateResponse(approvalCtx, retryPrompt, historyToMessages(retryHistory))
 		if err2 == nil && strings.TrimSpace(retry) != "" &&
 			!looksLikeOllamaPromptLeak(retry) && !looksLikeContextStackEcho(msg, retry) {
 			log.Printf("[%s] Ollama context-stack echo; used compact retry", a.Info.Name)
@@ -321,7 +328,21 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		close(tokenCh)
 		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 	}
+	if resp, ok := a.tryOpenCanvasMetaAnswer(msg); ok {
+		tokenCh := make(chan ai.StreamToken, 2)
+		tokenCh <- ai.StreamToken{Content: resp}
+		tokenCh <- ai.StreamToken{Done: true}
+		close(tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+	}
 	if resp, ok := a.tryMapsRouteShortcut(approvalCtx, msg); ok {
+		tokenCh := make(chan ai.StreamToken, 2)
+		tokenCh <- ai.StreamToken{Content: resp}
+		tokenCh <- ai.StreamToken{Done: true}
+		close(tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+	}
+	if resp, ok := a.tryNeuralCanvasMarkdownShortcut(approvalCtx, msg, prompt, eff); ok {
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}
@@ -387,7 +408,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			} else {
 				attemptPrompt = a.buildUltraCompactOllamaPrompt(msg)
 			}
-			history = nil
+			history = shortenedConversationWindow(history, 4)
 			log.Printf("[%s] Retrying Ollama stream (attempt %d/%d, prompt %d bytes)", a.Info.Name, attempt+1, maxAttempts, len(attemptPrompt))
 		}
 		attemptSP, ok := streamProvider.(ai.StreamingProvider)

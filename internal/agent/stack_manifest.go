@@ -17,6 +17,7 @@ const stackManifestMaxWalkFiles = 200
 // StackManifest summarizes detected project stack for implementation grounding.
 type StackManifest struct {
 	WorkspaceRoot   string
+	PackageName     string // from package.json / Cargo.toml / go.mod when available
 	HasReact        bool
 	HasVue          bool
 	HasVite         bool
@@ -60,6 +61,12 @@ func DetectStackManifest(workspaceRoot string) *StackManifest {
 		}
 	}
 	m.readPackageJSON(workspaceRoot)
+	if m.PackageName == "" {
+		m.PackageName = readGoModuleName(workspaceRoot)
+	}
+	if m.PackageName == "" {
+		m.PackageName = readCargoPackageName(workspaceRoot)
+	}
 	m.locateTailwindConfig(workspaceRoot)
 	m.locateEntryPoint(workspaceRoot)
 	if _, err := os.Stat(filepath.Join(workspaceRoot, "tsconfig.json")); err == nil {
@@ -75,11 +82,15 @@ func (m *StackManifest) readPackageJSON(root string) {
 		return
 	}
 	var pkg struct {
+		Name            string            `json:"name"`
 		Dependencies    map[string]string `json:"dependencies"`
 		DevDependencies map[string]string `json:"devDependencies"`
 	}
 	if json.Unmarshal(b, &pkg) != nil {
 		return
+	}
+	if name := strings.TrimSpace(pkg.Name); name != "" {
+		m.PackageName = name
 	}
 	all := make(map[string]string)
 	for k, v := range pkg.Dependencies {
@@ -103,6 +114,55 @@ func (m *StackManifest) readPackageJSON(root string) {
 			m.HasTailwind = true
 		}
 	}
+}
+
+func readGoModuleName(root string) string {
+	b, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			mod := strings.TrimSpace(strings.TrimPrefix(line, "module "))
+			if mod == "" {
+				return ""
+			}
+			if i := strings.LastIndex(mod, "/"); i >= 0 && i+1 < len(mod) {
+				return mod[i+1:]
+			}
+			return mod
+		}
+	}
+	return ""
+}
+
+func readCargoPackageName(root string) string {
+	b, err := os.ReadFile(filepath.Join(root, "Cargo.toml"))
+	if err != nil {
+		return ""
+	}
+	inPackage := false
+	for _, line := range strings.Split(string(b), "\n") {
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, "[") {
+			inPackage = trim == "[package]"
+			continue
+		}
+		if !inPackage {
+			continue
+		}
+		if strings.HasPrefix(trim, "name") {
+			parts := strings.SplitN(trim, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			name := strings.TrimSpace(parts[1])
+			name = strings.Trim(name, `"'`)
+			return strings.TrimSpace(name)
+		}
+	}
+	return ""
 }
 
 func (m *StackManifest) locateTailwindConfig(root string) {

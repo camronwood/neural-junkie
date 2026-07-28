@@ -1,14 +1,4 @@
 import type { ChannelKind } from './inferContextScope';
-import {
-  hasCodeGraphSignals,
-  messageReferencesOpenEditor,
-  messageRequestsScanTool,
-} from './inferContextScope';
-import {
-  hasErrorLogFollowUpSignals,
-  hasImplementationContinuationSignals,
-  hasImplementationRequestSignals,
-} from './implementationContinuation';
 import { CONVERSATION_MODE_METADATA_KEY } from '../constants/promptMetadata';
 
 export type ConversationModeSetting = 'auto' | 'chat' | 'code';
@@ -17,30 +7,9 @@ export type ResolvedConversationMode = 'chat' | 'code' | 'collab' | 'clarify';
 
 export const CONVERSATION_MODE_STORAGE_KEY = 'conversation-mode';
 
-const CODE_VERBS_RE =
-  /\b(review|refactor|debug|fix|implement|compile|lint|test|patch|edit|change|update|add|remove|rewrite|optimize|trace|diff|analyze|analyse)\b/i;
-
-/** Verbs that almost always mean hands-on code work (not casual English). */
-const STRONG_CODE_VERBS_RE =
-  /\b(refactor|debug|implement|compile|lint|patch|rewrite|trace|diff)\b/i;
-
-const FILE_PATH_RE =
-  /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/;
-
-const GREETING_RE =
-  /^(?:@\w+\s+)?(?:hi|hello|hey|yo|sup|what'?s up|howdy|good (?:morning|afternoon|evening)|thanks|thank you|ok|okay|nice|cool)[!.?\s]*$/i;
-
-/** @here / @channel / @everyone — channel-wide fan-out. */
+/** @here / @channel / @everyone — channel-wide fan-out (structural mention tokens). */
 const HERE_MENTION_RE = /(?:^|[\s])@(?:here|channel|everyone)\b/i;
 
-/** Short social / status pings that should never force code mode. */
-const SOCIAL_PING_RE =
-  /^(?:@(?:here|channel|everyone|\w+)\s+)*(?:what'?s\s+going\s+on|what\s+is\s+going\s+on|whats\s+up|how'?s\s+it\s+going|how\s+are\s+things|anyone\s+around|you\s+there|status\??|ping)[?!.\s]*$/i;
-
-const VAGUE_HELP_RE =
-  /^(?:@\w+\s+)?(?:help|look|check|can you|could you|please)\b/i;
-
-/** Strip leading @mentions for greeting / social classification. */
 export function stripLeadingMentions(message: string): string {
   return (message ?? '')
     .replace(/^(?:\s*@(?:here|channel|everyone|\w+)\b)+\s*/gi, '')
@@ -51,24 +20,17 @@ export function hasHereOrChannelMention(message: string): boolean {
   return HERE_MENTION_RE.test(message ?? '');
 }
 
-/** Casual room ping — discuss, don't dive into tools/repo. */
+/** Casual room ping — discuss, don't dive into tools/repo. Mentions + short body; no NL verb banks. */
 export function isSocialOrStatusPing(message: string): boolean {
   const text = (message ?? '').trim();
   if (!text) return false;
   if (hasStrongCodeTaskSignals(text)) return false;
   const stripped = stripLeadingMentions(text);
   if (!stripped) {
-    // Bare @here / @channel with no body.
     return hasHereOrChannelMention(text);
   }
-  if (GREETING_RE.test(text) || GREETING_RE.test(stripped)) return true;
-  if (SOCIAL_PING_RE.test(text) || SOCIAL_PING_RE.test(stripped)) return true;
-  // Short question with @here and no code signals.
-  if (
-    hasHereOrChannelMention(text) &&
-    stripped.length <= 80 &&
-    !hasCodeTaskSignals(stripped)
-  ) {
+  // Short @here/@channel body without structural code signals stays chat.
+  if (hasHereOrChannelMention(text) && stripped.length <= 80) {
     return true;
   }
   return false;
@@ -117,105 +79,50 @@ export function conversationModeSettingLabel(mode: ConversationModeSetting): str
   }
 }
 
-export function hasScanOrEditorTaskSignals(message: string): boolean {
-  const text = (message ?? '').trim();
-  if (!text) return false;
-  if (messageRequestsScanTool(text)) return true;
-  if (messageReferencesOpenEditor(text)) return true;
-  return false;
-}
-
-/** High-confidence code/workspace task signals (not everyday English like "update"). */
+/** Strong code signals — structural only (@codebase / path-like tokens). NL verbs removed. */
 export function hasStrongCodeTaskSignals(message: string): boolean {
   const text = (message ?? '').trim();
   if (!text) return false;
-  if (hasImplementationContinuationSignals(text)) return true;
-  if (hasImplementationRequestSignals(text)) return true;
-  if (hasErrorLogFollowUpSignals(text)) return true;
-  if (hasScanOrEditorTaskSignals(text)) return true;
   if (/@codebase\b/i.test(text)) return true;
-  if (hasCodeGraphSignals(text)) return true;
-  if (FILE_PATH_RE.test(text)) return true;
-  if (STRONG_CODE_VERBS_RE.test(text)) return true;
-  if (/`[^`]+`/.test(text) && CODE_VERBS_RE.test(text)) return true;
-  return false;
-}
-
-export function hasCodeTaskSignals(message: string): boolean {
-  const text = (message ?? '').trim();
-  if (!text) return false;
-  if (hasStrongCodeTaskSignals(text)) return true;
-  if (CODE_VERBS_RE.test(text)) return true;
-  if (/`[^`]+`/.test(text)) return true;
-  return false;
-}
-
-/**
- * True when Auto cannot confidently choose chat vs code.
- * Explicit Chat/Code settings never use this — only Auto inference.
- */
-export function isConversationModeAmbiguous(
-  message: string,
-  options?: { ideCoding?: boolean; channelKind?: ChannelKind; hasOpenTab?: boolean }
-): boolean {
-  const text = (message ?? '').trim();
-  if (!text) return false;
-  if (options?.channelKind === 'collaboration') return false;
-  if (isSocialOrStatusPing(text) || GREETING_RE.test(text)) return false;
-  // IDE coding layout already implies workspace work — except social/@here pings
-  // which are handled in inferResolvedConversationMode before this runs.
-  if (options?.ideCoding) return false;
-  if (hasStrongCodeTaskSignals(text)) return false;
-
-  const weakCode = hasCodeTaskSignals(text);
-  const isQuestion = text.includes('?');
-
-  // "how do I update AWS SSO?" — weak verb + question, no path.
-  if (weakCode && isQuestion) return true;
-  // Short/medium weak-verb asks without a clear discuss-vs-edit cue.
-  if (weakCode && text.length < 100) return true;
-  // Vague help with an open tab but no code signals.
-  if (
-    options?.hasOpenTab &&
-    !weakCode &&
-    !isQuestion &&
-    VAGUE_HELP_RE.test(text) &&
-    text.length < 80
-  ) {
+  if (/(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/.test(text)) {
     return true;
   }
   return false;
 }
 
+export function hasCodeTaskSignals(message: string): boolean {
+  return hasStrongCodeTaskSignals(message);
+}
+
+export function hasScanOrEditorTaskSignals(_message: string): boolean {
+  return false;
+}
+
+export function isConversationModeAmbiguous(
+  _message: string,
+  options?: { ideCoding?: boolean; channelKind?: ChannelKind; hasOpenTab?: boolean }
+): boolean {
+  if (options?.channelKind === 'collaboration') return false;
+  if (options?.ideCoding) return false;
+  return false;
+}
+
+/**
+ * Auto no longer invents chat vs code from NL phrases. Explicit setting wins;
+ * Auto defaults to chat unless IDE coding layout or collab channel.
+ */
 export function inferResolvedConversationMode(
   message: string,
   options?: { ideCoding?: boolean; channelKind?: ChannelKind; hasOpenTab?: boolean }
 ): ResolvedConversationMode {
-  const text = message.trim();
-  // Social / @here pings stay conversational even in IDE layout.
-  if (isSocialOrStatusPing(text)) {
+  if (isSocialOrStatusPing(message)) {
     return 'chat';
   }
   if (options?.ideCoding) {
-    if (GREETING_RE.test(text)) {
-      return 'chat';
-    }
     return 'code';
   }
   if (options?.channelKind === 'collaboration') {
     return 'collab';
-  }
-  if (isConversationModeAmbiguous(message, options)) {
-    return 'clarify';
-  }
-  if (hasCodeTaskSignals(message)) {
-    return 'code';
-  }
-  if (GREETING_RE.test(text)) {
-    return 'chat';
-  }
-  if (message.includes('?') && text.length >= 20 && !hasCodeTaskSignals(message)) {
-    return 'chat';
   }
   return 'chat';
 }

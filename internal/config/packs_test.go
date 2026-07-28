@@ -163,15 +163,14 @@ func TestAvailableExpertPresetsDevPack(t *testing.T) {
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	presets := cfg.AvailableExpertPresets()
 	hasArchitecture := false
-	hasCodeReview := false
 	hasDatabase := false
 	hasRust := false
 	for _, p := range presets {
 		if p.Slug == "architecture" && p.FromPack == PackSoftwareDevelopment {
 			hasArchitecture = true
 		}
-		if p.Slug == "code-review" && p.FromPack == PackSoftwareDevelopment {
-			hasCodeReview = true
+		if p.Slug == "code-review" {
+			t.Fatal("code-review preset should be removed from software-development pack")
 		}
 		if p.Slug == "database" && p.FromPack == PackSoftwareDevelopment {
 			hasDatabase = true
@@ -182,9 +181,6 @@ func TestAvailableExpertPresetsDevPack(t *testing.T) {
 	}
 	if !hasArchitecture {
 		t.Fatal("expected architecture preset from software-development pack")
-	}
-	if !hasCodeReview {
-		t.Fatal("expected code-review preset from software-development pack")
 	}
 	if !hasDatabase {
 		t.Fatal("expected database preset from software-development pack")
@@ -217,8 +213,11 @@ func TestPresetExpertAllowed(t *testing.T) {
 	if !cfg.PresetExpertAllowed("rust") {
 		t.Fatal("legacy rust should be allowed when dev pack on")
 	}
-	if !cfg.PresetExpertAllowed("code-review") {
-		t.Fatal("code-review should be allowed when dev pack on")
+	if cfg.PresetExpertAllowed("code-review") {
+		t.Fatal("code-review should remain blocked (review is a core agent behavior)")
+	}
+	if cfg.PresetExpertAllowed("maps") {
+		t.Fatal("maps should be blocked (ability pack on Assistant)")
 	}
 	if !cfg.PresetExpertAllowed("guitar") {
 		t.Fatal("custom slugs should be allowed")

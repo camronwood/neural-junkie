@@ -82,6 +82,10 @@ type codebaseRetriever struct{}
 func (codebaseRetriever) Target() routing.RouteTarget { return routing.RouteCodebase }
 func (codebaseRetriever) Phase() KnowledgePhase       { return KnowledgePhaseEarly }
 func (codebaseRetriever) ShouldRun(plan routing.KnowledgePlan, msg *protocol.Message, _ TurnIntent) bool {
+	if ResolveContextScope(msg) == ContextScopeNone && !explicitCodebaseRequest(msg) &&
+		(msg == nil || !codebaseMentionRE.MatchString(msg.Content)) {
+		return false
+	}
 	return ShouldRunCodebaseSearch(plan) || explicitCodebaseRequest(msg)
 }
 func (codebaseRetriever) Execute(_ context.Context, _ *Agent, msg *protocol.Message, plan routing.KnowledgePlan, _ TurnIntent) (KnowledgeResult, error) {

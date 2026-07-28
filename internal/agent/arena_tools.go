@@ -106,7 +106,7 @@ func (a *Agent) arenaToolsEnabledForMessage(msg *protocol.Message) bool {
 	if !agentTypeSupportsArenaTools(a.Info.Type) {
 		return false
 	}
-	if messageSuppressesImageGeneration(msg) {
+	if messageSuppressesCreativeMediaTools(msg) {
 		return false
 	}
 	return true

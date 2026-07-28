@@ -60,6 +60,12 @@ Environment: `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
 | `dm-backend-deep-continuation` | DM | BackendEngineer | dm, backend, continuation, regression |
 | `dm-topic-switch` | DM | BackendEngineer | dm, backend, topic-switch, regression |
 | `dm-assistant-continue-after-closure` | DM | Assistant | dm, assistant, closure, continuation, regression |
+| `dm-assistant-trip-followup` | DM | Assistant | dm, assistant, dialogue, regression |
+| `dm-pronoun-followup-3turn` | DM | FrontendEngineer | dm, frontend, dialogue, regression |
+| `dm-chat-mode-soft-followups` | DM | BackendEngineer | dm, backend, dialogue, regression |
+| `dm-topic-continuity-same-thread` | DM | Assistant | dm, assistant, dialogue, regression |
+| `dm-summary-continuity-long-horizon` | DM | Assistant | dm, assistant, dialogue, long-horizon, regression |
+| `dm-durable-state-chat-isolation` | DM | BackendEngineer | dm, backend, dialogue, regression |
 | `dm-backend-interject-resume` | DM | BackendEngineer | dm, backend, interject, regression |
 | `dm-frontend-greeting` | DM | FrontendEngineer | dm, frontend, greeting |
 | `dm-frontend-code-task` | DM | FrontendEngineer | dm, frontend, task |
@@ -67,7 +73,7 @@ Environment: `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
 | `dm-architect-outline` | DM | SoftwareArchitect | dm, architecture, substantive |
 | `dm-platform-greeting` | DM | PlatformEngineer | dm, devops, greeting |
 | `dm-database-greeting` | DM | DatabaseSpecialist | dm, database, greeting |
-| `dm-code-reviewer-task` | DM | CodeReviewer | dm, code-review, task |
+| `dm-backend-code-review` | DM | BackendEngineer | dm, backend, code-review, task |
 | `dm-biology-greeting` | DM | BiologyExpert | dm, biology, greeting, life-sciences *(optional)* |
 
 Scenarios marked `"optional": true` **skip** (exit 0) when required agents are offline (e.g. BiologyExpert without life-sciences pack).
@@ -83,11 +89,21 @@ These cover the conversation bugs we hit in production chat:
 - **`dm-topic-switch`** — code → chat opinion → code without workspace dumps on the chat turn
 - **`dm-assistant-continue-after-closure`** — thanks closure then a new question gets a substantive answer
 - **`dm-backend-interject-resume`** — channel interject holds agents until the user sends again (requires `make server-regression`)
+- **Dialogue continuity** (`tags: dialogue`) — multi-turn thread holding (Layer A companions required):
+  - **`dm-assistant-trip-followup`** — trip → enable websearch → stay on trip; never `wrong_route` / FrontendEngineer
+  - **`dm-pronoun-followup-3turn`** — anaphoric “move it …” retains ThemeSettings/Appearance
+  - **`dm-chat-mode-soft-followups`** — opinion → why → one more tradeoff without tool dumps
+  - **`dm-topic-continuity-same-thread`** — 4-turn same theme retention
+  - **`dm-summary-continuity-long-horizon`** — early constraint survives past summary refresh
+  - **`dm-durable-state-chat-isolation`** — code turn then chat opinion without implement dumps
 
 ```bash
 make chat-scenarios-regression
 make conversation-scenarios-regression
+python3 scripts/chat-scenarios.py --all --tag dialogue
 ```
+
+Tag `dialogue` / `coherence` scenarios must have ≥3 user sends and continuity asserts (`assert_transcript_metrics` and/or `any_match` + `none_match`) — enforced by `scripts/lib/scenario_contract.py`.
 
 ## Scenario JSON
 
@@ -135,7 +151,7 @@ DM scenarios use `"channel_type": "dm"` — channel created via `/api/channels/c
 2. Set `tags`, `target_agent`, `required_agents`, and assertions (`none_match` hard gates; `any_match` for content quality; use `semantic_turn_decision` when checking routing).
 3. For implement-style scenarios, declare `expect_deliverables` and wait on disk/metadata — not canned session phrases.
 4. Run `make chat-scenario SCENARIO=your-name VERBOSE=1`.
-5. Add a matching **Layer A** case in `chat_quality_router_test.go` or `chat_quality_coverage_test.go` if the bug was routing-related.
+5. Add a matching **Layer A** case in `chat_quality_router_test.go`, `turn_intent_test.go`, or `dialogue_continuity_test.go` if the bug was routing/history-related. **Dialogue** scenarios must always pair with a Layer A companion.
 
 ### Auto-authored scenarios (test-growth loop)
 

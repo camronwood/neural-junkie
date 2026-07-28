@@ -40,47 +40,7 @@ func TestAttachGeneratedImageFromResponse_MarkdownPath(t *testing.T) {
 	}
 }
 
-func TestUserRequestsGeneratedImage(t *testing.T) {
-	tests := []struct {
-		name    string
-		content string
-		want    bool
-	}{
-		{name: "existing conversion phrase", content: "can you make it an image?", want: true},
-		{name: "direct image request", content: "can you generate an image of a logo?", want: true},
-		{name: "direct cover art request", content: "generate cover art for the book", want: true},
-		{
-			name:    "indirect sample cover request",
-			content: "ok lets see what a sample outline and cover art image will look like",
-			want:    true,
-		},
-		{name: "preview sample image", content: "I'd like to preview a sample cover image", want: true},
-		{name: "descriptive cover question", content: "what would the cover art look like do you think?", want: false},
-		{name: "negated capability statement", content: "you can not generate images", want: false},
-		{name: "negative request", content: "please don't generate an image yet", want: false},
-		{name: "unrelated question", content: "what time is it?", want: false},
-		{name: "delivery boilerplate", content: "🖼️ Generated image.", want: false},
-		{name: "past tense status", content: "generated image attached for review", want: false},
-		{name: "neural canvas mermaid", content: "Create a Neural Canvas Mermaid diagram of this architecture", want: false},
-		{name: "neural canvas chart", content: "Show me a Neural Canvas chart of coverage", want: false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := UserRequestsGeneratedImage(tc.content); got != tc.want {
-				t.Fatalf("UserRequestsGeneratedImage(%q) = %v, want %v", tc.content, got, tc.want)
-			}
-		})
-	}
-}
-
-func TestUserRequestsImageWithCompanionText(t *testing.T) {
-	if !UserRequestsImageWithCompanionText("Let's see a sample outline and cover art image.") {
-		t.Fatal("expected mixed outline and image request")
-	}
-	if UserRequestsImageWithCompanionText("Generate an image of a written story outline.") {
-		t.Fatal("an image subject must not become a separate text task")
-	}
-	if UserRequestsImageWithCompanionText("Generate cover art for the book.") {
-		t.Fatal("image-only request must not require a companion response")
-	}
-}
+// Note: UserRequestsGeneratedImage / UserRequestsImageWithCompanionText are deprecated // phrase-migration-shim
+// phrase-matching stubs (always false) — see response_images.go. Image routing is now
+// stamp-first via messageSuppressesImageGeneration / tryHubImageGenerationShortcut in
+// image_gen_tools.go, which the tests there cover with stamped TurnDecisions.

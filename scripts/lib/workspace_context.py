@@ -215,14 +215,19 @@ def enrich_send_metadata(
             out["ide_route_agent_type"] = route
 
     ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
-    if not out.get("workspace_context"):
+    # context_scope=none is advisory chat — do not inject workspace_context or the
+    # agent will treat HasWorkspace as true and dump README / run codebase search.
+    scope = str(out.get("context_scope") or "").strip().lower()
+    if scope == "none":
+        out.pop("workspace_context", None)
+    elif not out.get("workspace_context"):
         ctx = build_workspace_context(scenario)
         if default_file_tree and not ctx.get("file_tree"):
             ctx["file_tree"] = default_file_tree
         out["workspace_context"] = ctx
 
     linked_cfg = ws_cfg.get("linked_workspaces")
-    if isinstance(linked_cfg, list) and linked_cfg:
+    if scope != "none" and isinstance(linked_cfg, list) and linked_cfg:
         linked_out: list[dict[str, Any]] = []
         for item in linked_cfg:
             if not isinstance(item, dict):

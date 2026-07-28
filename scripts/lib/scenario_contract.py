@@ -198,6 +198,40 @@ def validate_scenario_shape(scenario_relpath: str, scenario: dict) -> list[str]:
             errors.append(
                 f"{scenario_relpath}: long-horizon chat scenario needs assert_transcript_metrics"
             )
+
+    tags = {str(t).strip().lower() for t in (scenario.get("tags") or []) if str(t).strip()}
+    if scenario_relpath.startswith("chat/") and ("dialogue" in tags or "coherence" in tags):
+        errors.extend(validate_dialogue_scenario_contract(scenario_relpath, scenario))
+    return errors
+
+
+def validate_dialogue_scenario_contract(scenario_relpath: str, scenario: dict) -> list[str]:
+    """Dialogue/coherence chat scenarios must prove multi-turn continuity."""
+    errors: list[str] = []
+    sends = [
+        step
+        for step in scenario_all_steps(scenario)
+        if str(step.get("action") or "").strip() == "send"
+    ]
+    if len(sends) < 3:
+        errors.append(f"{scenario_relpath}: dialogue/coherence tag requires at least 3 send turns")
+
+    has_metrics = any(
+        str(step.get("action") or "").strip() == "assert_transcript_metrics"
+        for step in scenario_all_steps(scenario)
+    )
+    has_continuity_assert = False
+    for step in scenario_all_steps(scenario):
+        if str(step.get("action") or "").strip() != "assert_messages":
+            continue
+        if step.get("any_match") and step.get("none_match"):
+            has_continuity_assert = True
+            break
+    if not has_metrics and not has_continuity_assert:
+        errors.append(
+            f"{scenario_relpath}: dialogue/coherence needs assert_transcript_metrics "
+            "and/or assert_messages with any_match + none_match continuity guards"
+        )
     return errors
 
 

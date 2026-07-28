@@ -170,6 +170,33 @@ def step_wait_reply(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
     max_new = int(step.get("max_new", 1))
     retries = max(0, int(step.get("retries", 0)))
     resend_on_error = bool(step.get("resend_on_generation_error"))
+    accept_file_change = bool(step.get("accept_file_change"))
+    regression = os.environ.get("NJ_REGRESSION", "").strip().lower() in {"1", "true", "yes", "on"}
+    last_hygiene = 0.0
+
+    def mid_wait() -> None:
+        nonlocal last_hygiene
+        if not regression:
+            return
+        now = time.time()
+        if now - last_hygiene < 2.0:
+            return
+        last_hygiene = now
+        n_files, ids = hub.wait_and_approve_file_changes(
+            ctx.base,
+            ctx.channel,
+            min_approved=0,
+            timeout=1.0,
+        )
+        if n_files > 0:
+            ctx.log(f"  wait_reply: auto-approved {n_files} file change(s) ids={ids}")
+        n_tools = hub.reject_pending_tool_approvals(
+            ctx.base,
+            channel=ctx.channel,
+            reason="chat-scenario: reject non-allowlist tools under NJ_REGRESSION",
+        )
+        if n_tools > 0:
+            ctx.log(f"  wait_reply: auto-rejected {n_tools} pending tool approval(s)")
 
     for attempt in range(retries + 1):
         ok, detail = hub.wait_chat_reply(
@@ -180,8 +207,11 @@ def step_wait_reply(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
             timeout=timeout,
             max_new=max_new,
             detect_failures=True,
+            mid_wait=mid_wait,
+            accept_file_change=accept_file_change,
         )
         if not ok:
+            hub.abort_channel_agents(ctx.base, ctx.channel, held_by="chat-scenario-timeout")
             if attempt < retries and (
                 "failure" in detail.lower() or "timeout" in detail.lower()
             ):
@@ -653,6 +683,7 @@ def _run_scenario_once(
     # prompts in shared DM channels and poison @codebase / metric asserts.
     if not keep:
         hub.abort_channel_agents(ctx.base, ctx.channel, held_by="chat-scenario")
+        hub.reject_pending_tool_approvals(ctx.base, channel=ctx.channel)
         hub.clear_channel_history(ctx.base, ctx.channel)
 
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
@@ -675,6 +706,8 @@ def _run_scenario_once(
 
     cleanup = scenario.get("cleanup", "clear")
     if cleanup == "clear" and not keep:
+        hub.abort_channel_agents(ctx.base, ctx.channel, held_by="chat-scenario-cleanup")
+        hub.reject_pending_tool_approvals(ctx.base, channel=ctx.channel)
         if hub.clear_channel_history(ctx.base, ctx.channel):
             print("  ✓ cleanup: cleared channel history")
         else:

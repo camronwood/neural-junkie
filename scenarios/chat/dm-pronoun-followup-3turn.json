@@ -1,0 +1,49 @@
+{
+  "name": "dm-pronoun-followup-3turn",
+  "description": "Frontend DM: name ThemeSettings then anaphoric follow-up must retain the entity.",
+  "tags": ["dm", "frontend", "dialogue", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "Design a ThemeSettings component for dark/light mode.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "send",
+      "content": "Add keyboard accessibility for it.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "send",
+      "content": "Move it under an Appearance section in settings.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "FrontendEngineer",
+      "any_match": ["Appearance|ThemeSettings"],
+      "none_match": ["FILE_CHANGE", "Grounding: I loaded", "kubectl"]
+    },
+    {
+      "action": "assert_transcript_metrics",
+      "cases": [
+        {
+          "metric": "instruction_retention",
+          "user_match": "ThemeSettings",
+          "after_user_match": "Move it under",
+          "assistant_match": "(ThemeSettings|Appearance)"
+        }
+      ],
+      "thresholds": { "instruction_retention_rate": 1.0 }
+    }
+  ],
+  "cleanup": "clear"
+}

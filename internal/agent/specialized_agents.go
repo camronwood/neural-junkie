@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -473,10 +474,11 @@ func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvi
 
 // attachUserToolsMCP wires granted MCP Tool Wizard user tools and/or granted
 // external-media tools (media_submit/media_status/media_fetch) onto agent,
-// sharing one in-process MCP server so a custom expert with both kinds of
-// grants gets a single unified tool call surface. No-ops (and leaves
-// agent.MCPServer nil) when nothing is granted, so custom experts without
-// tools keep their current zero-overhead behavior.
+// plus Composition Model pack-tool grants (maps/browser). Sharing one
+// in-process MCP server so a custom expert with both kinds of grants gets a
+// single unified tool call surface. No-ops (and leaves agent.MCPServer nil)
+// when nothing is granted, so custom experts without tools keep their current
+// zero-overhead behavior.
 func attachUserToolsMCP(agent *Agent, agentName string) {
 	mcpServer, err := mcp.NewInProcessMCPServer("custom-expert-tools-mcp", "1.0.0")
 	if err != nil {
@@ -490,11 +492,43 @@ func attachUserToolsMCP(agent *Agent, agentName string) {
 	} else if media != nil {
 		attached = true
 	}
+	if attachPackToolGrantsToServer(mcpServer, agentName) {
+		attached = true
+	}
 
 	if !attached {
 		return
 	}
 	startDomainAgentMCP(agent, "Custom Tools", &rawMCPServer{srv: mcpServer})
+}
+
+// ReattachGrantedTools rebuilds a custom expert's MCP from current grants
+// (user tools, external media, pack ability tools). Safe to call after a grant API update.
+func ReattachGrantedTools(a *Agent) {
+	if a == nil || a.Info.Type != protocol.AgentTypeExpert {
+		return
+	}
+	a.MCPServer = nil
+	a.MCPToolAllowlist = nil
+	attachUserToolsMCP(a, a.Info.Name)
+}
+
+// attachPackToolGrantsToServer registers maps/browser MCP tools when Composition
+// granted them to agentName and the owning pack is still enabled.
+func attachPackToolGrantsToServer(mcpServer *server.MCPServer, agentName string) bool {
+	if mcpServer == nil || strings.TrimSpace(agentName) == "" {
+		return false
+	}
+	attached := false
+	if packToolGrantedToAgent(agentName, "maps-tools") {
+		mapsmcp.AttachGeocodeRouteTools(mcpServer)
+		attached = true
+	}
+	if packToolGrantedToAgent(agentName, "web-browser") {
+		browser.AttachAutomationTools(mcpServer)
+		attached = true
+	}
+	return attached
 }
 
 // rawMCPServer adapts a bare mcp-go server.MCPServer to MCPServerInterface,
@@ -533,8 +567,6 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewRustAgent(name, ai, hub), nil
 	case protocol.AgentTypeArchitecture:
 		return NewArchitectureAgent(name, ai, hub), nil
-	case protocol.AgentTypeCodeReview:
-		return NewCodeReviewAgent(name, ai, hub), nil
 	case protocol.AgentTypeSRE:
 		return NewSREAgent(name, ai, hub), nil
 	case protocol.AgentTypeMobile:
@@ -557,14 +589,10 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewAWSAgent(name, ai, hub), nil
 	case protocol.AgentTypeIncident:
 		return NewIncidentAgent(name, ai, hub), nil
-	case protocol.AgentTypeBrowser:
-		return NewBrowserAgent(name, ai, hub), nil
-	case protocol.AgentTypeMusic:
-		return NewMusicAgent(name, ai, hub), nil
-	case protocol.AgentTypeMaps:
-		return NewMapsAgent(name, ai, hub), nil
 	case protocol.AgentTypeArena:
 		return NewArenaAgent(name, ai, hub), nil
+	case protocol.AgentTypeBrowser, protocol.AgentTypeMusic, protocol.AgentTypeMaps, protocol.AgentTypeCodeReview:
+		return nil, fmt.Errorf("%s agents were removed — enable the ability pack for Assistant tools, or use Composition grants for custom experts", agentType)
 	case protocol.AgentTypeRepo:
 		return NewRepoAgentWrapper(name, ai, hub), nil
 	case protocol.AgentTypeAssistant:

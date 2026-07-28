@@ -219,6 +219,9 @@ func scanDirectory(workspacePath string, agentType protocol.AgentType, query str
 		if excludePaths[rel] || excludePaths[path] {
 			return nil
 		}
+		if isMarketingDocPath(rel) {
+			return nil
+		}
 
 		priority := workspaceScanPathPriority(rel, query, agentType)
 		if matchesEntry {
@@ -431,6 +434,9 @@ func workspaceScanPathPriority(relPath, query string, agentType protocol.AgentTy
 	lower := strings.ToLower(strings.ReplaceAll(relPath, "\\", "/"))
 	queryLower := strings.ToLower(query)
 
+	if isMarketingDocPath(lower) {
+		return 10000 // effectively last — prefer source over changelog/campaigns
+	}
 	if agentType == protocol.AgentTypeFrontend {
 		if strings.Contains(lower, "src/components/") {
 			priority -= 45
@@ -462,4 +468,22 @@ func workspaceScanPathPriority(relPath, query string, agentType protocol.AgentTy
 		priority += 30
 	}
 	return priority
+}
+
+// isMarketingDocPath reports CHANGELOG / campaigns / release-notes paths that
+// pollute fix/debug grounding with alternate product names (e.g. Dickory Docs).
+func isMarketingDocPath(relPath string) bool {
+	lower := strings.ToLower(strings.ReplaceAll(relPath, "\\", "/"))
+	base := filepath.Base(lower)
+	if strings.HasPrefix(base, "changelog") || base == "release-notes.html" ||
+		strings.Contains(base, "release-notes") {
+		return true
+	}
+	if strings.HasPrefix(lower, "campaigns/") || strings.Contains(lower, "/campaigns/") {
+		return true
+	}
+	if strings.Contains(lower, "release-notes") {
+		return true
+	}
+	return false
 }

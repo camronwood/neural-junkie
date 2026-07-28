@@ -555,7 +555,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		return false
 	}
 
-	if userRequestsImplementationStatusCheck(msg.Content) &&
+	if implementationStatusCheckRE.MatchString(strings.TrimSpace(msg.Content)) &&
 		channelHasRecentImplementationActivity(a.channelHistory(msg.Channel), msg.ID, a.Info.ID) {
 		log.Printf("[%s] ✅ IMPLEMENTATION STATUS CHECK — will respond", a.Info.Name)
 		return true

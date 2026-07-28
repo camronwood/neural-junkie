@@ -86,8 +86,6 @@ func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, i
 	needsTools := capabilities.RequiresToolCapableModel(class)
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
 		needsTools = needsTools || routing.DecisionFromSemantic(decision, nil).ToolNeed
-	} else {
-		needsTools = needsTools || agent.UserRequestsGeneratedImage(msg.Content) || agent.UserRequestsGeneratedMusic(msg.Content)
 	}
 	var sel capabilities.SelectResult
 	if needsTools {

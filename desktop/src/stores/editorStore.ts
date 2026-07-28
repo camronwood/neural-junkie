@@ -64,6 +64,8 @@ export interface EditorTab {
   knowledgeGraphRepoPath?: string;
   /** App-managed Neural Canvas artifact identifier. */
   artifactId?: string;
+  /** Neural Canvas renderer id (e.g. nj.markdown) when viewMode is neural-canvas. */
+  artifactRendererId?: string;
 }
 
 export interface OpenFileOptions {
@@ -160,7 +162,7 @@ interface EditorState {
   ) => void;
   openArenaWorkbench: (workspaceId: string, filePath: string) => void;
   openKnowledgeGraphWorkbench: (workspaceId: string, repoPath: string) => void;
-  openArtifact: (workspaceId: string, artifactId: string, title?: string) => void;
+  openArtifact: (workspaceId: string, artifactId: string, title?: string, rendererId?: string) => void;
   linkScanToAnalysisTab: (tabId: string, scanDir: string) => void;
   linkAnalysisToScanTab: (tabId: string, analysisDir: string) => void;
   findLinkedAnalysisTab: (workspaceId: string, scanDir: string) => EditorTab | undefined;
@@ -673,13 +675,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  openArtifact: (workspaceId, artifactId, title = 'Neural Canvas') => {
+  openArtifact: (workspaceId, artifactId, title = 'Neural Canvas', rendererId) => {
     const state = get();
     const existingTab = state.tabs.find(
       (t) => t.viewMode === 'neural-canvas' && t.artifactId === artifactId,
     );
     if (existingTab) {
-      set({ activeTabId: existingTab.id });
+      set({
+        activeTabId: existingTab.id,
+        tabs: state.tabs.map((t) =>
+          t.id === existingTab.id
+            ? {
+                ...t,
+                path: title || t.path,
+                artifactRendererId: rendererId || t.artifactRendererId,
+              }
+            : t,
+        ),
+      });
       return;
     }
     const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -692,6 +705,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isDirty: false,
         viewMode: 'neural-canvas',
         artifactId,
+        artifactRendererId: rendererId,
       }],
       activeTabId: tabId,
     });

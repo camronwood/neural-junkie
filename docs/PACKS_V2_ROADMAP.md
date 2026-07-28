@@ -215,7 +215,7 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ### 7. Web browser (`web-browser`)
 
-**v1 today:** **WebBrowserExpert**, `fetch_url` + `web_search`, HTML preview workbench, dev-server URL mode. Requires software-development pack.
+**v1 today:** Ability pack — Playwright automation + HTML preview workbench tools attach to **Assistant** when enabled (Composition grants for custom experts). Requires software-development pack.
 
 **v2 goals:**
 
@@ -236,7 +236,7 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ### 8. Music creation (`music-creation`)
 
-**v1 today:** Most mature pack. **MusicExpert**, ACE-Step 1.5 sidecar, lyrics via Ollama, inline player, model variants (SFT/Turbo/XL), `WORKSPACE.md`, setup scripts. Catalog version 1.0.1+.
+**v1 today:** Ability pack — ACE-Step 1.5 sidecar, lyrics via Ollama, inline player, model variants (SFT/Turbo/XL), `WORKSPACE.md`, setup scripts. Tools on **Assistant** when enabled. Catalog version 2.1.0+.
 
 **v2 goals:**
 
@@ -255,7 +255,7 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ### 9. Maps (`maps`)
 
-**v1 today:** **MapsExpert** — Nominatim geocode + OSRM walking/driving routes via pack sidecar, interactive Neural Canvas `nj.map` artifacts (Leaflet + OSM tiles). No API keys for public OSM endpoints.
+**v1 today:** Ability pack — Nominatim geocode + OSRM walking/driving routes via pack sidecar, interactive Neural Canvas `nj.map` artifacts (Leaflet + OSM tiles). Tools on **Assistant** when enabled. No API keys for public OSM endpoints.
 
 **v2 goals:** bike/transit profiles, optional self-hosted OSRM, traffic-aware providers behind settings, richer itinerary editing on canvas.
 

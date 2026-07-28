@@ -37,6 +37,10 @@ func MergeCodebaseForRoute(msg *protocol.Message, plan routing.KnowledgePlan) bo
 		return false
 	}
 	explicit := codebaseMentionRE.MatchString(msg.Content)
+	// Respect context_scope=none unless the user explicitly asked @codebase.
+	if !explicit && ResolveContextScope(msg) == ContextScopeNone {
+		return false
+	}
 	if !explicit && !ShouldRunCodebaseSearch(plan) {
 		return false
 	}

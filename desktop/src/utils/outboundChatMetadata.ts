@@ -420,6 +420,19 @@ export function buildHumanOutboundMetadata(options: {
     (t) => t.id === useEditorStore.getState().activeTabId
   );
   const activeTabPath = activeTab?.path;
+  if (
+    activeTab?.viewMode === 'neural-canvas' &&
+    activeTab.artifactId &&
+    activeTab.artifactId !== '__library__'
+  ) {
+    meta.open_artifact = {
+      id: activeTab.artifactId,
+      title: activeTab.path || 'Neural Canvas',
+      ...(activeTab.artifactRendererId
+        ? { renderer_id: activeTab.artifactRendererId }
+        : {}),
+    };
+  }
   const channelKind = options.channelKind ?? channelNameToKind(channel, channelType);
   const composerModeRaw = meta[EDITOR_MODE_KEY];
   const composerMode: EffectiveComposerMode =

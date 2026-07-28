@@ -88,7 +88,13 @@ func messageTooOldForUnansweredReplay(m *protocol.Message) bool {
 	return time.Since(m.Timestamp) > unrespondedHistoryMaxAge
 }
 
-// recentUserHistoryOnly keeps the last n user messages (for compact retry).
+// shortenedConversationWindow keeps the last n messages for quality retries
+// so retries stay dialogue-aware instead of amnesiac.
+func shortenedConversationWindow(history []*protocol.Message, n int) []*protocol.Message {
+	return trimHistoryTail(history, n)
+}
+
+// recentUserHistoryOnly keeps the last n user messages (for compact retry helpers).
 func recentUserHistoryOnly(history []*protocol.Message, n int) []*protocol.Message {
 	if n <= 0 || len(history) == 0 {
 		return nil

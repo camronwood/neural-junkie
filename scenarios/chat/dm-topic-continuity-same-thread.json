@@ -1,0 +1,55 @@
+{
+  "name": "dm-topic-continuity-same-thread",
+  "description": "Same-theme 4-turn chat without mode flips; must retain topic and not re-ask the opening question.",
+  "tags": ["dm", "assistant", "dialogue", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "Assistant",
+  "required_agents": ["Assistant"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "I want a simple weekend meal-prep plan for two people.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "Make it vegetarian.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "What about Sunday lunch?",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "Summarize the full weekend plan with that Sunday lunch.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "180s" },
+    {
+      "action": "assert_transcript_metrics",
+      "cases": [
+        {
+          "metric": "instruction_retention",
+          "user_match": "vegetarian",
+          "after_user_match": "Summarize the full weekend",
+          "assistant_match": "(?i)vegetarian|veggie|plant"
+        },
+        {
+          "metric": "repeated_question",
+          "assistant_match": "(?i)what kind of meal-prep|tell me more about your goals|what do you want to meal"
+        }
+      ],
+      "thresholds": {
+        "instruction_retention_rate": 1.0,
+        "repeated_question_rate": 0.0
+      }
+    }
+  ],
+  "cleanup": "clear"
+}

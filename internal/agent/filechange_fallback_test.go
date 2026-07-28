@@ -40,14 +40,9 @@ func TestIsUserRequestingFileWrite(t *testing.T) {
 
 func TestUserRequestsFileExport(t *testing.T) {
 	t.Parallel()
-	if !userRequestsFileExport("store that artical in a markdown file") {
-		t.Fatal("expected file export")
-	}
-	if !userRequestsFileExport("please create that file new-artical-test.md") {
-		t.Fatal("expected create that file")
-	}
-	if userRequestsFileExport("write me a linkedin article") {
-		t.Fatal("content delivery alone should not be file export")
+	// Deprecated — export is IdeEditorModeIsExport / stamped edit.
+	if userRequestsFileExport("store that artical in a markdown file") {
+		t.Fatal("deprecated userRequestsFileExport must be false")
 	}
 }
 

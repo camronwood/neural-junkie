@@ -42,14 +42,23 @@ func (a *Agent) tryBootFixImplementerRedirect(msg *protocol.Message) (string, ma
 	if a == nil || msg == nil || !a.isDMChannel(msg.Channel) {
 		return "", nil, false
 	}
+	// Assistant chat must never be aborted into a coding specialist redirect.
+	if a.Info.Type == protocol.AgentTypeAssistant {
+		return "", nil, false
+	}
+	// Presence / workspace visibility questions must not be swallowed by wrong_route.
+	if userAsksAboutWorkspaceVisibility(msg.Content) {
+		return "", nil, false
+	}
 	if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() {
 		return "", nil, false
 	}
-	if !msg.ImplementationSession() && msg.IdeEditorMode() != "agent" && !msg.IdeEditorModeIsExport() {
+	// Require an actual implementation/export session — conversation_mode=code alone is
+	// used for workspace/@codebase Q&A and must not trigger specialist redirects.
+	if !msg.ImplementationSession() && !msg.IdeEditorModeIsExport() {
 		return "", nil, false
 	}
-	history := a.channelHistorySafe(msg.Channel)
-	if !messageImpliesBootFix(msg.Content, history) && !messageHasBootOrBuildError(msg.Content) {
+	if !messageStampedBootFailure(msg) {
 		return "", nil, false
 	}
 	want := bootFixImplementerType(a, msg)

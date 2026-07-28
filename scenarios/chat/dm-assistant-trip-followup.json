@@ -1,0 +1,51 @@
+{
+  "name": "dm-assistant-trip-followup",
+  "description": "Assistant DM: trip plan → enable websearch → follow-up must stay on trip topic and never emit wrong_route / FrontendEngineer boot-fix.",
+  "tags": ["dm", "assistant", "dialogue", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "Assistant",
+  "required_agents": ["Assistant"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "Help me plan a 4-day trip to Lisbon with a food-focused itinerary.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "I have turned on websearch now",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "What neighborhoods should we stay in for that food itinerary?",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "180s",
+      "retries": 2,
+      "resend_on_generation_error": true,
+      "resend_content": "What neighborhoods should we stay in for that food itinerary?",
+      "resend_metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "Assistant",
+      "any_match": ["Lisbon|neighborhood|Bairro|Alfama|Baixa|food|restaurant|itinerary"],
+      "none_match": [
+        "FrontendEngineer",
+        "Boot-fix",
+        "wrong_route",
+        "Wrong specialist route",
+        "implementation session"
+      ]
+    }
+  ],
+  "cleanup": "clear"
+}

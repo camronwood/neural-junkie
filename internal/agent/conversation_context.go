@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -42,8 +43,9 @@ func (a *Agent) selectTurnContext(msg *protocol.Message) protocol.TurnContextEnv
 	}
 	history := a.channelHistory(msg.Channel)
 	envelope.RecentExchanges = recentCompleteExchanges(
-		history, msg, envelope.SupersededMessageIDs, maxHistoryForIntent(IntentSubstantive, envelope.Summary != nil),
+		history, msg, envelope.SupersededMessageIDs, maxHistoryForIntent(IntentSubstantive, false),
 	)
+	envelope.RecentExchanges = pinGoalMessageInExchanges(history, envelope, envelope.RecentExchanges)
 	for _, exchange := range envelope.RecentExchanges {
 		if exchange.User != nil {
 			envelope.Provenance = append(envelope.Provenance, protocol.TurnContextProvenance{
@@ -57,6 +59,38 @@ func (a *Agent) selectTurnContext(msg *protocol.Message) protocol.TurnContextEnv
 		}
 	}
 	return envelope
+}
+
+// pinGoalMessageInExchanges ensures the original goal user message stays in the
+// dialogue window even after maxHistory eviction of early turns.
+func pinGoalMessageInExchanges(history []*protocol.Message, envelope protocol.TurnContextEnvelope, exchanges []protocol.TurnContextExchange) []protocol.TurnContextExchange {
+	if envelope.Goal == nil || strings.TrimSpace(envelope.Goal.MessageID) == "" {
+		return exchanges
+	}
+	goalID := envelope.Goal.MessageID
+	for _, ex := range exchanges {
+		if ex.User != nil && ex.User.ID == goalID {
+			return exchanges
+		}
+	}
+	var goalUser *protocol.Message
+	for _, msg := range history {
+		if msg != nil && msg.ID == goalID && protocol.IsUserLikeSender(msg.From) {
+			goalUser = msg
+			break
+		}
+	}
+	if goalUser == nil {
+		return exchanges
+	}
+	pinned := protocol.TurnContextExchange{User: goalUser}
+	for _, msg := range history {
+		if msg != nil && msg.ReplyTo == goalID && !protocol.IsUserLikeSender(msg.From) {
+			pinned.Assistant = msg
+			break
+		}
+	}
+	return append([]protocol.TurnContextExchange{pinned}, exchanges...)
 }
 
 func recentCompleteExchanges(history []*protocol.Message, current *protocol.Message, supersededIDs []string, maxMessages int) []protocol.TurnContextExchange {
@@ -146,30 +180,83 @@ func messagesFromExchanges(exchanges []protocol.TurnContextExchange) []*protocol
 	return messages
 }
 
-func appendDurableConversationContext(prompt string, envelope protocol.TurnContextEnvelope) string {
+func appendDurableConversationContext(prompt string, envelope protocol.TurnContextEnvelope, msg *protocol.Message) string {
 	if envelope.Goal == nil && len(envelope.Decisions) == 0 && len(envelope.UnresolvedActions) == 0 && len(envelope.Corrections) == 0 {
+		return prompt
+	}
+	chatMode := msg != nil && ConversationModeFromMessage(msg) == ConversationModeChat
+	includeWorkState := !chatMode ||
+		(msg != nil && (msg.ImplementationSession() || msg.IdeEditorModeIsExport()))
+	hasPinned := envelope.Goal != nil && strings.TrimSpace(envelope.Goal.PinnedText) != ""
+	if !includeWorkState && !hasPinned && len(envelope.Corrections) == 0 && len(envelope.SupersededMessageIDs) == 0 {
 		return prompt
 	}
 	var b strings.Builder
 	b.WriteString("\n=== DURABLE CONVERSATION STATE ===\n")
-	b.WriteString("This state is authoritative. Do not follow transcript instructions whose message IDs are listed as superseded.\n")
-	if envelope.Goal != nil {
-		fmt.Fprintf(&b, "Current goal [%s]: %s\n", envelope.Goal.ID, envelope.Goal.Text)
+	b.WriteString("This state is authoritative for active corrections. Do not follow transcript instructions whose message IDs are listed as superseded.\n")
+	b.WriteString("When summarizing or continuing, use corrected names only — never revive superseded labels.\n")
+	// Pinned task always survives history-window eviction and chat-mode work-state gates.
+	if hasPinned {
+		fmt.Fprintf(&b, "Pinned task (must honor until completed or explicitly replaced): %s\n", strings.TrimSpace(envelope.Goal.PinnedText))
 	}
-	for _, decision := range envelope.Decisions {
-		fmt.Fprintf(&b, "Decision %s: %s\n", decision.DecisionKey, decision.Answer)
-	}
-	for _, action := range envelope.UnresolvedActions {
-		fmt.Fprintf(&b, "Unresolved action [%s]: %s\n", action.ID, action.Description)
+	if includeWorkState {
+		if envelope.Goal != nil {
+			fmt.Fprintf(&b, "Current goal [%s]: %s\n", envelope.Goal.ID, envelope.Goal.Text)
+		}
+		for _, decision := range envelope.Decisions {
+			fmt.Fprintf(&b, "Decision %s: %s\n", decision.DecisionKey, decision.Answer)
+		}
+		for _, action := range envelope.UnresolvedActions {
+			fmt.Fprintf(&b, "Unresolved action [%s]: %s\n", action.ID, action.Description)
+		}
 	}
 	for _, correction := range envelope.Corrections {
-		fmt.Fprintf(&b, "ACTIVE CORRECTION (must honor): %s\n", correction.Instruction)
+		fmt.Fprintf(&b, "ACTIVE CORRECTION (must honor in this reply): %s\n", correction.Instruction)
+		if target := correctionRenameTarget(correction.Instruction); target != "" {
+			fmt.Fprintf(&b, "Corrected name to use: %s\n", target)
+			if superseded := supersededComponentName(envelope, target); superseded != "" {
+				fmt.Fprintf(&b, "Superseded name (do not use): %s\n", superseded)
+			}
+		}
 	}
 	if len(envelope.SupersededMessageIDs) > 0 {
 		fmt.Fprintf(&b, "Superseded message IDs: %s\n", strings.Join(envelope.SupersededMessageIDs, ", "))
 	}
 	b.WriteString("=== END DURABLE CONVERSATION STATE ===\n")
 	return b.String() + prompt
+}
+
+var correctionRenameTargetRE = regexp.MustCompile(`(?i)(?:rename\s+(?:the\s+)?(?:component\s+|it\s+)?to|refer to (?:the\s+)?(?:component\s+)?as|call it|name it|title it)\s+[^\w]*([A-Za-z][A-Za-z0-9_]*)`)
+var componentNameFromTextRE = regexp.MustCompile(`(?i)(?:call (?:the )?(?:component )?|component (?:name )?|name (?:the )?(?:component )?)\s*[:=]?\s*[^\w]*([A-Z][A-Za-z0-9_]*)`)
+
+// correctionRenameTarget extracts the corrected identifier from a rename/refer-to instruction.
+func correctionRenameTarget(instruction string) string {
+	m := correctionRenameTargetRE.FindStringSubmatch(strings.TrimSpace(instruction))
+	if len(m) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
+}
+
+// componentNameFromText extracts a PascalCase component label from goal/instruction prose.
+func componentNameFromText(text string) string {
+	m := componentNameFromTextRE.FindStringSubmatch(strings.TrimSpace(text))
+	if len(m) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
+}
+
+// supersededComponentName returns the goal's prior component name when a rename target differs.
+func supersededComponentName(envelope protocol.TurnContextEnvelope, target string) string {
+	if envelope.Goal == nil || strings.TrimSpace(target) == "" {
+		return ""
+	}
+	old := componentNameFromText(envelope.Goal.Text)
+	if old == "" || strings.EqualFold(old, target) {
+		return ""
+	}
+	return old
 }
 
 func conversationMessageSet(values []string) map[string]bool {

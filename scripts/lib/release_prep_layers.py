@@ -80,7 +80,8 @@ LAYERS: dict[str, LayerSpec] = {
         name="chat",
         description="Chat + conversation regression (closure, DM, workspace)",
         requires_hub=True,
-        est_minutes=60,
+        # Live chat has many multi-turn DMs + flake retries; 90m still timed out at 5400s.
+        est_minutes=120,
         stages=(
             LayerStage(
                 "chat-scenarios-regression",

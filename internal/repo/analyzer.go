@@ -607,6 +607,7 @@ func ShouldIgnore(name string) bool {
 		".DS_Store",
 		".gomodcache",
 		"gomodcache",
+		"campaigns",
 		ScenarioBaselineDir,
 	}
 

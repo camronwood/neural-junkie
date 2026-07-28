@@ -18,9 +18,21 @@ const textFrom = (value: unknown): string =>
   typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 
 export function MarkdownArtifactRenderer({ artifact, compact }: ArtifactRendererProps) {
+  const raw = textFrom(artifact.data).trim();
+  if (!raw) {
+    return (
+      <div className={compact ? 'p-2 text-sm text-slack-textMuted' : 'h-full overflow-auto p-4 text-sm text-slack-textMuted'}>
+        Empty canvas — keep chatting to fill it in
+      </div>
+    );
+  }
   return (
     <div className={compact ? '' : 'h-full overflow-auto p-4'}>
-      <RichMarkdownView content={textFrom(artifact.data)} compact={compact} />
+      <RichMarkdownView
+        content={raw}
+        compact={compact}
+        artifactId={typeof artifact.id === 'string' ? artifact.id : undefined}
+      />
     </div>
   );
 }

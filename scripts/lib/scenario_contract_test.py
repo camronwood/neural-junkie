@@ -101,6 +101,33 @@ class DeliverableContractTest(unittest.TestCase):
         self.assertTrue(any("at least 4" in error for error in errors))
         self.assertTrue(any("assert_transcript_metrics" in error for error in errors))
 
+    def test_dialogue_tag_requires_three_turns_and_continuity_assert(self) -> None:
+        scenario = {
+            "name": "thin",
+            "tags": ["dm", "dialogue"],
+            "steps": [
+                {"action": "send", "content": "one"},
+                {"action": "send", "content": "two"},
+            ],
+        }
+        errors = validate_scenario_shape("chat/thin.json", scenario)
+        self.assertTrue(any("at least 3 send" in error for error in errors))
+        self.assertTrue(any("assert_transcript_metrics" in error or "any_match" in error for error in errors))
+
+    def test_dialogue_tag_accepts_metrics_continuity(self) -> None:
+        scenario = {
+            "name": "ok",
+            "tags": ["dialogue"],
+            "steps": [
+                {"action": "send", "content": "one"},
+                {"action": "send", "content": "two"},
+                {"action": "send", "content": "three"},
+                {"action": "assert_transcript_metrics", "cases": []},
+            ],
+        }
+        errors = validate_scenario_shape("chat/ok.json", scenario)
+        self.assertEqual(errors, [])
+
     def test_phrase_only_wait_rejected(self) -> None:
         scenario = {
             "expect_deliverables": [

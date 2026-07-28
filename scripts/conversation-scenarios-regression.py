@@ -38,6 +38,13 @@ CHAT_SCENARIOS = [
     "dm-topic-switch",
     "dm-assistant-continue-after-closure",
     "dm-backend-interject-resume",
+    # Dialogue-first continuity
+    "dm-assistant-trip-followup",
+    "dm-pronoun-followup-3turn",
+    "dm-chat-mode-soft-followups",
+    "dm-topic-continuity-same-thread",
+    "dm-summary-continuity-long-horizon",
+    "dm-durable-state-chat-isolation",
 ]
 
 COLLAB_SCENARIOS = [

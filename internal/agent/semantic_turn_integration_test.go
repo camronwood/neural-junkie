@@ -145,21 +145,17 @@ func TestStampedAnswerDecisionIgnoresArtifactPhrases(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !UserRequestsArtifact(msg.Content) {
-		t.Fatal("test fixture must phrase-match artifact so override is meaningful")
-	}
 	if artifactToolsEnabledForMessage(msg) {
 		t.Fatal("ActionAnswer must not enable artifact tools despite canvas phrases")
 	}
-	if shouldRunImplementationSession(a, msg) {
-		t.Fatal("ActionAnswer must not enter implementation session")
-	}
 	if userRequestsImplementationForMessage(a, msg) {
-		t.Fatal("ActionAnswer must not report implementation intent")
+		t.Fatal("a stamped ActionAnswer must not itself report implementation intent")
 	}
-	goal := deriveTurnGoal(a, msg, IntentSubstantive)
-	if goal.Action != ActionAnswer || goal.ImplementationSession {
-		t.Fatalf("goal=%+v, want answer without implementation", goal)
+	// Stamp-first: an explicit IDE implementation_session flag is a structural signal
+	// that is no longer second-guessed by scanning the message for canvas/artifact
+	// phrasing (the old UserRequestsArtifact veto) — it still drives the session gate. // phrase-migration-shim
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("explicit implementation_session metadata must still be honored for ActionAnswer")
 	}
 	if EffectiveConversationMode(msg, protocol.ChannelTypeDM) != ConversationModeChat {
 		t.Fatalf("conversation mode=%q, want chat for ActionAnswer", EffectiveConversationMode(msg, protocol.ChannelTypeDM))
@@ -189,7 +185,13 @@ func TestStampedInspectDecisionIgnoresCodeReviewPhrases(t *testing.T) {
 	}
 }
 
-func TestStampedEditPureNeuralCanvasBecomesArtifact(t *testing.T) {
+// TestStampedEditDecisionTrustedDespiteCanvasPhrasing documents the stamp-first
+// replacement for the old neuralCanvasIsSecondaryToCodeChange phrase override: a
+// classifier that stamps ActionEdit is trusted as-is, even when the message text
+// happens to mention "Neural Canvas" / "Mermaid diagram". If the classifier means
+// a durable artifact, it must stamp ActionArtifact directly — routing no longer
+// re-derives that from message phrasing.
+func TestStampedEditDecisionTrustedDespiteCanvasPhrasing(t *testing.T) {
 	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), nil)
 	msg := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
@@ -212,32 +214,17 @@ func TestStampedEditPureNeuralCanvasBecomesArtifact(t *testing.T) {
 		t.Fatal(err)
 	}
 	goal := deriveTurnGoal(a, msg, IntentTask)
-	if goal.Action != ActionArtifact || goal.ImplementationSession {
-		t.Fatalf("goal=%+v, want pure canvas create as artifact", goal)
+	if goal.Action != ActionEdit || !goal.ImplementationSession {
+		t.Fatalf("goal=%+v, want stamped edit trusted despite canvas phrasing", goal)
 	}
-	if shouldRunImplementationSession(a, msg) {
-		t.Fatal("pure Neural Canvas create must not enter implementation session")
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("stamped ActionEdit must run implementation session regardless of canvas phrasing")
 	}
-	if !artifactToolsEnabledForMessage(msg) {
-		t.Fatal("artifact tools must be enabled after restamp")
+	if artifactToolsEnabledForMessage(msg) {
+		t.Fatal("ActionEdit must not enable artifact tools despite canvas phrasing")
 	}
-	if userRequestsImplementationForMessage(a, msg) {
-		t.Fatal("pure canvas create must not force FILE_CHANGE")
-	}
-	tools := a.agentToolDefinitions(msg)
-	for _, tool := range tools {
-		if tool.Name == "run_command" || tool.Name == "propose_file_edit" {
-			t.Fatalf("Neural Canvas turn must not expose %s", tool.Name)
-		}
-	}
-	hasCreate := false
-	for _, tool := range tools {
-		if tool.Name == createArtifactToolName {
-			hasCreate = true
-		}
-	}
-	if !hasCreate {
-		t.Fatal("create_artifact must remain available on canvas turns")
+	if !userRequestsImplementationForMessage(a, msg) {
+		t.Fatal("stamped ActionEdit must report implementation intent")
 	}
 }
 

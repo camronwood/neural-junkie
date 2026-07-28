@@ -37,6 +37,8 @@ Execution: [`ExecuteKnowledgePlan`](../internal/agent/knowledge_retrievers.go) r
 
 Casual/closure turns skip default conversation-memory vector search via intent gating.
 
+**Dialogue window:** Before knowledge overlays, `conversationHistoryForIntent` always builds a protected ConversationWindow of recent complete user↔assistant exchanges (`recentCompleteExchanges`). Session summary and durable state are overlays — see [CONTEXT_MODEL.md](CONTEXT_MODEL.md).
+
 ## Observability
 
 - **Live:** Turn telemetry drawer (`routing` + `tool` events)

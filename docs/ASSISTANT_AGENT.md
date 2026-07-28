@@ -54,6 +54,18 @@ When the **Specialist tuning** pack and **personal learning** opt-in are enabled
 
 See [PERSONAL_LEARNING_V2.md](PERSONAL_LEARNING_V2.md).
 
+## Ability packs
+
+When these domain packs are enabled, Assistant gains their tools directly (no separate expert agent):
+
+| Pack | Tools |
+|------|--------|
+| **Maps** | `maps_geocode`, `maps_route`, `maps_create`, `maps_update` + Neural Canvas maps |
+| **Music creation** | `generate_music`, stems (hub-native) |
+| **Web browser** | Playwright `browser_*` automation (web_search / fetch_url are always available when web search is configured) |
+
+Custom experts can receive the same tools via Composition Model pack grants (`/api/mcp/pack-tools`).
+
 ## Commands
 
 ### Reminder Commands

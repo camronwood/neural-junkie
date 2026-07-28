@@ -247,6 +247,7 @@ func TestResolveSemanticTurnAdvisoryQuestionDoesNotStampImplSession(t *testing.T
 			RequestedAction: intent.ActionEdit, Action: intent.ActionEdit,
 			RecipientType: "backend", Mutation: intent.MutationWorkspace,
 			Confidence: 0.9, Source: intent.SourceLocalModel,
+			ReasonCodes: []string{"advisory_question"},
 		}
 	}))
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "semantic-advisory", protocol.AgentInfo{

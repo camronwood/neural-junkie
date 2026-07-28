@@ -40,6 +40,18 @@ import { ChatClickableImage } from './ImageLightboxModal';
 import { ArtifactCard } from './neural-canvas';
 import { ChangeProposalMessageCard } from './ChangeProposalCard';
 
+function artifactOpenStub(ref: { title?: string; media_type?: string; renderer_id?: string }): string {
+  const kind =
+    ref.media_type ||
+    ref.renderer_id ||
+    'artifact';
+  const title = ref.title?.trim();
+  if (title) {
+    return `Open “${title}” (${kind}) in Neural Canvas.`;
+  }
+  return `Open this ${kind} in Neural Canvas.`;
+}
+
 function MessageUserImages({ metadata }: { metadata?: Record<string, unknown> }) {
   const raw = metadata?.[USER_IMAGES_METADATA_KEY];
   if (!Array.isArray(raw) || raw.length === 0) return null;
@@ -591,10 +603,11 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
                 artifact={{
                   id: artifactRef.id,
                   title: artifactRef.title || 'Neural Canvas artifact',
+                  // Stub body is always markdown text; header shows the real media type.
                   renderer_id: 'nj.markdown',
                   api_version: String(artifactRef.renderer_api_version || 1),
-                  media_type: 'text/markdown',
-                  data: `Open this ${artifactRef.media_type || 'artifact'} in Neural Canvas.`,
+                  media_type: artifactRef.media_type || artifactRef.renderer_id || 'text/markdown',
+                  data: artifactOpenStub(artifactRef),
                   revision: artifactRef.revision,
                 }}
                 onOpen={() => {
@@ -603,6 +616,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
                     artifactRef.workspace_id || explorer.activeWorkspaceId || '',
                     artifactRef.id,
                     artifactRef.title,
+                    artifactRef.renderer_id || undefined,
                   );
                   void useSettingsStore.getState().updateLayoutSettings({ editorPanelVisible: true });
                 }}

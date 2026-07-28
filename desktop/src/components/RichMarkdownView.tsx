@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   renderMarkdown,
+  resolveChatImagesInMarkdownHtml,
   splitMarkdownAndMermaid,
 } from '../utils/markdownRenderer';
+import { resolveArtifactAssetImagesInHtml } from '../utils/artifactAssetImages';
 import { renderMermaidSvg } from '../utils/mermaidConfig';
 import { sanitizeMermaidSvg } from '../utils/mermaidSvgSanitize';
 import { MermaidModal } from './MermaidModal';
@@ -121,12 +123,42 @@ export interface RichMarkdownViewProps {
   /** Tighter spacing for side panels (collaboration plan, etc.). */
   compact?: boolean;
   className?: string;
+  /** When set, resolve /api/artifacts/{id}/assets/… image URLs for Neural Canvas embeds. */
+  artifactId?: string;
 }
 
-export function RichMarkdownView({ content, compact = false, className = '' }: RichMarkdownViewProps) {
+export function RichMarkdownView({
+  content,
+  compact = false,
+  className = '',
+  artifactId,
+}: RichMarkdownViewProps) {
   const [expandedDiagram, setExpandedDiagram] = useState<string | null>(null);
+  const [resolvedHtmlBySeg, setResolvedHtmlBySeg] = useState<Record<number, string>>({});
 
   const segments = useMemo(() => splitMarkdownAndMermaid(content), [content]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const next: Record<number, string> = {};
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        if (seg.type === 'mermaid') continue;
+        let html = renderMarkdown(seg.content);
+        html = resolveChatImagesInMarkdownHtml(html);
+        if (artifactId) {
+          html = await resolveArtifactAssetImagesInHtml(html, artifactId);
+        }
+        next[i] = html;
+      }
+      if (!cancelled) setResolvedHtmlBySeg(next);
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [segments, artifactId]);
 
   if (!content.trim()) {
     return null;
@@ -162,7 +194,7 @@ export function RichMarkdownView({ content, compact = false, className = '' }: R
               </ErrorBoundary>
             );
           }
-          const html = renderMarkdown(seg.content);
+          const html = resolvedHtmlBySeg[i] ?? resolveChatImagesInMarkdownHtml(renderMarkdown(seg.content));
           return <div key={`md-${i}`} dangerouslySetInnerHTML={{ __html: html }} />;
         })}
       </div>

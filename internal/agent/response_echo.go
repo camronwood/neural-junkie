@@ -97,7 +97,12 @@ var reAskAfterAffirmationMarkers = []string{
 	"brief outline",
 }
 
-// looksLikeReAskAfterAffirmation reports planning/question replies after the user approved or asked for code action.
+// looksLikeReAskAfterAffirmation reports planning/question replies after the user approved or
+// asked for code action. This is a response-quality self-check on the model's own generated
+// output (retry gating), not a turn-action routing decision, so it stays out of scope for the
+// stamp-first router; it now uses structural signals (a stamped implementation action, or a
+// short non-question reply in a channel with recent implementation activity) instead of the
+// deprecated userAffirmsPendingImplementation / userRequestsImplementation phrase heuristics.
 func looksLikeReAskAfterAffirmation(msg *protocol.Message, response string, history []*protocol.Message) bool {
 	if msg == nil {
 		return false
@@ -110,16 +115,18 @@ func looksLikeReAskAfterAffirmation(msg *protocol.Message, response string, hist
 			return true
 		}
 	}
-	if !userAffirmsPendingImplementation(content) && !userRequestsImplementation(content) {
+	stampedImpl := messageStampedImplAction(msg)
+	shortAffirmation := content != "" && len(strings.Fields(content)) <= 6 && !strings.Contains(content, "?")
+	if !shortAffirmation && !stampedImpl {
 		return false
 	}
-	if userAffirmsPendingImplementation(content) {
+	if shortAffirmation {
 		if !channelHasRecentImplementationActivity(history, msg.ID, "") {
 			return false
 		}
 	}
 	if r == "" || !strings.Contains(r, "?") {
-		if !userAffirmsPendingImplementation(content) {
+		if !shortAffirmation {
 			return false
 		}
 		for _, marker := range reAskAfterAffirmationMarkers {
@@ -181,11 +188,54 @@ func looksLikeAsksUserToPasteWorkspaceFiles(msg *protocol.Message, response stri
 		"immediate context",
 		"i'll assume we are building",
 		"i will assume we are building",
+		"don't have any specific project details",
+		"do not have any specific project details",
+		"don't have any specific project",
+		"do not have any specific project",
+		"no specific project details",
+		"don't have the project details",
+		"do not have the project details",
+		"provide more information or context about the project",
+		"provide more information or context",
+		"if you could provide more information",
+		"if you could provide more context",
 	}
 	for _, m := range denyMarkers {
 		if strings.Contains(r, m) {
 			return true
 		}
+	}
+	return false
+}
+
+// looksLikeGroundingOnlyStub reports replies that only echoed the forced grounding
+// opener (and maybe a hollow "Changes:" heading) without answering the user.
+func looksLikeGroundingOnlyStub(response string) bool {
+	r := strings.TrimSpace(response)
+	if r == "" {
+		return false
+	}
+	lower := strings.ToLower(r)
+	if !strings.HasPrefix(lower, "grounding: i loaded") {
+		return false
+	}
+	rest := ""
+	if i := strings.IndexByte(r, '\n'); i >= 0 {
+		rest = strings.TrimSpace(r[i+1:])
+	}
+	if rest == "" {
+		return true
+	}
+	cleaned := strings.ToLower(rest)
+	cleaned = strings.TrimSpace(strings.Trim(cleaned, "#*:-\t "))
+	cleaned = strings.ReplaceAll(cleaned, "#", "")
+	cleaned = strings.TrimSpace(cleaned)
+	if cleaned == "" || cleaned == "changes" || cleaned == "changes:" {
+		return true
+	}
+	// "Changes: ###" / tiny leftovers after stripping markdown noise.
+	if len(cleaned) < 48 && strings.HasPrefix(cleaned, "changes") {
+		return true
 	}
 	return false
 }
@@ -255,19 +305,21 @@ func (a *Agent) maybeRetryConversationalQuality(ctx context.Context, msg *protoc
 		return response
 	}
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
-	if looksLikeAsksUserToPasteWorkspaceFiles(msg, response) {
-		if a.Info.Type == protocol.AgentTypeAssistant && !assistantAllowsImplementationSession(a, msg) {
-			return response
-		}
+	if looksLikeAsksUserToPasteWorkspaceFiles(msg, response) ||
+		(messageHasWorkspaceContext(msg) && looksLikeGroundingOnlyStub(response)) {
+		// Always retry when workspace is shared — including Assistant. Claiming the
+		// project is unavailable after injection is a grounding failure, not an
+		// implementation-session gate.
 		retry, err := eff.GenerateResponse(approvalCtx, a.buildWorkspaceGroundedRetryPrompt(msg), nil)
 		if err == nil && strings.TrimSpace(retry) != "" &&
-			!looksLikeAsksUserToPasteWorkspaceFiles(msg, retry) {
-			log.Printf("[%s] Paste-request detected with shared workspace; used grounded retry", a.Info.Name)
+			!looksLikeAsksUserToPasteWorkspaceFiles(msg, retry) &&
+			!looksLikeGroundingOnlyStub(retry) {
+			log.Printf("[%s] Workspace denial/hollow grounding detected; used grounded retry", a.Info.Name)
 			return retry
 		}
 	}
 	if looksLikeEchoOfPriorUserTurn(msg, response, history) {
-		retry, err := eff.GenerateResponse(approvalCtx, a.buildEchoRetryPrompt(msg), nil)
+		retry, err := eff.GenerateResponse(approvalCtx, a.buildEchoRetryPrompt(msg), historyToMessages(shortenedConversationWindow(history, 4)))
 		if err == nil && strings.TrimSpace(retry) != "" &&
 			!looksLikeEchoOfPriorUserTurn(msg, retry, nil) {
 			log.Printf("[%s] Prior-turn echo detected; used echo retry", a.Info.Name)

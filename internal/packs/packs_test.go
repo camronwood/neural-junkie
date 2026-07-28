@@ -138,8 +138,14 @@ func TestMusicCreationPackCapabilities(t *testing.T) {
 	if _, ok := m.CapabilityDefs["music-sidecar"]; !ok {
 		t.Fatal("expected music-sidecar capability_defs")
 	}
-	if m.ExpertSlug != "music" {
-		t.Fatalf("expected expert_slug music, got %s", m.ExpertSlug)
+	if m.ExpertSlug != "" {
+		t.Fatalf("expected empty expert_slug for ability pack, got %s", m.ExpertSlug)
+	}
+	if len(m.Agents) != 0 {
+		t.Fatalf("expected no agents on music-creation ability pack, got %d", len(m.Agents))
+	}
+	if agents := m.CapabilityDefs["music-generation"].MCPAgents; len(agents) != 1 || agents[0] != "assistant" {
+		t.Fatalf("expected music-generation mcp_agents [assistant], got %v", agents)
 	}
 }
 
@@ -196,8 +202,17 @@ func TestPackIDForAgentType(t *testing.T) {
 	if got := PackIDForAgentType("biology"); got != "life-sciences" {
 		t.Fatalf("got %q", got)
 	}
-	if got := PackIDForAgentType("music"); got != "music-creation" {
-		t.Fatalf("got %q", got)
+	if got := PackIDForAgentType("music"); got != "" {
+		t.Fatalf("music is an ability pack, got pack id %q", got)
+	}
+	if got := PackIDForAgentType("maps"); got != "" {
+		t.Fatalf("maps is an ability pack, got pack id %q", got)
+	}
+	if got := PackIDForAgentType("browser"); got != "" {
+		t.Fatalf("browser is an ability pack, got pack id %q", got)
+	}
+	if got := PackIDForAgentType("code-review"); got != "" {
+		t.Fatalf("code-review retired, got pack id %q", got)
 	}
 	if got := PackIDForAgentType("arena"); got != "model-arena" {
 		t.Fatalf("got %q", got)

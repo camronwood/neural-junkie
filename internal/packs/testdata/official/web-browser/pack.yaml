@@ -1,7 +1,7 @@
 id: web-browser
-version: "2.0.0"
+version: "2.1.0"
 title: Web browser
-description: WebBrowserExpert with fetch_url, web search, HTML preview workbench, and Playwright QA (screenshots, a11y, visual diff, perf).
+description: Fetch URL, web search, HTML preview workbench, and Playwright QA (screenshots, a11y, visual diff, perf) — tools on Assistant when enabled.
 layout_profile: team
 capabilities:
   - web-browser
@@ -16,7 +16,14 @@ capability_defs:
     description: Fetch, inspect, preview, and verify web experiences.
     exposure: safe
     mcp_agents:
-      - browser
+      - assistant
+    mcp_tools:
+      - browser_screenshot
+      - browser_navigate
+      - browser_click
+      - browser_fill
+      - browser_a11y_audit
+      - browser_metrics
   browser-sidecar:
     kind: hub-sidecar
     routes:
@@ -31,7 +38,9 @@ capability_defs:
   browser-evidence-canvas:
     kind: artifact-renderer
     renderer: nj.image
-    media_types: [image/png, image/jpeg]
+    media_types:
+      - image/png
+      - image/jpeg
     match_glob: "**/*.{png,jpg,jpeg}"
     renderer_api_version: 1
     schema_version_min: 1
@@ -39,36 +48,8 @@ capability_defs:
     fallback: nj.code
 requires_packs:
   - software-development
-agents:
-  - type: browser
-    name: WebBrowserExpert
-    implementation: builtin/browser
-    ollama_model: qwen3.5:27b
-    compose:
-      tool_model: qwen3.5:9b
-      consult_triggers:
-        - html
-        - css
-        - website
-        - localhost
-        - preview
-        - browser
-        - dom
-        - responsive
-        - fetch
-        - verify
-        - audit
-        - screenshot
-        - accessibility
-        - wcag
-        - visual regression
-models_to_ensure:
-  - qwen3.5:27b
-  - qwen3.5:9b
-expert_slug: browser
-expert_label: Web / HTML preview
 mcp_agents:
-  - browser
+  - assistant
 settings_overlay:
   playwright_browsers_path: ~/.neural-junkie/browser/playwright-browsers
   browser_headless: true

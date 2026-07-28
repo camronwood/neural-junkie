@@ -271,6 +271,9 @@ def main() -> int:
         # user-flows journeys can exceed 3h wall (10 scenarios + flake retries).
         if spec.name == "user-flows" and stage_timeout is not None:
             stage_timeout = max(stage_timeout, 21600.0)
+        if spec.name == "chat" and stage_timeout is not None:
+            # Multi-turn DMs + flake retries routinely exceed the naive split budget.
+            stage_timeout = max(stage_timeout, 7200.0)
         rc, out = run_cmd(cmd, env=stage_env, cwd=repo_cwd, timeout_s=stage_timeout)
         duration = time.time() - t0
         log_lines.append(out.rstrip())

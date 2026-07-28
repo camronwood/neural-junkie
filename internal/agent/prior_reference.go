@@ -24,12 +24,15 @@ var priorReferenceExplicitBackRE = regexp.MustCompile(`(?i)\b(few messages back|
 var priorReferenceNumberedListRE = regexp.MustCompile(`(?m)^\d+\.\s`)
 
 // userReferencesPriorAssistantContent reports when the user points at earlier assistant output.
+// A bare export request ("store that in a markdown file") is not itself a back-reference —
+// only an explicit pointer to earlier content ("a few messages back", "what you wrote") counts,
+// unless the user also uses that explicit back-reference language.
 func userReferencesPriorAssistantContent(content string) bool {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return false
 	}
-	if userRequestsFileExport(content) && !priorReferenceExplicitBackRE.MatchString(content) {
+	if fileExportRE.MatchString(content) && !priorReferenceExplicitBackRE.MatchString(content) {
 		return false
 	}
 	return priorReferencePhraseRE.MatchString(content)
@@ -71,11 +74,12 @@ func looksLikePriorAssistantMarkdown(content string) bool {
 }
 
 // findPriorAssistantContent scans channel history newest-first for long assistant markdown.
+// Returns the most recent qualifying message (not the longest), so a later short correction
+// beats an older long hallucinated plan.
 func findPriorAssistantContent(history []*protocol.Message, skipMsgID, agentID string, minChars int) string {
 	if minChars <= 0 {
 		minChars = priorReferenceMinChars
 	}
-	best := ""
 	for i := len(history) - 1; i >= 0; i-- {
 		m := history[i]
 		if m == nil || m.ID == skipMsgID || assistantMessageSkippableForPriorReference(m) {
@@ -94,11 +98,9 @@ func findPriorAssistantContent(history []*protocol.Message, skipMsgID, agentID s
 		if !looksLikePriorAssistantMarkdown(body) && len(body) < minChars*2 {
 			continue
 		}
-		if len(body) > len(best) {
-			best = body
-		}
+		return body
 	}
-	return best
+	return ""
 }
 
 const priorReferenceMissingHistoryReply = "I don't have that earlier reply in this channel's history (possibly cleared by restart). Paste the text or ask me to regenerate."
@@ -174,7 +176,7 @@ func resolveFileExportContent(a *Agent, msg *protocol.Message, history []*protoc
 	if userReferencesPriorAssistantContent(msg.Content) ||
 		strings.Contains(strings.ToLower(msg.Content), "artical you created") ||
 		strings.Contains(strings.ToLower(msg.Content), "article you created") ||
-		userRequestsFileExport(msg.Content) {
+		fileExportRE.MatchString(msg.Content) {
 		if prior := findPriorAssistantContent(history, msg.ID, a.Info.ID, priorReferenceMinChars); prior != "" {
 			return prior, "prior_assistant"
 		}

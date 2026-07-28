@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -25,47 +24,10 @@ var (
 	agentArtifactStoreErr  error
 )
 
-var (
-	explicitCanvasRequestRE = regexp.MustCompile(`(?i)(?:\b(?:create|make|generate|show|give|build|produce|open|render)\b.{0,64}\b(?:neural canvas|canvas|artifact)\b|\b(?:neural canvas|canvas|artifact)\b.{0,64}\b(?:of|for|showing|about)\b)`)
-	explicitVisualRequestRE = regexp.MustCompile(`(?i)\b(?:create|make|generate|show|give|produce|render)\b.{0,64}\b(?:report|chart|timeline|mermaid diagram|diagram|table)\b`)
-	artifactCodeTargetRE    = regexp.MustCompile(`(?i)\b(?:component|page|screen|endpoint|function|class|service|widget|html canvas|canvas element|source file)\b`)
-)
-
-// UserRequestsArtifact reports explicit requests for a standalone Neural Canvas
-// deliverable. Generic visuals with a code target remain implementation work.
-// Canvas *revisions* are routed via semantic ActionArtifact + open-canvas features,
-// not additional update/style phrase lists.
+// UserRequestsArtifact is deprecated. Routing uses stamped ActionArtifact only.
+// Kept as a no-op so transitional call sites compile until fully removed.
 func UserRequestsArtifact(content string) bool {
-	content = strings.TrimSpace(content)
-	if content == "" {
-		return false
-	}
-	if explicitCanvasRequestRE.MatchString(content) {
-		return !artifactCodeTargetRE.MatchString(content) ||
-			strings.Contains(strings.ToLower(content), "neural canvas") ||
-			strings.Contains(strings.ToLower(content), "artifact")
-	}
-	return explicitVisualRequestRE.MatchString(content) && !artifactCodeTargetRE.MatchString(content)
-}
-
-// neuralCanvasIsSecondaryToCodeChange reports mixed turns where a canvas is asked
-// only after a code fix/impl (e.g. "create a canvas after you fix the typo").
-// Those keep ActionEdit authority; pure canvas creates must not.
-func neuralCanvasIsSecondaryToCodeChange(content string) bool {
-	if !UserRequestsArtifact(content) {
-		return false
-	}
-	lower := strings.ToLower(content)
-	cues := []string{
-		"after you fix", "after fixing", "fix the typo", "fix the bug",
-		"fix it then", "then create a canvas", "then show a canvas",
-		"then make a canvas", "then generate a canvas",
-	}
-	for _, cue := range cues {
-		if strings.Contains(lower, cue) {
-			return true
-		}
-	}
+	_ = content
 	return false
 }
 
@@ -92,15 +54,8 @@ func pendingArtifactRequestID(history []*protocol.Message, skipMsgID string) str
 				case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue, semantic.ActionRun:
 					return ""
 				default:
-					// Canonical non-artifact decisions must not re-enter via phrases.
 					continue
 				}
-			}
-			if UserRequestsArtifact(msg.Content) {
-				return msg.ID
-			}
-			if userRequestsImplementation(msg.Content) {
-				return ""
 			}
 		}
 	}
@@ -115,28 +70,16 @@ func messageHasArtifactAction(msg *protocol.Message) bool {
 	return ActionIntent(strings.TrimSpace(action)) == ActionArtifact
 }
 
-// neuralCanvasDeliverableTurn reports turns that must ship create/update_artifact rather
-// than FILE_CHANGE or shell work. Mixed "canvas after you fix…" stays implementation-capable.
-// Stamped Answer/AskUser/Plan keep conversational authority (no artifact tool force).
+// neuralCanvasDeliverableTurn reports turns that must ship create/update_artifact.
+// Stamp ActionArtifact is authoritative.
 func neuralCanvasDeliverableTurn(msg *protocol.Message) bool {
 	if msg == nil {
 		return false
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		switch decision.Action {
-		case semantic.ActionArtifact:
-			return true
-		case semantic.ActionAnswer, semantic.ActionAskUser, semantic.ActionPlan:
-			return false
-		}
+		return decision.Action == semantic.ActionArtifact
 	}
-	if messageHasArtifactAction(msg) {
-		return true
-	}
-	if !UserRequestsArtifact(msg.Content) {
-		return false
-	}
-	return !neuralCanvasIsSecondaryToCodeChange(msg.Content)
+	return messageHasArtifactAction(msg)
 }
 
 var createArtifactToolSchema = json.RawMessage(`{
@@ -191,21 +134,9 @@ func artifactToolsEnabledForMessage(msg *protocol.Message) bool {
 		return true
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		if decision.Action == semantic.ActionArtifact {
-			return true
-		}
-		// Stamped answer/edit/debug stay authoritative. Run/inspect are frequent
-		// misroutes for Neural Canvas create asks — re-enable create_artifact when
-		// create phrases match. Revisions rely on ActionArtifact (open-canvas policy).
-		if UserRequestsArtifact(msg.Content) {
-			switch decision.Action {
-			case semantic.ActionRun, semantic.ActionInspect:
-				return true
-			}
-		}
-		return false
+		return decision.Action == semantic.ActionArtifact
 	}
-	if msg.ImplementationSession() && !UserRequestsArtifact(msg.Content) && !messageHasArtifactAction(msg) {
+	if msg.ImplementationSession() && !messageHasArtifactAction(msg) {
 		return false
 	}
 	phase := strings.ToLower(strings.TrimSpace(msg.GetCollaborationPhase()))
@@ -216,9 +147,10 @@ func appendArtifactPrompt(system *strings.Builder) {
 	system.WriteString("NEURAL CANVAS:\n")
 	system.WriteString("Use create_artifact for substantial standalone analytical deliverables such as reports, charts, tables, timelines, Mermaid diagrams, and graph explorations. Keep short factual answers in chat.\n")
 	system.WriteString("When the user explicitly requests a Neural Canvas or standalone artifact, call create_artifact in this turn. Do not promise to create it later and do not start a file implementation session.\n")
-	system.WriteString("When the user asks to update/revise an existing canvas (colors, layout, black-and-white, content), call update_artifact with artifact_id, expected_revision, and the full new data payload. Do not edit repo files (tauri.conf.json, CSS, themes) for canvas style changes.\n")
+	system.WriteString("Generic new/blank canvas creates an empty collaborative page. Only generate a workspace report when the user asks for a report/summary about the project.\n")
+	system.WriteString("When the user asks to update/revise an existing canvas (colors, layout, black-and-white, content, add sections, add mermaid/images on the page), call update_artifact with artifact_id, expected_revision, and the full new data payload. Do not edit repo files (tauri.conf.json, CSS, themes) for canvas style changes.\n")
 	system.WriteString("Never emit [FILE_CHANGE], propose_file_edit, or workspace file edits for Neural Canvas requests — the canvas is app-managed, not a repo file.\n")
-	system.WriteString("Never call generate_image for Neural Canvas / Mermaid / chart / table requests — call create_artifact instead.\n")
+	system.WriteString("Never call generate_image for standalone Neural Canvas / Mermaid / chart / table creates — call create_artifact instead. Embedding an image onto an open markdown canvas page is allowed via the canvas update path.\n")
 	system.WriteString("Artifact payloads must be declarative JSON. Never place executable JavaScript, React code, or arbitrary HTML in an artifact.\n\n")
 }
 

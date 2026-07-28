@@ -42,13 +42,10 @@ func maybeAskFixClarification(msg *protocol.Message, state *ImplementationSessio
 }
 
 // messageImpliesFixLikeIntent reports broken/error/fix language without pure feature-build asks.
+// This is a content classifier used only within an already-routed implementation session (to
+// pick the repro/verify-oriented fix flow vs. a general feature-build flow) — it does not
+// decide whether to enter the session, so it is out of scope for the stamp-first action router.
 func messageImpliesFixLikeIntent(content string, history []*protocol.Message) bool {
-	if !userRequestsImplementation(content) {
-		return false
-	}
-	if isAdvisoryImplementationQuestion(content) {
-		return false
-	}
 	if themeImplementationRE.MatchString(content) && !messageHasBootOrBuildError(content) {
 		lower := strings.ToLower(content)
 		if !strings.Contains(lower, "broken") && !strings.Contains(lower, "not working") &&

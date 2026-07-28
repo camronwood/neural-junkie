@@ -2,17 +2,20 @@ package agent
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/artifacts"
 	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/routing"
 )
 
 var (
@@ -21,17 +24,1175 @@ var (
 	mermaidInitRE  = regexp.MustCompile(`(?is)^%%\{init:.*?\}%%\s*`)
 )
 
-// wantsMermaidCanvas reports create-style asks that should ship a new nj.mermaid.
-// Revisions are selected structurally (ActionArtifact + open mermaid in channel).
+// wantsMarkdownCanvas classifies the artifact *kind* for a create-style ask —
+// nj.markdown (reports, notes, generic "new canvas") vs Mermaid/maps/charts.
+// Callers must independently confirm the turn is a stamped artifact turn
+// (neuralCanvasDeliverableTurn) before using this to pick a renderer.
+func wantsMarkdownCanvas(content string) bool {
+	c := strings.ToLower(strings.TrimSpace(content))
+	c = strings.ReplaceAll(c, "canvans", "canvas")
+	c = strings.ReplaceAll(c, "canvass", "canvas")
+	c = strings.ReplaceAll(c, "canvus", "canvas")
+	if c == "" {
+		return false
+	}
+	if wantsMermaidCanvas(c) {
+		return false
+	}
+	if strings.Contains(c, "mermaid") || strings.Contains(c, "diagram") {
+		return false
+	}
+	if strings.Contains(c, "chart") || strings.Contains(c, "timeline") ||
+		strings.Contains(c, "table") || strings.Contains(c, "nj.map") {
+		return false
+	}
+	if strings.Contains(c, "markdown") || strings.Contains(c, "report") ||
+		strings.Contains(c, "brief") || strings.Contains(c, "writeup") ||
+		strings.Contains(c, "write-up") {
+		return true
+	}
+	if strings.Contains(c, "notes") && (strings.Contains(c, "canvas") || strings.Contains(c, "artifact")) {
+		return true
+	}
+	// Generic "create a new canvas" / "make a canvas" → markdown by default.
+	// Do not treat bare show/open as a create (those often mean the open canvas).
+	if strings.Contains(c, "new canvas") || strings.Contains(c, "new neural canvas") ||
+		strings.Contains(c, "new artifact") {
+		return true
+	}
+	for _, verb := range []string{"create", "make", "generate", "build", "produce", "render"} {
+		if strings.Contains(c, verb) {
+			return true
+		}
+	}
+	return false
+}
+
+// canvasAskPrefersNonMermaid reports canvas creates that must not revise an open Mermaid.
+// Callers must already know the turn is a stamped artifact turn.
+func canvasAskPrefersNonMermaid(content string) bool {
+	c := strings.ToLower(strings.TrimSpace(content))
+	if c == "" {
+		return false
+	}
+	if wantsMarkdownCanvas(c) {
+		return true
+	}
+	if strings.Contains(c, "mermaid") || strings.Contains(c, "diagram") {
+		return false
+	}
+	return strings.Contains(c, "chart") || strings.Contains(c, "timeline") ||
+		strings.Contains(c, "table") || strings.Contains(c, "map ") ||
+		strings.HasPrefix(c, "map") || strings.Contains(c, "nj.map")
+}
+
+// wantsMermaidCanvas classifies the artifact *kind* for a create-style ask as
+// nj.mermaid. Revisions are selected structurally (ActionArtifact + open mermaid
+// in channel). Callers must independently confirm the turn is a stamped
+// artifact turn (neuralCanvasDeliverableTurn) before using this classification.
 func wantsMermaidCanvas(content string) bool {
 	c := strings.ToLower(strings.TrimSpace(content))
-	if c == "" || !UserRequestsArtifact(c) {
+	if c == "" {
+		return false
+	}
+	// Explicit markdown/report wins over loose "architecture" wording.
+	if strings.Contains(c, "markdown") || strings.Contains(c, "report") ||
+		strings.Contains(c, "brief") || strings.Contains(c, "writeup") ||
+		strings.Contains(c, "write-up") {
 		return false
 	}
 	if strings.Contains(c, "mermaid") || strings.Contains(c, "diagram") {
 		return true
 	}
-	return strings.Contains(c, "architecture") && strings.Contains(c, "canvas")
+	return false
+}
+
+// tryNeuralCanvasMarkdownShortcut creates or revises a markdown Neural Canvas without
+// relying on the model to call create_artifact / update_artifact.
+func (a *Agent) tryNeuralCanvasMarkdownShortcut(
+	ctx context.Context,
+	msg *protocol.Message,
+	prompt string,
+	eff ai.AIProvider,
+) (string, bool) {
+	if a == nil || msg == nil || eff == nil {
+		return "", false
+	}
+	if !neuralCanvasDeliverableTurn(msg) {
+		return "", false
+	}
+	if !artifactToolsEnabledForMessage(msg) {
+		return "", false
+	}
+
+	priorMD := a.findRecentMarkdownArtifact(msg)
+	explicitCreate := wantsExplicitNewMarkdownCanvas(msg)
+
+	// Status / meta questions about the open page stay in chat.
+	if priorMD != nil && looksLikeCanvasStatusQuestion(msg.Content) {
+		return "", false
+	}
+
+	// Fill-in / revise open markdown page (including embed mermaid or image asks).
+	// Prefer update whenever a page is open unless the user explicitly asked for a new one.
+	if priorMD != nil && !explicitCreate {
+		if wantsCanvasPageImageEmbed(msg.Content) {
+			if resp, ok := a.tryNeuralCanvasMarkdownImageEmbedShortcut(ctx, msg, priorMD, eff); ok {
+				return resp, true
+			}
+		}
+		if resp, ok := a.tryNeuralCanvasMarkdownUpdateShortcut(ctx, msg, prompt, eff, priorMD); ok {
+			return resp, true
+		}
+		return "", false
+	}
+	if !explicitCreate {
+		return "", false
+	}
+	// Explicit mermaid-only creates must not become a markdown page.
+	if wantsMermaidCanvas(msg.Content) && !decisionHasReasonCode(msg, "blank_canvas") &&
+		!decisionHasReasonCode(msg, "workspace_report") {
+		return "", false
+	}
+
+	streamMsgID := StreamMessageIDFromContext(ctx)
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "start", Name: createArtifactToolName, Preview: "Creating Neural Canvas Markdown…",
+	})
+
+	kind := markdownCanvasCreateKind(msg)
+	title := markdownCanvasTitleForKind(msg, kind)
+	body := ""
+
+	switch kind {
+	case "prior_reference":
+		if prior := a.priorAssistantContentForCanvas(msg); prior != "" {
+			body = markdownBodyFromPriorAssistantContent(prior)
+			a.recordKnowledgeExecutedFor(msg.ID, "prior_reference")
+			if h1 := firstMarkdownH1(body); h1 != "" && h1 != "Canvas" {
+				title = h1
+			}
+		}
+		if body == "" {
+			body = blankMarkdownScaffold(title)
+			kind = "blank_canvas"
+		}
+	case "workspace_report":
+		wsContext := a.workspaceArchitectureContext(msg, prompt)
+		body = strings.TrimSpace(fallbackMarkdownFromWorkspace(msg, wsContext))
+		if generated, err := a.generateMarkdownForCanvas(ctx, msg, wsContext, "", eff); err == nil {
+			if cleaned := strings.TrimSpace(stripMarkdownFence(generated)); cleaned != "" &&
+				!looksLikeSpuriousCanvasJSONPayload(cleaned) {
+				body = cleaned
+			}
+		}
+	default: // blank_canvas
+		body = blankMarkdownScaffold(title)
+	}
+
+	if looksLikeSpuriousCanvasJSONPayload(body) {
+		body = blankMarkdownScaffold(title)
+		kind = "blank_canvas"
+	}
+
+	if strings.TrimSpace(body) == "" {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: createArtifactToolName, Preview: "empty markdown payload",
+		})
+		return "I couldn't create the requested Neural Canvas artifact in this turn.", true
+	}
+
+	data, err := json.Marshal(body)
+	if err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: createArtifactToolName, Preview: err.Error(),
+		})
+		return fmt.Sprintf("I couldn't create the Neural Canvas: %v", err), true
+	}
+	input, err := json.Marshal(map[string]any{
+		"title":       title,
+		"renderer_id": "nj.markdown",
+		"media_type":  "text/markdown",
+		"kind":        "markdown",
+		"data":        json.RawMessage(data),
+		"fallback":    body,
+	})
+	if err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: createArtifactToolName, Preview: err.Error(),
+		})
+		return fmt.Sprintf("I couldn't create the Neural Canvas: %v", err), true
+	}
+
+	result, err := a.executeArtifactTool(ctx, msg, createArtifactToolName, input)
+	if err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: createArtifactToolName, Preview: err.Error(),
+		})
+		return fmt.Sprintf("I couldn't create the Neural Canvas: %v", err), true
+	}
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "result", Name: createArtifactToolName, Preview: result,
+	})
+	if kind == "blank_canvas" {
+		return fmt.Sprintf("Opened a blank Neural Canvas (**%s**). Keep chatting to fill it in. %s", title, result), true
+	}
+	project := workspaceDisplayName(msg)
+	if project == "" {
+		project = "the shared workspace"
+	}
+	return fmt.Sprintf("Posted a Neural Canvas markdown report for **%s**. %s", project, result), true
+}
+
+func decisionHasReasonCode(msg *protocol.Message, code string) bool {
+	decision, ok := stampedDecision(msg)
+	if !ok {
+		return false
+	}
+	return decisionHasReason(decision, code)
+}
+
+// wantsExplicitNewMarkdownCanvas reports a create of a *new* markdown page
+// (blank, report, or prior-summary canvas) — not a fill-in of an open page.
+func wantsExplicitNewMarkdownCanvas(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	c := strings.ToLower(strings.TrimSpace(msg.Content))
+	if c == "" {
+		return false
+	}
+	if looksLikeCanvasStatusQuestion(c) || looksLikeOpenCanvasFillAsk(c) {
+		return false
+	}
+	if decisionHasReasonCode(msg, "workspace_report") || looksLikeWorkspaceReportAsk(c) {
+		return true
+	}
+	if looksLikeGenericBlankCanvasCreate(c) {
+		return true
+	}
+	if decisionHasReasonCode(msg, "blank_canvas") {
+		return true
+	}
+	// "create a canvas with that summary" / generic markdown create verbs.
+	return wantsMarkdownCanvas(c)
+}
+
+func looksLikeCanvasStatusQuestion(content string) bool {
+	return intent.LooksLikeCanvasStatusQuestion(content)
+}
+
+func looksLikeOpenCanvasFillAsk(content string) bool {
+	return intent.LooksLikeOpenCanvasFillAsk(content)
+}
+
+func canvasFillNeedsLiveLookup(content string) bool {
+	c := strings.ToLower(strings.TrimSpace(content))
+	if c == "" {
+		return false
+	}
+	cues := []string{
+		"weather", "forecast", "temperature", "humidity",
+		"stock price", "share price", "news", "headline",
+		"today's", "todays", "current time", "exchange rate",
+		"look up", "lookup", "search for", "google ",
+		"real-time", "realtime", "live data",
+	}
+	for _, cue := range cues {
+		if strings.Contains(c, cue) {
+			return true
+		}
+	}
+	return false
+}
+
+// markdownCanvasCreateKind picks blank vs workspace report vs prior body.
+// Default for generic create is blank_canvas (not an auto workspace report).
+func markdownCanvasCreateKind(msg *protocol.Message) string {
+	if msg == nil {
+		return "blank_canvas"
+	}
+	// "with that information" / "add that to a canvas" must beat blank_canvas reason
+	// codes that tiny classifiers spray on every canvas turn.
+	if looksLikePriorContentCanvasAsk(msg.Content) {
+		return "prior_reference"
+	}
+	if decisionHasReasonCode(msg, "workspace_report") || looksLikeWorkspaceReportAsk(msg.Content) {
+		return "workspace_report"
+	}
+	if decisionHasReasonCode(msg, "blank_canvas") || looksLikeGenericBlankCanvasCreate(msg.Content) {
+		return "blank_canvas"
+	}
+	decision, ok := stampedDecision(msg)
+	if ok && ShouldRunPriorReference(routing.PlanKnowledgeRouteForDecision(decision)) {
+		return "prior_reference"
+	}
+	return "blank_canvas"
+}
+
+func looksLikePriorContentCanvasAsk(content string) bool {
+	return intent.LooksLikePriorContentCanvasAsk(content)
+}
+
+func looksLikeGenericBlankCanvasCreate(content string) bool {
+	c := strings.ToLower(strings.TrimSpace(content))
+	if c == "" || looksLikeWorkspaceReportAsk(c) {
+		return false
+	}
+	if strings.Contains(c, "blank") || strings.Contains(c, "empty") ||
+		strings.Contains(c, "fill in") || strings.Contains(c, "fill-in") {
+		return true
+	}
+	return strings.Contains(c, "new canvas") || strings.Contains(c, "new neural canvas") ||
+		strings.Contains(c, "new artifact")
+}
+
+func looksLikeWorkspaceReportAsk(content string) bool {
+	c := strings.ToLower(strings.TrimSpace(content))
+	if c == "" {
+		return false
+	}
+	hasReport := strings.Contains(c, "report") || strings.Contains(c, "summary") ||
+		strings.Contains(c, "summariz") || strings.Contains(c, "writeup") ||
+		strings.Contains(c, "write-up") || strings.Contains(c, "brief") ||
+		strings.Contains(c, "overview")
+	if !hasReport {
+		return false
+	}
+	return strings.Contains(c, "project") || strings.Contains(c, "workspace") ||
+		strings.Contains(c, "repo") || strings.Contains(c, "codebase") ||
+		strings.Contains(c, "this app") || strings.Contains(c, "architecture")
+}
+
+func blankMarkdownScaffold(title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = "Canvas"
+	}
+	return "# " + title + "\n\n"
+}
+
+func markdownCanvasTitleForKind(msg *protocol.Message, kind string) string {
+	if kind == "workspace_report" {
+		return markdownCanvasTitle(msg)
+	}
+	return "Canvas"
+}
+
+// priorAssistantContentForCanvas returns earlier assistant text when the turn's
+// semantic knowledge plan includes prior_reference, or when the user asks to put
+// "that information" onto a Neural Canvas.
+func (a *Agent) priorAssistantContentForCanvas(msg *protocol.Message) string {
+	if a == nil || msg == nil {
+		return ""
+	}
+	history := a.historyForPriorReference(msg.Channel)
+	content := ""
+	if ShouldRunPriorReference(a.effectiveKnowledgePlanFromMessage(msg)) {
+		content = strings.TrimSpace(findPriorAssistantContent(history, msg.ID, a.Info.ID, priorReferenceMinChars))
+	}
+	if content == "" && looksLikePriorContentCanvasAsk(msg.Content) {
+		// Meeting dumps / ASCII "canvas" replies are often under the 400-char prior
+		// threshold but are still the body the user wants posted.
+		content = strings.TrimSpace(findRecentAssistantChatContent(history, msg.ID, a.Info.ID, 80))
+	}
+	if content == "" {
+		return ""
+	}
+	if len(content) > priorReferenceInjectMaxBytes {
+		content = content[:priorReferenceInjectMaxBytes] + "\n…(prior content truncated)\n"
+	}
+	return content
+}
+
+// findRecentAssistantChatContent is a lenient prior-body finder for canvas fills.
+func findRecentAssistantChatContent(history []*protocol.Message, skipMsgID, agentID string, minChars int) string {
+	if minChars <= 0 {
+		minChars = 80
+	}
+	best := ""
+	for i := len(history) - 1; i >= 0; i-- {
+		m := history[i]
+		if m == nil || m.ID == skipMsgID || assistantMessageSkippableForPriorReference(m) {
+			continue
+		}
+		if agentID != "" && m.From.ID != agentID {
+			continue
+		}
+		if m.Type != protocol.MessageTypeChat && m.Type != protocol.MessageTypeAnswer {
+			continue
+		}
+		body := strings.TrimSpace(m.Content)
+		if len(body) < minChars {
+			continue
+		}
+		lower := strings.ToLower(body)
+		// Skip empty acknowledgements / tool status lines.
+		if strings.HasPrefix(lower, "updated neural canvas") ||
+			strings.HasPrefix(lower, "opened a blank neural canvas") ||
+			strings.HasPrefix(lower, "posted a neural canvas") {
+			continue
+		}
+		if len(body) > len(best) {
+			best = body
+		}
+	}
+	return best
+}
+
+func markdownBodyFromPriorAssistantContent(prior string) string {
+	prior = strings.TrimSpace(prior)
+	if prior == "" {
+		return ""
+	}
+	// Strip leading chatter / "Certainly! Below is a canvas…" wrappers and fences.
+	prior = stripMarkdownFence(prior)
+	lines := strings.Split(prior, "\n")
+	start := 0
+	for start < len(lines) {
+		trim := strings.TrimSpace(lines[start])
+		lower := strings.ToLower(trim)
+		if trim == "" ||
+			strings.HasPrefix(lower, "certainly") ||
+			strings.HasPrefix(lower, "sure") ||
+			strings.HasPrefix(lower, "here") ||
+			strings.Contains(lower, "below is a canvas") ||
+			strings.HasPrefix(trim, "===") ||
+			trim == "```" || strings.HasPrefix(trim, "```") {
+			start++
+			continue
+		}
+		break
+	}
+	end := len(lines)
+	for end > start {
+		trim := strings.TrimSpace(lines[end-1])
+		lower := strings.ToLower(trim)
+		if trim == "" || trim == "```" ||
+			strings.HasPrefix(lower, "feel free") ||
+			strings.HasPrefix(lower, "let me know") {
+			end--
+			continue
+		}
+		break
+	}
+	body := strings.TrimSpace(strings.Join(lines[start:end], "\n"))
+	if body == "" {
+		return prior
+	}
+	if !strings.HasPrefix(strings.TrimSpace(body), "#") {
+		// Promote first non-empty line to H1 when it looks like a title line.
+		first := strings.TrimSpace(strings.Split(body, "\n")[0])
+		if first != "" && !strings.HasPrefix(first, "-") && !strings.HasPrefix(first, "*") &&
+			!strings.HasPrefix(first, "**") && len(first) < 120 {
+			rest := strings.TrimSpace(strings.TrimPrefix(body, first))
+			body = "# " + strings.Trim(first, "= ") + "\n\n" + rest
+		}
+	}
+	return body
+}
+
+func looksLikeSpuriousCanvasJSONPayload(body string) bool {
+	t := strings.TrimSpace(body)
+	if t == "" || t[0] != '{' {
+		return false
+	}
+	lower := strings.ToLower(t)
+	return strings.Contains(lower, "renderer_id") ||
+		strings.Contains(lower, "media_type") ||
+		strings.Contains(lower, "workspace_id") ||
+		strings.Contains(lower, `"kind"`) ||
+		strings.Contains(lower, "fallback")
+}
+
+func (a *Agent) generateMarkdownForCanvas(
+	ctx context.Context,
+	msg *protocol.Message,
+	wsContext string,
+	priorContent string,
+	eff ai.AIProvider,
+) (string, error) {
+	var b strings.Builder
+	b.WriteString("Write a concise Markdown report for Neural Canvas. Output Markdown only — no fences, no FILE_CHANGE.\n")
+	b.WriteString("Ground claims in the provided context. Include headings, short bullets, and an Open questions section when useful.\n")
+	b.WriteString("Do NOT invent Neural Canvas product plumbing or invent files that are not in context.\n")
+	b.WriteString("The subject is the user's shared workspace / prior assistant content — never treat Neural Canvas itself as the project being documented.\n")
+	b.WriteString("\nUSER REQUEST:\n")
+	b.WriteString(strings.TrimSpace(msg.Content))
+	b.WriteString("\n")
+	if strings.TrimSpace(priorContent) != "" {
+		b.WriteString("\n=== PRIOR ASSISTANT CONTENT (referenced) ===\n")
+		b.WriteString("Use this as the primary source for the report. Preserve its claims; format as Markdown if needed. Do not replace it with a generic template.\n\n")
+		b.WriteString(priorContent)
+		b.WriteString("\n")
+	}
+	if strings.TrimSpace(wsContext) != "" {
+		b.WriteString("\nWORKSPACE CONTEXT:\n")
+		b.WriteString(wsContext)
+		b.WriteString("\n")
+	}
+	return eff.GenerateResponse(ctx, b.String(), nil)
+}
+
+func fallbackMarkdownFromWorkspace(msg *protocol.Message, wsContext string) string {
+	project := workspaceDisplayName(msg)
+	if project == "" {
+		project = "Workspace"
+	}
+	nodes := topLevelArchitectureNodes(msg, wsContext)
+	var b strings.Builder
+	b.WriteString("# ")
+	b.WriteString(project)
+	b.WriteString("\n\n")
+	b.WriteString("## Summary\n\n")
+	b.WriteString("Workspace-grounded overview for Neural Canvas.\n\n")
+	if len(nodes) > 0 {
+		b.WriteString("## Structure\n\n")
+		for _, n := range nodes {
+			b.WriteString("- `")
+			b.WriteString(n)
+			b.WriteString("`\n")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("## Open questions\n\n")
+	b.WriteString("- What should we deepen next?\n")
+	return b.String()
+}
+
+func markdownCanvasTitle(msg *protocol.Message) string {
+	if msg == nil {
+		return "Markdown report"
+	}
+	project := workspaceDisplayName(msg)
+	if project != "" {
+		return project + " report"
+	}
+	return "Markdown report"
+}
+
+func stripMarkdownFence(raw string) string {
+	s := strings.TrimSpace(raw)
+	if !strings.HasPrefix(s, "```") {
+		return s
+	}
+	s = strings.TrimPrefix(s, "```")
+	if nl := strings.IndexByte(s, '\n'); nl >= 0 {
+		lang := strings.TrimSpace(s[:nl])
+		if strings.EqualFold(lang, "markdown") || strings.EqualFold(lang, "md") || lang == "" {
+			s = s[nl+1:]
+		}
+	}
+	if i := strings.LastIndex(s, "```"); i >= 0 {
+		s = s[:i]
+	}
+	return strings.TrimSpace(s)
+}
+
+func markdownSourceFromPayload(payload json.RawMessage) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	var asString string
+	if err := json.Unmarshal(payload, &asString); err == nil {
+		return asString // preserve intentional leading/trailing whitespace for blank scaffolds
+	}
+	var asObj map[string]any
+	if err := json.Unmarshal(payload, &asObj); err == nil {
+		for _, key := range []string{"markdown", "content", "text", "body"} {
+			if v, ok := asObj[key].(string); ok {
+				return v
+			}
+		}
+	}
+	return string(payload)
+}
+
+// openArtifactFromMessageMetadata returns the canvas the client reports as currently open.
+// Survives clear-history when the desktop stamps open_artifact_* (flat or nested) on metadata.
+func openArtifactFromMessageMetadata(msg *protocol.Message) (id, renderer, title string) {
+	if msg == nil || msg.Metadata == nil {
+		return "", "", ""
+	}
+	meta := msg.Metadata
+	id = metadataString(meta, "open_artifact_id")
+	renderer = metadataString(meta, "open_artifact_renderer")
+	title = metadataString(meta, "open_artifact_title")
+	if id == "" {
+		if nested, ok := meta["open_artifact"].(map[string]interface{}); ok {
+			id = metadataString(nested, "id", "artifact_id")
+			if renderer == "" {
+				renderer = metadataString(nested, "renderer_id", "rendererId", "renderer")
+			}
+			if title == "" {
+				title = metadataString(nested, "title")
+			}
+		} else if nestedStr, ok := meta["open_artifact"].(map[string]string); ok {
+			id = strings.TrimSpace(nestedStr["id"])
+			renderer = strings.TrimSpace(nestedStr["renderer_id"])
+			if renderer == "" {
+				renderer = strings.TrimSpace(nestedStr["rendererId"])
+			}
+			title = strings.TrimSpace(nestedStr["title"])
+		}
+	}
+	if id == "" {
+		if ref, ok := messageArtifactReference(msg); ok {
+			id = strings.TrimSpace(ref.ID)
+			if renderer == "" {
+				renderer = strings.TrimSpace(ref.RendererID)
+			}
+			if title == "" {
+				title = strings.TrimSpace(ref.Title)
+			}
+		}
+	}
+	id = strings.TrimSpace(id)
+	if id == "" || id == "__library__" {
+		return "", "", ""
+	}
+	return id, strings.TrimSpace(renderer), strings.TrimSpace(title)
+}
+
+func metadataString(meta map[string]interface{}, keys ...string) string {
+	if meta == nil {
+		return ""
+	}
+	for _, key := range keys {
+		if v, ok := meta[key].(string); ok {
+			if s := strings.TrimSpace(v); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func (a *Agent) findRecentMarkdownArtifact(msg *protocol.Message) *artifacts.Artifact {
+	if a == nil || msg == nil {
+		return nil
+	}
+	store, err := getAgentArtifactStore()
+	if err != nil || store == nil {
+		return nil
+	}
+	// Prefer the canvas the client reports as open (survives clear-history).
+	if id, _, _ := openArtifactFromMessageMetadata(msg); id != "" {
+		if art, err := store.Get(id); err == nil && art != nil && isMarkdownArtifact(art) {
+			return art
+		}
+	}
+	if id := recentMarkdownArtifactID(a.channelHistory(msg.Channel), msg.ID); id != "" {
+		if art, err := store.Get(id); err == nil && art != nil && isMarkdownArtifact(art) {
+			return art
+		}
+	}
+	// Do not fall back to store.List: after clear-history chat is empty but
+	// channel-linked canvases remain; silently revising them reintroduces prior topics.
+	return nil
+}
+
+func isMarkdownArtifact(art *artifacts.Artifact) bool {
+	if art == nil {
+		return false
+	}
+	if art.Renderer.ID == "nj.markdown" {
+		return true
+	}
+	return strings.Contains(strings.ToLower(art.Renderer.MediaType), "markdown")
+}
+
+func recentMarkdownArtifactID(history []*protocol.Message, skipMsgID string) string {
+	seen := 0
+	for i := len(history) - 1; i >= 0 && seen < 40; i-- {
+		msg := history[i]
+		if msg == nil || msg.ID == skipMsgID {
+			continue
+		}
+		seen++
+		ref, ok := messageArtifactReference(msg)
+		if !ok || strings.TrimSpace(ref.ID) == "" {
+			continue
+		}
+		rid := strings.ToLower(ref.RendererID)
+		media := strings.ToLower(ref.MediaType)
+		if rid == "nj.markdown" || strings.Contains(media, "markdown") {
+			return ref.ID
+		}
+	}
+	return ""
+}
+
+func wantsCanvasPageImageEmbed(content string) bool {
+	c := strings.ToLower(strings.TrimSpace(content))
+	if c == "" {
+		return false
+	}
+	if !(strings.Contains(c, "image") || strings.Contains(c, "picture") ||
+		strings.Contains(c, "photo") || strings.Contains(c, "illustration") ||
+		strings.Contains(c, "skyline") || strings.Contains(c, "draw") ||
+		strings.Contains(c, "generate")) {
+		return false
+	}
+	return strings.Contains(c, "add") || strings.Contains(c, "put") ||
+		strings.Contains(c, "insert") || strings.Contains(c, "embed") ||
+		strings.Contains(c, "include") || strings.Contains(c, "on the canvas") ||
+		strings.Contains(c, "to the canvas") || strings.Contains(c, "on this")
+}
+
+func (a *Agent) tryNeuralCanvasMarkdownUpdateShortcut(
+	ctx context.Context,
+	msg *protocol.Message,
+	prompt string,
+	eff ai.AIProvider,
+	current *artifacts.Artifact,
+) (string, bool) {
+	if current == nil {
+		current = a.findRecentMarkdownArtifact(msg)
+	}
+	if current == nil || !isMarkdownArtifact(current) {
+		return "", false
+	}
+	existing := markdownSourceFromPayload(current.Payload)
+
+	streamMsgID := StreamMessageIDFromContext(ctx)
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "start", Name: updateArtifactToolName, Preview: "Updating Neural Canvas Markdown…",
+	})
+
+	liveCtx := ""
+	if canvasFillNeedsLiveLookup(msg.Content) {
+		liveCtx = a.lookupLiveContextForCanvas(ctx, msg, streamMsgID)
+	}
+
+	body := existing
+	usedPrior := false
+	if looksLikePriorContentCanvasAsk(msg.Content) {
+		if prior := a.priorAssistantContentForCanvas(msg); prior != "" {
+			body = markdownBodyFromPriorAssistantContent(prior)
+			usedPrior = true
+			a.recordKnowledgeExecutedFor(msg.ID, "prior_reference")
+		}
+	}
+	if !usedPrior {
+		revised, err := a.generateMarkdownRevisionForCanvas(ctx, msg, existing, liveCtx, eff)
+		if err == nil {
+			if cleaned := strings.TrimSpace(stripMarkdownFence(revised)); cleaned != "" &&
+				!looksLikeSpuriousCanvasJSONPayload(cleaned) {
+				body = cleaned
+			}
+		}
+	}
+	if looksLikeSpuriousCanvasJSONPayload(body) {
+		if prior := a.priorAssistantContentForCanvas(msg); prior != "" {
+			body = markdownBodyFromPriorAssistantContent(prior)
+		} else {
+			body = existing
+		}
+	}
+	if strings.TrimSpace(body) == "" {
+		body = existing
+	}
+	if strings.TrimSpace(body) == "" {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: updateArtifactToolName, Preview: "empty markdown payload",
+		})
+		return "I couldn't update the Neural Canvas in this turn.", true
+	}
+
+	data, err := json.Marshal(body)
+	if err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: updateArtifactToolName, Preview: err.Error(),
+		})
+		return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
+	}
+	title := resolveMarkdownCanvasUpdateTitle(current.Title, msg.Content, body)
+	if usedPrior {
+		if h1 := firstMarkdownH1(body); h1 != "" && h1 != "Canvas" {
+			title = h1
+		}
+	}
+	if title != "" {
+		body = ensureMarkdownH1(body, title)
+		data, err = json.Marshal(body)
+		if err != nil {
+			a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+				Kind: "error", Name: updateArtifactToolName, Preview: err.Error(),
+			})
+			return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
+		}
+	}
+	input := map[string]any{
+		"artifact_id":       current.ID,
+		"expected_revision": current.Revision,
+		"data":              json.RawMessage(data),
+		"fallback":          body,
+	}
+	if title != "" {
+		input["title"] = title
+	}
+	rawInput, err := json.Marshal(input)
+	if err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: updateArtifactToolName, Preview: err.Error(),
+		})
+		return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
+	}
+
+	result, err := a.executeArtifactTool(ctx, msg, updateArtifactToolName, rawInput)
+	if err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: updateArtifactToolName, Preview: err.Error(),
+		})
+		return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
+	}
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "result", Name: updateArtifactToolName, Preview: result,
+	})
+	return fmt.Sprintf("Updated the Neural Canvas to revision %d. %s", current.Revision+1, result), true
+}
+
+func firstMarkdownH1(body string) string {
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "# "))
+		}
+	}
+	return ""
+}
+
+// resolveMarkdownCanvasUpdateTitle picks a title from THIS turn's user ask when the
+// page is still the default "Canvas". Never invents labels missing from the ask.
+func resolveMarkdownCanvasUpdateTitle(currentTitle, userAsk, body string) string {
+	title := strings.TrimSpace(currentTitle)
+	if title != "" && title != "Canvas" {
+		return title
+	}
+	if derived := titleFromCanvasFillRequest(userAsk); derived != "" {
+		return derived
+	}
+	if h1 := firstMarkdownH1(body); h1 != "" && h1 != "Canvas" && titleGroundedInUserAsk(h1, userAsk) {
+		return h1
+	}
+	if title == "" {
+		return "Canvas"
+	}
+	return title
+}
+
+func titleFromCanvasFillRequest(content string) string {
+	c := strings.TrimSpace(content)
+	if c == "" {
+		return ""
+	}
+	lower := strings.ToLower(c)
+	for _, phrase := range []string{
+		"can you", "could you", "would you", "please",
+		"put it in the canvas", "put it on the canvas", "put in the canvas",
+		"in the canvas", "on the canvas", "to the canvas", "into the canvas",
+		"fill in the canvas", "fill the canvas", "update the canvas",
+		"get me", "get ", "todays ", "today's ", "today ",
+		"and put", "for me",
+	} {
+		lower = strings.ReplaceAll(lower, phrase, " ")
+	}
+	lower = strings.Map(func(r rune) rune {
+		switch r {
+		case ',', '.', '!', '?', ';', ':', '"', '\'':
+			return ' '
+		default:
+			return r
+		}
+	}, lower)
+	words := strings.Fields(lower)
+	filtered := make([]string, 0, len(words))
+	skip := map[string]bool{
+		"a": true, "an": true, "the": true, "and": true, "or": true,
+		"it": true, "this": true, "that": true, "with": true, "from": true,
+		"into": true, "onto": true, "there": true, "here": true,
+	}
+	for _, w := range words {
+		if skip[w] || w == "canvas" || w == "page" || w == "document" {
+			continue
+		}
+		filtered = append(filtered, w)
+	}
+	if len(filtered) == 0 {
+		return ""
+	}
+	if len(filtered) > 6 {
+		filtered = filtered[:6]
+	}
+	for i, w := range filtered {
+		if len(w) == 0 {
+			continue
+		}
+		filtered[i] = strings.ToUpper(w[:1]) + w[1:]
+	}
+	return strings.Join(filtered, " ")
+}
+
+func titleGroundedInUserAsk(title, userAsk string) bool {
+	title = strings.TrimSpace(title)
+	ask := strings.ToLower(strings.TrimSpace(userAsk))
+	if title == "" || ask == "" {
+		return false
+	}
+	tokens := strings.Fields(strings.ToLower(strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == ' ' {
+			return r
+		}
+		return ' '
+	}, title)))
+	meaningful := 0
+	matched := 0
+	for _, tok := range tokens {
+		if len(tok) < 3 {
+			continue
+		}
+		meaningful++
+		if strings.Contains(ask, tok) {
+			matched++
+		}
+	}
+	if meaningful == 0 {
+		return false
+	}
+	return matched*2 >= meaningful // at least half of meaningful tokens appear in the ask
+}
+
+func ensureMarkdownH1(body, title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return body
+	}
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "# ") {
+			lines[i] = "# " + title
+			return strings.Join(lines, "\n")
+		}
+	}
+	if strings.TrimSpace(body) == "" {
+		return "# " + title + "\n\n"
+	}
+	return "# " + title + "\n\n" + body
+}
+
+// tryOpenCanvasMetaAnswer answers title/name questions about the open canvas without
+// tools or meteorology digressions. Returns ("", false) when not applicable.
+func (a *Agent) tryOpenCanvasMetaAnswer(msg *protocol.Message) (string, bool) {
+	if a == nil || msg == nil {
+		return "", false
+	}
+	if !intent.LooksLikeCanvasTitleQuestion(msg.Content) {
+		return "", false
+	}
+	art := a.findRecentMarkdownArtifact(msg)
+	if art == nil {
+		art = a.findRecentMermaidArtifact(msg)
+	}
+	if art == nil {
+		return "I don't have an open Neural Canvas tied to this chat turn (cleared history drops the prior page link). Open the canvas tab you mean, or say what to title a new one.", true
+	}
+	title := strings.TrimSpace(art.Title)
+	if title == "" {
+		title = firstMarkdownH1(markdownSourceFromPayload(art.Payload))
+	}
+	if title == "" {
+		title = "Canvas"
+	}
+	return fmt.Sprintf(
+		"The open Neural Canvas is titled **%s**. That comes from this artifact's title/heading — clearing chat history does not erase the page, and I should not invent a meteorology explanation. Tell me what to rename it to.",
+		title,
+	), true
+}
+
+func (a *Agent) generateMarkdownRevisionForCanvas(
+	ctx context.Context,
+	msg *protocol.Message,
+	existing string,
+	liveContext string,
+	eff ai.AIProvider,
+) (string, error) {
+	var b strings.Builder
+	b.WriteString("Revise the Markdown document below per the user request. Output Markdown only — no fences, no FILE_CHANGE.\n")
+	b.WriteString("Preserve existing sections, lists, mermaid fenced blocks, and image links unless the user asks to change or remove them.\n")
+	b.WriteString("Add or fill content as requested (new headings, lists, sections).\n")
+	b.WriteString("When the user asks for a diagram, insert or update a ```mermaid fenced block in this document with valid Mermaid source.\n")
+	b.WriteString("If the H1 is still \"Canvas\", retitle it using ONLY words/topics from USER REQUEST (e.g. location + topic).\n")
+	b.WriteString("Do NOT invent generic labels (e.g. \"Weather Forecast\") that are not in USER REQUEST.\n")
+	b.WriteString("Do NOT reuse topics from CURRENT DOCUMENT that are absent from USER REQUEST (cleared chat must not leak).\n")
+	b.WriteString("Do NOT invent Neural Canvas product plumbing. Do NOT create a separate artifact — revise this page only.\n")
+	b.WriteString("When LIVE LOOKUP RESULTS are provided, ground weather/facts in that data — do not refuse or invent.\n")
+	b.WriteString("\nUSER REQUEST:\n")
+	b.WriteString(strings.TrimSpace(msg.Content))
+	b.WriteString("\n")
+	if strings.TrimSpace(liveContext) != "" {
+		b.WriteString("\n=== LIVE LOOKUP RESULTS ===\n")
+		b.WriteString(liveContext)
+		b.WriteString("\n")
+	}
+	b.WriteString("\nCURRENT DOCUMENT:\n")
+	if strings.TrimSpace(existing) == "" {
+		b.WriteString("(empty)\n")
+	} else {
+		b.WriteString(existing)
+		b.WriteString("\n")
+	}
+	return eff.GenerateResponse(ctx, b.String(), nil)
+}
+
+// lookupLiveContextForCanvas runs web_search when available so canvas fill-ins
+// (weather, news, etc.) are grounded before revising the page.
+func (a *Agent) lookupLiveContextForCanvas(ctx context.Context, msg *protocol.Message, streamMsgID string) string {
+	if a == nil || msg == nil {
+		return ""
+	}
+	mcpServer := mcpServerFromInterface(a.MCPServer)
+	if mcpServer == nil || mcpServer.GetTool("web_search") == nil {
+		return ""
+	}
+	query := strings.TrimSpace(msg.Content)
+	if query == "" {
+		return ""
+	}
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "start", Name: "web_search", Preview: "Looking up live facts for the canvas…",
+	})
+	input, err := json.Marshal(map[string]string{"query": query})
+	if err != nil {
+		return ""
+	}
+	toolCtx := withWebSearchGuard(ctx)
+	result, err := executeMCPTool(toolCtx, mcpServer, "web_search", input)
+	if err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: "web_search", Preview: err.Error(),
+		})
+		return ""
+	}
+	result = guardWebSearchToolResult(toolCtx, "web_search", result)
+	preview := result
+	if len(preview) > 160 {
+		preview = preview[:160] + "…"
+	}
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "result", Name: "web_search", Preview: preview,
+	})
+	const max = 8000
+	if len(result) > max {
+		result = result[:max] + "\n…(truncated)"
+	}
+	return result
+}
+
+func (a *Agent) tryNeuralCanvasMarkdownImageEmbedShortcut(
+	ctx context.Context,
+	msg *protocol.Message,
+	current *artifacts.Artifact,
+	eff ai.AIProvider,
+) (string, bool) {
+	if a == nil || msg == nil || current == nil || !isMarkdownArtifact(current) {
+		return "", false
+	}
+	gen := ai.ImageGeneratorFromEnv()
+	if gen == nil {
+		// Fall through to text revision (may describe the image ask).
+		return "", false
+	}
+
+	streamMsgID := StreamMessageIDFromContext(ctx)
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "start", Name: generateImageToolName, Preview: "Generating image for canvas…",
+	})
+
+	prompt := ImagePromptFromMessage(msg.Content)
+	if prompt == "" {
+		prompt = strings.TrimSpace(msg.Content)
+	}
+	mime, b64, err := gen.GenerateImage(ctx, prompt, "")
+	if err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: generateImageToolName, Preview: err.Error(),
+		})
+		return fmt.Sprintf("I couldn't generate an image for the canvas: %v", err), true
+	}
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil || len(raw) == 0 {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: generateImageToolName, Preview: "invalid image payload",
+		})
+		return "I couldn't decode the generated image for the canvas.", true
+	}
+	ext := "png"
+	switch {
+	case strings.Contains(mime, "jpeg"), strings.Contains(mime, "jpg"):
+		ext = "jpg"
+	case strings.Contains(mime, "webp"):
+		ext = "webp"
+	case strings.Contains(mime, "gif"):
+		ext = "gif"
+	}
+	assetName := fmt.Sprintf("embed-%d.%s", time.Now().UnixNano(), ext)
+	store, err := getAgentArtifactStore()
+	if err != nil || store == nil {
+		return "I couldn't store the canvas image asset.", true
+	}
+	if err := store.PutAsset(current.ID, assetName, raw); err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: generateImageToolName, Preview: err.Error(),
+		})
+		return fmt.Sprintf("I couldn't store the canvas image: %v", err), true
+	}
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "result", Name: generateImageToolName, Preview: assetName,
+	})
+
+	existing := markdownSourceFromPayload(current.Payload)
+	alt := "Generated image"
+	if h := firstMarkdownH1(existing); h != "" {
+		alt = h
+	}
+	assetURL := fmt.Sprintf("/api/artifacts/%s/assets/%s", current.ID, assetName)
+	imageBlock := fmt.Sprintf("\n\n![%s](%s)\n", alt, assetURL)
+	body := strings.TrimRight(existing, "\n") + imageBlock
+	if revised, err := a.generateMarkdownRevisionForCanvas(ctx, msg, body, "", eff); err == nil {
+		if cleaned := strings.TrimSpace(stripMarkdownFence(revised)); cleaned != "" &&
+			strings.Contains(cleaned, assetURL) {
+			body = cleaned
+		}
+	}
+
+	data, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
+	}
+	input, err := json.Marshal(map[string]any{
+		"artifact_id":       current.ID,
+		"expected_revision": current.Revision,
+		"data":              json.RawMessage(data),
+		"fallback":          body,
+	})
+	if err != nil {
+		return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
+	}
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "start", Name: updateArtifactToolName, Preview: "Embedding image on canvas…",
+	})
+	result, err := a.executeArtifactTool(ctx, msg, updateArtifactToolName, input)
+	if err != nil {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind: "error", Name: updateArtifactToolName, Preview: err.Error(),
+		})
+		return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
+	}
+	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+		Kind: "result", Name: updateArtifactToolName, Preview: result,
+	})
+	return fmt.Sprintf("Added an image to the Neural Canvas (revision %d). %s", current.Revision+1, result), true
 }
 
 // tryNeuralCanvasMermaidShortcut builds or revises a Mermaid Neural Canvas without relying
@@ -45,29 +1206,25 @@ func (a *Agent) tryNeuralCanvasMermaidShortcut(
 	if a == nil || msg == nil || eff == nil {
 		return "", false
 	}
-	createAsk := wantsMermaidCanvas(msg.Content)
-	prior := a.findRecentMermaidArtifact(msg)
-	artifactTurn := false
-	if decision, ok := protocol.ExtractTurnDecision(msg); ok && decision.Action == intent.ActionArtifact {
-		artifactTurn = true
-	} else if messageHasArtifactAction(msg) || neuralCanvasDeliverableTurn(msg) {
-		artifactTurn = true
-	}
-	if !createAsk && !(artifactTurn && prior != nil) {
+	// Stamp-first: only run this shortcut for turns the classifier already
+	// authorized as a Neural Canvas artifact deliverable.
+	if !neuralCanvasDeliverableTurn(msg) {
 		return "", false
 	}
-
-	// Ensure create/update_artifact is allowed even if a misrouted edit/run stamp lingered.
-	if neuralCanvasDeliverableTurn(msg) || createAsk {
-		if decision, ok := protocol.ExtractTurnDecision(msg); ok && decision.Action != intent.ActionArtifact {
-			if !neuralCanvasIsSecondaryToCodeChange(msg.Content) {
-				decision.Action = intent.ActionArtifact
-				decision.RequestedAction = intent.ActionArtifact
-				decision.Mutation = intent.MutationExternal
-				decision.PolicyOverrides = append(decision.PolicyOverrides, "explicit_neural_canvas")
-				_ = protocol.StampTurnDecision(msg, decision)
-			}
+	// Open collaborative markdown page owns diagram-add asks — do not spawn nj.mermaid.
+	if md := a.findRecentMarkdownArtifact(msg); md != nil && !wantsMarkdownCanvas(msg.Content) {
+		if wantsMermaidCanvas(msg.Content) || strings.Contains(strings.ToLower(msg.Content), "diagram") {
+			return "", false
 		}
+	}
+	createAsk := wantsMermaidCanvas(msg.Content)
+	prior := a.findRecentMermaidArtifact(msg)
+	if !createAsk && prior == nil {
+		return "", false
+	}
+	// Markdown / other non-mermaid canvas creates must not revise the open Mermaid.
+	if !createAsk && canvasAskPrefersNonMermaid(msg.Content) {
+		return "", false
 	}
 	if !artifactToolsEnabledForMessage(msg) {
 		return "", false
@@ -291,25 +1448,18 @@ func (a *Agent) findRecentMermaidArtifact(msg *protocol.Message) *artifacts.Arti
 	if err != nil || store == nil {
 		return nil
 	}
+	if id, _, _ := openArtifactFromMessageMetadata(msg); id != "" {
+		if art, err := store.Get(id); err == nil && art != nil && isMermaidArtifact(art) {
+			return art
+		}
+	}
 	if id := recentMermaidArtifactID(a.channelHistory(msg.Channel), msg.ID); id != "" {
 		if art, err := store.Get(id); err == nil && art != nil && isMermaidArtifact(art) {
 			return art
 		}
 	}
-	items, err := store.List(artifacts.Filter{ChannelID: messageChannel(msg), RendererID: "nj.mermaid"})
-	if err != nil || len(items) == 0 {
-		items, err = store.List(artifacts.Filter{RendererID: "nj.mermaid"})
-		if err != nil || len(items) == 0 {
-			return nil
-		}
-	}
-	best := items[0]
-	for i := 1; i < len(items); i++ {
-		if items[i].UpdatedAt.After(best.UpdatedAt) {
-			best = items[i]
-		}
-	}
-	return &best
+	// No store.List / global fallback — same clear-history leak as markdown.
+	return nil
 }
 
 func isMermaidArtifact(art *artifacts.Artifact) bool {

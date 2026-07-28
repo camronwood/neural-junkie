@@ -1278,6 +1278,32 @@ func (ch *CommandHandler) RegisterRuntimeAgent(agentInstance *agent.Agent) {
 	ch.agentsMu.Unlock()
 }
 
+// FindRuntimeAgentByDisplayName returns a live in-process agent matching name and type.
+func (ch *CommandHandler) FindRuntimeAgentByDisplayName(name string, typ protocol.AgentType) *agent.Agent {
+	if ch == nil {
+		return nil
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+	ch.agentsMu.RLock()
+	defer ch.agentsMu.RUnlock()
+	for _, ag := range ch.runtimeAgents {
+		if ag == nil {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(ag.Info.Name), name) {
+			continue
+		}
+		if typ != "" && ag.Info.Type != typ {
+			continue
+		}
+		return ag
+	}
+	return nil
+}
+
 // RuntimeAgentsListeningStats reports how many registered runtime agents have at
 // least one active channel subscription (used by the desktop loading gate).
 func (ch *CommandHandler) RuntimeAgentsListeningStats() (listening, expected int, ready bool) {

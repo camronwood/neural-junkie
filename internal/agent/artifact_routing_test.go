@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -10,6 +9,10 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+// TestNeuralCanvasRequestOverridesCodeImplementationMode documents the stamp-first
+// replacement for the old Neural Canvas phrase override: a classifier that stamps
+// ActionArtifact is trusted as-is, even when ambient IDE metadata says an implementation
+// session is active — routing no longer re-derives that from message phrasing.
 func TestNeuralCanvasRequestOverridesCodeImplementationMode(t *testing.T) {
 	a := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), nil)
 	a.Info.ID = "frontend-1"
@@ -22,6 +25,13 @@ func TestNeuralCanvasRequestOverridesCodeImplementationMode(t *testing.T) {
 	msg.Metadata[MetadataConversationMode] = ConversationModeCode
 	msg.Metadata[protocol.IdeMetaEditorMode] = "agent"
 	msg.Metadata[protocol.IdeMetaImplementationSession] = true
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionArtifact, Action: intent.ActionArtifact,
+		Mutation: intent.MutationExternal, Confidence: 0.95, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	goal := deriveTurnGoal(a, msg, IntentTask)
 	if goal.Action != ActionArtifact || goal.ImplementationSession {
@@ -32,6 +42,11 @@ func TestNeuralCanvasRequestOverridesCodeImplementationMode(t *testing.T) {
 	}
 }
 
+// TestArtifactApprovalContinuesArtifactInsteadOfFileEdits documents the stamp-first
+// replacement for the old phrase-based "approval continues a pending artifact request"
+// heuristic: the classifier now stamps the approval turn ActionArtifact with a
+// ContinuationTarget pointing at the original request, rather than routing re-scanning
+// channel history for Neural Canvas phrasing.
 func TestArtifactApprovalContinuesArtifactInsteadOfFileEdits(t *testing.T) {
 	hub := newConversationStateCaptureHub()
 	a := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), hub)
@@ -55,6 +70,14 @@ func TestArtifactApprovalContinuesArtifactInsteadOfFileEdits(t *testing.T) {
 	approval.Metadata[MetadataConversationMode] = ConversationModeCode
 	approval.Metadata[protocol.IdeMetaEditorMode] = "agent"
 	approval.Metadata[protocol.IdeMetaImplementationSession] = true
+	if err := protocol.StampTurnDecision(approval, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionArtifact, Action: intent.ActionArtifact,
+		ContinuationTarget: request.ID,
+		Mutation:           intent.MutationExternal, Confidence: 0.9, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	goal := deriveTurnGoal(a, approval, IntentTask)
 	if goal.Action != ActionArtifact || goal.ImplementationSession {
@@ -73,6 +96,10 @@ func TestArtifactApprovalContinuesArtifactInsteadOfFileEdits(t *testing.T) {
 	}
 }
 
+// TestArtifactPrerequisiteQuestionStaysAdvisory documents the stamp-first replacement for
+// the old isAdvisoryImplementationQuestion phrase veto: a classifier that stamps ActionAnswer
+// with the "advisory_question" reason code stays conversational, even when ambient IDE
+// metadata says an implementation session is active.
 func TestArtifactPrerequisiteQuestionStaysAdvisory(t *testing.T) {
 	a := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), nil)
 	a.Info.ID = "frontend-1"
@@ -85,6 +112,14 @@ func TestArtifactPrerequisiteQuestionStaysAdvisory(t *testing.T) {
 	msg.Metadata[MetadataConversationMode] = ConversationModeCode
 	msg.Metadata[protocol.IdeMetaEditorMode] = "agent"
 	msg.Metadata[protocol.IdeMetaImplementationSession] = true
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionQuestion,
+		RequestedAction: intent.ActionAnswer, Action: intent.ActionAnswer,
+		Mutation: intent.MutationNone, Confidence: 0.9, Source: intent.SourceLocalModel,
+		ReasonCodes: []string{"advisory_question"},
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	goal := deriveTurnGoal(a, msg, IntentTask)
 	if goal.Action != ActionAnswer || goal.ImplementationSession {
@@ -92,7 +127,12 @@ func TestArtifactPrerequisiteQuestionStaysAdvisory(t *testing.T) {
 	}
 }
 
-func TestStampedRunMisrouteForNeuralCanvasBecomesArtifact(t *testing.T) {
+// TestStampedRunDecisionTrustedDespiteCanvasPhrasing documents the stamp-first
+// replacement for the old Neural Canvas "run misroute" restamp: a classifier that stamps
+// ActionRun is trusted as-is, even when the message text mentions "Neural Canvas" / "Mermaid
+// diagram". If the classifier means a durable artifact, it must stamp ActionArtifact
+// directly — routing no longer re-derives that from message phrasing.
+func TestStampedRunDecisionTrustedDespiteCanvasPhrasing(t *testing.T) {
 	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), nil)
 	msg := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
@@ -101,7 +141,7 @@ func TestStampedRunMisrouteForNeuralCanvasBecomesArtifact(t *testing.T) {
 		"Create a Neural Canvas Mermaid diagram of this architecture",
 	)
 	msg.Metadata = map[string]interface{}{
-		MetadataConversationMode: ConversationModeCode,
+		MetadataConversationMode:  ConversationModeCode,
 		protocol.IdeMetaEditorMode: "agent",
 	}
 	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
@@ -114,27 +154,15 @@ func TestStampedRunMisrouteForNeuralCanvasBecomesArtifact(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if !UserRequestsArtifact(msg.Content) {
-		t.Fatal("fixture must phrase-match Neural Canvas")
-	}
-	if !artifactToolsEnabledForMessage(msg) {
-		t.Fatal("run misroute must still enable create_artifact for Neural Canvas asks")
-	}
 	goal := deriveTurnGoal(a, msg, IntentTask)
-	if goal.Action != ActionArtifact || goal.ImplementationSession {
-		t.Fatalf("goal=%+v, want artifact without implementation session", goal)
+	if goal.Action != ActionRun || goal.ImplementationSession {
+		t.Fatalf("goal=%+v, want stamped run trusted despite canvas phrasing", goal)
 	}
-	if decision, ok := protocol.ExtractTurnDecision(msg); !ok || decision.Action != intent.ActionArtifact {
-		t.Fatalf("restamped decision=%v ok=%v, want ActionArtifact", decision.Action, ok)
+	if decision, ok := protocol.ExtractTurnDecision(msg); !ok || decision.Action != intent.ActionRun {
+		t.Fatalf("decision=%v ok=%v, want ActionRun unchanged", decision.Action, ok)
 	}
-	if userRequestsImplementationForMessage(a, msg) {
-		t.Fatal("Neural Canvas ask must not force FILE_CHANGE implementation")
-	}
-	if len(goal.ExpectedEvidence) != 1 || goal.ExpectedEvidence[0] != EvidenceArtifactCreated {
-		t.Fatalf("evidence=%v, want artifact_created", goal.ExpectedEvidence)
-	}
-	if shouldRunImplementationSession(a, msg) {
-		t.Fatal("Neural Canvas run misroute must not enter implementation session")
+	if artifactToolsEnabledForMessage(msg) {
+		t.Fatal("ActionRun must not enable artifact tools despite canvas phrasing")
 	}
 }
 
@@ -164,8 +192,8 @@ func TestNeuralCanvasPromptOmitsFileChangeImplementation(t *testing.T) {
 	)
 	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
 		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
-		RequestedAction: intent.ActionRun, Action: intent.ActionRun,
-		Mutation: intent.MutationNone, Confidence: 1, Source: intent.SourceLocalModel,
+		RequestedAction: intent.ActionArtifact, Action: intent.ActionArtifact,
+		Mutation: intent.MutationExternal, Confidence: 1, Source: intent.SourceLocalModel,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +211,10 @@ func TestNeuralCanvasPromptOmitsFileChangeImplementation(t *testing.T) {
 	}
 }
 
-func TestStampedInspectMisrouteForNeuralCanvasBecomesArtifact(t *testing.T) {
+// TestStampedInspectDecisionTrustedDespiteCanvasPhrasing documents the stamp-first
+// replacement for the old Neural Canvas "inspect misroute" restamp: a classifier that
+// stamps ActionInspect is trusted as-is, even with Neural Canvas phrasing.
+func TestStampedInspectDecisionTrustedDespiteCanvasPhrasing(t *testing.T) {
 	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), nil)
 	msg := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
@@ -198,16 +229,19 @@ func TestStampedInspectMisrouteForNeuralCanvasBecomesArtifact(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if !artifactToolsEnabledForMessage(msg) {
-		t.Fatal("inspect misroute must enable create_artifact")
+	if artifactToolsEnabledForMessage(msg) {
+		t.Fatal("ActionInspect must not enable artifact tools despite canvas phrasing")
 	}
 	goal := deriveTurnGoal(a, msg, IntentTask)
-	if goal.Action != ActionArtifact {
-		t.Fatalf("action=%s, want artifact", goal.Action)
+	if goal.Action != ActionInspect {
+		t.Fatalf("action=%s, want inspect trusted as stamped", goal.Action)
 	}
 }
 
-func TestStampedImageMisrouteForNeuralCanvasBecomesArtifact(t *testing.T) {
+// TestStampedImageDecisionTrustedDespiteCanvasPhrasing documents the stamp-first
+// replacement for the old Neural Canvas "image misroute" restamp: a classifier that
+// stamps ActionImage is trusted as-is, even with Neural Canvas phrasing.
+func TestStampedImageDecisionTrustedDespiteCanvasPhrasing(t *testing.T) {
 	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), nil)
 	msg := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
@@ -222,18 +256,12 @@ func TestStampedImageMisrouteForNeuralCanvasBecomesArtifact(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if UserRequestsGeneratedImage(msg.Content) {
-		t.Fatal("Neural Canvas ask must not match image heuristic")
-	}
 	goal := deriveTurnGoal(a, msg, IntentTask)
-	if goal.Action != ActionArtifact {
-		t.Fatalf("action=%s, want artifact", goal.Action)
+	if goal.Action != ActionImage {
+		t.Fatalf("action=%s, want image trusted as stamped", goal.Action)
 	}
-	if a.imageGenerationToolsEnabledForMessage(msg) {
-		t.Fatal("generate_image must stay disabled for Neural Canvas")
-	}
-	if got, ok := a.tryHubImageGenerationShortcut(context.Background(), msg); ok || got != "" {
-		t.Fatalf("image shortcut must not fire: ok=%v got=%q", ok, got)
+	if messageSuppressesImageGeneration(msg) {
+		t.Fatal("generate_image must stay enabled for a stamped ActionImage despite canvas phrasing")
 	}
 }
 

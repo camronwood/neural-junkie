@@ -60,7 +60,25 @@ func isConversationalOnlyTurn(msg *protocol.Message) bool {
 // shouldOfferCapabilityTools reports whether activate_capability / request_capability_help
 // should be exposed for this turn.
 func shouldOfferCapabilityTools(msg *protocol.Message) bool {
-	return !isConversationalOnlyTurn(msg)
+	if isConversationalOnlyTurn(msg) {
+		return false
+	}
+	if msg == nil {
+		return true
+	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		// Casual turns never escalate into capability handoffs.
+		if decision.Interaction == intent.InteractionCasual {
+			return false
+		}
+		// Pure Q&A / clarify without concrete work signals stays local.
+		if decision.Mutation == intent.MutationNone &&
+			(decision.Action == intent.ActionAnswer || decision.Action == intent.ActionAskUser) &&
+			!hasCodeTaskSignals(msg.Content) {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *Agent) capabilityState() config.AgentCapabilityState {
@@ -229,7 +247,7 @@ func (a *Agent) capabilityHelpToolDefinition(msg *protocol.Message) (ai.ClaudeTo
 		}
 		providers = append(providers, row.CapabilityID+" -> "+strings.Join(names, ", "))
 	}
-	description := "Open a temporary linked channel and ask one capable agent to perform a bounded task when local activation cannot work because of policy, credentials, environment, or specialist context."
+	description := "Open a temporary linked channel and ask one capable agent to perform ONE bounded task when local activation cannot work because of policy, credentials, environment, or specialist context. Use at most once per turn. The task must be a concrete question or instruction — never a greeting, topic menu, or OR-list of themes."
 	if len(providers) > 0 {
 		description += " Available helpers: " + strings.Join(providers, "; ")
 	}
@@ -240,7 +258,7 @@ func (a *Agent) capabilityHelpToolDefinition(msg *protocol.Message) (ai.ClaudeTo
 		  "type": "object",
 		  "properties": {
 		    "capability_id": {"type":"string","description":"Qualified capability id required for the task"},
-		    "task": {"type":"string","description":"One bounded task for the helping agent"}
+		    "task": {"type":"string","description":"One concrete bounded task or question for the helping agent. Reject topic menus like 'A or B or C'."}
 		  },
 		  "required": ["capability_id", "task"]
 		}`),
@@ -295,16 +313,26 @@ func (a *Agent) executeRequestCapabilityHelpTool(ctx context.Context, msg *proto
 	if msg == nil {
 		return "", fmt.Errorf("capability help requires an active message")
 	}
+	task := strings.TrimSpace(args.Task)
+	if err := ValidateCapabilityHandoffTask(task); err != nil {
+		return fmt.Sprintf("%v. Do not open another handoff; ask the user for one concrete task or answer locally.", err), nil
+	}
+	if turn := capabilityHandoffTurnStateFromContext(ctx); turn != nil && turn.count >= 1 {
+		return "request_capability_help was already used this turn. Use the prior handoff result; do not open another handoff.", nil
+	}
 	dc := a.getDelegationClient()
 	if dc == nil || !config.AppConfig().CapabilityHandoffsEnabled() {
 		return "", fmt.Errorf("capability handoff is disabled")
+	}
+	if turn := capabilityHandoffTurnStateFromContext(ctx); turn != nil {
+		turn.count++
 	}
 	result, err := dc.RequestCapabilityHelp(ctx, delegation.CapabilityHelpRequest{
 		FromID:          a.Info.ID,
 		FromName:        a.Info.Name,
 		CreatedBy:       msg.From.Name,
 		CapabilityID:    strings.TrimSpace(args.CapabilityID),
-		Task:            strings.TrimSpace(args.Task),
+		Task:            task,
 		SourceChannel:   msg.Channel,
 		SourceMessageID: msg.ID,
 		Depth:           0,

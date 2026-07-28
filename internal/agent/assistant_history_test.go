@@ -58,7 +58,7 @@ func TestUserAsksAboutPromptContext(t *testing.T) {
 	}
 }
 
-func TestFilterAssistantHistory_userOnlyForCompactOllama(t *testing.T) {
+func TestFilterAssistantHistory_keepsExchangesForCompactOllama(t *testing.T) {
 	a := &Agent{
 		Info: protocol.AgentInfo{
 			Name:       "Assistant",
@@ -88,9 +88,13 @@ func TestFilterAssistantHistory_userOnlyForCompactOllama(t *testing.T) {
 	}
 	a.Context.History["slack:C1"] = history
 	out := a.conversationHistoryForIntent(current, IntentSubstantive)
+	foundAgent := false
 	for _, m := range out {
-		if !protocol.IsUserLikeSender(m.From) {
-			t.Fatalf("expected user-only history, got agent message: %q", m.Content)
+		if m != nil && m.From.Type == protocol.AgentTypeAssistant {
+			foundAgent = true
 		}
+	}
+	if !foundAgent {
+		t.Fatal("dialogue-first Assistant history must keep prior assistant exchanges")
 	}
 }

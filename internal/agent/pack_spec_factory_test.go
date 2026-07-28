@@ -8,24 +8,19 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-func TestAgentFactoryFromPackSpecMusicPilot(t *testing.T) {
+func TestAgentFactoryFromPackSpecRetiredAbilityTypes(t *testing.T) {
 	mockAI := ai.NewMockProvider()
 	hub := shouldRespondTestHub{}
 	cases := []packs.AgentSpec{
 		{Name: "MusicExpert", Type: "music", Implementation: "builtin/music"},
-		{Name: "MusicExpert", Type: "", Implementation: "builtin/music"},
-		{Name: "MusicExpert", Type: "expert", Implementation: "builtin/music"}, // Implementation wins
+		{Name: "MapsExpert", Type: "maps", Implementation: "builtin/maps"},
+		{Name: "WebBrowserExpert", Type: "browser", Implementation: "builtin/browser"},
+		{Name: "CodeReviewer", Type: "code-review", Implementation: "builtin/code-review"},
 	}
 	for _, spec := range cases {
 		ag, err := AgentFactoryFromPackSpec(spec, "", mockAI, hub)
-		if err != nil {
-			t.Fatalf("spec=%+v: %v", spec, err)
-		}
-		if ag.Info.Type != protocol.AgentTypeMusic {
-			t.Fatalf("spec=%+v: type=%q, want music", spec, ag.Info.Type)
-		}
-		if ag.Info.Name != "MusicExpert" {
-			t.Fatalf("name=%q, want MusicExpert", ag.Info.Name)
+		if err == nil || ag != nil {
+			t.Fatalf("spec=%+v: expected error for retired ability-pack expert, got ag=%v err=%v", spec, ag, err)
 		}
 	}
 }

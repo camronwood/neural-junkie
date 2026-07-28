@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
@@ -39,8 +40,8 @@ func TestCapabilityHandoffCreatesReturnsAndArchivesRoom(t *testing.T) {
 	h.commandHandler.appConfig = cfg
 	requester := agent.NewAgent(protocol.AgentTypeArchitecture, "Architect", nil, handoffTestProvider{}, h)
 	requester.Info.ID = "requester"
-	helper := agent.NewAgent(protocol.AgentTypeBrowser, "WebBrowserExpert", nil, handoffTestProvider{}, h)
-	helper.Info.ID = "browser"
+	helper := agent.NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, handoffTestProvider{}, h)
+	helper.Info.ID = "assistant"
 	if err := h.RegisterAgent(&requester.Info); err != nil {
 		t.Fatal(err)
 	}
@@ -110,6 +111,22 @@ func TestCapabilityHandoffRejectsRecursion(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected depth rejection")
+	}
+}
+
+func TestCapabilityHandoffRejectsVagueTask(t *testing.T) {
+	cfg := config.DefaultConfig()
+	h := NewHub()
+	h.commandHandler.appConfig = cfg
+	_, err := h.commandHandler.RequestCapabilityHelp(context.Background(), delegation.CapabilityHelpRequest{
+		FromID: "requester", FromName: "Architect", CapabilityID: "web-browser",
+		Task: "debugging a failing pod or reviewing your CI/CD pipeline security", SourceChannel: "general",
+	})
+	if err == nil {
+		t.Fatal("expected vague-task rejection")
+	}
+	if !strings.Contains(err.Error(), "topic menu") && !strings.Contains(err.Error(), "bounded task") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

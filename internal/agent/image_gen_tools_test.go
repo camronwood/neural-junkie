@@ -7,8 +7,20 @@ import (
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func stampImageDecision(t *testing.T, msg *protocol.Message) {
+	t.Helper()
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionImage, Action: intent.ActionImage,
+		Mutation: intent.MutationExternal, Confidence: 0.95, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
 
 type imageGenTestHub struct {
 	hubArenaNoop
@@ -100,6 +112,7 @@ func TestExecuteGenerateImageTool(t *testing.T) {
 		Hub:  hub,
 	}
 	msg := &protocol.Message{Channel: "general", Content: "generate an image of a blue hexagon logo"}
+	stampImageDecision(t, msg)
 	input, _ := json.Marshal(map[string]string{"prompt": "a blue hexagon logo"})
 	result, err := a.executeGenerateImageTool(context.Background(), msg, input)
 	if err != nil {
@@ -156,6 +169,7 @@ func TestTryHubImageGenerationShortcut(t *testing.T) {
 		Hub:  hub,
 	}
 	msg := &protocol.Message{Channel: "general", Content: "Can you generate me an image of a ship?"}
+	stampImageDecision(t, msg)
 	resp, ok := a.tryHubImageGenerationShortcut(context.Background(), msg)
 	if !ok {
 		t.Fatal("expected shortcut to run")
@@ -168,46 +182,11 @@ func TestTryHubImageGenerationShortcut(t *testing.T) {
 	}
 }
 
-func TestTryHubImageGenerationShortcut_IndirectCoverRequest(t *testing.T) {
-	hub := &imageGenTestHub{enabled: true}
-	a := &Agent{
-		Info: protocol.AgentInfo{Name: "BookWriter", Type: protocol.AgentTypeExpert},
-		Hub:  hub,
-	}
-	msg := protocol.NewMessage(
-		protocol.MessageTypeQuestion,
-		"dm-camron-bookwriter",
-		protocol.AgentInfo{ID: "user", Name: "Camron", Type: protocol.AgentTypeGeneral},
-		"ok lets see what a sample outline and cover art image will look like",
-	)
-	goal := deriveTurnGoal(a, msg, IntentTask)
-	if goal.Action != ActionImage {
-		t.Fatalf("action = %q, want image", goal.Action)
-	}
-	ctx := contextWithTurnGoal(context.Background(), goal)
-	if _, ok := a.tryHubImageGenerationShortcut(ctx, msg); !ok {
-		t.Fatal("expected indirect cover request to use image shortcut")
-	}
-	if !hub.posted {
-		t.Fatal("expected cover image to be posted")
-	}
-}
-
 func TestCompleteMixedImageResponseIncludesTextDeliverable(t *testing.T) {
+	// UserRequestsImageWithCompanionText (the phrase heuristic that used to detect a mixed
+	// text+image request) is now a deprecated stub that always returns false, so
+	// completeMixedImageResponse always takes the image-only path — see response_images.go.
 	a := &Agent{}
-	msg := &protocol.Message{Content: "Show me a sample outline and cover art image."}
-	got := a.completeMixedImageResponse(
-		context.Background(),
-		msg,
-		"Write the requested outline.",
-		nil,
-		ai.NewMockProvider(),
-		"Done — I've posted the generated image to the channel.",
-	)
-	if !strings.Contains(got, "mock response") || !strings.Contains(got, "posted the generated image") {
-		t.Fatalf("mixed response did not preserve both deliverables: %q", got)
-	}
-
 	imageOnly := &protocol.Message{Content: "Generate cover art for the book."}
 	const imageResponse = "Done — image posted."
 	if got := a.completeMixedImageResponse(
@@ -283,6 +262,7 @@ func TestExplicitImageIntentOverridesAmbientIDEMetadata(t *testing.T) {
 			protocol.IdeMetaEditorMode: "agent",
 		},
 	}
+	stampImageDecision(t, msg)
 	if !a.imageGenerationToolsEnabledForMessage(msg) {
 		t.Fatal("explicit image intent should override ambient code/editor metadata")
 	}

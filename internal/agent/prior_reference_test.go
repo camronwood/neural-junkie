@@ -39,6 +39,33 @@ func TestFindPriorAssistantContent(t *testing.T) {
 	}
 }
 
+func TestFindPriorAssistantContent_prefersMostRecentNotLongest(t *testing.T) {
+	longWrong := stringsRepeat("# Dickory Docs Plan\n\nCreate a new Tauri app with Monaco.\n\n", 40)
+	shortRecent := strings.TrimSpace("# Correction\n\n### Fix\n\n1. Repair neural-junkie App.tsx blank screen.\n\n---\n\n" +
+		stringsRepeat("Use the existing workspace and ship a concrete FILE_CHANGE. ", 8))
+	if len(shortRecent) < priorReferenceMinChars {
+		t.Fatalf("precondition: shortRecent (%d) must meet min chars", len(shortRecent))
+	}
+	if len(longWrong) <= len(shortRecent) {
+		t.Fatalf("precondition: longWrong (%d) must be longer than shortRecent (%d)", len(longWrong), len(shortRecent))
+	}
+	agent := protocol.AgentInfo{ID: "a1", Name: "Assistant", Type: protocol.AgentTypeAssistant}
+	history := []*protocol.Message{
+		protocol.NewMessage(protocol.MessageTypeAnswer, "dm-test", agent, longWrong),
+		protocol.NewMessage(protocol.MessageTypeChat, "dm-test", protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}, "fix the app"),
+		protocol.NewMessage(protocol.MessageTypeAnswer, "dm-test", agent, shortRecent),
+		protocol.NewMessage(protocol.MessageTypeChat, "dm-test", protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}, "use that"),
+	}
+	got := findPriorAssistantContent(history, history[3].ID, "a1", priorReferenceMinChars)
+	if got != shortRecent {
+		preview := got
+		if len(preview) > 80 {
+			preview = preview[:80]
+		}
+		t.Fatalf("expected most recent prior reply, got len=%d body=%q", len(got), preview)
+	}
+}
+
 func TestTryPriorReferenceResponse_missingHistory(t *testing.T) {
 	a := &Agent{Info: protocol.AgentInfo{ID: "a1", Name: "Assistant", Type: protocol.AgentTypeAssistant}}
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test", protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}, "use the article from a few messages back")
@@ -109,6 +136,8 @@ func TestAppendPriorReferenceGuidance_fileExport(t *testing.T) {
 	}
 	a := &Agent{Info: agent}
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test", protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}, "store that artical in nj-artical-1.md")
+	// Structural composer export mode (not phrase matching) signals a file-export turn.
+	msg.Metadata = map[string]interface{}{protocol.IdeMetaEditorMode: "export"}
 	prompt := a.appendPriorReferenceGuidance("base prompt", msg, history)
 	if !strings.Contains(prompt, "PRIOR ASSISTANT CONTENT") {
 		t.Fatal("expected prior content block for file export without explicit back-reference")

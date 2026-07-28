@@ -206,7 +206,7 @@ func handleArtifactAction(w http.ResponseWriter, r *http.Request, store *artifac
 				writeArtifactJSON(w, nil, err)
 				return
 			}
-			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Type", artifactAssetContentType(name))
 			_, _ = w.Write(data)
 			return
 		}
@@ -397,4 +397,22 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func artifactAssetContentType(name string) string {
+	lower := strings.ToLower(name)
+	switch {
+	case strings.HasSuffix(lower, ".jpg"), strings.HasSuffix(lower, ".jpeg"):
+		return "image/jpeg"
+	case strings.HasSuffix(lower, ".webp"):
+		return "image/webp"
+	case strings.HasSuffix(lower, ".gif"):
+		return "image/gif"
+	case strings.HasSuffix(lower, ".svg"):
+		return "image/svg+xml"
+	case strings.HasSuffix(lower, ".png"):
+		return "image/png"
+	default:
+		return "application/octet-stream"
+	}
 }

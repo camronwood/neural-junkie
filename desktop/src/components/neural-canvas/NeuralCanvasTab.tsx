@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChatAPI } from '../../api/chatAPI';
-import type { StoredArtifact } from '../../types/protocol';
+import { useChatStore } from '../../stores/chatStore';
+import { getArtifactReference, type StoredArtifact } from '../../types/protocol';
 import { ArtifactCard } from './ArtifactCard';
 import { NeuralCanvasWorkbench } from './NeuralCanvasWorkbench';
 import { storedArtifactToCanvas } from './types';
@@ -13,6 +14,23 @@ export interface NeuralCanvasTabProps {
   onOpenArtifact: (artifact: StoredArtifact) => void;
 }
 
+/** Latest artifact_changed signal for this id (or library) so open tabs refresh on revisions. */
+function useArtifactChangeSignal(artifactId: string): string {
+  return useChatStore((s) => {
+    const messages = s.messages;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i];
+      if (!message || message.type !== 'artifact_changed') continue;
+      const ref = getArtifactReference(message.metadata as Record<string, unknown> | undefined);
+      if (!ref?.id) continue;
+      if (artifactId === '__library__' || ref.id === artifactId) {
+        return `${ref.id}:${ref.revision ?? 0}:${ref.action ?? ''}:${message.id}`;
+      }
+    }
+    return `${artifactId}:idle`;
+  });
+}
+
 export function NeuralCanvasTab({
   artifactId,
   workspaceId = '',
@@ -23,6 +41,7 @@ export function NeuralCanvasTab({
   const [revisionCount, setRevisionCount] = useState(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const changeSignal = useArtifactChangeSignal(artifactId);
 
   const loadLibrary = useCallback(async () => {
     setLoading(true);
@@ -44,7 +63,7 @@ export function NeuralCanvasTab({
         api.fetchArtifactRevisions(artifactId),
       ]);
       setArtifact(current);
-      setRevisionCount(Math.max(1, revisions.length));
+      setRevisionCount(Math.max(1, revisions.length, current.revision ?? 1));
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Failed to load artifact');
@@ -53,19 +72,56 @@ export function NeuralCanvasTab({
     }
   }, [artifactId]);
 
+  const refreshQuiet = useCallback(async () => {
+    try {
+      if (artifactId === '__library__') {
+        setArtifacts(await api.fetchArtifacts(workspaceId ? { workspace_id: workspaceId } : {}));
+        return;
+      }
+      const [current, revisions] = await Promise.all([
+        api.fetchArtifact(artifactId),
+        api.fetchArtifactRevisions(artifactId),
+      ]);
+      setArtifact(current);
+      setRevisionCount(Math.max(1, revisions.length, current.revision ?? 1));
+      setError('');
+    } catch {
+      // Keep showing the last good revision; user can Retry from the error path.
+    }
+  }, [artifactId, workspaceId]);
+
   useEffect(() => {
     if (artifactId === '__library__') void loadLibrary();
     else void loadArtifact();
   }, [artifactId, loadArtifact, loadLibrary]);
 
-  if (loading) {
+  // Live refresh when the hub publishes artifact_changed for this canvas.
+  useEffect(() => {
+    if (changeSignal.endsWith(':idle')) return;
+    void refreshQuiet();
+  }, [changeSignal, refreshQuiet]);
+
+  if (loading && !artifact && artifactId !== '__library__') {
     return <div className="flex h-full items-center justify-center text-sm text-slack-textMuted">Loading Neural Canvas…</div>;
   }
-  if (error) {
+  if (loading && artifactId === '__library__' && artifacts.length === 0) {
+    return <div className="flex h-full items-center justify-center text-sm text-slack-textMuted">Loading Neural Canvas…</div>;
+  }
+  if (error && !artifact && artifactId !== '__library__') {
     return (
       <div className="p-5 text-sm text-red-300">
         <p>{error}</p>
-        <button type="button" className="mt-3 rounded border border-slack-border px-3 py-1.5" onClick={() => void (artifactId === '__library__' ? loadLibrary() : loadArtifact())}>
+        <button type="button" className="mt-3 rounded border border-slack-border px-3 py-1.5" onClick={() => void loadArtifact()}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (error && artifactId === '__library__' && artifacts.length === 0) {
+    return (
+      <div className="p-5 text-sm text-red-300">
+        <p>{error}</p>
+        <button type="button" className="mt-3 rounded border border-slack-border px-3 py-1.5" onClick={() => void loadLibrary()}>
           Retry
         </button>
       </div>

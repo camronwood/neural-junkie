@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -76,6 +77,13 @@ func TestExecuteGenerateMusicTool(t *testing.T) {
 		Context: &ConversationContext{CurrentChannel: "general"},
 	}
 	msg := &protocol.Message{Channel: "general", Content: "generate me a lo-fi chill song"}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionMusic, Action: intent.ActionMusic,
+		Mutation: intent.MutationExternal, Confidence: 0.95, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	input, _ := json.Marshal(map[string]string{
 		"style_tags": "lo-fi chill",
 		"lyrics":     "[Instrumental]",

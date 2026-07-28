@@ -70,6 +70,8 @@ export default {
 }
 
 func TestSendMessage_holdsDestructiveLocalModelRewriteForApproval(t *testing.T) {
+	// layer-gate sets NJ_REGRESSION=1 for live harnesses; this unit asserts hold behavior.
+	t.Setenv("NJ_REGRESSION", "")
 	h := newTestHub(t)
 	chName := "implementation-safety"
 	_ = h.CreateChannel(chName, "test", "tester")
@@ -160,6 +162,8 @@ func TestSendMessage_routedReliableProviderMayApproveDestructiveRewrite(t *testi
 }
 
 func TestSendMessage_holdsRewriteDestructiveAgainstGitBaseline(t *testing.T) {
+	// layer-gate sets NJ_REGRESSION=1 for live harnesses; this unit asserts hold behavior.
+	t.Setenv("NJ_REGRESSION", "")
 	h := newTestHub(t)
 	chName := "implementation-git-baseline"
 	_ = h.CreateChannel(chName, "test", "tester")

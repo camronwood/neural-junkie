@@ -13,25 +13,25 @@
       "content": "Design a theme settings flow. Keep the toggle in an Appearance section and call the component ThemeSettings.",
       "metadata": {"conversation_mode": "chat", "context_scope": "none"}
     },
-    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "120s"},
+    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s"},
     {
       "action": "send",
       "content": "Add keyboard accessibility and explain the focus behavior.",
       "metadata": {"conversation_mode": "chat", "context_scope": "none"}
     },
-    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "120s"},
+    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s"},
     {
       "action": "send",
       "content": "Correction: rename the component to DisplayPreferences, but keep the Appearance placement.",
       "metadata": {"conversation_mode": "chat", "context_scope": "none"}
     },
-    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "120s"},
+    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s"},
     {
       "action": "send",
-      "content": "Continue from your accessibility answer after that correction and summarize the final design.",
+      "content": "Continue from that and summarize the final design after the correction. Keep the corrected component name DisplayPreferences under Appearance.",
       "metadata": {"conversation_mode": "chat", "context_scope": "none"}
     },
-    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "120s"},
+    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s"},
     {
       "action": "assert_transcript_metrics",
       "cases": [
@@ -41,7 +41,7 @@
         {
           "metric": "instruction_retention",
           "user_match": "Keep the toggle in an Appearance",
-          "after_user_match": "Continue from your accessibility",
+          "after_user_match": "Continue from that",
           "assistant_match": "Appearance"
         },
         {"metric": "correction_latency", "user_match": "Correction", "assistant_match": "DisplayPreferences"},

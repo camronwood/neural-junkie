@@ -28,7 +28,7 @@ const DevOllamaCodeModel = "qwen3.5:27b"
 
 // devSpecialistTypes are in-process engineering agent types owned by the software-development pack.
 var devSpecialistTypes = []string{
-	"backend", "frontend", "devops", "security", "architecture", "code-review", "database",
+	"backend", "frontend", "devops", "security", "architecture", "database",
 	"rust", "sre", "mobile", "data-ml",
 }
 
@@ -919,11 +919,13 @@ func (c *Config) PresetExpertDeniedMessage(slug string) string {
 	case "incident":
 		return "Incident experts require the **Incident management** pack. Install and enable it in Domain packs."
 	case "browser":
-		return "Web browser experts require the **Web browser** pack. Install and enable it in Domain packs."
+		return "The **Web browser** pack adds Playwright tools to **Assistant** (and Composition grants). There is no WebBrowserExpert — enable the pack in Domain packs."
 	case "music":
-		return "Music experts require the **Music creation** pack. Install and enable it in Domain packs."
+		return "The **Music creation** pack adds generate_music to **Assistant** (and Composition grants). There is no MusicExpert — enable the pack in Domain packs."
 	case "maps":
-		return "Maps experts require the **Maps** pack. Install and enable it in Domain packs."
+		return "The **Maps** pack adds maps tools to **Assistant** (and Composition grants). There is no MapsExpert — enable the pack in Domain packs."
+	case "code-review":
+		return "Code review is a core skill of every specialist — there is no CodeReviewer agent. Ask Backend, Frontend, Security, or another domain expert to review."
 	default:
 		if isDevPackExpertSlug(slug) {
 			return "Software development specialists require the **Software development** pack. Install and enable it in Settings → Domain packs."
@@ -955,14 +957,9 @@ func (c *Config) PresetExpertAllowed(slug string) bool {
 	if slug == "incident" {
 		return c.IsPackEnabled(PackIncidentManagement)
 	}
-	if slug == "browser" {
-		return c.IsPackEnabled(PackWebBrowser)
-	}
-	if slug == "music" {
-		return c.IsPackEnabled(PackMusicCreation)
-	}
-	if slug == "maps" {
-		return c.IsPackEnabled(PackMaps)
+	// Ability packs: no dedicated experts — tools attach to Assistant / Composition grants.
+	if slug == "browser" || slug == "music" || slug == "maps" || slug == "code-review" {
+		return false
 	}
 	if isDevPackExpertSlug(slug) {
 		return c.IsPackEnabled(PackSoftwareDevelopment)
@@ -1235,6 +1232,42 @@ func (c *Config) migrateSoftwareDevelopmentPackIfNeeded() {
 				c.Packs.Installed = append(c.Packs.Installed, PackSoftwareDevelopment)
 			}
 			return
+		}
+	}
+}
+
+// migrateRetiredAbilityPackExperts disables MapsExpert / MusicExpert / WebBrowserExpert /
+// CodeReviewer config rows. Those packs now attach tools to Assistant (or use review as a
+// core agent behavior) instead of spawning dedicated specialists.
+func (c *Config) migrateRetiredAbilityPackExperts() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	kept := make([]AgentConfig, 0, len(c.Agents))
+	for _, a := range c.Agents {
+		t := strings.ToLower(strings.TrimSpace(a.Type))
+		impl := strings.ToLower(strings.TrimSpace(a.Implementation))
+		retired := packs.IsRetiredAbilityPackAgentType(t) ||
+			impl == "builtin/maps" || impl == "builtin/music" ||
+			impl == "builtin/browser" || impl == "builtin/code-review"
+		if retired {
+			continue
+		}
+		kept = append(kept, a)
+	}
+	c.Agents = kept
+
+	if c.SpecialistCompose != nil {
+		for _, t := range packs.RetiredAbilityPackAgentTypes {
+			delete(c.SpecialistCompose, t)
+		}
+	}
+	if c.MCP.Agents != nil {
+		for _, t := range []string{"maps", "music", "browser", "code-review"} {
+			delete(c.MCP.Agents, t)
 		}
 	}
 }

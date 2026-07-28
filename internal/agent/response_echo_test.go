@@ -71,9 +71,24 @@ func TestLooksLikeAsksUserToPasteWorkspaceFiles(t *testing.T) {
 	if !looksLikeAsksUserToPasteWorkspaceFiles(msg, deny2) {
 		t.Fatal("expected immediate-context denial with shared workspace")
 	}
+	deny3 := "I'm sorry, but I don't have any specific project details to summarize. If you could provide more information or context about the project you're referring to, I'd be happy to help you with a summary."
+	if !looksLikeAsksUserToPasteWorkspaceFiles(msg, deny3) {
+		t.Fatal("expected no-project-details denial with shared workspace")
+	}
 	msg.Metadata = nil
 	if looksLikeAsksUserToPasteWorkspaceFiles(msg, paste) {
 		t.Fatal("expected no workspace context to skip")
+	}
+}
+
+func TestLooksLikeGroundingOnlyStub(t *testing.T) {
+	stub := "Grounding: I loaded 8 file(s) from the workspace context for this answer. Changes: ###"
+	if !looksLikeGroundingOnlyStub(stub) {
+		t.Fatal("expected hollow grounding stub")
+	}
+	ok := "Grounding: I loaded 3 file(s) from the workspace context for this answer.\nDickory Docs is a Vite + React docs site with a Tauri shell."
+	if looksLikeGroundingOnlyStub(ok) {
+		t.Fatal("expected real grounded answer to pass")
 	}
 }
 

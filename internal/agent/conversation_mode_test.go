@@ -18,8 +18,9 @@ func TestIsSocialOrStatusPing(t *testing.T) {
 	if isSocialOrStatusPing("@here refactor cmd/server/main.go") {
 		t.Fatal("code task with @here should not be social-only")
 	}
-	if !isSocialOrStatusPing("are you here and ready to help?") {
-		t.Fatal("expected presence check as social ping")
+	// Presence pings are stamped InteractionCasual by the classifier — not phrase-matched here.
+	if isSocialOrStatusPing("are you here and ready to help?") {
+		t.Fatal("unstructured presence text must not phrase-match as social ping")
 	}
 }
 

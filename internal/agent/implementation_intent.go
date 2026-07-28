@@ -21,6 +21,9 @@ var (
 	implementTypoRE             = regexp.MustCompile(`(?i)\bimpl[e]?ment\b`)
 	workspaceDirectiveRE        = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
 	bootErrorIntentRE           = regexp.MustCompile(`(?i)(not booting|won't boot|will not boot|cannot boot|can't boot|fails? to boot|does not boot|failed to scan|esbuild|✘\s*\[ERROR\]|\[ERROR\].*Expected|make start-all|vite dev|syntax error|white screen|blank screen|exit_code=)`)
+	// errorLogMarkerRE detects actual command/build output markers (not user phrasing) in a raw
+	// transcript — used only for housekeeping like stale-summary scrubbing, never turn routing.
+	errorLogMarkerRE = regexp.MustCompile(`(?i)(✘\s*\[ERROR\]|\[ERROR\].*Expected|esbuild|exit_code=\d|syntax error|panic:|fatal error:|traceback \(most recent call last\))`)
 	implementationStatusCheckRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:is it fixed|did (?:that|it) fix|does it work(?: now)?|is it working(?: now)?|still broken|still not (?:booting|working)|working now)\??[!.?\s]*$`)
 	destructiveCommandRE        = regexp.MustCompile(`(?i)\brm\s+-rf\b|\brm\s+-r\b|\brmdir\s+/\b|>\s*/dev/`)
 	contentDeliveryRE           = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
@@ -76,47 +79,12 @@ func agentMessageIsConversationalClosure(content string) bool {
 	return false
 }
 
-// userRequestsImplementation reports coding/build asks (themes, features, fixes) where the
-// user expects [FILE_CHANGE] deliverables, not a codebase overview.
+// userRequestsImplementation is a deprecated phrase-matching heuristic kept only for its
+// call sites' signatures. Routing now trusts the stamped TurnDecision (see
+// userRequestsImplementationForMessage) instead of natural-language phrase matching.
+//
+// Deprecated: always returns false. Do not add new call sites.
 func userRequestsImplementation(content string) bool {
-	lower := strings.ToLower(strings.TrimSpace(content))
-	if lower == "" {
-		return false
-	}
-	if isAdvisoryImplementationQuestion(content) {
-		return false
-	}
-	if userRequestsCodeReview(content) {
-		return false
-	}
-	if implementTypoRE.MatchString(lower) || themeImplementationRE.MatchString(lower) {
-		return true
-	}
-	if userAffirmsPendingImplementation(content) {
-		return false // continuation alone is not enough without channel history
-	}
-	if workspaceDirectiveRE.MatchString(lower) {
-		return true
-	}
-	phrases := []string{
-		"please implement", "implement that", "implement the",
-		"implement this", "build this", "build out", "code this", "code it",
-		"ship ", "apply the plan", "apply your plan", "make the changes",
-		"make the change", "do the implementation", "actually implement",
-		"write the code", "add the code", "add light", "add dark",
-		"theme support", "light/dark", "dark/light", "dark mode", "light mode",
-		"wire up", "hook up", "under settings", "settings page", "settings modal",
-		"font size", "pick up where", "finish that work", "finish the work",
-		"review the code for issues", "review the code for bugs", "review and fix",
-		"code for issues", "not working", "doesn't work",
-		"does not work", "does not seem to be working", "broken", "fix the app", "debug this", "troubleshoot",
-		"blank screen", "white screen", "can you fix", "not booting", "won't boot", "will not boot",
-	}
-	for _, p := range phrases {
-		if strings.Contains(lower, p) {
-			return true
-		}
-	}
 	return false
 }
 
@@ -141,60 +109,40 @@ func userRequestsFileExportForMessage(msg *protocol.Message) bool {
 	return userRequestsFileExport(msg.Content)
 }
 
-// userRequestsFileExport reports save/store/create/fill markdown file asks.
-// Deprecated: prefer explicit composer export mode (IdeEditorModeIsExport).
+// userRequestsFileExport is deprecated. Prefer explicit composer export mode
+// (IdeEditorModeIsExport). Routing must not re-enter export via natural-language phrases.
+//
+// Deprecated: always returns false. Do not add new call sites.
 func userRequestsFileExport(content string) bool {
-	text := strings.TrimSpace(content)
-	if text == "" {
-		return false
-	}
-	lower := strings.ToLower(text)
-	if fileExportRE.MatchString(lower) {
-		return true
-	}
-	hasFileTarget := strings.Contains(lower, ".md") || strings.Contains(lower, "markdown file") ||
-		strings.Contains(lower, "the file")
-	hasExportVerb := strings.Contains(lower, "store") || strings.Contains(lower, "save") ||
-		strings.Contains(lower, "create") || strings.Contains(lower, "fill")
-	return hasFileTarget && hasExportVerb
+	_ = content
+	return false
 }
 
-// isBareWorkspaceDirective reports short "use the workspace" style messages without a code deliverable.
+// isBareWorkspaceDirective is deprecated. Fence fallback uses ImplementationSession /
+// stamped edit, not NL workspace phrases.
+//
+// Deprecated: always returns false. Do not add new call sites.
 func isBareWorkspaceDirective(content string) bool {
-	lower := strings.ToLower(strings.TrimSpace(content))
-	if !workspaceDirectiveRE.MatchString(lower) {
-		return false
-	}
-	stripped := workspaceDirectiveRE.ReplaceAllString(lower, "")
-	stripped = bareWorkspaceWrapperRE.ReplaceAllString(stripped, "")
-	stripped = strings.TrimSpace(strings.Trim(stripped, "?.!,"))
-	if stripped == "" {
-		return true
-	}
-	if implementTypoRE.MatchString(stripped) || themeImplementationRE.MatchString(stripped) {
-		return false
-	}
-	codeVerbs := []string{
-		"implement", "fix", "debug", "build", "theme", "settings", "modal",
-		"add ", "wire", "patch", "refactor", "broken", "not working",
-	}
-	for _, v := range codeVerbs {
-		if strings.Contains(stripped, v) {
-			return false
-		}
-	}
-	return len(stripped) < 40
+	_ = content
+	return false
 }
 
-// userAffirmsPendingImplementation reports short follow-ups after an implementation ask.
+
+// userAffirmsPendingImplementation is deprecated. Continuations are stamped
+// ActionContinue (or ReplyTarget + pending action at the hub).
+//
+// Deprecated: always returns false. Do not add new call sites.
 func userAffirmsPendingImplementation(content string) bool {
-	return implementationAffirmRE.MatchString(strings.TrimSpace(content))
+	_ = content
+	return false
 }
 
-// isWeakImplementationAffirmation reports bare acknowledgements ("ok", "looks good") that are
-// not explicit approval to ship file changes.
+// isWeakImplementationAffirmation is deprecated alongside userAffirmsPendingImplementation.
+//
+// Deprecated: always returns false.
 func isWeakImplementationAffirmation(content string) bool {
-	return weakImplementationAffirmRE.MatchString(strings.TrimSpace(content))
+	_ = content
+	return false
 }
 
 func agentMessageIsFileContentDump(content string) bool {
@@ -473,7 +421,7 @@ func channelHasRecentImplementationActivity(history []*protocol.Message, skipMsg
 			if classifyConversationalClosure(m.Content) != ClosureNone {
 				return false
 			}
-			if userRequestsImplementation(m.Content) {
+			if messageStampedImplAction(m) {
 				return true
 			}
 		}
@@ -522,7 +470,7 @@ func channelHasRecentCodeImplementationAsk(history []*protocol.Message, skipMsgI
 		if userRequestsFileExport(m.Content) || m.IdeEditorModeIsExport() {
 			return false
 		}
-		if userRequestsImplementation(m.Content) {
+		if messageStampedImplAction(m) {
 			return true
 		}
 	}
@@ -554,86 +502,70 @@ func channelHasRecentImplementationAsk(history []*protocol.Message, skipMsgID st
 			continue
 		}
 		seen++
-		if userRequestsImplementation(m.Content) {
+		if messageStampedImplAction(m) {
 			return true
 		}
 	}
 	return false
 }
 
-// userRequestsImplementationForMessage includes affirmation follow-ups in the same channel thread.
+// userRequestsImplementationForMessage is stamp-first: it trusts the semantic TurnDecision
+// stamped on the turn (Edit/Debug/Continue/Run → true, everything else → false). When no
+// stamp is present it falls back to structural signals only (composer implementation-session
+// state, export mode, or a UI file-change approval continuing a recent implementation thread)
+// — never natural-language phrase matching.
 func userRequestsImplementationForMessage(a *Agent, msg *protocol.Message) bool {
 	if msg == nil {
 		return false
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
 		switch decision.Action {
-		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue:
-			if UserRequestsArtifact(msg.Content) && !neuralCanvasIsSecondaryToCodeChange(msg.Content) {
-				return false
-			}
-			return true
-		case semantic.ActionRun:
-			// Small classifiers stamp run for Neural Canvas asks; do not force FILE_CHANGE.
-			if UserRequestsArtifact(msg.Content) {
-				return false
-			}
+		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue, semantic.ActionRun:
 			return true
 		default:
 			return false
 		}
 	}
-	if UserRequestsArtifact(msg.Content) {
-		return false
-	}
-	if a != nil && userAffirmsPendingImplementation(msg.Content) &&
-		channelHasPendingArtifactRequest(a.channelHistory(msg.Channel), msg.ID) {
-		return false
-	}
-	if userRequestsImplementation(msg.Content) || userRequestsFileExportForMessage(msg) {
+	if msg.ImplementationSession() || msg.IdeEditorModeIsExport() {
 		return true
 	}
-	if userRequestsImplementationStatusCheck(msg.Content) && a != nil &&
-		channelHasRecentImplementationActivity(a.channelHistory(msg.Channel), msg.ID, a.Info.ID) {
-		return true
-	}
-	if a != nil {
-		history := a.channelHistory(msg.Channel)
-		if msg.FileChangeApproved() && shouldSkipAgentResponseOnFileExportApproval(a, msg) {
-			return false
-		}
-		if channelHasRecentFileChangeApproval(history, msg.ID, a.Info.ID) &&
-			(channelHasRecentImplementationAsk(history, msg.ID) ||
-				channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)) {
-			if channelHasRecentFileExportAsk(history, msg.ID) &&
-				!channelHasRecentCodeImplementationAsk(history, msg.ID) {
-				return false
-			}
-			return true
-		}
-	}
-	if a == nil || !userAffirmsPendingImplementation(msg.Content) {
+	if a == nil {
 		return false
+	}
+	if msg.FileChangeApproved() {
+		return !shouldSkipAgentResponseOnFileExportApproval(a, msg)
 	}
 	history := a.channelHistory(msg.Channel)
-	return affirmationContinuesImplementation(history, msg.ID, a.Info.ID, msg.Content)
+	if channelHasRecentFileChangeApproval(history, msg.ID, a.Info.ID) &&
+		(channelHasRecentImplementationAsk(history, msg.ID) ||
+			channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)) {
+		if channelHasRecentFileExportAsk(history, msg.ID) &&
+			!channelHasRecentCodeImplementationAsk(history, msg.ID) {
+			return false
+		}
+		return true
+	}
+	return false
 }
 
-// ShouldForceSessionSummaryRefresh reports user turns that should refresh a stale session summary.
+// ShouldForceSessionSummaryRefresh reports user turns that should refresh a stale session
+// summary. This is a low-stakes cache-invalidation heuristic used only as a last resort when
+// no stamped TurnDecision is available on the message (see ShouldForceSessionSummaryRefreshForMessage)
+// — erring toward refreshing more often is safe, so a short affirmation regex is kept live here
+// even though the equivalent turn-routing helpers (userAffirmsPendingImplementation, etc.) are
+// deprecated stubs.
 func ShouldForceSessionSummaryRefresh(content string) bool {
-	if userAffirmsPendingImplementation(content) {
+	if implementationAffirmRE.MatchString(content) {
+		return true
+	}
+	// Any mention of reviewing code invalidates a stale summary — this is intentionally
+	// broader than userRequestsCodeReview (which gates whole-project vs. targeted-fix
+	// routing), since over-refreshing here is harmless.
+	lower := strings.ToLower(content)
+	if strings.Contains(lower, "review") && strings.Contains(lower, "code") {
 		return true
 	}
 	if userRequestsCodeReview(content) {
-		return true
-	}
-	if userRequestsImplementation(content) {
-		return true
-	}
-	if messageHasBootOrBuildError(content) {
-		return true
-	}
-	if userRequestsImplementationStatusCheck(content) {
 		return true
 	}
 	return false
@@ -668,7 +600,7 @@ func ShouldForceSessionSummaryRefreshForMessage(msg *protocol.Message) bool {
 // ScrubStaleSessionSummary removes summary bullets contradicted by a boot/error log in the transcript.
 func ScrubStaleSessionSummary(summary, transcript string) string {
 	summary = strings.TrimSpace(summary)
-	if summary == "" || !messageHasBootOrBuildError(transcript) {
+	if summary == "" || !errorLogMarkerRE.MatchString(transcript) {
 		return summary
 	}
 	var kept []string
@@ -755,9 +687,11 @@ func agentTypeCanShipFileChanges(t protocol.AgentType) bool {
 
 // shouldProactiveScanWorkspace limits bulk workspace scans on implementation turns so
 // models do not reply with multi-file architecture tours (e.g. after "package.json" appears
-// in constraint text).
+// in constraint text). This is a prompt-context hint, not a turn-routing decision, so the
+// content-only themeImplementationRE signal (add/implement/finish + theme/dark-mode language)
+// stays live here even though userRequestsImplementation is a deprecated routing stub.
 func shouldProactiveScanWorkspace(content string) bool {
-	if userRequestsImplementation(content) {
+	if themeImplementationRE.MatchString(content) {
 		return true
 	}
 	return shouldInjectWorkspaceCode(content)
@@ -880,9 +814,23 @@ func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg
 	}
 }
 
-// messageHasBootOrBuildError reports Vite/esbuild/boot failure logs in message text.
+// messageHasBootOrBuildError is deprecated for routing. Boot/fix turns are stamped
+// ActionDebug/Edit by the semantic classifier. Log markers may still appear in history
+// scans for playbooks — those should use structured verify outcomes when available.
+//
+// Deprecated for routing: always returns false.
 func messageHasBootOrBuildError(content string) bool {
-	return bootErrorIntentRE.MatchString(strings.TrimSpace(content))
+	_ = content
+	return false
+}
+
+// userRequestsImplementationStatusCheck is deprecated. Status follow-ups are stamped
+// by the classifier (inspect/answer/continue) rather than phrase lists.
+//
+// Deprecated: always returns false.
+func userRequestsImplementationStatusCheck(content string) bool {
+	_ = content
+	return false
 }
 
 // messageSuggestsMissingDependencies reports build output that likely needs npm install.
@@ -913,15 +861,13 @@ func messageSuggestsMissingDependencies(content string, history []*protocol.Mess
 	return false
 }
 
-// userRequestsImplementationStatusCheck reports short follow-ups after a fix attempt.
-func userRequestsImplementationStatusCheck(content string) bool {
-	return implementationStatusCheckRE.MatchString(strings.TrimSpace(content))
-}
-
 // tryImplementationStatusCheckShortcut answers "is it fixed?" from recent session context
-// without calling the LLM (avoids slow re-runs during boot-fix follow-ups).
+// without calling the LLM (avoids slow re-runs during boot-fix follow-ups). This is a narrow,
+// exact-phrase deterministic reply shortcut (not a general routing decision), so the anchored
+// implementationStatusCheckRE stays live here even though the broader
+// userRequestsImplementationStatusCheck routing helper is a deprecated stub.
 func (a *Agent) tryImplementationStatusCheckShortcut(msg *protocol.Message) (string, bool) {
-	if a == nil || msg == nil || !userRequestsImplementationStatusCheck(msg.Content) {
+	if a == nil || msg == nil || !implementationStatusCheckRE.MatchString(strings.TrimSpace(msg.Content)) {
 		return "", false
 	}
 	history := a.channelHistory(msg.Channel)
@@ -1163,7 +1109,11 @@ func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *proto
 	if workspacePath == "" || msg == nil {
 		return 0
 	}
-	if !userRequestsImplementationForMessage(a, msg) && !workspaceDirectiveRE.MatchString(msg.Content) {
+	// This is a prompt-context decision (whether to preload likely edit targets), not turn-action
+	// routing, so the content-only themeImplementationRE/workspaceDirectiveRE signals stay live
+	// here alongside the stamp-first userRequestsImplementationForMessage check.
+	if !userRequestsImplementationForMessage(a, msg) && !workspaceDirectiveRE.MatchString(msg.Content) &&
+		!themeImplementationRE.MatchString(msg.Content) {
 		return 0
 	}
 

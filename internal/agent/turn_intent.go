@@ -69,8 +69,8 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 	if hasScanOrEditorTaskSignals(content) || requestedBiologyScanTool(content) != "" {
 		return IntentTask
 	}
-	if UserRequestsGeneratedImage(content) || UserRequestsGeneratedMusic(content) {
-		return IntentTask
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		return turnIntentFromSemantic(decision.Interaction)
 	}
 
 	if channelType == protocol.ChannelTypeCollaboration {
@@ -98,6 +98,12 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 	}
 	if isSocialOrStatusPing(content) || intent.LooksLikePresenceCheck(content) {
 		return IntentLowSignal
+	}
+
+	// Open thread follow-ups stay substantive so ConversationWindow is used
+	// (capability notices, pronouns, "why?", "go on") instead of casual demotion.
+	if channelHasOpenDialogue(history, agentID) && looksLikeThreadFollowUp(content) {
+		return IntentSubstantive
 	}
 
 	if mode == ConversationModeChat {
@@ -144,6 +150,11 @@ func (a *Agent) classifyTurnIntentForMessage(msg *protocol.Message) TurnIntent {
 
 // ClassifyTurnIntentPublic exposes turn intent classification for debug tooling.
 func ClassifyTurnIntentPublic(msg *protocol.Message, channelType protocol.ChannelType, agentID string, history []*protocol.Message) TurnIntent {
+	if msg != nil {
+		if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+			return turnIntentFromSemantic(decision.Interaction)
+		}
+	}
 	return classifyTurnIntent(msg, channelType, agentID, history)
 }
 
@@ -162,8 +173,9 @@ func (a *Agent) sessionSummaryBlock(channel string) string {
 	var b strings.Builder
 	b.WriteString("=== SESSION SUMMARY ===\n")
 	b.WriteString(summary)
-	b.WriteString("\nAnswer ONLY the user's latest message. ")
-	b.WriteString("Do not re-answer earlier questions or repeat assistant replies from the summary.\n\n")
+	b.WriteString("\nContinue this conversation. Recent exchanges are ground truth for the open thread; ")
+	b.WriteString("treat this summary as background only. Do not ignore the last exchanges or treat the latest line as an isolated new topic. ")
+	b.WriteString("Do not paste prior assistant replies verbatim as your entire answer.\n\n")
 	return b.String()
 }
 
@@ -202,8 +214,8 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 	AppendUserAndAgentRules(&b, msg, &a.Info, fallback, 0)
 	AppendMemoryForMessage(&b, msg, a.channelHistory(msg.Channel), a.effectiveKnowledgePlanFromMessage(msg))
 	AppendLearningsForMessage(&b, msg, &a.Info)
-	b.WriteString("Respond briefly and naturally to the user's latest message only.\n")
-	b.WriteString("Do not repeat long prior answers or re-derive facts already covered in the session summary.\n")
+	b.WriteString("Continue the conversation briefly and naturally. Prefer the open thread over treating this as a new isolated question.\n")
+	b.WriteString("Do not paste long prior answers verbatim or re-derive facts already covered in the session summary.\n")
 	b.WriteString("Never quote or restate the USER MESSAGE verbatim as your entire reply. ")
 	b.WriteString("Do not claim work was completed unless you actually did it this turn.\n\n")
 	b.WriteString("USER MESSAGE:\n")
@@ -226,7 +238,7 @@ func assistantPersonalContextQuery(msg *protocol.Message) bool {
 func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) (prompt string) {
 	envelope := a.selectTurnContext(msg)
 	defer func() {
-		prompt = appendDurableConversationContext(prompt, envelope)
+		prompt = appendDurableConversationContext(prompt, envelope, msg)
 	}()
 	if a.effectiveChannelType(msg.Channel) == protocol.ChannelTypeCollaboration {
 		return a.injectSessionSummary(a.buildPrompt(msg, intent), msg)
@@ -242,6 +254,9 @@ func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) (
 	case IntentLowSignal, IntentMeta:
 		return a.buildMinimalPrompt(msg)
 	default:
+		if a.Info.Type == protocol.AgentTypeAssistant && a.shouldUseDialogueAssistantPrompt(msg) {
+			return a.injectSessionSummary(a.buildDialogueAssistantPrompt(msg), msg)
+		}
 		if a.useCompactAssistantOllamaPrompt(msg) {
 			return a.injectSessionSummary(a.buildCompactAssistantOllamaPrompt(msg), msg)
 		}
@@ -252,6 +267,9 @@ func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) (
 	}
 }
 
+// conversationHistoryForIntent returns the dialogue-first ConversationWindow:
+// recent complete user↔assistant exchanges (both roles). Summary is an overlay
+// and must not shrink or strip the window.
 func (a *Agent) conversationHistoryForIntent(msg *protocol.Message, intent TurnIntent) []*protocol.Message {
 	hasSummary := a.sessionSummaryBlock(msg.Channel) != ""
 	max := maxHistoryForIntent(intent, hasSummary)
@@ -271,47 +289,65 @@ func (a *Agent) conversationHistoryForIntent(msg *protocol.Message, intent TurnI
 		raw = a.channelHistory(msg.Channel)
 	}
 	envelope := a.selectTurnContext(msg)
-	if hasSummary {
-		return messagesFromExchanges(recentCompleteExchanges(
-			raw, msg, envelope.SupersededMessageIDs, max,
-		))
-	}
-	var base []*protocol.Message
-	if a.Info.Type == protocol.AgentTypeAssistant {
-		base = filterAssistantHistory(raw, msg)
-		if a.useCompactAssistantOllamaPrompt(msg) {
-			base = recentUserHistoryOnly(base, max)
-		}
-	} else {
-		base = historyForGeneration(raw, msg.ID)
-		if a.useOllamaContextGuardrails(msg) || hasSummary {
-			base = recentUserHistoryOnly(base, max)
-		}
-	}
-	superseded := conversationMessageSet(envelope.SupersededMessageIDs)
-	filtered := base[:0]
-	for _, historical := range base {
-		if historical != nil && !superseded[historical.ID] {
-			filtered = append(filtered, historical)
-		}
-	}
-	return trimHistoryTail(filtered, max)
+	exchanges := recentCompleteExchanges(raw, msg, envelope.SupersededMessageIDs, max)
+	return messagesFromExchanges(pinGoalMessageInExchanges(raw, envelope, exchanges))
 }
 
+// maxHistoryForIntent returns a message budget sized for complete exchanges.
+// hasSummary must not shrink the window (summary is overlay-only).
 func maxHistoryForIntent(intent TurnIntent, hasSummary bool) int {
+	_ = hasSummary
 	switch intent {
 	case IntentLowSignal, IntentMeta:
-		return 2
+		return 4 // ~2 exchanges
 	case IntentTask:
-		return 8
+		return 16 // ~8 exchanges
 	case IntentSubstantive:
-		if hasSummary {
-			return 4
-		}
-		return 8
+		return 12 // ~6 exchanges
 	default:
 		return maxLLMHistoryMessages()
 	}
+}
+
+// channelHasOpenDialogue reports a recent agent answer in channel history.
+func channelHasOpenDialogue(history []*protocol.Message, agentID string) bool {
+	return recentAgentAnsweredInChannel(history, agentID)
+}
+
+// looksLikeThreadFollowUp detects short continuations of an open thread.
+func looksLikeThreadFollowUp(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	if lower == "" {
+		return false
+	}
+	markers := []string{
+		"turned on", "turned off", "i enabled", "i've enabled", "i have enabled",
+		"websearch", "web search", "go on", "and then", "what about", "how about",
+		"why did", "why would", "why are", "continue", "tell me more", "one more",
+		"that one", "the second", "the first", "from that", "about that", "about it",
+		"move it", "make it", "do that", "do it",
+	}
+	for _, m := range markers {
+		if strings.Contains(lower, m) {
+			return true
+		}
+	}
+	if lower == "yeah" || lower == "yep" || lower == "yes" || lower == "sure" ||
+		lower == "ok" || lower == "okay" || lower == "go ahead" {
+		return true
+	}
+	// Pronoun-heavy short follow-ups.
+	if len(content) <= 100 {
+		for _, p := range []string{" it ", " that ", " this ", " those ", " them "} {
+			if strings.Contains(" "+lower+" ", p) {
+				return true
+			}
+		}
+		if strings.HasPrefix(lower, "why") || strings.HasPrefix(lower, "and ") {
+			return true
+		}
+	}
+	return false
 }
 
 func trimHistoryTail(history []*protocol.Message, max int) []*protocol.Message {
@@ -350,17 +386,16 @@ func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protoco
 	if msg != nil && userRequestsContentDelivery(msg.Content) {
 		return true
 	}
+	// Explicit none-scope wins even for IntentTask / InteractionCorrection — otherwise
+	// chat design corrections dump README seeds and hang on codebase search.
+	if ResolveContextScope(msg) == ContextScopeNone {
+		return false
+	}
 	mode := ToolingConversationMode(msg, a.effectiveChannelType(msg.Channel))
 	if mode == ConversationModeCode || intent == IntentTask || messageNeedsWorkspaceFileLoad(a, msg) {
-		if ContextScopeFromMessage(msg) == ContextScopeNone && !messageHasWorkspaceContext(msg) {
-			return intent == IntentTask
-		}
 		return true
 	}
 	if mode == ConversationModeChat && intent != IntentTask {
-		return false
-	}
-	if ContextScopeFromMessage(msg) == ContextScopeNone && intent != IntentTask {
 		return false
 	}
 	return true
@@ -394,8 +429,12 @@ func (a *Agent) buildWorkspaceGroundedRetryPrompt(msg *protocol.Message) string 
 	var system strings.Builder
 	system.WriteString(fmt.Sprintf("You are %s.\n", a.Info.Name))
 	system.WriteString("The user has shared their project workspace on disk. ")
-	system.WriteString("Do NOT claim the context window is empty or ask them to paste files — use the loaded files below.\n")
+	system.WriteString("Do NOT claim the context window is empty, that you lack project details, or ask them to paste files — use the loaded files below.\n")
 	system.WriteString("Stay on the user's topic (e.g. theme/dark/light/CSS if that is the thread) and answer in 3-8 sentences.\n")
+	if intent.LooksLikeProjectOverviewAsk(msg.Content) {
+		system.WriteString("The user asked for a project review/summary. Lead with what the project is, its stack, and main layout from README/package manifests/source roots. ")
+		system.WriteString("Do not invent a hollow Grounding-only stub or a Changes section unless they asked for edits.\n")
+	}
 	if a.hasWorkspaceTools() {
 		system.WriteString("You also have read_file / grep / glob_file_search tools for additional paths.\n")
 	}

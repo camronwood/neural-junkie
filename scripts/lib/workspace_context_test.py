@@ -29,3 +29,18 @@ def test_enrich_send_metadata_keeps_explicit_route():
     )
     assert meta is not None
     assert meta["ide_route_agent_type"] == "frontend"
+
+
+def test_enrich_send_metadata_skips_workspace_when_scope_none():
+    meta = enrich_send_metadata(
+        {
+            "conversation_mode": "chat",
+            "context_scope": "none",
+            "workspace_context": {"workspace_path": "/tmp/should-drop"},
+        },
+        {"target_agent": "FrontendEngineer", "workspace": {"fixture": "minimal-repo"}},
+        content="Correction: call it ThemeSettings",
+    )
+    assert meta is not None
+    assert "workspace_context" not in meta
+    assert meta["context_scope"] == "none"

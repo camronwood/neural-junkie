@@ -132,7 +132,7 @@ func TestChatQualityRouter(t *testing.T) {
 
 		// --- Meta ---
 		{name: "meta_prompt_context", content: "what information do you get when I send you a prompt?", channel: "dm-u-a", channelType: protocol.ChannelTypeDM,
-			checkIntent: true, wantIntent: IntentSubstantive, checkHistoryCap: true, wantHistoryCap: 8, historyIntent: IntentSubstantive},
+			checkIntent: true, wantIntent: IntentSubstantive, checkHistoryCap: true, wantHistoryCap: 12, historyIntent: IntentSubstantive},
 		{name: "workspace_visibility", content: "can you see my workspace?", channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
 			checkIntent: true, wantIntent: IntentSubstantive},
 		{name: "workspace_visibility_long_phrase", content: "can you see my workspace I have open?", channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
@@ -181,12 +181,12 @@ func TestChatQualityRouter(t *testing.T) {
 			metadata: map[string]interface{}{MetadataConversationMode: ConversationModeCode},
 			checkTooling: true, wantTooling: true, toolingIntent: IntentTask},
 
-		// --- History caps ---
-		{name: "history_casual", checkHistoryCap: true, wantHistoryCap: 2, historyIntent: IntentLowSignal},
-		{name: "history_meta", checkHistoryCap: true, wantHistoryCap: 2, historyIntent: IntentMeta},
-		{name: "history_task", checkHistoryCap: true, wantHistoryCap: 8, historyIntent: IntentTask},
-		{name: "history_substantive_with_summary", checkHistoryCap: true, wantHistoryCap: 4, hasSummary: true, historyIntent: IntentSubstantive},
-		{name: "history_substantive_no_summary", checkHistoryCap: true, wantHistoryCap: 8, hasSummary: false, historyIntent: IntentSubstantive},
+		// --- History caps (dialogue-first message budgets; summary does not shrink) ---
+		{name: "history_casual", checkHistoryCap: true, wantHistoryCap: 4, historyIntent: IntentLowSignal},
+		{name: "history_meta", checkHistoryCap: true, wantHistoryCap: 4, historyIntent: IntentMeta},
+		{name: "history_task", checkHistoryCap: true, wantHistoryCap: 16, historyIntent: IntentTask},
+		{name: "history_substantive_with_summary", checkHistoryCap: true, wantHistoryCap: 12, hasSummary: true, historyIntent: IntentSubstantive},
+		{name: "history_substantive_no_summary", checkHistoryCap: true, wantHistoryCap: 12, hasSummary: false, historyIntent: IntentSubstantive},
 
 		// --- Persona ---
 		{name: "persona_dm_slug", content: "hi", channel: "dm-user-backendengineer", channelType: protocol.ChannelTypeDM,

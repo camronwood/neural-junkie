@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   cycleConversationModeSetting,
   formatContextIndicator,
+  hasStrongCodeTaskSignals,
   inferResolvedConversationMode,
   isConversationModeAmbiguous,
   resolveConversationMode,
@@ -14,9 +15,17 @@ describe('conversationMode', () => {
     expect(cycleConversationModeSetting('code')).toBe('auto');
   });
 
-  it('infers chat for greetings', () => {
+  it('Auto defaults to chat (no NL verb inference)', () => {
     expect(inferResolvedConversationMode('hello')).toBe('chat');
     expect(inferResolvedConversationMode('@Assistant hi')).toBe('chat');
+    expect(
+      inferResolvedConversationMode('What is AWS SSO and how do I use it in our dev account?')
+    ).toBe('chat');
+    expect(inferResolvedConversationMode('review cmd/server/main.go')).toBe('chat');
+    expect(
+      inferResolvedConversationMode('Use summarize_scan_analysis on the file I have open please')
+    ).toBe('chat');
+    expect(isConversationModeAmbiguous('How do I update my AWS SSO credentials?')).toBe(false);
   });
 
   it('infers chat for @here / social pings even in IDE layout', () => {
@@ -24,12 +33,6 @@ describe('conversationMode', () => {
       inferResolvedConversationMode('@here whats going on!?!', { ideCoding: true })
     ).toBe('chat');
     expect(inferResolvedConversationMode('@here', { ideCoding: true })).toBe('chat');
-    expect(
-      inferResolvedConversationMode("@channel how's it going?", { ideCoding: true })
-    ).toBe('chat');
-    expect(isConversationModeAmbiguous('@here whats going on', { ideCoding: true })).toBe(
-      false
-    );
   });
 
   it('still forces code in IDE for real tasks', () => {
@@ -38,47 +41,24 @@ describe('conversationMode', () => {
     ).toBe('code');
   });
 
-  it('infers code for knowledge-graph relate questions', () => {
-    expect(
-      inferResolvedConversationMode(
-        "How does CISO relate to the rest of the codebase? CISO (repo) in community 'root' — degree 1, 1 neighbors"
-      )
-    ).toBe('code');
+  it('detects structural @codebase / path signals without forcing Auto→code', () => {
+    expect(hasStrongCodeTaskSignals('look at @codebase')).toBe(true);
+    expect(hasStrongCodeTaskSignals('review cmd/server/main.go')).toBe(true);
+    expect(inferResolvedConversationMode('look at @codebase')).toBe('chat');
   });
 
-  it('keeps general questions as chat', () => {
-    expect(
-      inferResolvedConversationMode('What is AWS SSO and how do I use it in our dev account?')
-    ).toBe('chat');
-  });
-
-  it('clarifies weak verb + question without a path', () => {
-    expect(isConversationModeAmbiguous('How do I update my AWS SSO credentials?')).toBe(true);
-    expect(inferResolvedConversationMode('How do I update my AWS SSO credentials?')).toBe('clarify');
-  });
-
-  it('infers code for review verbs with paths', () => {
-    expect(inferResolvedConversationMode('review cmd/server/main.go')).toBe('code');
-  });
-
-  it('infers code for scan tool requests', () => {
-    expect(
-      inferResolvedConversationMode('Use summarize_scan_analysis on the file I have open please')
-    ).toBe('code');
-  });
-
-  it('honors explicit chat setting over ambiguity', () => {
+  it('honors explicit chat/code settings', () => {
     expect(resolveConversationMode('chat', 'How do I update my SSO?')).toBe('chat');
     expect(resolveConversationMode('code', 'How do I update my SSO?')).toBe('code');
   });
 
-  it('formats context indicator including clarify', () => {
+  it('formats context indicator', () => {
     const label = formatContextIndicator({
       modeSetting: 'auto',
-      resolvedMode: 'clarify',
+      resolvedMode: 'chat',
       scope: 'hint',
     });
-    expect(label).toContain('Auto→clarify');
+    expect(label).toContain('Auto→chat');
     expect(label).toContain('hint');
   });
 });

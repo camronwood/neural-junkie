@@ -37,8 +37,13 @@ func TestMaybeAskFixClarification_skipsWhenReproKnown(t *testing.T) {
 }
 
 func TestMessageImpliesFixLikeIntent(t *testing.T) {
-	if !messageImpliesFixLikeIntent("the app won't boot", nil) {
-		t.Fatal("boot message should be fix-like")
+	// Boot/build-error detection is deprecated (messageHasBootOrBuildError is a stub) —
+	// that signal now comes from the classifier's runtime_failure/boot_failure reason
+	// codes on the stamped TurnDecision (see implementation_session.go), not phrase
+	// matching here. This content classifier keeps its generic broken/failing phrase list
+	// for already-routed implementation sessions.
+	if !messageImpliesFixLikeIntent("this feature is broken, please fix it", nil) {
+		t.Fatal("broken/fix message should be fix-like")
 	}
 	if messageImpliesFixLikeIntent("please add a dark mode theme toggle", nil) {
 		t.Fatal("feature ask should not be fix-like")

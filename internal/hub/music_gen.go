@@ -97,10 +97,10 @@ func (h *Hub) resolveMusicPostAgent(channel string) protocol.AgentInfo {
 			return agents[0]
 		}
 	}
-	if ag := h.FindLiveAgentByDisplayName("MusicExpert", protocol.AgentTypeMusic); ag != nil {
+	if ag := h.FindLiveAgentByDisplayName("Assistant", protocol.AgentTypeAssistant); ag != nil {
 		return *ag
 	}
-	if ag := h.FindLiveAgentByDisplayName("Assistant", protocol.AgentTypeAssistant); ag != nil {
+	if ag := h.FindLiveAgentByDisplayName("MusicExpert", protocol.AgentTypeMusic); ag != nil {
 		return *ag
 	}
 	return protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral}

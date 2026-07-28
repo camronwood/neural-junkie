@@ -29,13 +29,10 @@ var presetExpertTypes = map[string]protocol.AgentType{
 	"database":           protocol.AgentTypeDatabase,
 	"security":           protocol.AgentTypeSecurity,
 	"architecture":       protocol.AgentTypeArchitecture,
-	"code-review":        protocol.AgentTypeCodeReview,
 	"sre":                protocol.AgentTypeSRE,
 	"mobile":             protocol.AgentTypeMobile,
 	"data-ml":            protocol.AgentTypeDataML,
 	"assistant":          protocol.AgentTypeAssistant,
-	"music":              protocol.AgentTypeMusic,
-	"maps":               protocol.AgentTypeMaps,
 }
 
 // ExpertResolveResult describes how to instantiate an expert from a user slug.

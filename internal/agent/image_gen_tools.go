@@ -61,36 +61,26 @@ func (a *Agent) imageGenerationToolsEnabledForMessage(msg *protocol.Message) boo
 	return true
 }
 
-// messageSuppressesImageGeneration disables image tools during code/implementation work
-// and collaboration planning/review turns so specialists stay on task lists, not image gen.
-func messageSuppressesImageGeneration(msg *protocol.Message) bool {
+// messageSuppressesCreativeMediaTools reports structural signals (Neural Canvas, workspace
+// mutation, active collaboration/implementation) that keep specialized media/game tools off
+// regardless of which action a turn is stamped with. Shared by image gen, music gen, and
+// arena tool gating.
+func messageSuppressesCreativeMediaTools(msg *protocol.Message) bool {
 	if msg == nil {
 		return false
 	}
-	// Neural Canvas deliverables never use FLUX — even if phrasing includes "diagram".
-	if UserRequestsArtifact(msg.Content) || neuralCanvasDeliverableTurn(msg) {
+	// Neural Canvas deliverables never use FLUX/ACE-Step — even if phrasing includes "diagram".
+	if neuralCanvasDeliverableTurn(msg) {
 		return true
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		if decision.Action == semantic.ActionArtifact {
+		switch decision.Action {
+		case semantic.ActionArtifact, semantic.ActionEdit, semantic.ActionDebug,
+			semantic.ActionContinue, semantic.ActionRun:
 			return true
 		}
-		if decision.Action == semantic.ActionImage {
-			return false
-		}
-		// Workspace-mutation turns stay off image gen even if phrasing mentions "cover".
-		if decision.Mutation == semantic.MutationWorkspace ||
-			decision.Action == semantic.ActionEdit || decision.Action == semantic.ActionDebug ||
-			decision.Action == semantic.ActionContinue || decision.Action == semantic.ActionRun {
-			return true
-		}
-		// Answer/AskUser/etc.: honor an explicit generate-image or generate-music phrase.
-		if UserRequestsGeneratedImage(msg.Content) || UserRequestsGeneratedMusic(msg.Content) {
-			return false
-		}
-		return true
+		return decision.Mutation == semantic.MutationWorkspace
 	}
-	explicitImageIntent := UserRequestsGeneratedImage(msg.Content)
 	if msg.ImplementationSession() {
 		return true
 	}
@@ -100,24 +90,40 @@ func messageSuppressesImageGeneration(msg *protocol.Message) bool {
 	if phase != "" || msg.GetCollaborationID() != "" || msg.Type == protocol.MessageTypeCollabDiscussion {
 		return true
 	}
-	// An explicit image request outranks passive IDE layout metadata. It does
-	// not outrank an actual implementation session or collaboration phase.
-	if explicitImageIntent {
+	return false
+}
+
+// messageSuppressesImageGeneration is stamp-first: image tools are enabled only for a
+// stamped ActionImage turn (subject to the structural suppressions above). No stamp means
+// no image generation — never natural-language phrase matching.
+func messageSuppressesImageGeneration(msg *protocol.Message) bool {
+	if msg == nil {
 		return false
 	}
-	if ConversationModeFromMessage(msg) == ConversationModeCode {
+	if messageSuppressesCreativeMediaTools(msg) {
 		return true
 	}
-	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
+	decision, ok := protocol.ExtractTurnDecision(msg)
+	if !ok {
 		return true
 	}
-	// Shared by music tools: allow explicit song/track requests in chat.
-	if UserRequestsGeneratedMusic(msg.Content) {
+	return decision.Action != semantic.ActionImage
+}
+
+// messageSuppressesMusicGeneration mirrors messageSuppressesImageGeneration for the
+// ActionMusic stamp.
+func messageSuppressesMusicGeneration(msg *protocol.Message) bool {
+	if msg == nil {
 		return false
 	}
-	// Chat / unset mode: keep creative media tools off unless the user explicitly asked
-	// (avoids "theme support" / workspace visibility false-positive tool calls).
-	return true
+	if messageSuppressesCreativeMediaTools(msg) {
+		return true
+	}
+	decision, ok := protocol.ExtractTurnDecision(msg)
+	if !ok {
+		return true
+	}
+	return decision.Action != semantic.ActionMusic
 }
 
 func agentTypeSupportsHubImageGen(t protocol.AgentType) bool {
@@ -130,26 +136,36 @@ func agentTypeSupportsHubImageGen(t protocol.AgentType) bool {
 }
 
 // tryHubImageGenerationShortcut posts a hub-generated image when the user asked for one.
+// Stamp-first: requires a stamped or turn-goal ActionImage decision, and never fires for
+// a stamped ActionArtifact turn (Neural Canvas / Mermaid / maps own that path).
 func (a *Agent) tryHubImageGenerationShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
-	explicitImageIntent := msg != nil && UserRequestsGeneratedImage(msg.Content)
-	if goal, ok := turnGoalFromContext(ctx); ok && goal.Action == ActionImage {
-		explicitImageIntent = true
-	}
-	// Map/route asks must never take the FLUX image path (even if turn goal says image).
-	if msg != nil && UserRequestsMapOrRoute(msg.Content) {
-		return "", false
-	}
-	// Neural Canvas / Mermaid asks must use create_artifact, not FLUX.
-	if msg != nil && (UserRequestsArtifact(msg.Content) || neuralCanvasDeliverableTurn(msg)) {
-		return "", false
-	}
-	if goal, ok := turnGoalFromContext(ctx); ok && goal.Action == ActionArtifact {
+	if msg == nil || a.Hub == nil || protocol.IsGeneratedImageDelivery(msg) {
 		return "", false
 	}
 	if a != nil && a.Info.Type == protocol.AgentTypeMaps {
 		return "", false
 	}
-	if msg == nil || a.Hub == nil || protocol.IsGeneratedImageDelivery(msg) || !explicitImageIntent {
+	if neuralCanvasDeliverableTurn(msg) {
+		return "", false
+	}
+	explicitImageIntent := false
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		switch decision.Action {
+		case semantic.ActionArtifact:
+			return "", false
+		case semantic.ActionImage:
+			explicitImageIntent = true
+		}
+	}
+	if goal, ok := turnGoalFromContext(ctx); ok {
+		switch goal.Action {
+		case ActionArtifact:
+			return "", false
+		case ActionImage:
+			explicitImageIntent = true
+		}
+	}
+	if !explicitImageIntent {
 		return "", false
 	}
 	if !a.imageGenerationToolsEnabledForMessage(msg) {
@@ -778,7 +794,7 @@ func (a *Agent) runAgentToolLoop(
 		return guardWebSearchToolResult(ctx, req.Name, result), nil
 	}
 
-	toolCtx := withAskUserTurnState(withWebSearchGuard(ctx))
+	toolCtx := withCapabilityHandoffTurnState(withAskUserTurnState(withWebSearchGuard(ctx)))
 	toolCtx = withRunCommandTurnDedupe(toolCtx)
 	text, err := toolProvider.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools, onToolUse)
 	if errors.Is(err, ai.ErrNativeToolsUnsupported) {

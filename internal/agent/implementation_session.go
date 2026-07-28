@@ -228,6 +228,13 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 		return false
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		// "What would you implement first?" / go-deeper design questions stay advisory
+		// even when conversation_mode=code and ambient IDE metadata says an implementation
+		// session is active — trust the classifier's own advisory_question reason code
+		// for every action, not a phrase re-check.
+		if decisionHasReason(decision, "advisory_question") && !scenarioHarnessForcesImplementationSession(a, msg) {
+			return false
+		}
 		caps := protocol.ResolveTurnCapabilities(msg)
 		switch decision.Action {
 		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue:
@@ -237,21 +244,13 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 			if chatModeBlocksImplementationSession(a, msg) {
 				return false
 			}
-			// "What would you implement first?" / go-deeper design questions stay advisory
-			// even when conversation_mode=code and the classifier stamps Edit.
-			if isAdvisoryImplementationQuestion(msg.Content) && !scenarioHarnessForcesImplementationSession(a, msg) {
-				return false
-			}
-			// Pure Neural Canvas creates misclassified as Edit must not enter the impl loop
-			// (Edit returns before the UserRequestsArtifact gate below). Mixed
-			// "canvas after you fix…" keeps Edit authority.
-			if UserRequestsArtifact(msg.Content) && !neuralCanvasIsSecondaryToCodeChange(msg.Content) {
-				return false
-			}
 			return caps.CanRunImplSession &&
 				(a.Info.Type != protocol.AgentTypeAssistant || assistantAllowsImplementationSession(a, msg)) &&
 				agentTypeCanShipFileChanges(a.Info.Type) &&
-				a.Info.Type != protocol.AgentTypeCodeReview
+				!userRequestsCodeReviewForMessage(msg)
+		case semantic.ActionArtifact:
+			// A stamped artifact turn is authoritative — it never enters the file-edit loop.
+			return false
 		default:
 			// Semantic Answer/etc. must not veto an explicit IDE/scenario session flag.
 			// Fall through so the rest of the gates (and ImplementationSession()) apply.
@@ -260,12 +259,9 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 			}
 		}
 	}
-	if UserRequestsArtifact(msg.Content) ||
-		(userAffirmsPendingImplementation(msg.Content) &&
-			channelHasPendingArtifactRequest(a.channelHistorySafe(msg.Channel), msg.ID)) {
-		return false
-	}
-	if isAdvisoryImplementationQuestion(msg.Content) && !scenarioHarnessForcesImplementationSession(a, msg) {
+	// No semantic stamp: only structural signals (composer implementation-session state or
+	// export mode) authorize the file-edit loop — never natural-language phrase matching.
+	if !msg.ImplementationSession() && !msg.IdeEditorModeIsExport() {
 		return false
 	}
 	// Markdown/doc collab deliverables use the light path (propose FILE_CHANGE + status),
@@ -279,13 +275,6 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if a.Info.Type == protocol.AgentTypeAssistant && !assistantAllowsImplementationSession(a, msg) {
 		return false
 	}
-	// Short status follow-ups ("is it fixed?") get a conversational reply, not a new session.
-	if userRequestsImplementationStatusCheck(msg.Content) &&
-		!userRequestsImplementation(msg.Content) &&
-		!messageHasBootOrBuildError(msg.Content) &&
-		!msg.ImplementationSession() {
-		return false
-	}
 	if shouldSkipAgentResponseOnFileExportApproval(a, msg) {
 		return false
 	}
@@ -295,8 +284,8 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if !agentTypeCanShipFileChanges(a.Info.Type) {
 		return false
 	}
-	// CodeReviewer is read-only — never run the file-edit implementation loop.
-	if a.Info.Type == protocol.AgentTypeCodeReview {
+	// Read-only review/audit asks — never run the file-edit implementation loop.
+	if userRequestsCodeReviewForMessage(msg) {
 		return false
 	}
 	if userRequestsCodeReview(msg.Content) {
@@ -316,35 +305,7 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if vagueContinuationWithoutPriorThread(history, msg.ID, a.Info.ID, msg.Content) {
 		return false
 	}
-	activeThread := channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)
-	wantImpl := userRequestsImplementationForMessage(a, msg) || msg.ImplementationSession() || msg.IdeEditorModeIsExport()
-
-	if userAffirmsPendingImplementation(msg.Content) && isWeakImplementationAffirmation(msg.Content) &&
-		!affirmationContinuesImplementation(history, msg.ID, a.Info.ID, msg.Content) &&
-		!userRequestsImplementation(msg.Content) {
-		return false
-	}
-
-	if activeThread && (userAffirmsPendingImplementation(msg.Content) || userRequestsImplementation(msg.Content) ||
-		userRequestsImplementationStatusCheck(msg.Content) ||
-		userRequestsFileExport(msg.Content) || msg.ImplementationSession()) {
-		if userAffirmsPendingImplementation(msg.Content) &&
-			!affirmationContinuesImplementation(history, msg.ID, a.Info.ID, msg.Content) &&
-			!userRequestsImplementation(msg.Content) {
-			return false
-		}
-		return true
-	}
-	if !wantImpl {
-		return false
-	}
-	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
-		if msg.IdeRouteAgentType() != "" || msg.ImplementationSession() || userRequestsImplementation(msg.Content) ||
-			userRequestsImplementationStatusCheck(msg.Content) || msg.IdeEditorModeIsExport() {
-			return true
-		}
-	}
-	return msg.ImplementationSession() || userRequestsFileExportForMessage(msg) || msg.IdeEditorModeIsExport()
+	return true
 }
 
 func (a *Agent) runImplementationSession(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, bool, []string, map[string]interface{}, error) {
@@ -1130,7 +1091,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 						if m == nil || m.ID == msg.ID {
 							continue
 						}
-						if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+						if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 							seedContent = m.Content
 							break
 						}
@@ -1155,7 +1116,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 					if m == nil || m.ID == msg.ID {
 						continue
 					}
-					if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+					if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 						seedMsg = m
 						AppendReferencedFiles(&referencedFiles, m.Content, wsPath)
 						break

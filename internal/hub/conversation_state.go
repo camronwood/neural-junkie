@@ -24,6 +24,7 @@ type ConversationGoal struct {
 	MessageID     string    `json:"message_id,omitempty"`
 	LastMessageID string    `json:"last_message_id,omitempty"`
 	Text          string    `json:"text,omitempty"`
+	PinnedText    string    `json:"pinned_text,omitempty"` // original user task; never overwritten on refresh
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
@@ -98,6 +99,8 @@ func (h *Hub) conversationStateLocked(channel string) *ChannelConversationState 
 
 // SetCurrentGoal records a new goal, or refreshes the same goal after an
 // approval/continuation message. An empty goal ID is ignored.
+// PinnedText is set once on first create and never overwritten on refresh so the
+// original user task survives later affirmations ("ok", "fix the app").
 func (h *Hub) SetCurrentGoal(channel, goalID, messageID, text string) {
 	if h == nil || strings.TrimSpace(channel) == "" || strings.TrimSpace(goalID) == "" {
 		return
@@ -107,17 +110,60 @@ func (h *Hub) SetCurrentGoal(channel, goalID, messageID, text string) {
 	state := h.conversationStateLocked(channel)
 	goalID = strings.TrimSpace(goalID)
 	messageID = strings.TrimSpace(messageID)
+	text = strings.TrimSpace(text)
 	if state.CurrentGoal != nil && state.CurrentGoal.ID == goalID {
 		state.CurrentGoal.LastMessageID = messageID
 		state.CurrentGoal.UpdatedAt = now
+		if state.CurrentGoal.PinnedText == "" {
+			if state.CurrentGoal.Text != "" {
+				state.CurrentGoal.PinnedText = state.CurrentGoal.Text
+			} else if text != "" {
+				state.CurrentGoal.PinnedText = text
+			}
+		}
 	} else {
+		pinnedText := text
+		pinnedMessageID := messageID
+		if state.CurrentGoal != nil && shouldRetainPinnedTask(state.CurrentGoal.PinnedText, text) {
+			pinnedText = state.CurrentGoal.PinnedText
+			if state.CurrentGoal.MessageID != "" {
+				pinnedMessageID = state.CurrentGoal.MessageID
+			}
+		}
 		state.CurrentGoal = &ConversationGoal{
-			ID: goalID, MessageID: messageID, LastMessageID: messageID,
-			Text: strings.TrimSpace(text), UpdatedAt: now,
+			ID: goalID, MessageID: pinnedMessageID, LastMessageID: messageID,
+			Text: text, PinnedText: pinnedText, UpdatedAt: now,
 		}
 	}
 	state.UpdatedAt = now
 	h.mu.Unlock()
+}
+
+// shouldRetainPinnedTask keeps the original user task across goal-id churn for
+// short fix/continue follow-ups so history eviction cannot drop the real ask.
+func shouldRetainPinnedTask(prev, next string) bool {
+	prev = strings.TrimSpace(prev)
+	if prev == "" {
+		return false
+	}
+	next = strings.TrimSpace(next)
+	if next == "" || strings.EqualFold(prev, next) {
+		return true
+	}
+	lower := strings.ToLower(next)
+	if len(strings.Fields(next)) > 16 {
+		return false
+	}
+	retainCues := []string{
+		"fix the", "fix it", "fix this", "repair", "continue", "keep going",
+		"yes", "ok ", "okay", "please", "do that", "go ahead", "can you",
+	}
+	for _, cue := range retainCues {
+		if strings.Contains(lower, cue) || lower == "ok" || lower == "yes" {
+			return true
+		}
+	}
+	return false
 }
 
 // PersistConversationGoal is the primitive-argument wrapper used by agent
@@ -281,6 +327,7 @@ func (h *Hub) GetTurnConversationContext(channel string) protocol.TurnContextEnv
 		out.Goal = &protocol.TurnContextGoal{
 			ID: state.CurrentGoal.ID, MessageID: state.CurrentGoal.MessageID,
 			LastMessageID: state.CurrentGoal.LastMessageID, Text: state.CurrentGoal.Text,
+			PinnedText: state.CurrentGoal.PinnedText,
 		}
 		out.Provenance = append(out.Provenance, protocol.TurnContextProvenance{
 			ID: state.CurrentGoal.MessageID, Section: "goal", Source: "channel_conversation_state",

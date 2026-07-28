@@ -58,7 +58,7 @@ func (p *OpenAICompatProvider) SetHTTPClient(c *http.Client) {
 
 func (p *OpenAICompatProvider) GenerateResponse(ctx context.Context, prompt string, conversationHistory []protocol.Message) (string, error) {
 	systemPrompt, userMessage := SplitSystemPrompt(prompt)
-	messages := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, nil)
+	messages, _ := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, nil)
 
 	reqBody := OpenAICompatibleRequest{
 		Model:    p.Model,
@@ -112,7 +112,7 @@ func (p *OpenAICompatProvider) GenerateResponse(ctx context.Context, prompt stri
 // GenerateStructuredResponse requests JSON output through response_format.
 func (p *OpenAICompatProvider) GenerateStructuredResponse(ctx context.Context, structured StructuredOutputRequest) (StructuredOutputResult, error) {
 	systemPrompt, userMessage := SplitSystemPrompt(structured.Prompt)
-	messages := buildOpenAIChatMessages(systemPrompt, userMessage, structured.ConversationHistory, nil)
+	messages, _ := buildOpenAIChatMessages(systemPrompt, userMessage, structured.ConversationHistory, nil)
 	responseFormat := &OpenAIResponseFormat{Type: "json_object"}
 	if len(structured.JSONSchema) > 0 {
 		if !json.Valid(structured.JSONSchema) {
@@ -188,7 +188,7 @@ func (p *OpenAICompatProvider) GenerateVisionResponse(ctx context.Context, promp
 
 func (p *OpenAICompatProvider) GenerateMultimodal(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (string, error) {
 	systemPrompt, userMessage := SplitSystemPrompt(prompt)
-	messages := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, images)
+	messages, _ := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, images)
 
 	reqBody := OpenAICompatibleRequest{
 		Model:    p.Model,
@@ -241,7 +241,7 @@ func (p *OpenAICompatProvider) GenerateMultimodal(ctx context.Context, prompt st
 
 func (p *OpenAICompatProvider) GenerateMultimodalStream(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
 	systemPrompt, userMessage := SplitSystemPrompt(prompt)
-	messages := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, images)
+	messages, _ := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, images)
 
 	reqBody := OpenAICompatibleRequest{
 		Model:    p.Model,

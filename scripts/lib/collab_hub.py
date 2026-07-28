@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 DEFAULT_HUB = os.environ.get("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765").rstrip("/")
 POLL_INTERVAL = 1.0
@@ -478,11 +478,12 @@ def is_agent_failure_message(msg: dict) -> bool:
         "timed out before completion",
         "provider_error",
         "try again",
+        "implementation session finished without file changes",
     )
     if msg.get("type") == "system_info":
         return any(m in body for m in markers[:3])
     if msg.get("type") in CHAT_REPLY_TYPES:
-        return markers[0] in body
+        return markers[0] in body or markers[4] in body
     return False
 
 
@@ -495,13 +496,17 @@ def wait_chat_reply(
     timeout: float,
     max_new: int = 1,
     detect_failures: bool = False,
+    mid_wait: Callable[[], None] | None = None,
+    accept_file_change: bool = False,
 ) -> tuple[bool, str]:
     """Poll until from_agent posts max_new chat/answer messages above baseline_count."""
     want = from_agent.strip().lstrip("@")
     deadline = time.time() + timeout
-    while time.time() < deadline:
+    reply_types = CHAT_REPLY_TYPES | ({"file_change"} if accept_file_change else set())
+
+    def _check() -> tuple[bool, str] | None:
         msgs = list_messages(base, channel, 200)
-        pool = chat_agent_messages(msgs)
+        pool = agent_messages(msgs, types=reply_types)
         agent_msgs = [m for m in pool if (m.get("from") or {}).get("name") == want]
         new_count = len(agent_msgs) - baseline_count
         if new_count >= max_new:
@@ -519,19 +524,29 @@ def wait_chat_reply(
             ]
             if len(failures) > 0:
                 return False, f"@{want} posted failure system message"
+        return None
+
+    while time.time() < deadline:
+        if mid_wait is not None:
+            try:
+                mid_wait()
+            except Exception:
+                pass
+        hit = _check()
+        if hit is not None:
+            return hit
         time.sleep(POLL_INTERVAL)
     # Final check: reply often lands during the last sleep past deadline.
+    if mid_wait is not None:
+        try:
+            mid_wait()
+        except Exception:
+            pass
+    hit = _check()
+    if hit is not None:
+        return hit
     msgs = list_messages(base, channel, 200)
-    pool = chat_agent_messages(msgs)
-    agent_msgs = [m for m in pool if (m.get("from") or {}).get("name") == want]
-    new_count = len(agent_msgs) - baseline_count
-    if new_count >= max_new:
-        last = agent_msgs[-1]
-        if is_agent_failure_message(last):
-            if detect_failures:
-                return False, f"@{want} returned failure reply"
-        else:
-            return True, f"{want} replied ({new_count} new)"
+    pool = agent_messages(msgs, types=reply_types)
     counts = count_by_agent(pool)
     return False, f"timeout waiting for @{want} (baseline={baseline_count}, counts={counts})"
 
@@ -726,6 +741,45 @@ def list_pending_file_changes(base: str, user_id: str = "default") -> list[dict]
 def approve_file_change(base: str, change_id: str, user_id: str = "default") -> tuple[int, Any]:
     q = urllib.parse.urlencode({"user_id": user_id})
     return hub_request(base, "POST", f"/api/file-changes/approve/{change_id}?{q}")
+
+
+def list_pending_tool_approvals(base: str) -> list[dict]:
+    code, data = hub_request(base, "GET", "/api/tool-approvals/pending")
+    if code != 200 or not isinstance(data, list):
+        return []
+    return [row for row in data if isinstance(row, dict)]
+
+
+def reject_tool_approval(base: str, approval_id: str, *, reason: str = "chat-scenario auto-reject") -> tuple[int, Any]:
+    aid = urllib.parse.quote(str(approval_id).strip(), safe="")
+    return hub_request(
+        base,
+        "POST",
+        f"/api/tool-approvals/reject/{aid}",
+        {"reason": reason},
+    )
+
+
+def reject_pending_tool_approvals(
+    base: str,
+    *,
+    channel: str | None = None,
+    reason: str = "chat-scenario auto-reject",
+) -> int:
+    """Reject pending tool approvals, optionally scoped to a channel. Returns count rejected."""
+    pending = list_pending_tool_approvals(base)
+    want = (channel or "").strip()
+    n = 0
+    for row in pending:
+        if want and str(row.get("channel") or "").strip() != want:
+            continue
+        aid = str(row.get("id") or "").strip()
+        if not aid:
+            continue
+        code, _ = reject_tool_approval(base, aid, reason=reason)
+        if code == 200:
+            n += 1
+    return n
 
 
 def pending_change_ids_for_channel(

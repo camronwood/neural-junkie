@@ -26,6 +26,7 @@ type TurnContextGoal struct {
 	MessageID     string `json:"message_id,omitempty"`
 	LastMessageID string `json:"last_message_id,omitempty"`
 	Text          string `json:"text,omitempty"`
+	PinnedText    string `json:"pinned_text,omitempty"`
 }
 
 type TurnContextDecision struct {

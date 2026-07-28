@@ -17,7 +17,6 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 | **PlatformEngineer** | Deployment, CI/CD, cloud infrastructure |
 | **SecurityReviewer** | Auth, encryption, threat modeling, OWASP |
 | **SoftwareArchitect** | System design, service boundaries, migrations |
-| **CodeReviewer** | Correctness, maintainability, tests, regressions |
 | **DatabaseSpecialist** | SQL, schema design, query optimization |
 | **RustExpert** | Cargo, async Rust, WASM (pack v2) |
 | **SREObservabilityEngineer** | Prometheus, alerts, traces (pack v2) |
@@ -34,8 +33,9 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 | DatabaseSpecialist | 8083 | `explain_query`, `validate_schema`, `generate_migration` |
 | FrontendEngineer | 8084 | `run_typescript_check`, `run_eslint`, `check_package_json` |
 | SecurityReviewer | 8085 | `run_gosec`, `run_npm_audit`, `scan_secrets` |
-| CodeReviewer | 8089 | `analyze_go_code`, `run_eslint` (read-only review) |
 | SoftwareArchitect | 8090 | `validate_yaml`, `validate_schema`, `check_dependencies` |
+
+Code review is a **core behavior** of every specialist (read-only when the user asks for a review) — there is no separate CodeReviewer agent.
 
 Enablement follows pack `mcp_agents` in `pack.yaml`; override per specialist in **Settings → Domain packs → MCP specialist tools**.
 
@@ -45,10 +45,10 @@ Enablement follows pack `mcp_agents` in `pack.yaml`; override per specialist in 
 
 When enabled:
 
-- Seven engineering specialists are added to configured hub agents (toggle triggers reconcile + restart).
-- Preset slugs (`backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`, `database`) appear in **New DM** and `/create-expert`.
+- Engineering specialists are added to configured hub agents (toggle triggers reconcile + restart).
+- Preset slugs (`backend`, `frontend`, `devops`, `security`, `architecture`, `database`, …) appear in **New DM** and `/create-expert`.
 - `qwen3.5:27b` and `qwen3.5:9b` are merged into **models to ensure** for Ollama.
-- Optional LoRA adapters (security, code-review, backend) are in the separate **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack — install and assign manually if desired.
+- Optional LoRA adapters (security, backend) are in the separate **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack — install and assign manually if desired.
 - If **Life sciences** is also enabled, the hub does **not** auto-switch your default Ollama chat model (avoid bio vs coder conflicts); pick the model in Settings.
 
 When disabled, pack-owned specialists are stopped; **Moderator**, **Assistant**, and **auto-detected CLI agents** (Cursor, Gemini, Claude, Copilot, Codex) are unchanged.

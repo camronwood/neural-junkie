@@ -179,7 +179,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 				if m == nil || m.ID == sourceMsg.ID {
 					continue
 				}
-				if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+				if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 					pathSource = m.Content
 					break
 				}
@@ -649,7 +649,9 @@ func (a *Agent) shouldUseFileChangeFenceFallback(sourceMsg *protocol.Message) bo
 	if sourceMsg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(sourceMsg) {
 		return true
 	}
-	if userRequestsContentDelivery(content) || isBareWorkspaceDirective(content) {
+	// Content-delivery asks stay phrase-gated for fence formatting only.
+	// Bare workspace directives no longer veto ImplementationSession / stamped edit.
+	if userRequestsContentDelivery(content) {
 		return isExplicitProposalIntent(content) || isUserRequestingFileWrite(content)
 	}
 	if sourceMsg.ImplementationSession() {

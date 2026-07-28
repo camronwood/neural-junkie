@@ -3,8 +3,6 @@ package agent
 import (
 	"regexp"
 	"strings"
-
-	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 var musicGenerationVerbRE = regexp.MustCompile(`\b(make|generate|create|compose|produce|write)\b`)
@@ -22,31 +20,13 @@ func normalizeMusicRequestText(content string) string {
 	return repl.Replace(c)
 }
 
-// UserRequestsGeneratedMusic is a lightweight heuristic for music-generation asks.
+// UserRequestsGeneratedMusic is a deprecated phrase-matching heuristic. Routing now
+// trusts the stamped TurnDecision (Action == ActionMusic) instead of natural-language
+// phrase matching — see messageSuppressesMusicGeneration / tryHubMusicGenerationShortcut.
+//
+// Deprecated: always returns false. Do not add new call sites.
 func UserRequestsGeneratedMusic(content string) bool {
-	c := normalizeMusicRequestText(strings.TrimSpace(content))
-	if c == "" {
-		return false
-	}
-	if c == strings.ToLower(protocol.GeneratedAudioDeliveryContent) {
-		return false
-	}
-	phrases := []string{
-		"generate a song", "generate me a song", "generate me some music",
-		"create a song", "create me a song", "make a song", "make me a song",
-		"compose a song", "compose me a song", "produce a song", "write a song",
-		"generate music", "create music", "make music", "compose music",
-		"generate an instrumental", "create an instrumental", "make an instrumental",
-		"generate a track", "create a track",
-	}
-	for _, p := range phrases {
-		if strings.Contains(c, p) {
-			return true
-		}
-	}
-	hasNoun := strings.Contains(c, "song") || strings.Contains(c, "music") ||
-		strings.Contains(c, "instrumental") || strings.Contains(c, "track")
-	return hasNoun && musicGenerationVerbRE.MatchString(c)
+	return false
 }
 
 // MusicStyleTagsFromMessage strips mentions and request boilerplate; returns style tags or "".

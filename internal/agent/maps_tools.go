@@ -72,7 +72,7 @@ func mapsUpdateToolDefinition() ai.ClaudeToolDefinition {
 }
 
 func (a *Agent) mapsToolsEnabledForMessage(msg *protocol.Message) bool {
-	if a == nil || a.Info.Type != protocol.AgentTypeMaps {
+	if a == nil || !a.agentSupportsMapsTools() {
 		return false
 	}
 	if msg != nil && msg.Type == protocol.MessageTypeCollabDiscussion {
@@ -108,7 +108,7 @@ func rawArgsToMap(input json.RawMessage) (map[string]any, error) {
 
 func (a *Agent) executeMapsCreateTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
 	if !a.mapsToolsEnabledForMessage(msg) {
-		return "", fmt.Errorf("%s is only available for MapsExpert", mapsCreateToolName)
+		return "", fmt.Errorf("%s requires the Maps pack (Assistant or a granted custom expert)", mapsCreateToolName)
 	}
 	args, err := rawArgsToMap(input)
 	if err != nil {
@@ -169,7 +169,7 @@ func (a *Agent) executeMapsCreateTool(ctx context.Context, msg *protocol.Message
 
 func (a *Agent) executeMapsUpdateTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
 	if !a.mapsToolsEnabledForMessage(msg) {
-		return "", fmt.Errorf("%s is only available for MapsExpert", mapsUpdateToolName)
+		return "", fmt.Errorf("%s requires the Maps pack (Assistant or a granted custom expert)", mapsUpdateToolName)
 	}
 	args, err := rawArgsToMap(input)
 	if err != nil {

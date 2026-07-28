@@ -100,6 +100,7 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 		assistantMCP.AttachWorkspaceTools(func() string { return baseAgent.WorkspacePath })
 		assistantMCP.AttachWebTools()
 		attachContextCompressTools(assistantMCP)
+		attachEnabledPackToolsToAssistant(assistantMCP.GetMCPServer())
 		baseAgent.MCPServer = assistantMCP
 		log.Printf("Assistant workspace MCP tools registered for agent: %s", name)
 	}
@@ -751,6 +752,15 @@ func (a *AssistantAgent) handleDirectAssistantActions(ctx context.Context, msg *
 		return false
 	}
 
+	// Pure "any notes from today?" with none dated today — answer without an LLM so
+	// local models cannot volunteer an older Meeting 1 as a substitute.
+	if reply, ok := a.buildTodayMeetingNotesAvailabilityReply(content); ok {
+		out := protocol.NewMessage(protocol.MessageTypeChat, msg.Channel, a.Info, reply)
+		out.ReplyTo = msg.ID
+		a.Hub.SendMessage(out)
+		return true
+	}
+
 	if reminder, ok := a.buildReminderFromNaturalLanguage(msg, content); ok {
 		if err := a.storage.SaveReminder(reminder); err != nil {
 			log.Printf("[%s] Failed to save reminder from natural language: %v", a.Info.Name, err)
@@ -1330,6 +1340,33 @@ func messageAsksAboutEmail(content string) bool {
 	return false
 }
 
+// buildTodayMeetingNotesAvailabilityReply returns a grounded yes/no for pure
+// "any meeting notes from today?" asks when none are dated today. Named-meeting
+// queries (tokens remain after stopwords) still go through the LLM path.
+func (a *AssistantAgent) buildTodayMeetingNotesAvailabilityReply(content string) (string, bool) {
+	if a == nil || a.storage == nil || !messageAsksAboutMeetings(content) {
+		return "", false
+	}
+	if !meetingQueryAsksAboutToday(content) {
+		return "", false
+	}
+	if len(meetingQueryTokens(content)) > 0 {
+		return "", false
+	}
+	notes, err := a.storage.LoadMeetingNotes()
+	if err != nil {
+		return "", false
+	}
+	now := assistantPromptTime(a.config)
+	if len(meetingNotesOnDate(notes, now)) > 0 {
+		return "", false
+	}
+	return fmt.Sprintf(
+		"No — there are no synced meeting notes dated today (%s).",
+		now.Format("Monday, January 2, 2006"),
+	), true
+}
+
 // detectsMeetingQuery determines if a message is asking about meetings
 func (a *AssistantAgent) detectsMeetingQuery(msg *protocol.Message) bool {
 	if msg == nil || assistantSkipPersonalContextEnrichment(msg) {
@@ -1371,6 +1408,13 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 	todayQuery := meetingQueryAsksAboutToday(msg.Content)
 	todayNotes := meetingNotesOnDate(meetingNotes, now)
 	selectedNotes, matched := selectMeetingNotesForPrompt(meetingNotes, msg.Content, 3)
+	// Pure "notes from today?" with none dated today: do not inject older Meeting 1
+	// pages for the model to volunteer as a substitute (local models ignore soft guards).
+	omitOlderForToday := todayQuery && len(todayNotes) == 0 && len(meetingQueryTokens(msg.Content)) == 0
+	if omitOlderForToday {
+		selectedNotes = nil
+		matched = false
+	}
 
 	var prompt strings.Builder
 
@@ -1391,14 +1435,19 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 	prompt.WriteString("The user is asking about synced meeting notes. You have access to the meeting notes listed below from Assistant storage.\n")
 	prompt.WriteString("If notes are listed here, do not say you cannot access meeting notes, files, or prior meetings.\n")
 	prompt.WriteString("For questions like \"do you see/have <meeting>\", answer yes/no first, then summarize what was found.\n")
+	prompt.WriteString("Never invent attendees, action items, titles, or dates that are not listed below.\n")
 	if todayQuery {
 		if len(todayNotes) > 0 {
 			prompt.WriteString(fmt.Sprintf("The user asked about today's meeting notes. Some synced meeting notes are dated today (%s); only call a listed note today's note when its Date matches today.\n", now.Format("January 2, 2006")))
+		} else if omitOlderForToday {
+			prompt.WriteString(fmt.Sprintf("The user asked about today's meeting notes. No synced meeting notes are dated today (%s). Answer that clearly and stop. Do not volunteer older meetings, invent a substitute meeting, or summarize notes that are not listed below.\n", now.Format("January 2, 2006")))
 		} else {
-			prompt.WriteString(fmt.Sprintf("The user asked about today's meeting notes. No synced meeting notes are dated today (%s). The notes listed below are older context; do not describe them as today's notes.\n", now.Format("January 2, 2006")))
+			prompt.WriteString(fmt.Sprintf("The user asked about today's meeting notes. No synced meeting notes are dated today (%s). The notes listed below are older context; do not describe them as today's notes. Answer the today question first; do not volunteer an older meeting as a substitute unless the user asked for the last/most recent meeting.\n", now.Format("January 2, 2006")))
 		}
 	}
-	if matched {
+	if len(selectedNotes) == 0 {
+		prompt.WriteString("\nNo synced meeting notes are included for this reply.\n\n")
+	} else if matched {
 		prompt.WriteString("These are the best matching synced notes for the user's query:\n\n")
 	} else {
 		prompt.WriteString("No exact title/content match was found, so the most recent synced notes are included for context:\n\n")
@@ -1474,6 +1523,8 @@ func selectMeetingNotesForPrompt(notes []*MeetingNote, query string, limit int) 
 	}
 
 	tokens := meetingQueryTokens(query)
+	// Empty tokens (pure today / last-meeting phrasing after stopwords) → chronology.
+	// Do not keyword-rank on residual words like "new" matching "New_in_Cursor_Composer_…".
 	if len(tokens) == 0 {
 		return sorted[:minInt(limit, len(sorted))], false
 	}
@@ -1637,11 +1688,11 @@ func meetingQueryTokens(query string) []string {
 		"again": true, "can": true, "checked": true, "could": true, "do": true, "does": true,
 		"for": true, "from": true, "give": true, "have": true, "i": true, "in": true,
 		"is": true, "it": true, "just": true, "last": true, "latest": true, "me": true,
-		"meeting": true, "meetings": true, "most": true, "my": true, "newest": true,
+		"meeting": true, "meetings": true, "most": true, "my": true, "new": true, "newest": true,
 		"note": true, "notes": true, "of": true, "on": true, "please": true,
 		"recent": true, "recently": true, "see": true, "summarise": true, "summarize": true,
 		"summary": true, "that": true, "the": true, "this": true, "today": true,
-		"was": true, "we": true, "what": true, "with": true, "you": true,
+		"was": true, "we": true, "what": true, "with": true, "yet": true, "you": true,
 	}
 	seen := map[string]bool{}
 	var tokens []string

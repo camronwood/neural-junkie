@@ -41,7 +41,7 @@ flowchart TB
 |------|----------------------|-----|
 | Graphs | Collab DAG, runbook graph layout | Template gallery polish; richer browse UX |
 | Packages | Share Agent hydrate (`HydrateFromExport`), `/import-agent-mcp --hydrate`, learnings merge (`ImportShareLearnings`) | Broader agent types; LoRA pull-on-import polish |
-| Cheap nodes | User tools handlers, Tool Wizard direction | Full Settings wizard UX; remote MCP registry completeness |
+| Cheap nodes | User tools + **pack tool grants** (`/api/mcp/pack-tools`) on custom experts; ability packs attach to Assistant | Full Settings wizard UX; remote MCP registry completeness |
 | Provenance | Traces + workflow-events | Unified run → definition version → events → traces navigation |
 | Media | Optional external media MCP | Inert when unset; mock HTTP in tests — keep Comfy out of repo |
 
@@ -55,7 +55,7 @@ flowchart TB
 ## Pillars
 
 1. **Share Agent** — portable knowledge packages; hydrate from embedded resources; optional path remap; learnings / rules / LoRA metadata in the bundle. See [MCP_EXPORTS.md](MCP_EXPORTS.md) and [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md#share-agent-gift-bundle-for-friends--coworkers).
-2. **MCP Tool Wizard** — cheap extensions: HTTP-fetch template, remote MCP connect, grants on custom experts. See [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md#mcp-tool-wizard-user-defined-tools--agents).
+2. **MCP Tool Wizard** — cheap extensions: HTTP-fetch template, remote MCP connect, grants on custom experts, and **pack ability grants** (`maps-tools`, `web-browser`, `music-generation` via `POST /api/mcp/pack-tools/{id}/grant`). See [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md#mcp-tool-wizard-user-defined-tools--agents).
 3. **Runbook packages** — definition export/import, template discovery, provenance links. See [RUNBOOKS_V2.md](RUNBOOKS_V2.md).
 4. **Execution polish** — queue / progress / cancel for long runbooks and multi-tool turns; optional external media HTTP MCP.
 

@@ -23,26 +23,13 @@ var (
 	nonPlaceToRE = regexp.MustCompile(`(?i)^(need|want|have|going|able|try|trying|used|ought|supposed)\s+to\b`)
 )
 
-// UserRequestsMapOrRoute detects geographic map / directions asks (not FLUX images).
+// UserRequestsMapOrRoute is a deprecated phrase-matching heuristic. Routing now trusts the
+// stamped TurnDecision (see messageStampedMapsRoute / messageStampedArtifact in
+// semantic_stamp.go) instead of natural-language phrase matching. ParseMapEndpoints below
+// remains the payload extractor for A→B place strings once a turn is authorized.
+//
+// Deprecated: always returns false. Do not add new call sites.
 func UserRequestsMapOrRoute(content string) bool {
-	c := normalizeMapRequestText(strings.TrimSpace(content))
-	if c == "" {
-		return false
-	}
-	if mapFromToRE.MatchString(c) {
-		return true
-	}
-	if strings.Contains(c, "canvas map") || strings.Contains(c, "neural canvas map") ||
-		strings.Contains(c, "nj.map") || strings.Contains(c, "walking") || strings.Contains(c, "driving") {
-		return true
-	}
-	if mapRouteNounRE.MatchString(c) && (mapRouteVerbRE.MatchString(c) || strings.Contains(c, " from ") || strings.Contains(c, " to ")) {
-		return true
-	}
-	// Bare "Place A to Place B" (common after geocode display names are pasted back).
-	if _, _, ok := ParseMapEndpoints(content); ok {
-		return true
-	}
 	return false
 }
 
@@ -157,8 +144,9 @@ func (a *Agent) tryMapsRouteShortcut(ctx context.Context, msg *protocol.Message)
 	if !ok {
 		return "", false
 	}
-	// Accept explicit map/route phrasing OR bare place→place (MapsExpert DMs often paste geocode labels).
-	if !UserRequestsMapOrRoute(msg.Content) && !(looksLikePlace(from) && looksLikePlace(to)) {
+	// Stamp-first: a maps_route reason on ActionArtifact, or any ActionArtifact turn routed
+	// to the Maps agent, authorizes the shortcut — never phrase matching.
+	if !messageStampedMapsRoute(msg) && !messageStampedArtifact(msg) {
 		return "", false
 	}
 	client := mapssideecar.DefaultSidecarClient

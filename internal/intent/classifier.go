@@ -14,7 +14,7 @@ Return exactly one JSON object:
 {
   "schema_version": 1,
   "interaction": "closure|casual|question|task|continuation|correction",
-  "requested_action": "answer|inspect|plan|debug|edit|run|continue|artifact|image|ask_user",
+  "requested_action": "answer|inspect|plan|debug|edit|run|continue|artifact|image|music|ask_user",
   "domain": "general|frontend|backend|devops|architecture|code_review|database|security|biology|rust|cad",
   "recipient_type": "general|assistant|frontend|backend|devops|architecture|code-review|database|security|biology|rust|cad",
   "retrieval": ["conversation_memory|codebase|code_graph|prior_reference|collab_artifact"],
@@ -29,17 +29,25 @@ Return exactly one JSON object:
 Interpret meaning rather than matching words:
 - answer is conversation or explanation; inspect reads existing state; plan proposes an approach without execution.
 - when the user asks you to have a look, check git/history, investigate workspace state, or examine what broke, prefer inspect (or debug if they report a failure) with codebase retrieval — not answer-only chat.
+- review/summarize/overview/explain the open project, workspace, repo, or codebase (chat answer, no canvas) → inspect with codebase retrieval — never run, edit, or ask_user.
 - debug is the primary action for diagnosing a reported failure. When the user also asks to repair, fix, or sort out the failure, set mutation_requested to workspace and include startup_failure or runtime_failure reason codes.
+- "fix the app", "repair it", "the app is broken / not booting / not working" with an ask to fix → debug (or edit) with mutation_requested=workspace — never plan or answer-only.
+- plan is only for explicit approach/design requests without execution ("propose a plan", "how should we approach"). Do not stamp plan when the user asks you to fix or repair.
 - edit is the primary action for creating or changing source files. run is only the primary action when the user asks to execute a command, test, build, or script; implementing code is never run.
 - writing fiction, stories, alternate endings, essays, poems, jokes, or other creative prose is answer — never edit, run, ask_user, or artifact.
 - presence checks ("are you there?", "you here?", "ping") are casual/answer with empty retrieval or conversation_memory only — never prior_reference, codebase, or ask_user.
 - prior_reference only when the user points at an earlier assistant reply (e.g. "what you wrote", "previous reply", "few messages back").
 - continue advances one pending action. When interaction is continuation, requested_action must be continue and continuation_target must copy pending_action_id.
-- artifact creates a durable chat-side report/canvas; image creates image media. Neither means a source-code component with a similar name.
+- artifact creates a durable chat-side report/canvas; image creates image media; music creates audio. Neither artifact nor image means a source-code component with a similar name.
+- Geographic map/route/directions asks are artifact with reason_codes including maps_route — never image, run, or edit.
 - "Neural Canvas", Mermaid/diagram/chart/timeline/table canvas requests, and durable visual artifacts are always artifact — never run, inspect, edit, or ask_user.
-- Revising an existing Neural Canvas (style, colors, layout, content, monochrome/black-and-white, "update the diagram/canvas") is always artifact with retrieval prior_reference (and collab_artifact when relevant) — never edit, and never workspace mutation. Do not route canvas style changes to source files (CSS, tauri.conf, theme tokens).
-- When open_artifact_id / open_artifact_renderer is set in features, prefer artifact for turns that change that open canvas; include prior_reference.
-- artifact and image require external mutation. edit requires workspace mutation. answer, inspect, plan, and ask_user require no mutation.
+- Generic new/blank/empty canvas or "canvas we can fill in" → artifact with reason_codes including blank_canvas (empty collaborative page). Do NOT invent a workspace report unless asked.
+- Explicit canvas report/summary/writeup about this project/workspace/repo → artifact with reason_codes including workspace_report and codebase retrieval.
+- Revising an existing Neural Canvas (style, colors, layout, content, monochrome/black-and-white, "update the diagram/canvas", add/fill sections, add mermaid/images on the open page) is always artifact with retrieval prior_reference (and collab_artifact when relevant) — never edit, and never workspace mutation. Do not route canvas style changes to source files (CSS, tauri.conf, theme tokens).
+- When open_artifact_id / open_artifact_renderer is set in features, prefer artifact for turns that change that open canvas (add/fill text, mermaid, or images on that page); include prior_reference. Pure questions about what is on the page stay answer.
+- Mixed turns that ask to fix/implement code and then create a canvas are edit (workspace), not artifact.
+- Song/track/music/instrumental generation asks are music with external mutation — never edit or artifact.
+- artifact, image, and music require external mutation. edit requires workspace mutation. answer, inspect, plan, and ask_user require no mutation.
 - questions about whether or how something should be changed are non-mutating unless the user also asks to carry it out.
 - negation, corrections, retractions, reply targets, and unresolved actions override isolated verbs.
 - retrieval describes evidence needed to answer; do not grant permissions or choose frontier models.
@@ -47,7 +55,7 @@ Interpret meaning rather than matching words:
 - use explicit_continuation only when pending_action_id is present and the user approves advancing it.
 - choose the specialist recipient matching the domain for inspect, debug, edit, and run actions.
 - when the user reports a product/app that fails before showing its UI, interface, screen, or frontend, prefer domain frontend and recipient_type frontend unless they clearly name a backend/API/service failure.
-- use stable reason codes such as startup_failure, build_failure, runtime_failure, explicit_continuation, correction, advisory_question, or durable_artifact.
+- use stable reason codes such as startup_failure, build_failure, runtime_failure, explicit_continuation, correction, advisory_question, durable_artifact, blank_canvas, or workspace_report.
 - use ask_user when a required target is genuinely ambiguous.`
 
 var SemanticIntentSchema = json.RawMessage(`{
@@ -56,7 +64,7 @@ var SemanticIntentSchema = json.RawMessage(`{
   "properties": {
     "schema_version": {"type": "integer"},
     "interaction": {"type": "string", "enum": ["closure", "casual", "question", "task", "continuation", "correction"]},
-    "requested_action": {"type": "string", "enum": ["answer", "inspect", "plan", "debug", "edit", "run", "continue", "artifact", "image", "ask_user"]},
+    "requested_action": {"type": "string", "enum": ["answer", "inspect", "plan", "debug", "edit", "run", "continue", "artifact", "image", "music", "ask_user"]},
     "domain": {"type": "string", "enum": ["general", "frontend", "backend", "devops", "architecture", "code_review", "database", "security", "biology", "rust", "cad"]},
     "recipient_type": {"type": "string", "enum": ["general", "assistant", "frontend", "backend", "devops", "architecture", "code-review", "database", "security", "biology", "rust", "cad"]},
     "retrieval": {"type": "array", "items": {"type": "string", "enum": ["conversation_memory", "codebase", "code_graph", "prior_reference", "collab_artifact"]}},

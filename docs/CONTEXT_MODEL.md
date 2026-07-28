@@ -68,9 +68,11 @@ Three modes control how much context is attached:
 
 | Mode | Default `context_scope` | Workspace scan | MCP / FILE_CHANGE in prompt | History cap |
 |------|---------------------------|----------------|-----------------------------|-------------|
-| **chat** | `none` | off | off | summary + 4 turns |
-| **code** | auto (`inferContextScope`) | on when paths/verbs | on for specialists | summary + 8 turns |
+| **chat** | `none` | off | off | summary + ~6 exchanges (12 msgs) |
+| **code** | auto (`inferContextScope`) | on when paths/verbs | on for specialists | summary + ~8 exchanges (16 msgs) |
 | **collab** | collab rules | per collab phase | per phase | collab transcript rules |
+
+**Dialogue window (always):** Recent complete user↔assistant exchanges are the protected ConversationWindow. Session summary, durable goals/actions, and vector memory are **overlays** — they must not shrink or replace the window, and chat mode must not inject stale implement goals.
 
 **Desktop UX:** Composer mode chip (Auto / Chat / Code) alongside the workspace context cycle. Persisted in `localStorage`. Outbound metadata key: `conversation_mode`.
 
@@ -83,12 +85,12 @@ Each message is classified before building the prompt:
 | Intent | Behavior | History rows | Session summary |
 |--------|----------|--------------|-----------------|
 | `closure` | Canned reply (thanks, brief ack); no LLM | 0 | n/a |
-| `casual` | Minimal prompt (was `low_signal`) | 2 | yes if present |
-| `meta` | Minimal prompt when user asks about prompt/context | 2 | yes if present |
-| `substantive` | Full agent prompt | 4–8 | yes if present |
-| `task` | Full prompt + workspace scan when paths/verbs | 8 | yes if present |
+| `casual` | Minimal prompt (was `low_signal`) | ~4 msgs / 2 exchanges | yes if present |
+| `meta` | Minimal prompt when user asks about prompt/context | ~4 msgs / 2 exchanges | yes if present |
+| `substantive` | Full / dialogue prompt | ~12 msgs / 6 exchanges | yes if present (overlay only) |
+| `task` | Full prompt + workspace scan when paths/verbs | ~16 msgs / 8 exchanges | yes if present |
 
-**Mode interaction:** `conversation_mode=chat` biases toward `casual` unless the message has a substantive question (`?` + length) or explicit code/task signals.
+**Mode interaction:** `conversation_mode=chat` biases toward `casual` for cold greetings, but **open-thread follow-ups** (capability notices, pronouns, “why?”, “go on”) stay `substantive` so the ConversationWindow is used.
 
 Collaboration channels use closure for acks; they always keep the full collab prompt for substantive collab turns.
 
@@ -106,8 +108,8 @@ The hub maintains a rolling **session summary** per eligible channel:
 - **90s** LLM timeout (`NJ_SESSION_SUMMARY_TIMEOUT`); override model via `NJ_SESSION_SUMMARY_MODEL`
 - **Eligible channels:** DM, custom, public (`#general`, etc.), and `dm-*` specialist slugs — **not** regression harness channels (`implement-scenarios`, `chat-scenarios`, etc.)
 - Persisted in `last-session.json` as `session_summary` / `session_summary_at`
-- Cleared with **Clear message history**
-- Injected into agent prompts as `=== SESSION SUMMARY ===`
+- Cleared with **Clear message history** (also clears durable conversation state for that channel)
+- Injected into agent prompts as `=== SESSION SUMMARY ===` with continue-thread guidance (summary is overlay; recent exchanges remain ground truth)
 
 Implementation: `internal/hub/channel_summary.go`, `internal/chatcontext` for transcript filtering.
 

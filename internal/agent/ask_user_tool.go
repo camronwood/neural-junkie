@@ -239,10 +239,43 @@ func (a *Agent) executeAskUserTool(ctx context.Context, msg *protocol.Message, i
 	if ctx.Err() == nil {
 		a.sendThinkingStatus(msg, protocol.ThinkingStatusStarted)
 	}
+	if userDeclinedOrDeferred(answer) {
+		return fmt.Sprintf(
+			"User declined or deferred: %s\n\nStop. Do not continue the original task, do not call more tools, and wait for the user's next message.",
+			answer,
+		), nil
+	}
 	return fmt.Sprintf(
 		"User answered: %s\n\nContinue the original task now with this answer. Do not re-ask ask_user for the same information. Use workspace tools instead of asking for directory structure.",
 		answer,
 	), nil
+}
+
+// userDeclinedOrDeferred reports answers that mean stop / not now rather than
+// a usable decision for continuing the original task.
+func userDeclinedOrDeferred(answer string) bool {
+	lower := strings.ToLower(strings.TrimSpace(answer))
+	if lower == "" {
+		return false
+	}
+	lower = strings.Trim(lower, "!.?,;:\"'` ")
+	switch lower {
+	case "nothing", "nothing right now", "nothing for now", "not now", "not right now",
+		"never mind", "nevermind", "no thanks", "no thank you", "nah", "nope", "no",
+		"stop", "cancel", "cancelled", "canceled", "skip", "pass", "n/a", "na", "none",
+		"maybe later", "later", "forget it", "don't", "dont", "do not":
+		return true
+	}
+	prefixes := []string{
+		"nothing right now", "nothing for now", "not right now", "never mind",
+		"no thanks", "maybe later", "forget it", "don't bother", "dont bother",
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(lower, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func firstStringMetadata(metadata map[string]interface{}, keys ...string) string {

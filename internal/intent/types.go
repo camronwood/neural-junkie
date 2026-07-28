@@ -34,6 +34,7 @@ const (
 	ActionContinue Action = "continue"
 	ActionArtifact Action = "artifact"
 	ActionImage    Action = "image"
+	ActionMusic    Action = "music"
 	ActionAskUser  Action = "ask_user"
 )
 
@@ -201,7 +202,7 @@ func validInteraction(value InteractionKind) bool {
 func validAction(value Action) bool {
 	return slices.Contains([]Action{
 		ActionAnswer, ActionInspect, ActionPlan, ActionDebug, ActionEdit, ActionRun,
-		ActionContinue, ActionArtifact, ActionImage, ActionAskUser,
+		ActionContinue, ActionArtifact, ActionImage, ActionMusic, ActionAskUser,
 	}, value)
 }
 

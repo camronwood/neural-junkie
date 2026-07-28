@@ -86,27 +86,10 @@ func (a *Agent) musicGenerationToolsEnabledForMessage(msg *protocol.Message) boo
 	if a.Hub == nil || !a.Hub.MusicGenerationEnabled() {
 		return false
 	}
-	if !agentTypeSupportsHubMusicGen(a.Info.Type) {
+	if !a.agentSupportsMusicGeneration() {
 		return false
 	}
-	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		switch decision.Action {
-		case semantic.ActionAnswer, semantic.ActionAskUser:
-			// Music remains a specialized path until it joins the typed ontology.
-			// Structural collab/impl suppression still applies without image phrase fallthrough.
-			if msg != nil && msg.ImplementationSession() {
-				return false
-			}
-			phase := strings.ToLower(strings.TrimSpace(msg.GetCollaborationPhase()))
-			if phase != "" || msg.GetCollaborationID() != "" || msg.Type == protocol.MessageTypeCollabDiscussion {
-				return false
-			}
-			return true
-		default:
-			return false
-		}
-	}
-	if messageSuppressesImageGeneration(msg) {
+	if messageSuppressesMusicGeneration(msg) {
 		return false
 	}
 	return true
@@ -121,22 +104,37 @@ func agentTypeSupportsHubMusicGen(t protocol.AgentType) bool {
 	}
 }
 
-// tryHubMusicGenerationShortcut posts hub-generated audio when the user asked for a song.
-func (a *Agent) tryHubMusicGenerationShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
-	explicitMusicIntent := msg != nil && UserRequestsGeneratedMusic(msg.Content)
-	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		switch decision.Action {
-		case semantic.ActionAnswer, semantic.ActionAskUser:
-			// Music remains a specialized path until it joins the typed ontology.
-		default:
-			explicitMusicIntent = false
-		}
+func (a *Agent) agentSupportsMusicGeneration() bool {
+	if a == nil {
+		return false
 	}
-	if msg == nil || a.Hub == nil || protocol.IsGeneratedAudioDelivery(msg) || !explicitMusicIntent {
+	if agentTypeSupportsHubMusicGen(a.Info.Type) {
+		return true
+	}
+	if a.Info.Type == protocol.AgentTypeExpert {
+		return musicPackToolGranted(a.Info.Name)
+	}
+	return false
+}
+
+// tryHubMusicGenerationShortcut posts hub-generated audio when the user asked for a song.
+// Stamp-first: requires a stamped or turn-goal ActionMusic decision.
+func (a *Agent) tryHubMusicGenerationShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
+	if msg == nil || a.Hub == nil || protocol.IsGeneratedAudioDelivery(msg) {
+		return "", false
+	}
+	explicitMusicIntent := false
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		explicitMusicIntent = decision.Action == semantic.ActionMusic
+	}
+	if goal, ok := turnGoalFromContext(ctx); ok && goal.Action == ActionMusic {
+		explicitMusicIntent = true
+	}
+	if !explicitMusicIntent {
 		return "", false
 	}
 	if !a.musicGenerationToolsEnabledForMessage(msg) {
-		if !agentTypeSupportsHubMusicGen(a.Info.Type) {
+		if !a.agentSupportsMusicGeneration() {
 			return "", false
 		}
 		if a.Hub == nil || a.Hub.MusicGenerationEnabled() {
@@ -201,6 +199,18 @@ func (a *Agent) generateAndPostMusicWithProgress(
 	}
 
 	err := a.Hub.GenerateAndPostMusic(ctx, msg.Channel, a.Info, req)
+	if ledger := actionEvidenceFromContext(ctx); ledger != nil {
+		status := "succeeded"
+		if err != nil {
+			status = "failed"
+		}
+		ledger.Record(ActionEvidence{
+			Kind:   EvidenceMusicPosted,
+			Tool:   generateMusicToolName,
+			Status: status,
+			Detail: req.StyleTags,
+		})
+	}
 
 	if broadcastToolStart && streamMsgID != "" {
 		ev := ai.ToolStepEvent{Kind: "done", Name: generateMusicToolName, Preview: "Song ready"}
@@ -226,7 +236,7 @@ func musicGenToolPreview(style string) string {
 }
 
 func (a *Agent) executeGenerateMusicTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
-	if messageSuppressesImageGeneration(msg) {
+	if messageSuppressesMusicGeneration(msg) {
 		return "", fmt.Errorf("generate_music is not available during implementation or code-editing sessions")
 	}
 	var args struct {
@@ -263,7 +273,7 @@ func (a *Agent) executeGenerateMusicTool(ctx context.Context, msg *protocol.Mess
 }
 
 func (a *Agent) executeExtractStemsTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
-	if messageSuppressesImageGeneration(msg) {
+	if messageSuppressesMusicGeneration(msg) {
 		return "", fmt.Errorf("extract_stems is not available during implementation or code-editing sessions")
 	}
 	var args struct {

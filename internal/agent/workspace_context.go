@@ -537,6 +537,7 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 	if path, ok := ctxMap["workspace_path"].(string); ok && path != "" {
 		prompt.WriteString(fmt.Sprintf("Path: %s\n", path))
 	}
+	appendCanonicalProjectIdentity(prompt, ctxMap)
 	appendScanSummaryContext(prompt, ctxMap)
 	appendScanAnalysisContext(prompt, ctxMap)
 	appendCadContext(prompt, ctxMap)
@@ -588,6 +589,41 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 	}
 
 	prompt.WriteString("=== END WORKSPACE CONTEXT ===\n\n")
+}
+
+// appendCanonicalProjectIdentity injects an authoritative project name so models
+// do not invent alternate product names from CHANGELOG/marketing docs.
+func appendCanonicalProjectIdentity(prompt *strings.Builder, ctxMap map[string]interface{}) {
+	if prompt == nil || ctxMap == nil {
+		return
+	}
+	workspaceName, _ := ctxMap["workspace_name"].(string)
+	workspacePath, _ := ctxMap["workspace_path"].(string)
+	canonical := resolveCanonicalProjectName(workspacePath, workspaceName)
+	if canonical == "" {
+		return
+	}
+	prompt.WriteString(fmt.Sprintf(
+		"Canonical project name: %s\n"+
+			"Use this name only. Do not rename the project or invent a different product/app name "+
+			"(including names found only in CHANGELOG, release notes, or campaigns).\n",
+		canonical,
+	))
+}
+
+func resolveCanonicalProjectName(workspacePath, workspaceName string) string {
+	workspacePath = strings.TrimSpace(workspacePath)
+	if workspacePath != "" {
+		if m := DetectStackManifest(workspacePath); m != nil {
+			if name := strings.TrimSpace(m.PackageName); name != "" {
+				return name
+			}
+		}
+		if base := filepath.Base(workspacePath); base != "" && base != "." && base != string(filepath.Separator) {
+			return base
+		}
+	}
+	return strings.TrimSpace(workspaceName)
 }
 
 func appendScanSummaryContext(prompt *strings.Builder, ctxMap map[string]interface{}) {

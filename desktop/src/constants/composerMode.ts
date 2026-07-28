@@ -1,13 +1,7 @@
-import {
-  hasFileExportSignals,
-  hasPriorReferenceExportSignals,
-  hasCombinedContentDeliveryExport,
-} from '../utils/implementationContinuation';
-
-/** Cursor-style composer behavior: read-only, plan-only, or implement (export is auto-detected). */
+/** Cursor-style composer behavior: read-only, plan-only, or implement. */
 export type ComposerMode = 'ask' | 'plan' | 'agent';
 
-/** Hub metadata mode — includes auto-detected export (not a UI chip). */
+/** Hub metadata mode — export is an explicit structural mode (not phrase-detected). */
 export type EffectiveComposerMode = ComposerMode | 'export';
 
 export const COMPOSER_MODE_STORAGE_KEY = 'composer-mode';
@@ -62,21 +56,12 @@ export function composerModeTitle(mode: ComposerMode): string {
 }
 
 /**
- * Resolves the metadata composer mode sent to the hub. Export is applied
- * automatically when the message looks like a file export — the UI chip can
- * stay on Agent/Ask.
+ * Resolves the metadata composer mode sent to the hub.
+ * Export is never inferred from natural-language phrases — only the chip / explicit mode.
  */
 export function resolveEffectiveComposerMode(
-  message: string,
+  _message: string,
   composerMode: ComposerMode
 ): EffectiveComposerMode {
-  if (composerMode === 'ask') return 'ask';
-  if (composerMode === 'plan') return 'plan';
-  if (hasCombinedContentDeliveryExport(message)) {
-    return composerMode;
-  }
-  if (hasFileExportSignals(message) || hasPriorReferenceExportSignals(message)) {
-    return 'export';
-  }
   return composerMode;
 }

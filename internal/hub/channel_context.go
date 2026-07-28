@@ -74,6 +74,9 @@ func (h *Hub) clearChannelContextLocked(channel string) {
 	if h.channelContext != nil {
 		delete(h.channelContext, channel)
 	}
+	if h.conversationState != nil {
+		delete(h.conversationState, channel)
+	}
 	if h.channelSummaryRefreshGen != nil {
 		h.channelSummaryRefreshGen[channel]++
 	}

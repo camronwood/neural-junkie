@@ -66,8 +66,15 @@ func TestShouldOfferAskUserTool_presenceCheck(t *testing.T) {
 		"are you there?",
 	} {
 		msg := &protocol.Message{Content: content}
+		if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+			SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionCasual,
+			RequestedAction: intent.ActionAnswer, Action: intent.ActionAnswer,
+			Mutation: intent.MutationNone, Confidence: 1, Source: intent.SourceLocalModel,
+		}); err != nil {
+			t.Fatal(err)
+		}
 		if shouldOfferAskUserTool(nil, msg) {
-			t.Fatalf("expected ask_user suppressed for presence ping %q", content)
+			t.Fatalf("expected ask_user suppressed for stamped presence ping %q", content)
 		}
 	}
 }

@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"regexp"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/intent"
@@ -19,6 +18,7 @@ const (
 	ActionDebug    ActionIntent = "debug"
 	ActionArtifact ActionIntent = "artifact"
 	ActionImage    ActionIntent = "image"
+	ActionMusic    ActionIntent = "music"
 	ActionEdit     ActionIntent = "edit"
 	ActionRun      ActionIntent = "run"
 	ActionContinue ActionIntent = "continue"
@@ -41,6 +41,7 @@ const (
 	EvidenceAnswer          EvidenceKind = "answer"
 	EvidenceArtifactCreated EvidenceKind = "artifact_created"
 	EvidenceImagePosted     EvidenceKind = "image_posted"
+	EvidenceMusicPosted     EvidenceKind = "music_posted"
 	EvidenceEditProposed    EvidenceKind = "edit_proposed"
 	EvidenceEditApplied     EvidenceKind = "edit_applied"
 	EvidenceCommandRun      EvidenceKind = "command_run"
@@ -61,9 +62,6 @@ type TurnGoal struct {
 	ImplementationSession bool           `json:"implementation_session,omitempty"`
 	Intent                TurnIntent     `json:"-"`
 }
-
-var explicitRunRequestRE = regexp.MustCompile(`(?i)\b(run|execute)\s+(the\s+)?(tests?|test suite|build|command|script|lint|checks?)\b|\b(test|build|lint)\s+(it|this|the project|the code)\b`)
-var explicitAskUserRequestRE = regexp.MustCompile(`(?i)^\s*(ask me|question me|clarify with me)\b`)
 
 func deriveTurnGoal(a *Agent, msg *protocol.Message, intent TurnIntent) TurnGoal {
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
@@ -91,71 +89,30 @@ func deriveTurnGoal(a *Agent, msg *protocol.Message, intent TurnIntent) TurnGoal
 		Mutation:           MutationNone,
 		Intent:             intent,
 	}
-	artifactRequested := UserRequestsArtifact(request)
-	artifactContinuationID := ""
-	if !artifactRequested && msg != nil && a != nil && userAffirmsPendingImplementation(request) {
-		artifactContinuationID = pendingArtifactRequestID(a.channelHistory(msg.Channel), msg.ID)
-		artifactRequested = artifactContinuationID != ""
-		if artifactRequested {
-			goal.ContinuationParent = artifactContinuationID
-		}
-	}
-	activeImplementation := msg != nil && !artifactRequested && shouldRunImplementationSession(a, msg)
+	// No canonical semantic decision was stamped for this turn. Without a stamp,
+	// the only authoritative signals left are structural: an active implementation
+	// session or explicit composer export mode. shouldRunImplementationSession is
+	// the single source of truth for that gate (see implementation_session.go).
+	activeImplementation := msg != nil && shouldRunImplementationSession(a, msg)
 	goal.ImplementationSession = activeImplementation
 	if activeImplementation {
 		goal.Intent = IntentTask
-	}
-	activeCollaboration := msg != nil &&
-		(msg.GetCollaborationID() != "" || strings.TrimSpace(msg.GetCollaborationPhase()) != "" ||
-			msg.Type == protocol.MessageTypeCollabDiscussion)
-	switch {
-	case artifactRequested && !activeCollaboration:
-		goal.Action = ActionArtifact
-		goal.RequiredCapabilities = []string{createArtifactToolName}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
-		goal.Mutation = MutationExternal
-	case activeImplementation:
 		goal.Action = ActionEdit
-		if userAffirmsPendingImplementation(request) {
+		goal.RequiredCapabilities = []string{"workspace_edit"}
+		goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
+		goal.Mutation = MutationWorkspace
+	} else if parent != "" && a != nil && a.Hub != nil {
+		// Structural continuation mirror of intent.structuralIntent's
+		// PendingActionID != "" && ReplyTarget != "" rule: an explicit reply to a
+		// message the hub still tracks as an open conversation goal, not phrase matching.
+		if resolver, ok := a.Hub.(conversationGoalResolver); ok &&
+			resolver.ResolveConversationGoalID(msg.Channel, "") != "" {
+			goal.Intent = IntentTask
 			goal.Action = ActionContinue
+			goal.RequiredCapabilities = []string{"workspace_edit"}
+			goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
+			goal.Mutation = MutationWorkspace
 		}
-		goal.RequiredCapabilities = []string{"workspace_edit"}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
-		goal.Mutation = MutationWorkspace
-	case activeCollaboration && UserRequestsGeneratedImage(request):
-		// Collaboration orchestration owns active phases; image intent cannot
-		// steal the turn from planning, review, or execution.
-	case UserRequestsGeneratedImage(request):
-		goal.Action = ActionImage
-		goal.RequiredCapabilities = []string{generateImageToolName}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceImagePosted}
-		goal.Mutation = MutationExternal
-	case explicitAskUserRequestRE.MatchString(request):
-		goal.Action = ActionAskUser
-		goal.RequiredCapabilities = []string{askUserToolName}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceUserAnswer}
-	case UserRequestsMapOrRoute(request):
-		goal.Action = ActionArtifact
-		goal.RequiredCapabilities = []string{mapsCreateToolName}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
-		goal.Mutation = MutationExternal
-	case userAffirmsPendingImplementation(request) && (parent != "" || (a != nil &&
-		(channelHasRecentImplementationAsk(a.channelHistory(msg.Channel), msg.ID) ||
-			channelHasRecentImplementationActivity(a.channelHistory(msg.Channel), msg.ID, a.Info.ID)))):
-		goal.Action = ActionContinue
-		goal.RequiredCapabilities = []string{"workspace_edit"}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
-		goal.Mutation = MutationWorkspace
-	case explicitRunRequestRE.MatchString(request):
-		goal.Action = ActionRun
-		goal.RequiredCapabilities = []string{"run_command"}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceCommandRun}
-		goal.Mutation = MutationWorkspace
-	case userRequestsImplementationForMessage(a, msg) || userRequestsImplementation(request):
-		goal.Action = ActionEdit
-		goal.RequiredCapabilities = []string{"workspace_edit"}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
-		goal.Mutation = MutationWorkspace
 	}
 	applyChatModeAdvisoryGoal(msg, &goal)
 	return goal
@@ -180,12 +137,8 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 	}
 	switch goal.Action {
 	case ActionInspect:
-		goal.RequiredCapabilities = []string{"workspace_read"}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
-		if intent.LooksLikeGitInspectRequest(request) {
-			goal.RequiredCapabilities = append(goal.RequiredCapabilities, "run_command")
-			goal.ExpectedEvidence = []EvidenceKind{EvidenceCommandRun}
-		}
+		goal.RequiredCapabilities = []string{"workspace_read", "run_command"}
+		goal.ExpectedEvidence = []EvidenceKind{EvidenceCommandRun}
 	case ActionPlan:
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
 	case ActionDebug:
@@ -198,11 +151,19 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 		goal.RequiredCapabilities = []string{"run_command"}
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceCommandRun}
 	case ActionArtifact:
-		goal.RequiredCapabilities = []string{createArtifactToolName}
+		if decisionHasReason(decision, "maps_route") {
+			goal.RequiredCapabilities = []string{mapsCreateToolName}
+		} else {
+			goal.RequiredCapabilities = []string{createArtifactToolName, updateArtifactToolName}
+		}
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
 	case ActionImage:
 		goal.RequiredCapabilities = []string{generateImageToolName}
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceImagePosted}
+	case ActionMusic:
+		goal.RequiredCapabilities = []string{generateMusicToolName}
+		goal.ExpectedEvidence = []EvidenceKind{EvidenceMusicPosted}
+		goal.Mutation = MutationExternal
 	case ActionAskUser:
 		goal.RequiredCapabilities = []string{askUserToolName}
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceUserAnswer}
@@ -210,71 +171,9 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 		goal.Action = ActionAnswer
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
 	}
-	// Explicit image requests outrank weak Answer/AskUser classifications so chat
-	// cover-art turns still take the generate_image shortcut.
-	if UserRequestsGeneratedImage(request) &&
-		(goal.Action == ActionAnswer || goal.Action == ActionAskUser || goal.Action == ActionPlan) {
-		goal.Action = ActionImage
-		goal.RequiredCapabilities = []string{generateImageToolName}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceImagePosted}
-		goal.Mutation = MutationExternal
-	}
-	// Map/route asks are Neural Canvas artifacts — never run_command / workspace edit.
-	if UserRequestsMapOrRoute(request) {
-		goal.Action = ActionArtifact
-		goal.RequiredCapabilities = []string{mapsCreateToolName}
-		goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
-		goal.Mutation = MutationExternal
-		goal.ImplementationSession = false
-	}
-	// Explicit Neural Canvas / durable visual asks are artifacts. Small local classifiers
-	// often stamp run/inspect/edit (same failure mode as maps) and disable create_artifact.
-	// Mixed "canvas after you fix…" keeps Edit. Pure canvas creates restamp to Artifact.
-	// Revisions also arrive as ActionArtifact via intent open_canvas_artifact policy.
-	if UserRequestsArtifact(request) {
-		override := false
-		switch goal.Action {
-		case ActionRun, ActionInspect, ActionImage:
-			override = true
-		case ActionEdit, ActionContinue:
-			override = !neuralCanvasIsSecondaryToCodeChange(request)
-		}
-		if override {
-			goal.Action = ActionArtifact
-			goal.RequiredCapabilities = []string{createArtifactToolName, updateArtifactToolName}
-			goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
-			goal.Mutation = MutationExternal
-			goal.ImplementationSession = false
-			decision.Action = intent.ActionArtifact
-			decision.RequestedAction = intent.ActionArtifact
-			decision.Mutation = intent.MutationExternal
-			decision.PolicyOverrides = append(decision.PolicyOverrides, "explicit_neural_canvas")
-			_ = protocol.StampTurnDecision(msg, decision)
-			if msg.Metadata != nil {
-				delete(msg.Metadata, protocol.IdeMetaImplementationSession)
-			}
-		}
-	}
 	if goal.Action == ActionArtifact {
 		goal.Mutation = MutationExternal
 		goal.ImplementationSession = false
-		if len(goal.ExpectedEvidence) == 0 {
-			goal.ExpectedEvidence = []EvidenceKind{EvidenceArtifactCreated}
-		}
-		if len(goal.RequiredCapabilities) == 0 {
-			goal.RequiredCapabilities = []string{createArtifactToolName, updateArtifactToolName}
-		} else {
-			hasUpdate := false
-			for _, cap := range goal.RequiredCapabilities {
-				if cap == updateArtifactToolName {
-					hasUpdate = true
-					break
-				}
-			}
-			if !hasUpdate {
-				goal.RequiredCapabilities = append(goal.RequiredCapabilities, updateArtifactToolName)
-			}
-		}
 	}
 	caps := protocol.ResolveTurnCapabilities(msg)
 	// Respect explicit implementation_session metadata even when RequiresWorkspace
@@ -282,8 +181,10 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 	explicitSession := msg != nil && msg.ImplementationSession()
 	// conversation_mode=chat without an explicit session stays advisory Answer —
 	// do not let semantic Edit/Debug drive workspace-mutation goals.
+	// Exception: stamped workspace fix/repair (debug|edit + workspace mutation with
+	// failure reason codes, or clear fix-the-app wording) must not be demoted.
 	if msg != nil && ConversationModeFromMessage(msg) == ConversationModeChat && !explicitSession &&
-		!msg.IdeEditorModeIsExport() {
+		!msg.IdeEditorModeIsExport() && !turnGoalPreservesWorkspaceFix(msg, goal) {
 		switch goal.Action {
 		case ActionEdit, ActionDebug, ActionContinue, ActionRun, ActionInspect, ActionPlan:
 			goal.Action = ActionAnswer
@@ -292,55 +193,10 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 			goal.Mutation = MutationNone
 		}
 	}
-	// Scenario/IDE asked for an implementation session, but the classifier often
-	// under-calls boot-fix pastes as inspect/run/answer + mutation=none. Upgrade those
-	// when the paste clearly needs a fix. Leave plain ActionAnswer alone so
-	// artifact/canvas/chat classifications without fix cues still stick.
-	if explicitSession && caps.CanRunImplSession && msg != nil &&
-		!msg.IdeEditorModeIsAsk() && !msg.IdeEditorModeIsPlan() {
-		bootOrFix := messageHasBootOrBuildError(request) || messageImpliesFixLikeIntent(request, nil)
-		switch goal.Action {
-		case ActionInspect, ActionPlan:
-			if bootOrFix {
-				goal.Action = ActionDebug
-				goal.RequiredCapabilities = []string{"workspace_read", "workspace_edit", "run_command"}
-				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied, EvidenceCommandRun}
-			} else {
-				goal.Action = ActionEdit
-				goal.RequiredCapabilities = []string{"workspace_edit"}
-				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
-			}
-			goal.Mutation = MutationWorkspace
-		case ActionAnswer:
-			// SoftArch/vite and selection-extract pastes often classify as Answer.
-			// With an explicit implementation_session, upgrade to a workspace mutation
-			// action so turnGoalRunsImplementationSession matches shouldRunImplementationSession.
-			if UserRequestsArtifact(request) {
-				break
-			}
-			if bootOrFix {
-				goal.Action = ActionDebug
-				goal.RequiredCapabilities = []string{"workspace_read", "workspace_edit", "run_command"}
-				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied, EvidenceCommandRun}
-			} else {
-				goal.Action = ActionEdit
-				goal.RequiredCapabilities = []string{"workspace_edit"}
-				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
-			}
-			goal.Mutation = MutationWorkspace
-		case ActionRun:
-			// Classifier often stamps run+mutation=none for boot-fix pastes; hub already
-			// treats Run as impl-worthy when implementation_session is set.
-			if goal.Mutation != MutationWorkspace {
-				goal.Mutation = MutationWorkspace
-			}
-			if bootOrFix {
-				goal.Action = ActionDebug
-				goal.RequiredCapabilities = []string{"workspace_read", "workspace_edit", "run_command"}
-				goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied, EvidenceCommandRun}
-			}
-		}
-	}
+	// Trust the stamped action — explicit implementation_session metadata only
+	// promotes a turn to a running implementation session when the classifier
+	// already selected a workspace mutation action (Edit/Debug/Continue/Run).
+	// It must never phrase-match its way from Inspect/Plan/Answer into Debug/Edit.
 	goal.ImplementationSession = (goal.Action == ActionDebug || goal.Action == ActionEdit ||
 		goal.Action == ActionContinue || goal.Action == ActionRun) &&
 		caps.CanRunImplSession && (caps.RequiresWorkspace || explicitSession)
@@ -349,14 +205,16 @@ func deriveTurnGoalFromDecision(msg *protocol.Message, decision intent.TurnDecis
 	}
 	if goal.ImplementationSession {
 		goal.Intent = IntentTask
+		goal.Mutation = MutationWorkspace
 	}
 	applyChatModeAdvisoryGoal(msg, &goal)
 	return goal
 }
 
-// applyChatModeAdvisoryGoal forces advisory conversation_mode=chat turns and
-// hypothetical design questions to Answer. Hub may stamp implementation_session for
-// semantic Edit; advisory questions still stay conversational unless export mode.
+// applyChatModeAdvisoryGoal forces advisory conversation_mode=chat turns to Answer.
+// Hub may stamp implementation_session for semantic Edit; chat-mode turns still stay
+// conversational unless export mode. Stamped creative-media actions (image/artifact/
+// music) and workspace fix/repair turns are authoritative and are never demoted.
 func applyChatModeAdvisoryGoal(msg *protocol.Message, goal *TurnGoal) {
 	if msg == nil || goal == nil {
 		return
@@ -367,39 +225,48 @@ func applyChatModeAdvisoryGoal(msg *protocol.Message, goal *TurnGoal) {
 	if scenarioHarnessRequestsImplementationSession(msg) {
 		return
 	}
-	advisoryQuestion := isAdvisoryImplementationQuestion(goal.NormalizedRequest) ||
-		isAdvisoryImplementationQuestion(msg.Content)
 	advisoryChat := ConversationModeFromMessage(msg) == ConversationModeChat &&
 		!msg.ImplementationSession()
-	// Hub-stamped implementation_session must not veto advisory questions — the stamp
-	// is semantic promotion, not an explicit client "ship it" opt-in.
-	if advisoryQuestion {
-		advisoryChat = true
-	}
-	if !advisoryChat && !advisoryQuestion {
+	if !advisoryChat {
 		return
 	}
-	request := goal.NormalizedRequest
-	if strings.TrimSpace(request) == "" && msg != nil {
-		request = msg.Content
-	}
-	// Keep real image/artifact asks; demote classifier false-positives (e.g. "Design a
-	// theme settings flow" classified as ActionImage) so chat scenarios get prose.
 	switch goal.Action {
-	case ActionImage:
-		if UserRequestsGeneratedImage(request) {
-			return
-		}
-	case ActionArtifact:
-		if UserRequestsArtifact(request) {
-			return
-		}
+	case ActionImage, ActionArtifact, ActionMusic:
+		return
+	}
+	if turnGoalPreservesWorkspaceFix(msg, *goal) {
+		return
 	}
 	goal.Action = ActionAnswer
 	goal.Mutation = MutationNone
 	goal.RequiredCapabilities = nil
 	goal.ExpectedEvidence = []EvidenceKind{EvidenceAnswer}
 	goal.ImplementationSession = false
+}
+
+// turnGoalPreservesWorkspaceFix reports debug/edit workspace-mutation turns that
+// must survive conversation_mode=chat demotion (fix/repair/broken asks).
+func turnGoalPreservesWorkspaceFix(msg *protocol.Message, goal TurnGoal) bool {
+	if goal.Mutation != MutationWorkspace {
+		return false
+	}
+	switch goal.Action {
+	case ActionDebug, ActionEdit, ActionContinue, ActionRun:
+	default:
+		return false
+	}
+	if msg != nil && intent.LooksLikeWorkspaceFixAsk(msg.Content) {
+		return true
+	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		for _, code := range decision.ReasonCodes {
+			switch strings.ToLower(strings.TrimSpace(code)) {
+			case "startup_failure", "runtime_failure", "build_failure", "boot_failure":
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func actionIntentFromSemantic(action intent.Action) ActionIntent {
@@ -420,6 +287,8 @@ func actionIntentFromSemantic(action intent.Action) ActionIntent {
 		return ActionArtifact
 	case intent.ActionImage:
 		return ActionImage
+	case intent.ActionMusic:
+		return ActionMusic
 	case intent.ActionAskUser:
 		return ActionAskUser
 	default:
@@ -476,17 +345,14 @@ func syncTurnGoalImplementationSession(a *Agent, msg *protocol.Message, goal *Tu
 	if a == nil || msg == nil || goal == nil {
 		return
 	}
-	if goal.Action == ActionArtifact || goal.Action == ActionImage {
+	if goal.Action == ActionArtifact || goal.Action == ActionImage || goal.Action == ActionMusic {
 		return
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
 		switch decision.Action {
-		case intent.ActionArtifact, intent.ActionImage:
+		case intent.ActionArtifact, intent.ActionImage, intent.ActionMusic:
 			return
 		}
-	}
-	if UserRequestsMapOrRoute(msg.Content) {
-		return
 	}
 	if !shouldRunImplementationSession(a, msg) {
 		return
@@ -495,9 +361,6 @@ func syncTurnGoalImplementationSession(a *Agent, msg *protocol.Message, goal *Tu
 	goal.Intent = IntentTask
 	switch goal.Action {
 	case ActionAnswer, ActionPlan, ActionInspect, ActionAskUser:
-		if UserRequestsArtifact(goal.NormalizedRequest) {
-			return
-		}
 		goal.Action = ActionEdit
 		goal.Mutation = MutationWorkspace
 		goal.RequiredCapabilities = []string{"workspace_edit"}

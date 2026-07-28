@@ -171,40 +171,13 @@ var (
 	)
 )
 
-// UserRequestsGeneratedImage is a lightweight heuristic for image-generation asks.
+// UserRequestsGeneratedImage is a deprecated phrase-matching heuristic. Routing now
+// trusts the stamped TurnDecision (Action == ActionImage) instead of natural-language
+// phrase matching — see messageSuppressesImageGeneration / tryHubImageGenerationShortcut.
+//
+// Deprecated: always returns false. Do not add new call sites.
 func UserRequestsGeneratedImage(content string) bool {
-	c := strings.ToLower(strings.TrimSpace(content))
-	if c == "" {
-		return false
-	}
-	if c == strings.ToLower(protocol.GeneratedImageDeliveryContent) {
-		return false
-	}
-	if imageGenerationNegationRE.MatchString(c) {
-		return false
-	}
-	// Geographic map/route asks belong to MapsExpert (nj.map), not FLUX image gen.
-	if UserRequestsMapOrRoute(c) {
-		return false
-	}
-	// Neural Canvas / Mermaid / durable artifacts are create_artifact, not FLUX.
-	if UserRequestsArtifact(c) {
-		return false
-	}
-	phrases := []string{
-		"make it an image", "make this an image", "as an image", "as a png",
-		"generate an image", "generate a image", "create an image", "draw me",
-		"draw a ", "show me a diagram", "quick diagram", "show me the cover art",
-	}
-	for _, p := range phrases {
-		if strings.Contains(c, p) {
-			return true
-		}
-	}
-	if imageGenerationIndirectRE.MatchString(c) {
-		return true
-	}
-	return imageGenerationNounRE.MatchString(c) && imageGenerationVerbRE.MatchString(c)
+	return false
 }
 
 // UserRequestsImageWithCompanionText reports mixed turns that need both an
