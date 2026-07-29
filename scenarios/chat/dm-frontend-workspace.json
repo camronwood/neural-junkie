@@ -1,11 +1,19 @@
 {
   "name": "dm-frontend-workspace",
   "description": "FrontendEngineer DM: workspace visibility must use shared context, not fake packages.",
-  "tags": ["dm", "frontend", "workspace", "regression"],
+  "tags": [
+    "dm",
+    "frontend",
+    "workspace",
+    "regression",
+    "canary"
+  ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "FrontendEngineer",
-  "required_agents": ["FrontendEngineer"],
+  "required_agents": [
+    "FrontendEngineer"
+  ],
   "workspace": {
     "fixture": "react-tailwind-minimal",
     "file_tree": "src/\n  App.tsx\n  main.tsx\npackage.json\n"
@@ -14,15 +22,28 @@
     {
       "action": "send",
       "content": "can you see my workspace I have open?",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
     },
-    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "90s" },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "90s"
+    },
     {
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "FrontendEngineer",
-      "any_match": ["workspace context|file tree|Yes — I have|Project:"],
-      "none_match": ["golang.org/x/themes", "I don't have access", "cannot see your files"]
+      "any_match": [
+        "workspace context|file tree|Yes \u2014 I have|Project:"
+      ],
+      "none_match": [
+        "golang.org/x/themes",
+        "I don't have access",
+        "cannot see your files"
+      ]
     }
   ],
   "cleanup": "clear"

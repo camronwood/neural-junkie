@@ -19,13 +19,14 @@ const hfModelsAPI = "https://huggingface.co/api/models"
 
 // SearchHit is one model from Hugging Face Hub search.
 type SearchHit struct {
-	RepoID      string   `json:"repo_id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	Downloads   int64    `json:"downloads,omitempty"`
-	Likes       int64    `json:"likes,omitempty"`
-	Modes       []string `json:"modes,omitempty"`
+	RepoID      string        `json:"repo_id"`
+	Title       string        `json:"title"`
+	Description string        `json:"description,omitempty"`
+	Tags        []string      `json:"tags,omitempty"`
+	Downloads   int64         `json:"downloads,omitempty"`
+	Likes       int64         `json:"likes,omitempty"`
+	Modes       []string      `json:"modes,omitempty"`
+	SizeHint    string        `json:"size_hint,omitempty"`
 	Files       []CatalogFile `json:"files,omitempty"`
 }
 
@@ -88,7 +89,7 @@ func (c *hfSearchClient) listRepoFiles(ctx context.Context, repoID, token, fileK
 		return append([]CatalogFile(nil), entry.Files...), nil
 	}
 
-	target := fmt.Sprintf("https://huggingface.co/api/models/%s/tree/main?recursive=true", url.PathEscape(repoID))
+	target := fmt.Sprintf("https://huggingface.co/api/models/%s/tree/main?recursive=true", escapeHFRepoPath(repoID))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, err
@@ -125,7 +126,8 @@ func (c *hfSearchClient) listRepoFiles(ctx context.Context, repoID, token, fileK
 		if node.Type != "file" {
 			continue
 		}
-		lower := strings.ToLower(node.Path)
+		rel := strings.TrimPrefix(filepath.ToSlash(node.Path), "/")
+		lower := strings.ToLower(rel)
 		switch fileKind {
 		case "adapter":
 			if !strings.HasSuffix(lower, ".safetensors") {
@@ -142,11 +144,17 @@ func (c *hfSearchClient) listRepoFiles(ctx context.Context, repoID, token, fileK
 				continue
 			}
 		}
-		base := path.Base(node.Path)
-		files = append(files, CatalogFile{
-			Filename: base,
-			Quant:    quantFromFilename(base),
-		})
+		base := path.Base(rel)
+		cf := CatalogFile{
+			Filename:  rel,
+			Quant:     quantFromFilename(base),
+			SizeBytes: node.Size,
+			SizeHint:  formatSizeHint(node.Size),
+		}
+		if strings.Contains(strings.ToLower(base), "mmproj") {
+			cf.Role = "mmproj"
+		}
+		files = append(files, cf)
 	}
 	if len(files) == 0 {
 		if fileKind == "adapter" {
@@ -161,6 +169,20 @@ func (c *hfSearchClient) listRepoFiles(ctx context.Context, repoID, token, fileK
 		files = files[:12]
 	}
 	return files, nil
+}
+
+// escapeHFRepoPath escapes each org/name segment for Hub API paths without encoding the slash.
+// url.PathEscape(repoID) turns "org/model" into "org%2Fmodel", which Hub rejects with 400.
+func escapeHFRepoPath(repoID string) string {
+	parts := strings.Split(strings.Trim(strings.TrimSpace(repoID), "/"), "/")
+	escaped := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		escaped = append(escaped, url.PathEscape(p))
+	}
+	return strings.Join(escaped, "/")
 }
 
 func isLikelyAdapterPath(pathLower string) bool {
@@ -273,14 +295,86 @@ func (c *hfSearchClient) search(ctx context.Context, query, mode string, limit, 
 			hit.Tags = append(curated.Tags, hit.Tags...)
 			hit.Modes = append([]string(nil), curated.Modes...)
 			hit.Files = append([]CatalogFile(nil), curated.Files...)
+			hit.SizeHint = curated.SizeHint
+			if hit.SizeHint == "" {
+				hit.SizeHint = primaryFileSizeHint(hit.Files)
+			}
 		}
 		out.Models = append(out.Models, hit)
+	}
+
+	if mode == "local" {
+		enrichLocalSearchSizes(ctx, c, out.Models)
 	}
 
 	c.cacheMu.Lock()
 	c.cache[cacheKey] = cachedHFSearch{at: time.Now(), result: out}
 	c.cacheMu.Unlock()
 	return out, nil
+}
+
+func primaryFileSizeHint(files []CatalogFile) string {
+	if len(files) == 0 {
+		return ""
+	}
+	entry := &LibraryModel{Files: files}
+	if primary := PrimaryCatalogFile(entry); primary != nil {
+		if primary.SizeHint != "" {
+			return primary.SizeHint
+		}
+		if primary.SizeBytes > 0 {
+			return formatSizeHint(primary.SizeBytes)
+		}
+	}
+	for _, f := range files {
+		if fileRole(f) == "mmproj" {
+			continue
+		}
+		if f.SizeHint != "" {
+			return f.SizeHint
+		}
+		if f.SizeBytes > 0 {
+			return formatSizeHint(f.SizeBytes)
+		}
+	}
+	return ""
+}
+
+// enrichLocalSearchSizes fills preferred GGUF file lists + size hints so the UI can
+// show download size before the user opens a card.
+func enrichLocalSearchSizes(ctx context.Context, c *hfSearchClient, hits []SearchHit) {
+	if len(hits) == 0 {
+		return
+	}
+	enrichCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+
+	sem := make(chan struct{}, 6)
+	var wg sync.WaitGroup
+	for i := range hits {
+		if hits[i].SizeHint != "" && len(hits[i].Files) > 0 {
+			continue
+		}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-enrichCtx.Done():
+				return
+			}
+			files, err := c.listRepoFiles(enrichCtx, hits[i].RepoID, "", "gguf")
+			if err != nil || len(files) == 0 {
+				return
+			}
+			hits[i].Files = files
+			if hits[i].SizeHint == "" {
+				hits[i].SizeHint = primaryFileSizeHint(files)
+			}
+		}(i)
+	}
+	wg.Wait()
 }
 
 func (c *hfSearchClient) listGGUF(ctx context.Context, repoID, token string) ([]CatalogFile, error) {
@@ -305,6 +399,39 @@ func quantFromFilename(filename string) string {
 	return ""
 }
 
+// formatSizeHint turns a byte length into a short UI label (e.g. "~4.7 GB").
+func formatSizeHint(n int64) string {
+	if n <= 0 {
+		return ""
+	}
+	const (
+		kb = 1024
+		mb = kb * 1024
+		gb = mb * 1024
+		tb = gb * 1024
+	)
+	switch {
+	case n >= tb:
+		return fmt.Sprintf("~%.1f TB", float64(n)/float64(tb))
+	case n >= gb:
+		v := float64(n) / float64(gb)
+		if v >= 10 {
+			return fmt.Sprintf("~%.0f GB", v)
+		}
+		return fmt.Sprintf("~%.1f GB", v)
+	case n >= mb:
+		v := float64(n) / float64(mb)
+		if v >= 10 {
+			return fmt.Sprintf("~%.0f MB", v)
+		}
+		return fmt.Sprintf("~%.1f MB", v)
+	case n >= kb:
+		return fmt.Sprintf("~%.0f KB", float64(n)/float64(kb))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
+}
+
 func preferCommonQuants(files []CatalogFile) []CatalogFile {
 	if len(files) <= 1 {
 		return files
@@ -312,6 +439,9 @@ func preferCommonQuants(files []CatalogFile) []CatalogFile {
 	preferred := []string{"Q4_K_M", "Q5_K_M", "Q4_0", "Q8_0"}
 	for _, want := range preferred {
 		for _, f := range files {
+			if fileRole(f) == "mmproj" {
+				continue
+			}
 			if strings.EqualFold(f.Quant, want) {
 				rest := make([]CatalogFile, 0, len(files)-1)
 				for _, other := range files {

@@ -197,7 +197,13 @@ func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger
 		looksLikeReAskAfterAffirmation(msg, response, history) ||
 		looksLikeAsksUserToPasteWorkspaceFiles(msg, response) ||
 		looksLikeIgnoresCodebaseAttachments(msg, response) ||
-		looksLikeIgnoresWorkspaceVisibility(msg, response)
+		looksLikeIgnoresWorkspaceVisibility(msg, response) ||
+		looksLikeShallowImplementationReply(msg, response) ||
+		looksLikeWrongModalAccessibilityAnswer(msg, response, history) ||
+		looksLikeSuperficialCodeFixReply(msg, response, history) ||
+		looksLikeUnverifiedRepoEndpointClaim(msg, response) ||
+		looksLikeFabricatedEndpointEndorsement(msg, response) ||
+		looksLikeRepoFactChallengeDoubleDown(msg, response)
 	if directFailure {
 		issues = append(issues, issueDirectness)
 	}
@@ -275,6 +281,56 @@ func shouldRewriteAsSafeFailureForGoal(goal TurnGoal, ledger *ActionEvidenceLedg
 	return true
 }
 
+// shouldKeepOpenCanvasReviseResponse suppresses Edit/AskUser soft-fails when the
+// user clearly asked to revise an open Neural Canvas. Promote should normally
+// stamp ActionArtifact first; this is a safety net so "wasn't able to make
+// changes" / "question prompt" does not replace a usable model reply.
+func shouldKeepOpenCanvasReviseResponse(msg *protocol.Message, goal TurnGoal, issues []responseValidationIssue) bool {
+	if msg == nil || len(issues) == 0 {
+		return false
+	}
+	switch goal.Action {
+	case ActionEdit, ActionContinue, ActionAskUser:
+	default:
+		return false
+	}
+	if !messageHasOpenCanvasArtifact(msg) {
+		return false
+	}
+	if !intent.LooksLikeOpenCanvasReviseAsk(msg.Content) && !intent.LooksLikeOpenCanvasFillAsk(msg.Content) {
+		return false
+	}
+	for _, issue := range issues {
+		switch issue {
+		case issueUnsupportedEdit, issueActionDeflection, issueMissingRequiredEvidence:
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func messageHasOpenCanvasArtifact(msg *protocol.Message) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	raw, ok := msg.Metadata["open_artifact"]
+	if !ok || raw == nil {
+		return false
+	}
+	switch v := raw.(type) {
+	case map[string]interface{}:
+		id, _ := v["id"].(string)
+		return strings.TrimSpace(id) != "" && strings.TrimSpace(id) != "__library__"
+	case map[string]string:
+		id := strings.TrimSpace(v["id"])
+		return id != "" && id != "__library__"
+	default:
+		return false
+	}
+}
+
 func goalHasExpectedEvidence(goal TurnGoal, ledger *ActionEvidenceLedger) bool {
 	for _, kind := range goal.ExpectedEvidence {
 		if ledger.Has(kind) {
@@ -333,10 +389,22 @@ func safeActionFailure(goal TurnGoal, ledger *ActionEvidenceLedger) string {
 }
 
 func buildResponseValidationRetryPrompt(goal TurnGoal, ledger *ActionEvidenceLedger, msg *protocol.Message) string {
+	prefix := "Answer the user's latest request directly. Do not repeat questions, ignore supplied context, or claim actions not shown by the evidence.\n" +
+		"Honor ACTIVE CORRECTION names from durable conversation state — never revive superseded labels.\n"
+	if msg != nil && looksLikeCodeCritiqueFollowUp(msg.Content) {
+		prefix += "The user is correcting bugs in code you previously showed. Fix EVERY issue they named in a complete code block — assign refs before restore, remove duplicate handlers, avoid broken event-target guards, call onClose on Escape (never console.log placeholders), keep Tab focus-trap cycling, capture document.activeElement for restore (no getElementById hacks), call hooks before early returns, and never assign to hook boolean params like isOpen = false.\n"
+	}
+	if msg != nil && modalAccessibilityGapFollowUp(msg.Content) {
+		prefix += "For modal accessibility gap-fill: querySelectorAll does NOT exclude display:none — filter with Array.from(...).filter(el => el.offsetParent !== null); put tabIndex={-1} on the dialog in JSX (not setAttribute at runtime); guard the ENTIRE keydown handler (Escape AND Tab) with dialogRef.current.contains(document.activeElement) so nested modals/popovers on top are not affected.\n"
+	}
+	if msg != nil && looksLikeConcreteCodeRequest(msg.Content) {
+		prefix += "The user asked for working code, not a strategy memo. Lead with a complete copy-paste-ready code block. For modal focus traps: intercept Tab/Shift+Tab ONLY at the first/last focusable boundary (document.activeElement === first|last) so normal tabbing works inside the dialog; call onClose on Escape; capture document.activeElement to a ref and restore it in effect cleanup; guard with if (!isOpen) return before querying modalRef when the component returns null while closed — do not assign isOpen = false inside handlers.\n"
+	}
+	if msg != nil && (looksLikeRepoFactAsk(msg.Content) || looksLikeRepoFactChallengeFollowUp(msg.Content)) {
+		prefix += "Do not invent HTTP paths or endorse arbitrary user-suggested endpoints as correct. Admit uncertainty unless verified in workspace/tool output.\n"
+	}
 	return fmt.Sprintf(
-		"Answer the user's latest request directly. Do not repeat questions, ignore supplied context, or claim actions not shown by the evidence.\n"+
-			"Honor ACTIVE CORRECTION names from durable conversation state — never revive superseded labels.\n"+
-			"TURN GOAL: %s\nACTION: %s\nEVIDENCE: %+v\n",
+		prefix+"TURN GOAL: %s\nACTION: %s\nEVIDENCE: %+v\n",
 		goal.NormalizedRequest, goal.Action, ledger.Entries(),
 	) + ai.SystemPromptSeparator + strings.TrimSpace(msg.Content)
 }

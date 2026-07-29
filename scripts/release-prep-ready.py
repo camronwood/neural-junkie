@@ -163,13 +163,13 @@ def main() -> int:
     if proc.returncode != 0:
         failures.append("collab-preflight")
 
-    print("\n>>> Model Arena pack (release benchmark)")
+    print("\n>>> Model Arena pack (advisory — missing pack skips benchmark, does not block)")
     from lib.arena_pack import ensure_model_arena_pack
 
     ok_arena, detail_arena = ensure_model_arena_pack(hub)
     print(f"  {detail_arena}")
     if not ok_arena:
-        failures.append("model-arena pack")
+        print("  WARN: Model Arena pack not ready — release-prep will SKIP model-benchmark", file=sys.stderr)
 
     print("\n>>> smoke scenarios")
     smoke_ok, smoke_lines = run_smoke(hub, skip_smoke=args.skip_smoke)

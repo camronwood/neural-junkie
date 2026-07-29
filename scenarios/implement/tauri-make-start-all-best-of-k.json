@@ -1,12 +1,14 @@
 {
   "name": "tauri-make-start-all-best-of-k",
-  "description": "Boot-fix with best-of-K exploration (ComPilot-style multi-run) for Makefile start-all repair.",
+  "description": "Boot-fix with best-of-K exploration (ComPilot-style multi-run) for Makefile start-all repair. Optional soak twin \u2014 excluded from default implement --all.",
   "tags": [
     "implement",
     "boot-fix",
     "tauri",
     "fix-loop",
-    "best-of-k"
+    "best-of-k",
+    "soak",
+    "optional"
   ],
   "channel": "implement-scenarios",
   "channel_type": "public",
@@ -76,5 +78,6 @@
       }
     }
   ],
-  "cleanup": "clear"
+  "cleanup": "clear",
+  "optional": true
 }

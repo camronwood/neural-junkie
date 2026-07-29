@@ -27,11 +27,13 @@ JSON lives under `scenarios/user-flows/{implement,collab}/` so the implement **2
 
 One-shot user-flows catch “can the agent ship from a single paste?” Journeys catch the failure modes real sessions hit: clarify → constrain → mid-course correction → finish. Each is tagged `journey` + `long-horizon` (≥4 user sends) and still gates on **disk deliverables**, not chat phrases.
 
-**Default suite:** journeys (and a few greenfield flows still landing) have `skip_reason` so `make user-flow-scenarios` / `--all` does **not** block beta releases. Force-run any one with:
+**Default suite / quarantine:** User-flows are **not** Tier A ship gates ([TEST_PORTFOLIO.md](TEST_PORTFOLIO.md)). Prefer `make layer-climb` for daily confidence. Force-run any one with:
 
 ```bash
 make user-flow-scenario SCENARIO=journey-crud-clarify-correct VERBOSE=1
 ```
+
+`trip-research-vacation` has `skip_reason` (mapping tooling not landed) and is skipped in `--all`. Journeys and other greenfield flows **do** run in `make user-flow-scenarios` / `LAYER=user-flows` — treat that layer as quarantine until it posts **2 consecutive green overnight** runs.
 
 | Scenario | Turns shape | Goal on disk |
 |----------|-------------|--------------|

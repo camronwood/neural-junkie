@@ -22,6 +22,7 @@ from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noq
 from lib.regression_boot import ensure_ollama_stack, maybe_boot_regression  # noqa: E402
 from lib.release_prep_layers import (  # noqa: E402
     LAYER_ORDER,
+    QUARANTINE_ORDER,
     get_layer,
     layer_report_paths,
     list_layers,
@@ -99,7 +100,7 @@ def apply_verbose_to_stage_cmd(cmd: list[str], *, verbose: bool) -> tuple[list[s
 
 def ensure_hub_for_layer(hub_url: str, *, no_restart: bool, layer: str = "", cwd: Path = ROOT) -> bool:
     repo = cwd.resolve()
-    restart_layers = {"implement", "collab", "collab-core", "collab-full", "user-flows"}
+    restart_layers = {"implement", "chat", "chat-full", "collab", "collab-core", "collab-full", "user-flows"}
     if layer in restart_layers and not no_restart:
         print("\n=== Layer gate Ollama prep ===")
         if not ensure_ollama_stack(repo):
@@ -176,7 +177,11 @@ def write_report(
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--layer", required=True, help=f"Layer name: {', '.join(LAYER_ORDER)}")
+    p.add_argument(
+        "--layer",
+        required=True,
+        help=f"Layer name: {', '.join(LAYER_ORDER + QUARANTINE_ORDER)}",
+    )
     p.add_argument("--hub", default=os.environ.get("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765"))
     p.add_argument("--log-dir", default=str(DEFAULT_TESTING_DIR))
     p.add_argument("--stamp", help="UTC stamp for report filenames (default: now)")
@@ -187,9 +192,14 @@ def main() -> int:
     args = p.parse_args()
 
     if args.list:
+        print("climb + soak:")
         for spec in list_layers():
             nxt = f" → {spec.next_layer}" if spec.next_layer else ""
-            print(f"{spec.name:12} ~{spec.est_minutes:3}m  hub={spec.requires_hub}  {spec.description}{nxt}")
+            print(f"  {spec.name:12} ~{spec.est_minutes:3}m  tier={spec.tier:11}  hub={spec.requires_hub}  {spec.description}{nxt}")
+        print("quarantine (not in climb; docs/TEST_PORTFOLIO.md):")
+        for name in QUARANTINE_ORDER:
+            spec = get_layer(name)
+            print(f"  {spec.name:12} ~{spec.est_minutes:3}m  tier={spec.tier:11}  hub={spec.requires_hub}  {spec.description}")
         return 0
 
     try:

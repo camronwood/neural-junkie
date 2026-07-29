@@ -1,10 +1,12 @@
 {
   "name": "react-theme-multi-file",
-  "description": "Single prompt lands tailwind darkMode and App.tsx theme wiring without a go-ahead turn.",
+  "description": "Single prompt lands tailwind darkMode and App.tsx theme wiring without a go-ahead turn. Optional soak twin \u2014 excluded from default implement --all.",
   "tags": [
     "implement",
     "frontend",
-    "multi-file"
+    "multi-file",
+    "soak",
+    "optional"
   ],
   "channel": "implement-scenarios",
   "channel_type": "public",
@@ -103,5 +105,6 @@
       ]
     }
   ],
-  "cleanup": "clear"
+  "cleanup": "clear",
+  "optional": true
 }

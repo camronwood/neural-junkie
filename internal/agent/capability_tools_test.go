@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
@@ -77,6 +78,92 @@ func TestShouldOfferCapabilityTools_presencePing(t *testing.T) {
 	}
 	if !shouldOfferCapabilityTools(&protocol.Message{Content: "activate biology-api and analyze this FASTA"}) {
 		t.Fatal("expected capability tools for a real capability task")
+	}
+}
+
+func TestShouldOfferCapabilityHandoff_readinessPingEvenIfMisclassifiedAsTask(t *testing.T) {
+	t.Parallel()
+	// Regression: "Hello, are you ready?" opened a BackendEngineer handoff with an
+	// invented Express task. The user text is chat-shaped (no work signals); handoff
+	// must stay off even when the stamp wrongly says task/edit.
+	for _, content := range []string{
+		"Hello, are you ready?",
+		"are you ready?",
+		"you ready?",
+	} {
+		msg := &protocol.Message{Content: content}
+		if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+			SchemaVersion:   intent.SchemaVersion,
+			Interaction:     intent.InteractionTask,
+			RequestedAction: intent.ActionEdit,
+			Action:          intent.ActionEdit,
+			Mutation:        intent.MutationWorkspace,
+			Confidence:      1,
+			Source:          intent.SourceLocalModel,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if !shouldOfferCapabilityTools(msg) {
+			t.Fatalf("activate may still be offered under a bad stamp for %q; handoff is the hard gate", content)
+		}
+		if shouldOfferCapabilityHandoff(msg) {
+			t.Fatalf("expected capability handoff suppressed for readiness ping %q", content)
+		}
+	}
+}
+
+func TestShouldOfferCapabilityHandoff_unstampedWithoutWorkSignals(t *testing.T) {
+	t.Parallel()
+	msg := &protocol.Message{Content: "Hello, are you ready?"}
+	if shouldOfferCapabilityTools(msg) {
+		t.Fatal("unstamped readiness ping must not offer capability tools")
+	}
+	if shouldOfferCapabilityHandoff(msg) {
+		t.Fatal("unstamped readiness ping must not offer capability handoff")
+	}
+}
+
+func TestShouldOfferCapabilityHandoff_allowsConcreteWork(t *testing.T) {
+	t.Parallel()
+	msg := &protocol.Message{Content: "debug the failing auth middleware in auth.go"}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Interaction:     intent.InteractionTask,
+		RequestedAction: intent.ActionDebug,
+		Action:          intent.ActionDebug,
+		Mutation:        intent.MutationWorkspace,
+		Confidence:      1,
+		Source:          intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !shouldOfferCapabilityHandoff(msg) {
+		t.Fatal("expected handoff tools for a concrete debug ask")
+	}
+}
+
+func TestExecuteRequestCapabilityHelpTool_refusesReadinessPingDespiteConcreteTask(t *testing.T) {
+	t.Parallel()
+	ctx := withCapabilityHandoffTurnState(context.Background())
+	a := &Agent{Info: protocol.AgentInfo{ID: "a1", Name: "Code-Expert-VibeCoding", Type: protocol.AgentTypeExpert}}
+	msg := &protocol.Message{
+		ID:      "m1",
+		Channel: "dm-camron-code-expert-vibecoding",
+		From:    protocol.AgentInfo{Name: "Camron"},
+		Content: "Hello, are you ready?",
+	}
+	// Invented concrete task like the live failure — must still refuse based on user turn.
+	out, err := a.executeRequestCapabilityHelpTool(ctx, msg, []byte(
+		`{"capability_id":"software-development/sd-mcp-sidecar","task":"Initialize a new project with package.json and src/index.js, then create a basic Express server that logs Hello Vibe to the console on startup."}`,
+	))
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if !strings.Contains(strings.ToLower(out), "not appropriate") && !strings.Contains(strings.ToLower(out), "locally") {
+		t.Fatalf("expected user-turn refusal, got %q", out)
+	}
+	if st := capabilityHandoffTurnStateFromContext(ctx); st == nil || st.count != 0 {
+		t.Fatal("readiness refusal must not consume the per-turn budget")
 	}
 }
 

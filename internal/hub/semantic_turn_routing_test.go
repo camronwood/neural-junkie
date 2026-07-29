@@ -267,3 +267,56 @@ func TestResolveSemanticTurnAdvisoryQuestionDoesNotStampImplSession(t *testing.T
 		t.Fatalf("advisory decision=%+v", decision)
 	}
 }
+
+func TestSemanticTurnFeaturesFillsRendererWhenClientOmitsIt(t *testing.T) {
+	h := NewHub()
+	ch := "dm-canvas-renderer"
+	h.CreateChannelWithType(ch, "", "", protocol.ChannelTypeDM, "user")
+	prior := protocol.NewMessage(protocol.MessageTypeAnswer, ch, protocol.AgentInfo{
+		ID: "assistant", Name: "Assistant", Type: "assistant",
+	}, "Updated the Neural Canvas.")
+	prior.Metadata = map[string]interface{}{
+		"artifact_ref": map[string]interface{}{
+			"id": "art-trip-1", "renderer_id": "nj.markdown", "title": "Trip Planning",
+		},
+	}
+	h.mu.Lock()
+	h.messages[ch] = append(h.messages[ch], prior)
+	h.mu.Unlock()
+
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, ch, protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "the 3rd item is Arrive in Flordia")
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode: "agent",
+		"open_artifact": map[string]interface{}{
+			"id": "art-trip-1", "title": "Trip Planning",
+		},
+	}
+	features := h.semanticTurnFeatures(msg)
+	if features.OpenArtifactID != "art-trip-1" {
+		t.Fatalf("open id=%q", features.OpenArtifactID)
+	}
+	if features.OpenArtifactRenderer != "nj.markdown" {
+		t.Fatalf("renderer=%q, want filled from history", features.OpenArtifactRenderer)
+	}
+}
+
+func TestSemanticTurnFeaturesDefaultsRendererWhenHistoryMissing(t *testing.T) {
+	h := NewHub()
+	ch := "dm-canvas-default"
+	h.CreateChannelWithType(ch, "", "", protocol.ChannelTypeDM, "user")
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, ch, protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "ok add a 3rd list item")
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode: "agent",
+		"open_artifact": map[string]interface{}{
+			"id": "art-orphan-1", "title": "Trip Planning",
+		},
+	}
+	features := h.semanticTurnFeatures(msg)
+	if features.OpenArtifactRenderer != "nj.markdown" {
+		t.Fatalf("renderer=%q, want default nj.markdown", features.OpenArtifactRenderer)
+	}
+}

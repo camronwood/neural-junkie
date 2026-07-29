@@ -691,11 +691,30 @@ def _run_scenario_once(
     return all_ok, outcome, last_detail
 
 
+def _list_implement_names(*, include_optional: bool) -> list[str]:
+    names: list[str] = []
+    for path in sorted(SCENARIOS_DIR.glob("*.json")):
+        try:
+            sc = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            names.append(path.stem)
+            continue
+        if sc.get("optional") and not include_optional:
+            continue
+        names.append(path.stem)
+    return names
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--list", action="store_true")
     p.add_argument("--scenario")
     p.add_argument("--all", action="store_true")
+    p.add_argument(
+        "--include-optional",
+        action="store_true",
+        help="Include optional/soak twin scenarios in --all (default: skip optional)",
+    )
     p.add_argument("--runs", type=int, default=1, help="Repeat each scenario N times and report pass-rate stats")
     p.add_argument("--best-of-k", type=int, default=0, help="Report best-of-K pass rate across run groups (requires --runs >= K)")
     p.add_argument("--hub", default=hub.DEFAULT_HUB)
@@ -707,13 +726,33 @@ def main() -> int:
         SCENARIOS_DIR = Path(args.pack_dir).resolve() / "scenarios" / "implement"
     elif os.environ.get("NJ_PACK_SCENARIOS_DIR", "").strip():
         SCENARIOS_DIR = Path(os.environ["NJ_PACK_SCENARIOS_DIR"]).resolve()
+    include_optional = args.include_optional or os.environ.get("NJ_IMPLEMENT_INCLUDE_OPTIONAL", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     if args.list:
         for f in sorted(SCENARIOS_DIR.glob("*.json")):
-            print(f.stem)
+            try:
+                sc = json.loads(f.read_text(encoding="utf-8"))
+                opt = " (optional)" if sc.get("optional") else ""
+            except (OSError, json.JSONDecodeError):
+                opt = ""
+            print(f"{f.stem}{opt}")
         return 0
     if not maybe_boot_regression(args.hub, root=ROOT, label="implement-scenarios"):
         return 1
-    names = [f.stem for f in sorted(SCENARIOS_DIR.glob("*.json"))] if args.all else ([args.scenario] if args.scenario else [])
+    if args.all:
+        names = _list_implement_names(include_optional=include_optional)
+        skipped = [
+            f.stem
+            for f in sorted(SCENARIOS_DIR.glob("*.json"))
+            if f.stem not in names
+        ]
+        if skipped and not include_optional:
+            print(f"  skipping {len(skipped)} optional soak twin(s): {', '.join(skipped)}")
+    else:
+        names = [args.scenario] if args.scenario else []
     if not names:
         p.print_help()
         return 1
@@ -734,7 +773,7 @@ def main() -> int:
             print(f"  FAIL: required agents offline: {missing}", file=sys.stderr)
             print("  Enable software-development pack and ensure hub agents are active.", file=sys.stderr)
             return 1
-        print(f"  preflight: {len(all_agents)} agent(s) online: {', '.join(sorted(all_agents))}")
+        print(f"  preflight: {len(all_agents)} agent(s) online: {', '.join(sorted(all_agents))} ({len(names)} scenarios)")
     failed = sum(
         1
         for n in names

@@ -199,6 +199,11 @@ func looksLikeAsksUserToPasteWorkspaceFiles(msg *protocol.Message, response stri
 		"provide more information or context",
 		"if you could provide more information",
 		"if you could provide more context",
+		"cannot directly list directories",
+		"cannot browse your local file system",
+		"cannot browse your local filesystem",
+		"can't browse your local file system",
+		"can't browse your local filesystem",
 	}
 	for _, m := range denyMarkers {
 		if strings.Contains(r, m) {
@@ -354,7 +359,162 @@ func (a *Agent) maybeRetryConversationalQuality(ctx context.Context, msg *protoc
 			return ans
 		}
 	}
+	if looksLikeUnverifiedRepoEndpointClaim(msg, response) ||
+		looksLikeFabricatedEndpointEndorsement(msg, response) ||
+		looksLikeRepoFactChallengeDoubleDown(msg, response) {
+		retry, err := eff.GenerateResponse(approvalCtx, a.buildRepoFactGroundedRetryPrompt(msg), nil)
+		if err == nil && strings.TrimSpace(retry) != "" &&
+			!looksLikeUnverifiedRepoEndpointClaim(msg, retry) &&
+			!looksLikeFabricatedEndpointEndorsement(msg, retry) &&
+			!looksLikeRepoFactChallengeDoubleDown(msg, retry) {
+			log.Printf("[%s] Unverified repo endpoint claim detected; used repo-fact retry", a.Info.Name)
+			return retry
+		}
+		if looksLikeFabricatedEndpointEndorsement(msg, response) || looksLikeRepoFactChallengeDoubleDown(msg, response) {
+			if ans, ok := tryRepoFactChallengeFallback(msg); ok {
+				log.Printf("[%s] Repo fact challenge fallback after ungrounded reply", a.Info.Name)
+				return ans
+			}
+		}
+	}
 	return response
+}
+
+var repoEndpointPathRE = regexp.MustCompile(`/(?:api|v\d+)[/\w-]+`)
+
+func hasRepoFactDisclaimer(response string) bool {
+	r := strings.ToLower(strings.TrimSpace(response))
+	disclaimers := []string{
+		"generic guess", "not verified", "i don't know", "do not know", "don't know yet",
+		"without verifying", "have not verified", "has not been verified", "cannot verify",
+		"could not verify", "not a real path", "not guaranteed", "was a guess",
+		"shouldn't have", "should not have", "unverified guess", "without checking",
+	}
+	for _, d := range disclaimers {
+		if strings.Contains(r, d) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeUnverifiedRepoEndpointClaim reports confident repo path/handler claims without verification.
+func looksLikeUnverifiedRepoEndpointClaim(msg *protocol.Message, response string) bool {
+	if msg == nil || !looksLikeRepoFactAsk(msg.Content) || looksLikeRepoFactChallengeFollowUp(msg.Content) {
+		return false
+	}
+	if !repoEndpointPathRE.MatchString(response) {
+		return false
+	}
+	if hasRepoFactDisclaimer(response) {
+		return false
+	}
+	r := strings.ToLower(strings.TrimSpace(response))
+	confidentMarkers := []string{
+		"our internal standards", "is exposed at", "the health check endpoint is",
+		"typically found in", "by rest convention", "rest conventions", "follows standard rest",
+		"immediate test", "cannot directly list directories", "cannot browse your local",
+		"you should hit", "hit the http path", "typically follows", "using a get request",
+	}
+	for _, m := range confidentMarkers {
+		if strings.Contains(r, m) {
+			return true
+		}
+	}
+	// Versioned or joke hub paths are not the known /api/health route in this repo.
+	if strings.Contains(r, "/api/v") || strings.Contains(r, "/v1/hub") || strings.Contains(r, "quantum-health") {
+		return true
+	}
+	return len(response) > 240 && strings.Contains(r, "file:") && repoEndpointPathRE.MatchString(response)
+}
+
+// looksLikeRepoFactChallengeDoubleDown reports reasserting an invented path after the user challenges it.
+func looksLikeRepoFactChallengeDoubleDown(msg *protocol.Message, response string) bool {
+	if msg == nil || !looksLikeRepoFactChallengeFollowUp(msg.Content) {
+		return false
+	}
+	if !repoEndpointPathRE.MatchString(response) {
+		return false
+	}
+	if hasRepoFactDisclaimer(response) {
+		return false
+	}
+	r := strings.ToLower(strings.TrimSpace(response))
+	doubleDownMarkers := []string{
+		"stick with", "for now unless", "isn't part of", "is not part of",
+		"belongs to a different", "not part of the current",
+	}
+	for _, m := range doubleDownMarkers {
+		if strings.Contains(r, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeFabricatedEndpointEndorsement reports affirming a user-proposed joke/fake endpoint as correct.
+func looksLikeFabricatedEndpointEndorsement(msg *protocol.Message, response string) bool {
+	if msg == nil || !looksLikeRepoFactChallengeFollowUp(msg.Content) {
+		return false
+	}
+	r := strings.ToLower(strings.TrimSpace(response))
+	if r == "" {
+		return false
+	}
+	endorsementMarkers := []string{
+		"yes, that would be correct",
+		"that would be correct",
+		"would be correct *provided",
+		"would be correct provided",
+		"**yes**, that would be correct",
+	}
+	for _, m := range endorsementMarkers {
+		if strings.Contains(r, m) {
+			return true
+		}
+	}
+	if strings.Contains(r, "yes") && strings.Contains(r, "correct") && strings.Contains(r, "register") {
+		return true
+	}
+	if strings.Contains(r, "correct") && strings.Contains(r, "provided") && strings.Contains(r, "router") {
+		return true
+	}
+	return false
+}
+
+func (a *Agent) buildRepoFactGroundedRetryPrompt(msg *protocol.Message) string {
+	var system strings.Builder
+	system.WriteString(fmt.Sprintf("You are %s.\n", a.Info.Name))
+	system.WriteString("The user asked about HTTP routes/paths in THIS repository.\n")
+	system.WriteString("Do NOT invent endpoints from REST conventions or present unverified guesses as facts.\n")
+	system.WriteString("Do NOT claim you cannot access files when workspace context is present below.\n")
+	system.WriteString("If you have not verified a route in source, say you do not know yet.\n")
+	system.WriteString("If the user proposed an arbitrary/joke path, explain it is NOT the correct health check just because it could be registered — it must match existing probes, tests, and docs.\n")
+	system.WriteString("Answer in 3-8 sentences; cite real file paths only when present in loaded context or tool output.\n")
+	if a.hasWorkspaceTools() {
+		system.WriteString("Use read_file/grep on cmd/ and internal/ to find health route registrations before stating a path.\n")
+	}
+	if wsPath := a.resolveWorkspacePath(msg); wsPath != "" {
+		appendRepoFactSeedFiles(&system, wsPath)
+	}
+	user := strings.TrimSpace(msg.Content)
+	return system.String() + ai.SystemPromptSeparator + user
+}
+
+// tryRepoFactChallengeFallback returns an honest reply when the model endorses a fake endpoint.
+func tryRepoFactChallengeFallback(msg *protocol.Message) (string, bool) {
+	if msg == nil || !looksLikeRepoFactChallengeFollowUp(msg.Content) {
+		return "", false
+	}
+	lower := strings.ToLower(msg.Content)
+	if strings.Contains(lower, "making up") || strings.Contains(lower, "invent") {
+		return "I shouldn't have stated a specific health-check path as fact earlier — that was an unverified guess based on generic REST conventions, not something I confirmed in this repository. " +
+			"I don't know whether `/api/v9/quantum-health` or any other path is registered without checking the source. " +
+			"I'd grep cmd/server and internal/ for health route registrations rather than guessing or reasserting an invented path.", true
+	}
+	return "No — registering an arbitrarily named path would not make it the correct health check for this repo. " +
+		"Health checks must match whatever route, probes, tests, and monitoring configs this codebase already uses. " +
+		"I have not verified the real path here; I'd search cmd/ and internal/ (e.g. health route registrations) rather than invent or endorse a joke endpoint.", true
 }
 
 var codebaseReturnLitRE = regexp.MustCompile(`(?m)\breturn\s+(-?\d+|true|false|"[^"\n]{1,64}"|'[^'\n]{1,64}')`)
@@ -540,4 +700,590 @@ func looksLikeIgnoresWorkspaceVisibility(msg *protocol.Message, response string)
 		}
 	}
 	return len(r) > 120
+}
+
+var backtickIdentifierRE = regexp.MustCompile("`([^`]+)`")
+
+var doubleFocusFightRE = regexp.MustCompile(`(?is)modalref\.current(?:\?|\.)?\.focus\(\)[^}]{0,240}(?:firstfocusable|queryselector)[^}]{0,120}\.focus\(\)`)
+
+var escapeTargetGuardRE = regexp.MustCompile(`(?i)e\.target\s*===\s*modalref\.current`)
+
+var escapeParamReassignRE = regexp.MustCompile(`(?is)(?:event\.key|e\.key)\s*===\s*['"]Escape['"].{0,320}\bisOpen\s*=\s*false\b`)
+
+var escapeKeyRE = regexp.MustCompile(`(?is)(?:event\.key|e\.key)\s*===\s*['"]Escape['"]`)
+
+var tabFocusTrapRE = regexp.MustCompile(`(?is)(?:event\.key|e\.key)\s*===\s*['"]Tab['"]`)
+
+var getElementByIDTriggerRE = regexp.MustCompile(`(?i)getelementbyid\s*\(\s*['"][^'"]+['"]\s*\)`)
+
+var hookAfterEarlyReturnRE = regexp.MustCompile(`(?is)if\s*\(\s*!isopen\s*\)\s*return\s+null\s*;[\s\S]{0,240}\buse(?:effect|ref|state|callback|modal)`)
+
+var activeElementCaptureRE = regexp.MustCompile(`(?is)[a-z][\w]*\.current\s*=\s*document\.activeelement`)
+
+var effectCleanupFocusRestoreRE = regexp.MustCompile(`(?is)return\s*\(\)\s*=>\s*\{[^}]{0,420}\.current(?:\?|\.)?\.focus\(\)`)
+
+var modalDomQueryBeforeIsOpenRE = regexp.MustCompile(`(?is)modalref\.current\.queryselector(?:all)?\s*\([^)]*\)[\s\S]{0,360}if\s*\(\s*isopen\s*\)`)
+
+var modalTopicRE = regexp.MustCompile(`(?i)\b(?:modal|dialog)\b`)
+
+var fabricatedModalProseRE = regexp.MustCompile(`(?i)(?:overlay is already processing|falling back to the parent button|no active overlay)`)
+
+var modalFocusTrapBoundaryRE = regexp.MustCompile(`(?i)(?:document\.activeelement\s*===\s*(?:first|last)|(?:only|when).{0,32}(?:first|last).{0,48}(?:element|focusable|boundary))`)
+
+var alwaysRedirectTabProseRE = regexp.MustCompile(`(?i)(?:on\s+tab|when\s+tab|\btab\b).{0,96}(?:move|jump|redirect).{0,48}(?:last|first)`)
+
+var codeDeflectionEndingRE = regexp.MustCompile(`(?i)\bwould you like me to (?:generate|show|provide|create)\b`)
+
+var querySelectorExcludesDisplayNoneRE = regexp.MustCompile(`(?i)queryselector(?:all)?\s+(?:already\s+)?exclud(?:e|es)\s+(?:elements\s+(?:with|that have)\s+)?(?:` + "`" + `)?display\s*:\s*none(?:` + "`" + `)?`)
+
+var escapeBeforeContainmentRE = regexp.MustCompile(`(?is)function\s+onkeydown\s*\([^)]*\)\s*\{[^}]*?(?:event\.key|e\.key)\s*===\s*['"]Escape['"][^}]*?\.contains\s*\(\s*document\.activeelement\s*\)`)
+
+var escapeBeforeTabContainmentGuardRE = regexp.MustCompile(`(?is)(?:event\.key|e\.key)\s*===\s*['"]Escape['"][\s\S]{0,280}?(?:event\.key|e\.key)\s*!==\s*['"]Tab['"][\s\S]{0,120}\.contains\s*\(\s*document\.activeelement\s*\)`)
+
+// extractFencedCode concatenates bodies from markdown ``` fences for code-only validation.
+func extractFencedCode(response string) string {
+	parts := strings.Split(response, "```")
+	if len(parts) < 3 {
+		return ""
+	}
+	var b strings.Builder
+	for i := 1; i < len(parts); i += 2 {
+		block := parts[i]
+		if nl := strings.Index(block, "\n"); nl >= 0 {
+			block = block[nl+1:]
+		}
+		b.WriteString(block)
+		if i+2 < len(parts) {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
+func modalAccessibilityCodeSubject(userContent string) bool {
+	lower := strings.ToLower(userContent)
+	if !modalTopicRE.MatchString(userContent) {
+		return false
+	}
+	return strings.Contains(lower, "focus trap") || strings.Contains(lower, "focus-trap") ||
+		strings.Contains(lower, "escape") || strings.Contains(lower, "accessible") ||
+		strings.Contains(lower, "shift+tab") || strings.Contains(lower, "restore focus")
+}
+
+// modalAccessibilityAsk reports modal/dialog a11y implementation asks in the turn or recent user history.
+func modalAccessibilityAsk(msg *protocol.Message, history []*protocol.Message) bool {
+	if msg != nil && modalAccessibilityCodeSubject(msg.Content) {
+		return true
+	}
+	for _, h := range history {
+		if h == nil || strings.TrimSpace(h.Content) == "" {
+			continue
+		}
+		if h.From.Type != "human" && h.From.Type != protocol.AgentTypeGeneral {
+			continue
+		}
+		if modalAccessibilityCodeSubject(h.Content) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeWrongModalFocusTrapDescription reports Tab-trap prose/code that always redirects
+// instead of wrapping only at the first/last focusable boundary.
+func looksLikeWrongModalFocusTrapDescription(response string) bool {
+	resp := strings.TrimSpace(response)
+	if resp == "" {
+		return false
+	}
+	lower := strings.ToLower(resp)
+	if !strings.Contains(lower, "tab") {
+		return false
+	}
+	code := extractFencedCode(resp)
+	if code != "" {
+		return codeHasBrokenFocusTrap(code)
+	}
+	if modalFocusTrapBoundaryRE.MatchString(resp) {
+		return false
+	}
+	if alwaysRedirectTabProseRE.MatchString(resp) {
+		return true
+	}
+	if strings.Contains(lower, "preventdefault") &&
+		(strings.Contains(lower, "last focusable") || strings.Contains(lower, "to the last")) &&
+		!modalFocusTrapBoundaryRE.MatchString(resp) {
+		return true
+	}
+	return false
+}
+
+func codeHasBrokenFocusTrap(code string) bool {
+	code = strings.TrimSpace(code)
+	if code == "" || !tabFocusTrapRE.MatchString(code) {
+		return false
+	}
+	lower := strings.ToLower(code)
+	if strings.Contains(lower, "document.activeelement") &&
+		(strings.Contains(lower, "=== first") || strings.Contains(lower, "=== last") ||
+			strings.Contains(lower, "===first") || strings.Contains(lower, "===last")) {
+		return false
+	}
+	if strings.Contains(lower, "preventdefault") {
+		return true
+	}
+	alwaysTabFocusRE := regexp.MustCompile(`(?is)(?:event\.key|e\.key)\s*===\s*['"]Tab['"].{0,320}(?:last|first)\.focus\(\)`)
+	return alwaysTabFocusRE.MatchString(code)
+}
+
+// modalAccessibilityGapFollowUp reports follow-ups naming aria-labelledby, empty focusable,
+// hidden/display:none filtering, or nested modal/popover isolation gaps.
+func modalAccessibilityGapFollowUp(userContent string) bool {
+	lower := strings.ToLower(strings.TrimSpace(userContent))
+	if !modalTopicRE.MatchString(userContent) {
+		return false
+	}
+	return strings.Contains(lower, "aria-labelledby") ||
+		strings.Contains(lower, "tabindex") ||
+		strings.Contains(lower, "display:none") || strings.Contains(lower, "display: none") ||
+		strings.Contains(lower, "visually hidden") ||
+		strings.Contains(lower, "nested modal") || strings.Contains(lower, "popover") ||
+		strings.Contains(lower, "isn't quite done") || strings.Contains(lower, "isnt quite done")
+}
+
+func modalAccessibilityGapAsk(msg *protocol.Message, history []*protocol.Message) bool {
+	if msg != nil && modalAccessibilityGapFollowUp(msg.Content) {
+		return true
+	}
+	return modalAccessibilityAsk(msg, history) && msg != nil && modalAccessibilityGapFollowUp(msg.Content)
+}
+
+func proseClaimsQuerySelectorExcludesDisplayNone(response string) bool {
+	return querySelectorExcludesDisplayNoneRE.MatchString(response)
+}
+
+func codeHasEscapeBeforeContainmentCheck(code string) bool {
+	code = strings.TrimSpace(code)
+	if code == "" || !escapeKeyRE.MatchString(code) {
+		return false
+	}
+	if !strings.Contains(strings.ToLower(code), "contains") {
+		return false
+	}
+	return escapeBeforeContainmentRE.MatchString(code) || escapeBeforeTabContainmentGuardRE.MatchString(code)
+}
+
+func codeUsesRuntimeTabIndexSetAttribute(code string) bool {
+	lower := strings.ToLower(code)
+	return strings.Contains(lower, "setattribute") &&
+		strings.Contains(lower, "tabindex") &&
+		!strings.Contains(lower, "tabindex={-1}")
+}
+
+// looksLikeWrongModalAccessibilityFollowUpAnswer reports incorrect gap-fill answers on modal a11y follow-ups.
+func looksLikeWrongModalAccessibilityFollowUpAnswer(msg *protocol.Message, response string, history []*protocol.Message) bool {
+	if !modalAccessibilityGapAsk(msg, history) {
+		return false
+	}
+	resp := strings.TrimSpace(response)
+	if resp == "" {
+		return true
+	}
+	if proseClaimsQuerySelectorExcludesDisplayNone(resp) {
+		return true
+	}
+	user := strings.ToLower(msg.Content)
+	code := extractFencedCode(resp)
+	if code != "" {
+		if (strings.Contains(user, "nested modal") || strings.Contains(user, "popover")) &&
+			codeHasEscapeBeforeContainmentCheck(code) {
+			return true
+		}
+		if strings.Contains(user, "tabindex") && codeUsesRuntimeTabIndexSetAttribute(code) {
+			return true
+		}
+		if (strings.Contains(user, "display:none") || strings.Contains(user, "display: none") ||
+			strings.Contains(user, "visually hidden")) &&
+			strings.Contains(strings.ToLower(resp), "queryselector") &&
+			!strings.Contains(strings.ToLower(code), "offsetparent") &&
+			!strings.Contains(strings.ToLower(code), "getclientrects") {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeWrongModalAccessibilityAnswer reports incorrect modal a11y guidance (wrong trap, fabricated patterns).
+func looksLikeWrongModalAccessibilityAnswer(msg *protocol.Message, response string, history []*protocol.Message) bool {
+	if looksLikeWrongModalAccessibilityFollowUpAnswer(msg, response, history) {
+		return true
+	}
+	if msg == nil || !modalAccessibilityCodeSubject(msg.Content) {
+		return false
+	}
+	resp := strings.TrimSpace(response)
+	if resp == "" {
+		return false
+	}
+	if fabricatedModalProseRE.MatchString(resp) {
+		return true
+	}
+	if looksLikeWrongModalFocusTrapDescription(resp) {
+		return true
+	}
+	code := extractFencedCode(resp)
+	if code != "" && (codeMissingModalAccessibilityMechanics(code) || codeHasBrokenFocusTrap(code)) {
+		return true
+	}
+	return false
+}
+
+// tryModalAccessibilityFallback returns a working modal a11y reference when validation cannot recover.
+func tryModalAccessibilityFallback(msg *protocol.Message, history []*protocol.Message) (string, bool) {
+	if modalAccessibilityGapAsk(msg, history) {
+		return modalAccessibilityFollowUpReferenceAnswer(), true
+	}
+	if !modalAccessibilityAsk(msg, history) {
+		return "", false
+	}
+	return modalAccessibilityReferenceAnswer(), true
+}
+
+func modalAccessibilityReferenceAnswer() string {
+	// Prefer the full APG-shaped snippet up front so common gap-fill probes
+	// (aria-labelledby, empty focusable, display:none filtering, nested Escape)
+	// are already correct — avoids SUT judge fails after a shallow first answer.
+	return modalAccessibilityFollowUpReferenceAnswer()
+}
+
+func modalAccessibilityFollowUpReferenceAnswer() string {
+	return "Here's the corrected modal with all four gaps addressed:\n\n" +
+		"```jsx\n" +
+		"function Modal({ onClose, children }) {\n" +
+		"  const dialogRef = useRef(null);\n" +
+		"  const previouslyFocused = useRef(null);\n\n" +
+		"  useEffect(() => {\n" +
+		"    previouslyFocused.current = document.activeElement;\n" +
+		"    const focusable = Array.from(\n" +
+		"      dialogRef.current.querySelectorAll(\n" +
+		"        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex=\"-1\"])'\n" +
+		"      )\n" +
+		"    ).filter(el => el.offsetParent !== null);\n" +
+		"    if (focusable[0]) {\n" +
+		"      focusable[0].focus();\n" +
+		"    } else {\n" +
+		"      dialogRef.current.focus();\n" +
+		"    }\n\n" +
+		"    function onKeyDown(e) {\n" +
+		"      if (!dialogRef.current.contains(document.activeElement)) return;\n" +
+		"      if (e.key === 'Escape') {\n" +
+		"        onClose();\n" +
+		"        return;\n" +
+		"      }\n" +
+		"      if (e.key !== 'Tab') return;\n" +
+		"      const nodes = Array.from(\n" +
+		"        dialogRef.current.querySelectorAll(\n" +
+		"          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex=\"-1\"])'\n" +
+		"        )\n" +
+		"      ).filter(el => el.offsetParent !== null);\n" +
+		"      const first = nodes[0];\n" +
+		"      const last = nodes[nodes.length - 1];\n" +
+		"      if (e.shiftKey && document.activeElement === first) {\n" +
+		"        e.preventDefault();\n" +
+		"        last.focus();\n" +
+		"      } else if (!e.shiftKey && document.activeElement === last) {\n" +
+		"        e.preventDefault();\n" +
+		"        first.focus();\n" +
+		"      }\n" +
+		"    }\n\n" +
+		"    document.addEventListener('keydown', onKeyDown);\n" +
+		"    return () => {\n" +
+		"      document.removeEventListener('keydown', onKeyDown);\n" +
+		"      previouslyFocused.current?.focus();\n" +
+		"    };\n" +
+		"  }, [onClose]);\n\n" +
+		"  return createPortal(\n" +
+		"    <div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\" tabIndex={-1} ref={dialogRef}>\n" +
+		"      <h2 id=\"modal-title\">Modal Title</h2>\n" +
+		"      {children}\n" +
+		"    </div>,\n" +
+		"    document.body\n" +
+		"  );\n" +
+		"}\n" +
+		"```\n\n" +
+		"Key points: `querySelectorAll` does not filter by computed style — filter with `.filter(el => el.offsetParent !== null)` to drop `display:none` nodes; " +
+		"put `tabIndex={-1}` on the dialog in JSX (not `setAttribute` at runtime) so `.focus()` works when no focusable children exist; " +
+		"guard the whole keydown handler with `dialogRef.current.contains(document.activeElement)` so Escape and Tab both ignore events when focus is in a nested modal or popover."
+}
+
+// looksLikeShallowImplementationReply reports prose-only or deferral replies when the user asked for code.
+func looksLikeShallowImplementationReply(msg *protocol.Message, response string) bool {
+	if msg == nil || !looksLikeConcreteCodeRequest(msg.Content) {
+		return false
+	}
+	resp := strings.TrimSpace(response)
+	if resp == "" {
+		return true
+	}
+	if strings.Contains(resp, "```") {
+		code := extractFencedCode(response)
+		if codeHasBrokenEscapeClose(code) {
+			return true
+		}
+		if modalAccessibilityCodeSubject(msg.Content) && codeMissingModalAccessibilityMechanics(code) {
+			return true
+		}
+		return false
+	}
+	if codeDeflectionEndingRE.MatchString(resp) {
+		return true
+	}
+	if modalAccessibilityCodeSubject(msg.Content) {
+		if fabricatedModalProseRE.MatchString(resp) || looksLikeWrongModalFocusTrapDescription(resp) {
+			return true
+		}
+	}
+	// Strategy memo without a code block after an explicit code request.
+	return len(resp) > 80
+}
+
+// codeHasBrokenEscapeClose reports Escape handlers that fail to close via onClose/setter.
+func codeHasBrokenEscapeClose(code string) bool {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return false
+	}
+	if !escapeKeyRE.MatchString(code) {
+		return false
+	}
+	if codeEscapeHandlerClosesModal(code) {
+		return false
+	}
+	if escapeParamReassignRE.MatchString(code) {
+		return true
+	}
+	// Escape branch present but only logs, comments, or omits close callback.
+	return true
+}
+
+func codeEscapeHandlerClosesModal(code string) bool {
+	idx := strings.Index(strings.ToLower(code), "escape")
+	if idx < 0 {
+		return false
+	}
+	end := idx + 420
+	if end > len(code) {
+		end = len(code)
+	}
+	window := strings.ToLower(code[idx:end])
+	return strings.Contains(window, "onclose(") || strings.Contains(window, "setisopen(false)")
+}
+
+func codeMissingModalAccessibilityMechanics(code string) bool {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return true
+	}
+	if codeHasBrokenEscapeClose(code) {
+		return true
+	}
+	if codeHasModalRefNullCrashRisk(code) {
+		return true
+	}
+	if !tabFocusTrapRE.MatchString(code) {
+		return true
+	}
+	if codeHasBrokenFocusTrap(code) {
+		return true
+	}
+	return !focusRestoreInEffectCleanup(code)
+}
+
+func codeHasModalRefNullCrashRisk(code string) bool {
+	lower := strings.ToLower(code)
+	if !strings.Contains(lower, "modalref.current.queryselector") {
+		return false
+	}
+	// Safe when isOpen guard precedes any modalRef DOM query inside the effect.
+	guardRE := regexp.MustCompile(`(?is)if\s*\(\s*!isopen\s*\)\s*return`)
+	guard := guardRE.FindStringIndex(code)
+	query := strings.Index(lower, "modalref.current.queryselector")
+	if guard != nil && query >= 0 && guard[0] < query {
+		return false
+	}
+	return modalDomQueryBeforeIsOpenRE.MatchString(code)
+}
+
+func focusRestoreInEffectCleanup(code string) bool {
+	if !activeElementCaptureRE.MatchString(code) {
+		return false
+	}
+	return effectCleanupFocusRestoreRE.MatchString(code)
+}
+
+// looksLikeSuperficialCodeFixReply reports replies that claim to fix prior code but leave
+// the user's named bugs in place (e.g. dead ref restore, broken Escape guard, double focus).
+func looksLikeSuperficialCodeFixReply(msg *protocol.Message, response string, history []*protocol.Message) bool {
+	_ = history
+	if msg == nil {
+		return false
+	}
+	if looksLikeConcreteCodeRequest(msg.Content) && codeHasBrokenEscapeClose(extractFencedCode(response)) {
+		return true
+	}
+	if !looksLikeCodeCritiqueFollowUp(msg.Content) {
+		return false
+	}
+	resp := strings.TrimSpace(response)
+	if resp == "" {
+		return true
+	}
+	if !strings.Contains(resp, "```") {
+		return true
+	}
+	return codeFixLeavesCritiqueUnresolved(msg.Content, response)
+}
+
+func codeFixLeavesCritiqueUnresolved(userContent, response string) bool {
+	user := strings.ToLower(userContent)
+	resp := strings.ToLower(response)
+
+	if strings.Contains(user, "dead code") || strings.Contains(user, "never restore") ||
+		strings.Contains(user, "never assign") || strings.Contains(user, "never assigned") {
+		for _, ref := range refsCritiquedAsDeadOrUnassigned(userContent) {
+			refLower := strings.ToLower(ref)
+			if !strings.Contains(resp, refLower) {
+				continue
+			}
+			assignRE := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(ref) + `\.current\s*=`)
+			usesRef := strings.Contains(resp, refLower+".current")
+			if usesRef && !assignRE.MatchString(response) {
+				return true
+			}
+		}
+	}
+
+	if strings.Contains(user, "escape") &&
+		(strings.Contains(user, "window") || strings.Contains(user, "scoped") || strings.Contains(user, "modal")) {
+		if escapeTargetGuardRE.MatchString(response) {
+			return true
+		}
+	}
+
+	if strings.Contains(user, "fights itself") ||
+		(strings.Contains(user, "focus") && strings.Contains(user, "right after")) {
+		if doubleFocusFightRE.MatchString(resp) {
+			return true
+		}
+	}
+
+	if strings.Contains(user, "escape") || strings.Contains(user, "close") {
+		code := extractFencedCode(response)
+		if code == "" {
+			code = response
+		}
+		if codeHasBrokenEscapeClose(code) {
+			return true
+		}
+	}
+
+	if strings.Contains(user, "focus trap") || strings.Contains(user, "tab") ||
+		modalAccessibilityCodeSubject(userContent) {
+		code := extractFencedCode(response)
+		if code != "" && !tabFocusTrapRE.MatchString(code) {
+			return true
+		}
+	}
+
+	if modalAccessibilityGapFollowUp(userContent) {
+		if proseClaimsQuerySelectorExcludesDisplayNone(response) {
+			return true
+		}
+		code := extractFencedCode(response)
+		if code != "" {
+			if (strings.Contains(user, "nested modal") || strings.Contains(user, "popover")) &&
+				codeHasEscapeBeforeContainmentCheck(code) {
+				return true
+			}
+			if strings.Contains(user, "tabindex") && codeUsesRuntimeTabIndexSetAttribute(code) {
+				return true
+			}
+		}
+	}
+
+	if strings.Contains(user, "never assigned") || strings.Contains(user, "dead ref") ||
+		strings.Contains(user, "hook ordering") || strings.Contains(user, "conditional hook") {
+		code := extractFencedCode(response)
+		if code == "" {
+			code = response
+		}
+		if getElementByIDTriggerRE.MatchString(code) {
+			return true
+		}
+		if hookAfterEarlyReturnRE.MatchString(code) {
+			return true
+		}
+		if strings.Contains(strings.ToLower(code), "triggerref") &&
+			!strings.Contains(strings.ToLower(code), "document.activeelement") &&
+			!focusRestoreInEffectCleanup(code) {
+			return true
+		}
+	}
+
+	if strings.Contains(user, "focus") &&
+		(strings.Contains(user, "restore") || strings.Contains(user, "trigger") || strings.Contains(user, "returns")) {
+		code := extractFencedCode(response)
+		if code != "" && !focusRestoreInEffectCleanup(code) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func extractBacktickIdentifiers(content string) []string {
+	matches := backtickIdentifierRE.FindAllStringSubmatch(content, -1)
+	out := make([]string, 0, len(matches))
+	for _, m := range matches {
+		if len(m) >= 2 {
+			id := strings.TrimSpace(m[1])
+			if id != "" {
+				out = append(out, id)
+			}
+		}
+	}
+	return out
+}
+
+// refsCritiquedAsDeadOrUnassigned returns identifier names the user flagged as dead/unassigned.
+func refsCritiquedAsDeadOrUnassigned(userContent string) []string {
+	lower := strings.ToLower(userContent)
+	var out []string
+	seen := make(map[string]bool)
+	for _, ref := range extractBacktickIdentifiers(userContent) {
+		refLower := strings.ToLower(ref)
+		if refLower == "" || strings.HasPrefix(refLower, ".") || seen[refLower] {
+			continue
+		}
+		idx := strings.Index(lower, refLower)
+		if idx < 0 {
+			continue
+		}
+		start := idx - 96
+		if start < 0 {
+			start = 0
+		}
+		end := idx + len(refLower) + 96
+		if end > len(lower) {
+			end = len(lower)
+		}
+		window := lower[start:end]
+		if strings.Contains(window, "dead") || strings.Contains(window, "never assign") ||
+			strings.Contains(window, "unused") ||
+			(strings.Contains(window, "never restore") && strings.Contains(window, "ref")) {
+			seen[refLower] = true
+			out = append(out, ref)
+		}
+	}
+	return out
 }

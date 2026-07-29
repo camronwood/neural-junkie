@@ -1,6 +1,7 @@
 """Scenarios for collab edge layer — make collab-scenario-regression / LAYER=collab.
 
-Canonical list for --suite edge (one process, soft between-scenario reset).
+Thinned website/findings twins: one website + one findings execute.
+Website-sa / make-me-a-website / execute-deliverable / execution-no-stack stay in collab-full.
 """
 
 from __future__ import annotations
@@ -10,14 +11,10 @@ COLLAB_EDGE_SCENARIOS: tuple[str, ...] = (
     "plan-dependency-prose-regression",
     "plan-findings-task-regression",
     "plan-distinct-deliverables-same-agent",
-    "execute-deliverable",
     "document-findings-execution",
-    "execution-no-stack-commands",
     "collab-conversation-quality-regression",
     "collab-no-edit-after-cancel",
     "collaboration-station-website",
-    "collaboration-station-website-sa",
-    "make-me-a-website",
 )
 
 

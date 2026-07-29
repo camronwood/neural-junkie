@@ -36,7 +36,7 @@ LAYER_TIMEOUT_EXIT = 124
 sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.proc_timeout import wait_with_timeout  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
-from lib.release_prep_layers import LAYER_ORDER, get_layer, list_layers  # noqa: E402
+from lib.release_prep_layers import CLIMB_ORDER, get_layer, list_climb_layers, list_layers  # noqa: E402
 from lib.regression_models import (  # noqa: E402
     DEFAULT_REGRESSION_AGENT_MODEL,
     resolve_regression_agent_model,
@@ -74,7 +74,7 @@ def scoreboard_lines(
     ok = sum(1 for _, status, _, _ in rows if status == "PASS")
     fail = sum(1 for _, status, _, _ in rows if status == "FAIL")
     done = len(rows)
-    remaining = [n for n in LAYER_ORDER[done:] if n != current]
+    remaining = [n for n in CLIMB_ORDER[done:] if n != current]
     lines = [
         f"layer-climb status — {stamp}",
         f"updated={datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}Z",
@@ -218,7 +218,7 @@ def write_rollup(
     failed = [name for name, status, _, _, _ in rows if status not in ("PASS",)]
     if aborted:
         overall = "ABORTED"
-    elif not failed and len(rows) == len(LAYER_ORDER):
+    elif not failed and len(rows) == len(CLIMB_ORDER):
         overall = "PASS"
     elif not failed:
         overall = "PARTIAL"
@@ -276,9 +276,16 @@ def main() -> int:
     args = p.parse_args()
 
     if args.list:
-        for spec in list_layers():
+        print("climb (default layer-climb):")
+        for spec in list_climb_layers():
             nxt = f" → {spec.next_layer}" if spec.next_layer else ""
-            print(f"{spec.name:12} ~{spec.est_minutes:3}m  hub={spec.requires_hub}  {spec.description}{nxt}")
+            print(f"  {spec.name:12} ~{spec.est_minutes:3}m  hub={spec.requires_hub}  {spec.description}{nxt}")
+        print("soak (overnight; make layer-gate LAYER=…):")
+        for spec in list_layers():
+            if spec.tier != "soak":
+                continue
+            nxt = f" → {spec.next_layer}" if spec.next_layer else ""
+            print(f"  {spec.name:12} ~{spec.est_minutes:3}m  hub={spec.requires_hub}  {spec.description}{nxt}")
         return 0
 
     apply_release_prep_env(ROOT)
@@ -308,7 +315,7 @@ def main() -> int:
     continue_on_fail = args.continue_on_fail
     status_path = testing_dir / STATUS_NAME
     climb_t0 = time.time()
-    total = len(LAYER_ORDER)
+    total = len(CLIMB_ORDER)
 
     finished: list[tuple[str, str, float, int]] = []
     report_rows: list[tuple[str, str, float, int, Path | None]] = []
@@ -372,8 +379,8 @@ def main() -> int:
     write_status(status_path, status_snapshot(note=f"starting · pinned_model={pinned}"))
 
     try:
-        for idx, layer in enumerate(LAYER_ORDER, 1):
-            remaining = LAYER_ORDER[idx:]
+        for idx, layer in enumerate(CLIMB_ORDER, 1):
+            remaining = CLIMB_ORDER[idx:]
             rem = ", ".join(remaining) if remaining else "(none)"
             est = get_layer(layer).est_minutes
             print_banner(
@@ -438,8 +445,8 @@ def main() -> int:
         f"Rollup: {rollup}\n"
         f"Status: {status_path}"
     )
-    if overall_rc == 0 and len(report_rows) == len(LAYER_ORDER):
-        print("=== layer-climb: all layers PASS ===", flush=True)
+    if overall_rc == 0 and len(report_rows) == len(CLIMB_ORDER):
+        print("=== layer-climb: all climb layers PASS ===", flush=True)
     return 0 if overall_rc == 0 else (overall_rc if overall_rc else 1)
 
 

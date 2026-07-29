@@ -5,7 +5,8 @@
     "public",
     "assistant",
     "closure",
-    "regression"
+    "regression",
+    "canary"
   ],
   "channel": "chat-scenarios",
   "channel_type": "public",

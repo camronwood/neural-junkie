@@ -1,0 +1,23 @@
+{
+  "name": "dm-long-horizon-entity-retention",
+  "description": "Claude human probes FrontendEngineer multi-turn entity retention (ThemeSettings → anaphoric follow-ups).",
+  "tags": ["sut", "dm", "frontend", "memory"],
+  "channel_type": "dm",
+  "dm_user": "SutScenario",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "human": {
+    "persona": "You are a slightly scattered frontend engineer who introduces a component name early, then refers to it only with pronouns and vague nouns.",
+    "goal": "Establish ThemeSettings as the named component, then ask two follow-ups that require remembering that name (accessibility, then settings placement). Push if the SUT drops the entity.",
+    "max_turns": 4,
+    "stop_when": "SUT clearly retained ThemeSettings across follow-ups, or clearly forgot / contradicted itself twice."
+  },
+  "judge": {
+    "rubric": "PASS only if the SUT retains ThemeSettings (or an explicit rename it proposed) across anaphoric follow-ups and gives actionable UI guidance. FAIL on entity drop, generic boilerplate that ignores prior turns, or inventing unrelated components.",
+    "require_gold_on_fail": true
+  },
+  "fix": {
+    "enabled": true,
+    "allow_paths": ["internal/agent/", "internal/hub/", "internal/intent/", "docs/"]
+  }
+}

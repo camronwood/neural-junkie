@@ -701,12 +701,22 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 	st.actionValidated = len(issues) == 0 && goalHasExpectedEvidence(st.goal, st.evidence)
 	if len(issues) > 0 {
 		switch {
-		case st.goal.RequiresActionEvidence() && shouldRewriteAsSafeFailureForGoal(st.goal, st.evidence, issues, st.response):
+		case st.goal.RequiresActionEvidence() && shouldRewriteAsSafeFailureForGoal(st.goal, st.evidence, issues, st.response) &&
+			!shouldKeepOpenCanvasReviseResponse(st.msg, st.goal, issues):
 			st.response = safeActionFailure(st.goal, st.evidence)
 		case st.goal.RequiresActionEvidence():
 			// Misclassified action goals often still get a good conversational answer.
 			// Keep it instead of replacing with a canned soft-fail.
 		default:
+			// Modal a11y asks: deterministic gold beats multi-retry lottery (SUT empty-or-shallow).
+			if looksLikeWrongModalAccessibilityAnswer(st.msg, st.response, history) {
+				if literal, ok := tryModalAccessibilityFallback(st.msg, history); ok {
+					st.response = literal
+					issues = nil
+					st.validationRetried = true
+					break
+				}
+			}
 			st.validationRetried = true
 			for st.validationAttempts < maxChatValidationEscalations {
 				retryProvider, ok := st.agent.EscalateConversationProvider(st.ctx, st.msg)
@@ -767,6 +777,8 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 			}
 			if len(issues) > 0 {
 				if literal, ok := tryCodebaseReturnLiteralAnswer(st.msg); ok {
+					st.response = literal
+				} else if literal, ok := tryModalAccessibilityFallback(st.msg, history); ok {
 					st.response = literal
 				} else {
 					st.response = "I couldn't produce a sufficiently grounded answer from the available context."

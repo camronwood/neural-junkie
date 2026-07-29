@@ -22,6 +22,7 @@ export function ModelStoreCard({ item, onOpenDetail }: ModelStoreCardProps) {
   const action = item.primaryAction;
   const statusLabel = item.statusLabel ?? defaultStatusLabel(item.status);
   const showRecommended = item.tags.some((t) => t.toLowerCase() === 'recommended');
+  const sizeHint = item.sizeHint?.trim();
 
   return (
     <article
@@ -44,6 +45,11 @@ export function ModelStoreCard({ item, onOpenDetail }: ModelStoreCardProps) {
             <p className="text-[10px] uppercase tracking-wide text-gray-500">{item.publisher}</p>
           )}
           <p className="text-xs text-gray-500 font-mono truncate">{item.subtitle}</p>
+          {sizeHint ? (
+            <p className="text-sm font-semibold text-amber-300 tabular-nums">{sizeHint}</p>
+          ) : (
+            <p className="text-xs text-gray-600">Size unknown</p>
+          )}
         </div>
         <div className="flex flex-wrap gap-1 justify-center">
           <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${statusPillClass(item.status)}`}>

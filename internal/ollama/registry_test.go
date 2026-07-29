@@ -110,3 +110,16 @@ func TestRegistryTagsPageURL(t *testing.T) {
 		t.Fatalf("x namespace tags url = %q", got)
 	}
 }
+
+func TestParseTagSizeHints(t *testing.T) {
+	html := `</span> <p class="flex text-neutral-500">4.9GB · 128K context window · Text · 1 year ago</p>`
+	// weaker page without tag suffix — parseFirstSizeHint
+	if got := parseFirstSizeHint(html); got != "~4.9 GB" {
+		t.Fatalf("parseFirstSizeHint = %q", got)
+	}
+	html2 := `<p class="truncate hover:underline text-sm font-medium text-neutral-800">llama3.1:latest</p> </span> <p class="flex text-neutral-500">4.9GB · 128K</p>`
+	m := parseTagSizeHints(html2)
+	if m["latest"] != "~4.9 GB" {
+		t.Fatalf("latest size = %#v", m)
+	}
+}

@@ -15,6 +15,7 @@ CHAT_DIR = ROOT / "scenarios" / "chat"
 PARITY_DIR = ROOT / "scenarios" / "parity"
 USER_FLOW_IMPLEMENT_DIR = ROOT / "scenarios" / "user-flows" / "implement"
 USER_FLOW_COLLAB_DIR = ROOT / "scenarios" / "user-flows" / "collab"
+SUT_DIR = ROOT / "scenarios" / "sut"
 
 
 def _has_quality_bar(spec: dict[str, Any]) -> bool:
@@ -265,6 +266,21 @@ def validate_all_scenario_contracts() -> list[str]:
             errors.extend(validate_scenario_shape(rel, scenario))
             errors.extend(validate_deliverable_contract(rel, scenario))
             errors.extend(validate_implement_wait_gates(rel, scenario))
+
+    # SUT self-improve episodes: adaptive human/judge schema (no required steps list).
+    if SUT_DIR.is_dir():
+        try:
+            from sut_episode import validate_sut_episode
+        except ImportError:
+            from lib.sut_episode import validate_sut_episode  # type: ignore[no-redef]
+        for path in sorted(SUT_DIR.glob("*.json")):
+            rel = f"sut/{path.name}"
+            try:
+                scenario = load_scenario_json(path)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                errors.append(f"{rel}: invalid JSON ({exc})")
+                continue
+            errors.extend(validate_sut_episode(rel, scenario))
     return errors
 
 

@@ -3,6 +3,7 @@ package intent
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -212,18 +213,21 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	}
 
 	// Open Neural Canvas in-channel: revisions stay artifact (external), not workspace edit.
-	// Structural — driven by open_artifact_* features, not user-text phrase lists.
-	if features.OpenArtifactRenderer != "" && features.ExplicitAction == "" &&
+	// Structural — driven by open_artifact_* features. Meta questions about the open
+	// canvas (status/title) stay conversational; all other turns promote to artifact.
+	// Graduated: no longer depends on LooksLikeOpenCanvasFillAsk / LooksLikeOpenCanvasReviseAsk.
+	hasOpenCanvas := strings.TrimSpace(features.OpenArtifactID) != "" ||
+		strings.TrimSpace(features.OpenArtifactRenderer) != ""
+	metaCanvasQ := hasOpenCanvas && (LooksLikeCanvasStatusQuestion(features.Text) ||
+		LooksLikeCanvasTitleQuestion(features.Text))
+	if hasOpenCanvas && features.ExplicitAction == "" &&
 		strings.ToLower(strings.TrimSpace(features.ComposerMode)) != "export" &&
 		!pendingActionBlocksCanvasPromote(features) {
 		promoteOpenCanvas := false
-		switch decision.Action {
-		case ActionEdit, ActionRun, ActionInspect, ActionImage:
-			promoteOpenCanvas = true
-		case ActionAnswer:
-			// Collaborative fill-in ("add a list…", "put weather in the canvas") often
-			// stamps Answer; promote task Answers and explicit canvas fill asks.
-			if decision.Interaction == InteractionTask || LooksLikeOpenCanvasFillAsk(features.Text) {
+		if !metaCanvasQ {
+			switch decision.Action {
+			case ActionEdit, ActionRun, ActionInspect, ActionImage,
+				ActionAskUser, ActionContinue, ActionAnswer, ActionPlan:
 				promoteOpenCanvas = true
 			}
 		}
@@ -231,12 +235,25 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			decision.Action = ActionArtifact
 			decision.RequestedAction = ActionArtifact
 			decision.Mutation = MutationExternal
+			decision.ContinuationTarget = ""
+			if decision.Interaction == InteractionContinuation || decision.Interaction == InteractionCasual ||
+				decision.Interaction == InteractionQuestion {
+				decision.Interaction = InteractionTask
+			}
 			if !slices.Contains(decision.Retrieval, RetrievalPriorReference) {
 				decision.Retrieval = append(decision.Retrieval, RetrievalPriorReference)
 			}
 			decision.PolicyOverrides = append(decision.PolicyOverrides, "open_canvas_artifact")
 			decision.ReasonCodes = append(decision.ReasonCodes, "durable_artifact")
 		}
+	}
+	// Classifier often stamps artifact/inspect/ask_user on meta questions about an open canvas.
+	if metaCanvasQ && features.ExplicitAction == "" && decision.Action != ActionAnswer {
+		decision.Action = ActionAnswer
+		decision.RequestedAction = ActionAnswer
+		decision.Mutation = MutationNone
+		decision.ContinuationTarget = ""
+		decision.PolicyOverrides = append(decision.PolicyOverrides, "open_canvas_meta_demote")
 	}
 
 	// Local classifiers often emit blank_canvas / durable_artifact correctly but stamp
@@ -289,7 +306,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	// and there is no open canvas to revise. Skip when policy already promoted from a
 	// corroborated reason/continuation path.
 	if decision.Action == ActionArtifact && features.ExplicitAction == "" &&
-		features.OpenArtifactRenderer == "" &&
+		features.OpenArtifactRenderer == "" && features.OpenArtifactID == "" &&
 		!containsString(decision.PolicyOverrides, "canvas_reason_artifact") &&
 		!containsString(decision.PolicyOverrides, "canvas_text_artifact") &&
 		!containsString(decision.PolicyOverrides, "open_canvas_artifact") &&
@@ -325,7 +342,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		!LooksLikeMapsRouteAsk(features.Text) &&
 		!looksLikeExplicitCommandRunAsk(features.Text) {
 		switch decision.Action {
-		case ActionRun, ActionEdit, ActionContinue, ActionAskUser, ActionAnswer:
+		case ActionRun, ActionEdit, ActionContinue, ActionAskUser, ActionAnswer, ActionPlan, ActionDebug:
 			decision.Action = ActionInspect
 			decision.RequestedAction = ActionInspect
 			decision.Mutation = MutationNone
@@ -349,7 +366,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		!LooksLikeMapsRouteAsk(features.Text) &&
 		!LooksLikeProjectOverviewAsk(features.Text) {
 		switch decision.Action {
-		case ActionAnswer, ActionPlan, ActionInspect, ActionAskUser:
+		case ActionAnswer, ActionPlan, ActionInspect, ActionAskUser, ActionRun, ActionContinue:
 			decision.Action = ActionDebug
 			decision.RequestedAction = ActionDebug
 			decision.Mutation = MutationWorkspace
@@ -368,18 +385,47 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			if !hasSpuriousClassifierFailureCodes(decision.ReasonCodes) {
 				decision.ReasonCodes = append(decision.ReasonCodes, "runtime_failure")
 			}
+		case ActionArtifact, ActionImage, ActionMusic:
+			// Tiny classifiers spray creative actions on "fix the app".
+			decision.Action = ActionDebug
+			decision.RequestedAction = ActionDebug
+			decision.Mutation = MutationWorkspace
+			decision.Interaction = InteractionTask
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_fix_promote")
+		}
+	}
+
+	// "check git status/log/diff" is inspect — classifiers often stamp run/answer/edit.
+	if features.ExplicitAction == "" &&
+		mode != "ask" && mode != "plan" &&
+		LooksLikeGitInspectRequest(features.Text) {
+		switch decision.Action {
+		case ActionRun, ActionEdit, ActionDebug, ActionAnswer, ActionAskUser, ActionContinue, ActionPlan:
+			decision.Action = ActionInspect
+			decision.RequestedAction = ActionInspect
+			decision.Mutation = MutationNone
+			decision.ContinuationTarget = ""
+			decision.PolicyOverrides = append(decision.PolicyOverrides, "git_inspect_promote")
 		}
 	}
 
 	if mode == "ask" || mode == "plan" {
-		if decision.Mutation != MutationNone || isMutatingAction(decision.Action) {
+		askForbidsTool := mode == "ask" && decision.Action != ActionAnswer &&
+			(isMutatingAction(decision.Action) ||
+				decision.Action == ActionRun || decision.Action == ActionDebug ||
+				decision.Action == ActionInspect || decision.Action == ActionPlan ||
+				decision.Action == ActionContinue || decision.Action == ActionAskUser ||
+				decision.Action == ActionEdit || decision.Action == ActionArtifact ||
+				decision.Action == ActionImage || decision.Action == ActionMusic)
+		if decision.Mutation != MutationNone || isMutatingAction(decision.Action) || askForbidsTool {
 			decision.PolicyOverrides = append(decision.PolicyOverrides, "composer_mode_forbids_mutation")
 		}
 		decision.Mutation = MutationNone
 		if mode == "plan" {
 			decision.Action = ActionPlan
-		} else if isMutatingAction(decision.Action) {
+		} else if isMutatingAction(decision.Action) || askForbidsTool {
 			decision.Action = ActionAnswer
+			decision.RequestedAction = ActionAnswer
 		}
 	}
 	if decision.Mutation == MutationWorkspace {
@@ -411,6 +457,11 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 				decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_requires_codebase_retrieval")
 			}
 		}
+	}
+	// Classifiers sometimes pair run with external mutation (creative spray).
+	if decision.Action == ActionRun && decision.Mutation == MutationExternal {
+		decision.Mutation = MutationNone
+		decision.PolicyOverrides = append(decision.PolicyOverrides, "run_mutation_normalize")
 	}
 	decision.PolicyOverrides = normalizeStrings(decision.PolicyOverrides)
 	return decision
@@ -630,7 +681,7 @@ func LooksLikeWorkspaceFixAsk(text string) bool {
 	}
 	fixCues := []string{
 		"fix the app", "fix this app", "fix it", "fix the bug", "fix this",
-		"repair the", "repair it", "sort out the", "sort this out",
+		"repair the", "repair it", "sort out the", "sort this out", "sort it out",
 		"can you fix", "please fix", "fix this for me", "make it work",
 		"get it working", "get the app working",
 	}
@@ -643,6 +694,8 @@ func LooksLikeWorkspaceFixAsk(text string) bool {
 		"broken", "not working", "doesn't work", "does not work", "won't boot",
 		"wont boot", "not booting", "won't start", "wont start", "blank screen",
 		"white screen", "crash", "crashing", "failing to start", "failed to start",
+		"exits before", "never reaches the ui", "something is wrong with this project",
+		"something is wrong with the project",
 	}
 	hasFailure := false
 	for _, cue := range failureCues {
@@ -654,7 +707,7 @@ func LooksLikeWorkspaceFixAsk(text string) bool {
 	if !hasFailure {
 		return false
 	}
-	repairVerbs := []string{"fix", "repair", "patch", "resolve", "sort out"}
+	repairVerbs := []string{"fix", "repair", "patch", "resolve", "sort out", "diagnose"}
 	for _, verb := range repairVerbs {
 		if strings.Contains(c, verb) {
 			return true
@@ -828,7 +881,44 @@ func LooksLikeOpenCanvasFillAsk(text string) bool {
 		strings.Contains(c, "the document") || strings.Contains(c, " in there") ||
 		strings.Contains(c, "on there") || strings.HasSuffix(c, " there") ||
 		strings.Contains(c, "to it") || strings.Contains(c, "in it") ||
-		LooksLikeCanvasRenameAsk(c)
+		LooksLikeCanvasRenameAsk(c) || LooksLikeOpenCanvasReviseAsk(c)
+}
+
+var openCanvasOrdinalItemRE = regexp.MustCompile(`(?i)\b(\d+(st|nd|rd|th)|first|second|third|fourth|fifth)\s+(list\s+)?item\b`)
+
+// LooksLikeOpenCanvasReviseAsk reports content edits for an already-open canvas
+// that omit the word "canvas" — e.g. "the 3rd item is Arrive in Florida",
+// "ok add a 3rd list item, arrive in florida".
+func LooksLikeOpenCanvasReviseAsk(text string) bool {
+	c := strings.ToLower(strings.TrimSpace(text))
+	if c == "" || LooksLikeCanvasStatusQuestion(c) || LooksLikeCanvasTitleQuestion(c) {
+		return false
+	}
+	// Workspace file edits must stay edit, not canvas revise.
+	if strings.Contains(c, ".go") || strings.Contains(c, ".ts") || strings.Contains(c, ".tsx") ||
+		strings.Contains(c, ".js") || strings.Contains(c, ".rs") || strings.Contains(c, ".py") {
+		return false
+	}
+	if openCanvasOrdinalItemRE.MatchString(c) {
+		return true
+	}
+	listObject := strings.Contains(c, "item") || strings.Contains(c, "bullet") ||
+		strings.Contains(c, "step") || strings.Contains(c, "point") ||
+		strings.Contains(c, "list") || strings.Contains(c, "section")
+	listVerb := strings.Contains(c, "add ") || strings.Contains(c, "insert ") ||
+		strings.Contains(c, "include ") || strings.Contains(c, "append ") ||
+		strings.Contains(c, "change ") || strings.Contains(c, "update ") ||
+		strings.Contains(c, "replace ") || strings.Contains(c, "fix ") ||
+		strings.Contains(c, "remove ") || strings.Contains(c, "delete ")
+	if listObject && listVerb {
+		return true
+	}
+	// Declarative corrections: "the 3rd item is X", "item 3 should be X"
+	if strings.Contains(c, "item") && (strings.Contains(c, " is ") ||
+		strings.Contains(c, " should be ") || strings.Contains(c, " to ")) {
+		return true
+	}
+	return false
 }
 
 // LooksLikeCanvasStatusQuestion reports meta questions about whether the open

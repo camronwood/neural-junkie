@@ -76,9 +76,38 @@ func TestBuildDialogueAssistantPrompt_isSlim(t *testing.T) {
 type summaryStubHub struct {
 	shouldRespondTestHub
 	summary string
+	ledger  []TurnLedgerRow
 }
 
 func (s summaryStubHub) GetChannelSessionSummary(string) string { return s.summary }
 func (s summaryStubHub) GetChannelType(string) protocol.ChannelType {
 	return protocol.ChannelTypeDM
+}
+func (s summaryStubHub) GetChannelTurnLedger(string, int) []TurnLedgerRow { return s.ledger }
+
+func TestInjectSessionSummary_includesTurnLedgerBeforeSummary(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+		Hub: summaryStubHub{
+			summary: "User prefers DisplayPreferences under Appearance.",
+			ledger: []TurnLedgerRow{
+				{Speaker: "Camron", SpeakerType: "human", Excerpt: "Build ProjectOrion with DisplayPreferences", Entities: []string{"ProjectOrion", "DisplayPreferences"}},
+				{Speaker: "FrontendEngineer", SpeakerType: "agent", Excerpt: "Here is DisplayPreferences"},
+			},
+		},
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-camron-frontend", protocol.AgentInfo{Name: "Camron"}, "continue")
+	out := a.injectSessionSummary("PROMPT_BODY", msg)
+	ledgerIdx := strings.Index(out, "=== TURN LEDGER (recent) ===")
+	summaryIdx := strings.Index(out, "=== SESSION SUMMARY ===")
+	bodyIdx := strings.Index(out, "PROMPT_BODY")
+	if ledgerIdx < 0 || summaryIdx < 0 || bodyIdx < 0 {
+		t.Fatalf("missing sections: %q", out)
+	}
+	if !(ledgerIdx < summaryIdx && summaryIdx < bodyIdx) {
+		t.Fatalf("expected ledger then summary then body: %q", out)
+	}
+	if !strings.Contains(out, "Camron/human") || !strings.Contains(out, "ProjectOrion") {
+		t.Fatalf("expected speaker-attributed ledger overlay: %q", out)
+	}
 }

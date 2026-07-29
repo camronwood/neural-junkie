@@ -9,7 +9,14 @@
       "want_action": "debug",
       "want_mutation": "workspace",
       "want_recipient": "frontend",
-      "want_retrieval": ["codebase"]
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "want_actions": [
+        "debug",
+        "edit"
+      ]
     },
     {
       "name": "startup-failure-paraphrase",
@@ -18,14 +25,22 @@
       "has_workspace": true,
       "want_action": "debug",
       "want_mutation": "workspace",
-      "want_retrieval": ["codebase"]
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "want_actions": [
+        "debug",
+        "edit"
+      ]
     },
     {
       "name": "durable-canvas",
       "text": "Create a Neural Canvas beside this conversation that explains the architecture.",
       "composer_mode": "agent",
       "want_action": "artifact",
-      "want_mutation": "external"
+      "want_mutation": "external",
+      "policy_class": "canvas_create"
     },
     {
       "name": "source-code-canvas",
@@ -35,7 +50,10 @@
       "want_action": "edit",
       "want_mutation": "workspace",
       "want_recipient": "frontend",
-      "want_retrieval": ["codebase"]
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "source_canvas_edit"
     },
     {
       "name": "advisory-question",
@@ -43,7 +61,8 @@
       "composer_mode": "ask",
       "has_workspace": true,
       "want_action": "answer",
-      "want_mutation": "none"
+      "want_mutation": "none",
+      "policy_class": "ask_mode"
     },
     {
       "name": "pending-continuation",
@@ -55,7 +74,8 @@
       "pending_description": "Apply the approved frontend repair",
       "want_action": "continue",
       "want_mutation": "workspace",
-      "want_continuation": "goal-123"
+      "want_continuation": "goal-123",
+      "policy_class": "continuation"
     },
     {
       "name": "retraction",
@@ -66,28 +86,743 @@
       "pending_description": "Apply the frontend repair",
       "want_action": "answer",
       "want_mutation": "none",
-      "want_interaction": "correction"
+      "want_interaction": "correction",
+      "policy_class": "correction"
     },
     {
       "name": "image-discussion",
       "text": "Explain how image generation works in this application.",
       "composer_mode": "ask",
       "want_action": "answer",
-      "want_mutation": "none"
+      "want_mutation": "none",
+      "policy_class": "ask_mode"
     },
     {
       "name": "image-generation",
       "text": "Generate a product logo image and post it here.",
       "composer_mode": "agent",
       "want_action": "image",
-      "want_mutation": "external"
+      "want_mutation": "external",
+      "policy_class": "image_gen"
     },
     {
       "name": "quoted-command",
       "text": "What does the command `go test ./...` do? Do not execute it.",
       "composer_mode": "ask",
       "want_action": "answer",
-      "want_mutation": "none"
+      "want_mutation": "none",
+      "policy_class": "ask_mode"
+    },
+    {
+      "name": "workspace-fix-1",
+      "text": "fix the app",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "stamp_action": "plan",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "workspace_fix_promote",
+      "want_actions": [
+        "debug",
+        "edit"
+      ]
+    },
+    {
+      "name": "workspace-fix-2",
+      "text": "I am asking you to fix the app, can you?",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "stamp_action": "plan",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "workspace_fix_promote",
+      "want_actions": [
+        "debug",
+        "edit"
+      ]
+    },
+    {
+      "name": "workspace-fix-3",
+      "text": "the app is not booting can you fix it?",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "stamp_action": "plan",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "workspace_fix_promote",
+      "want_actions": [
+        "debug",
+        "edit"
+      ]
+    },
+    {
+      "name": "workspace-fix-4",
+      "text": "Something broke at runtime \u2014 repair it in this workspace.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "stamp_action": "plan",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "workspace_fix_promote",
+      "want_actions": [
+        "debug",
+        "edit"
+      ]
+    },
+    {
+      "name": "workspace-fix-5",
+      "text": "The build fails on startup. Diagnose and fix it.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "stamp_action": "plan",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "workspace_fix_promote",
+      "want_actions": [
+        "debug",
+        "edit"
+      ]
+    },
+    {
+      "name": "workspace-fix-6",
+      "text": "App won't boot after the last change. Find and fix the cause.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "stamp_action": "plan",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "workspace_fix_promote",
+      "want_actions": [
+        "debug",
+        "edit"
+      ]
+    },
+    {
+      "name": "workspace-fix-not-advisory",
+      "text": "how would you fix a blank screen?",
+      "composer_mode": "ask",
+      "has_workspace": true,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "ask_mode"
+    },
+    {
+      "name": "project-overview-1",
+      "text": "review and summerize the project I have open please",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "run",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "want_override_any": "project_overview_inspect"
+    },
+    {
+      "name": "project-overview-2",
+      "text": "ok can you summarize the project",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "run",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "want_override_any": "project_overview_inspect"
+    },
+    {
+      "name": "project-overview-3",
+      "text": "explain what this repository does",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "run",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "want_override_any": "project_overview_inspect"
+    },
+    {
+      "name": "project-overview-4",
+      "text": "give me an overview of the codebase",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "run",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "want_override_any": "project_overview_inspect"
+    },
+    {
+      "name": "project-overview-5",
+      "text": "walk me through the architecture of this project",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "run",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "want_override_any": "project_overview_inspect"
+    },
+    {
+      "name": "project-overview-canvas",
+      "text": "create a canvas with a project summary",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "policy_class": "canvas_create"
+    },
+    {
+      "name": "canvas-create-1",
+      "text": "lets create a canvas for this",
+      "composer_mode": "agent",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "policy_class": "canvas_create",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "casual",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_override_any": "canvas_reason_artifact"
+    },
+    {
+      "name": "canvas-create-2",
+      "text": "Create a Neural Canvas Mermaid diagram of this architecture",
+      "composer_mode": "agent",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "policy_class": "canvas_create",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "casual",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_override_any": "canvas_reason_artifact"
+    },
+    {
+      "name": "canvas-create-3",
+      "text": "open a canvas and put the plan there",
+      "composer_mode": "agent",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "policy_class": "canvas_create",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "casual",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_override_any": "canvas_reason_artifact"
+    },
+    {
+      "name": "canvas-create-4",
+      "text": "make a timeline canvas of the release",
+      "composer_mode": "agent",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "policy_class": "canvas_create",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "casual",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_override_any": "canvas_reason_artifact"
+    },
+    {
+      "name": "canvas-create-5",
+      "text": "post this on a neural canvas",
+      "composer_mode": "agent",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "policy_class": "canvas_create",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "casual",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_override_any": "canvas_reason_artifact"
+    },
+    {
+      "name": "canvas-prior-content",
+      "text": "create a canvas with that information from earlier",
+      "composer_mode": "agent",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "want_retrieval": [
+        "prior_reference"
+      ],
+      "policy_class": "canvas_create",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "canvas_text_artifact"
+    },
+    {
+      "name": "spurious-canvas-demote-1",
+      "text": "When was the last meeting that does have notes?",
+      "composer_mode": "agent",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "spurious_artifact_demote",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_override_any": "spurious_artifact_demote"
+    },
+    {
+      "name": "spurious-canvas-demote-2",
+      "text": "What did we decide in standup yesterday?",
+      "composer_mode": "agent",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "spurious_artifact_demote",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_override_any": "spurious_artifact_demote"
+    },
+    {
+      "name": "spurious-canvas-demote-3",
+      "text": "Remind me who owns the on-call rotation.",
+      "composer_mode": "agent",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "spurious_artifact_demote",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_override_any": "spurious_artifact_demote"
+    },
+    {
+      "name": "spurious-ask-user-canvas",
+      "text": "Did the notes get saved for Friday's meeting?",
+      "composer_mode": "agent",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "spurious_artifact_demote",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_override_any": "spurious_canvas_ask_user_demote"
+    },
+    {
+      "name": "open-canvas-revise-1",
+      "text": "the 3rd item is Arrive in Flordia",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "open_artifact_title": "Plan",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "want_retrieval": [
+        "prior_reference"
+      ],
+      "policy_class": "open_canvas_revise",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "open_canvas_artifact"
+    },
+    {
+      "name": "open-canvas-revise-2",
+      "text": "ok add a 3rd list item, arrive in flordia",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "open_artifact_title": "Plan",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "want_retrieval": [
+        "prior_reference"
+      ],
+      "policy_class": "open_canvas_revise",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "open_canvas_artifact"
+    },
+    {
+      "name": "open-canvas-revise-3",
+      "text": "add weather to the canvas",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "open_artifact_title": "Plan",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "want_retrieval": [
+        "prior_reference"
+      ],
+      "policy_class": "open_canvas_revise",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "open_canvas_artifact"
+    },
+    {
+      "name": "open-canvas-revise-4",
+      "text": "put the meeting notes in there",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "open_artifact_title": "Plan",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "want_retrieval": [
+        "prior_reference"
+      ],
+      "policy_class": "open_canvas_revise",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "open_canvas_artifact"
+    },
+    {
+      "name": "open-canvas-revise-5",
+      "text": "rename the title to Trip Plan",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "open_artifact_title": "Plan",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "want_retrieval": [
+        "prior_reference"
+      ],
+      "policy_class": "open_canvas_revise",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "open_canvas_artifact"
+    },
+    {
+      "name": "open-canvas-status-q",
+      "text": "did you update the canvas with the info?",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "open_canvas_meta",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "question",
+      "want_override_any": "open_canvas_meta_demote"
+    },
+    {
+      "name": "open-canvas-title-q",
+      "text": "why did you name it weather forcast?",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "open_canvas_meta",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "question",
+      "want_override_any": "open_canvas_meta_demote"
+    },
+    {
+      "name": "maps-route",
+      "text": "Show a map with a driving route from Austin to Houston",
+      "composer_mode": "agent",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "policy_class": "maps_route",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_reason_codes": [
+        "maps_route"
+      ],
+      "want_override_any": "canvas_reason_artifact"
+    },
+    {
+      "name": "workspace-report-canvas",
+      "text": "write a project summary report on a canvas",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "policy_class": "workspace_report",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_reason_codes": [
+        "workspace_report"
+      ],
+      "want_override_any": "canvas_reason_artifact"
+    },
+    {
+      "name": "soft-followup",
+      "text": "and what about the second option?",
+      "composer_mode": "agent",
+      "has_workspace": false,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "dialogue_followup"
+    },
+    {
+      "name": "entity-retention",
+      "text": "what was the name of that city again?",
+      "composer_mode": "agent",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "dialogue_followup"
+    },
+    {
+      "name": "repo-fact-inspect",
+      "text": "Which package declares the Express dependency in this repo?",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "repo_fact"
+    },
+    {
+      "name": "presence-casual",
+      "text": "you there?",
+      "composer_mode": "agent",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "want_interaction": "casual",
+      "policy_class": "presence"
+    },
+    {
+      "name": "thanks-closure",
+      "text": "thanks, that's all for now",
+      "composer_mode": "agent",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "want_interaction": "closure",
+      "policy_class": "closure"
+    },
+    {
+      "name": "git-status-inspect",
+      "text": "check git status and tell me what changed",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "git_inspect"
+    },
+    {
+      "name": "plan-mode-no-edit",
+      "text": "Implement the auth middleware in hub.go",
+      "composer_mode": "plan",
+      "has_workspace": true,
+      "want_action": "plan",
+      "want_mutation": "none",
+      "policy_class": "plan_mode",
+      "stamp_action": "edit",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "want_override_any": "composer_mode_forbids_mutation"
+    },
+    {
+      "name": "ask-mode-no-edit",
+      "text": "please implement hub.go error hooks now",
+      "composer_mode": "ask",
+      "has_workspace": true,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "ask_mode",
+      "stamp_action": "edit",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "want_override_any": "composer_mode_forbids_mutation"
+    },
+    {
+      "name": "edit-frontend-component",
+      "text": "Add a ThemeToggle component to the React app.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "edit",
+      "want_mutation": "workspace",
+      "want_recipient": "frontend",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "edit"
+    },
+    {
+      "name": "run-tests",
+      "text": "Run the Go unit tests for the intent package.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "run",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "run",
+      "want_actions": [
+        "run",
+        "debug",
+        "inspect"
+      ]
+    },
+    {
+      "name": "music-gen",
+      "text": "Compose a short lo-fi beat and attach it here.",
+      "composer_mode": "agent",
+      "want_action": "music",
+      "want_mutation": "external",
+      "policy_class": "music"
+    },
+    {
+      "name": "topic-switch",
+      "text": "anyway, forget coding \u2014 what should we eat tonight?",
+      "composer_mode": "agent",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "dialogue_followup"
+    },
+    {
+      "name": "concrete-code-chat",
+      "text": "Show me the exact focus-trap implementation, not a library recommendation.",
+      "composer_mode": "agent",
+      "has_workspace": false,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "concrete_answer"
+    },
+    {
+      "name": "constraint-no-kubectl",
+      "text": "Explain how to restart the pod without using kubectl.",
+      "composer_mode": "agent",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "constraint_answer"
+    },
+    {
+      "name": "workspace-fix-blank-screen",
+      "text": "The UI is a blank white screen after npm start. Fix it.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "want_override_any": "workspace_fix_promote",
+      "want_actions": [
+        "debug",
+        "edit"
+      ]
+    },
+    {
+      "name": "project-overview-whats-this",
+      "text": "what is this project about?",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "edit",
+      "stamp_mutation": "workspace",
+      "want_override_any": "project_overview_inspect"
+    },
+    {
+      "name": "open-canvas-edit-misstamp",
+      "text": "fix the typo in the third bullet",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-2",
+      "open_artifact_renderer": "markdown",
+      "want_action": "artifact",
+      "want_mutation": "external",
+      "policy_class": "open_canvas_revise",
+      "stamp_action": "edit",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "want_override_any": "open_canvas_artifact"
     }
   ]
 }

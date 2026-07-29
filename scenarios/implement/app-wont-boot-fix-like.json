@@ -1,11 +1,13 @@
 {
   "name": "app-wont-boot-fix-like",
-  "description": "Fix-like flow: vague boot failure triggers repro-first bootstrap and Makefile repair.",
+  "description": "Fix-like flow: vague boot failure triggers repro-first bootstrap and Makefile repair. Optional soak twin \u2014 excluded from default implement --all.",
   "tags": [
     "implement",
     "fix-like",
     "boot-fix",
-    "tauri"
+    "tauri",
+    "soak",
+    "optional"
   ],
   "channel": "implement-scenarios",
   "channel_type": "public",
@@ -70,5 +72,6 @@
       ]
     }
   ],
-  "cleanup": "clear"
+  "cleanup": "clear",
+  "optional": true
 }

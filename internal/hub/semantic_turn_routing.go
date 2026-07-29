@@ -241,6 +241,18 @@ func (h *Hub) semanticTurnFeatures(msg *protocol.Message) intent.TurnFeatures {
 		features.OpenArtifactID = id
 		features.OpenArtifactRenderer = renderer
 		features.OpenArtifactTitle = title
+		// Client often sends open artifact id without renderer_id; fill from
+		// recent artifact_ref history or default markdown so open-canvas promote can fire.
+		if features.OpenArtifactRenderer == "" {
+			if rid, t := h.semanticOpenCanvasRendererForID(msg.Channel, msg.ID, id); rid != "" {
+				features.OpenArtifactRenderer = rid
+				if features.OpenArtifactTitle == "" {
+					features.OpenArtifactTitle = t
+				}
+			} else {
+				features.OpenArtifactRenderer = "nj.markdown"
+			}
+		}
 	} else if id, renderer, title := h.semanticOpenCanvasArtifact(msg.Channel, msg.ID); id != "" {
 		features.OpenArtifactID = id
 		features.OpenArtifactRenderer = renderer
@@ -304,6 +316,36 @@ func (h *Hub) semanticOpenCanvasArtifact(channel, skipID string) (id, renderer, 
 		return ref.ID, rid, strings.TrimSpace(ref.Title)
 	}
 	return "", "", ""
+}
+
+// semanticOpenCanvasRendererForID finds renderer/title for a known open artifact id
+// from recent channel artifact_ref metadata.
+func (h *Hub) semanticOpenCanvasRendererForID(channel, skipID, artifactID string) (renderer, title string) {
+	artifactID = strings.TrimSpace(artifactID)
+	if h == nil || artifactID == "" {
+		return "", ""
+	}
+	h.mu.RLock()
+	messages := append([]*protocol.Message(nil), h.messages[channel]...)
+	h.mu.RUnlock()
+	seen := 0
+	for i := len(messages) - 1; i >= 0 && seen < 40; i-- {
+		message := messages[i]
+		if message == nil || message.ID == skipID {
+			continue
+		}
+		seen++
+		ref, ok := messageArtifactReference(message)
+		if !ok || strings.TrimSpace(ref.ID) != artifactID {
+			continue
+		}
+		rid := strings.TrimSpace(ref.RendererID)
+		if rid == "" {
+			continue
+		}
+		return rid, strings.TrimSpace(ref.Title)
+	}
+	return "", ""
 }
 
 func messageArtifactReference(msg *protocol.Message) (protocol.ArtifactReference, bool) {

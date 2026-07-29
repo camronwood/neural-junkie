@@ -19,6 +19,7 @@ import { MemoryLearningSettingsTab } from './settings/MemoryLearningSettingsTab'
 import { CapabilitiesSettingsTab } from './settings/CapabilitiesSettingsTab';
 import { ApiCredentialsSettingsTab } from './settings/ApiCredentialsSettingsTab';
 import { IntegrationsSettingsTab } from './settings/IntegrationsSettingsTab';
+import { WebSearchSettingsTab } from './settings/WebSearchSettingsTab';
 import { AssistantToolsSettingsTab } from './settings/AssistantToolsSettingsTab';
 import { SlackSettingsTab } from './settings/SlackSettingsTab';
 import { StreamsSettingsTab } from './settings/StreamsSettingsTab';
@@ -129,6 +130,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <CapabilitiesSettingsTab hubHttp={hubHttp} isActive={activeTab === 'capabilities'} />
             <ApiCredentialsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'api-credentials'} />
             <IntegrationsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'integrations'} />
+            <WebSearchSettingsTab hubHttp={hubHttp} isActive={activeTab === 'web-search'} />
             <AssistantToolsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'assistant-tools'} />
             <SlackSettingsTab hubHttp={hubHttp} isActive={activeTab === 'slack'} />
             <StreamsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'streams'} />

@@ -1,24 +1,44 @@
 {
   "name": "dm-backend-interject-resume",
   "description": "BackendEngineer DM: channel interject holds agents until the user sends again; resume must answer the new question (hub: make server-regression).",
-  "tags": ["dm", "backend", "interject", "regression"],
+  "tags": [
+    "dm",
+    "backend",
+    "interject",
+    "regression",
+    "canary"
+  ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
+  "required_agents": [
+    "BackendEngineer"
+  ],
   "workspace": {
     "fixture": "minimal-repo",
-    "open_files": ["core/sample/main.go"],
+    "open_files": [
+      "core/sample/main.go"
+    ],
     "file_tree": "README.md\ncore/sample/main.go\n"
   },
   "steps": [
     {
       "action": "send",
       "content": "What does the main function in @file:core/sample/main.go do?",
-      "metadata": { "conversation_mode": "code", "context_scope": "focus" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "focus"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
-    { "action": "channel_interject", "retries": 1 },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
+    {
+      "action": "channel_interject",
+      "retries": 1
+    },
     {
       "action": "wait_no_reply",
       "from": "BackendEngineer",
@@ -29,14 +49,23 @@
     {
       "action": "send",
       "content": "What Go package declaration is at the top of that file?",
-      "metadata": { "conversation_mode": "code", "context_scope": "focus" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "focus"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
     {
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "BackendEngineer",
-      "any_match": ["package main|core/sample|main\\b|HelloWorld|sample/main"],
+      "any_match": [
+        "package main|core/sample|main\\b|HelloWorld|sample/main"
+      ],
       "none_match": [
         "What does the main function",
         "go vet",

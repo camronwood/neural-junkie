@@ -113,12 +113,6 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
     try {
       await installOllamaRuntime(serverAddr, (msg) => setInstallStatus(msg));
       await checkOllama();
-      const resp = await fetch(`${serverAddr}/api/ollama/install-status`);
-      const data = await resp.json();
-      if (data.installed && !data.running) {
-        setInstallStatus('Starting Ollama...');
-        await startOllama();
-      }
     } catch (e) {
       setInstallStatus(`Install failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -212,6 +206,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
     }
 
     const config: Record<string, unknown> = {
+      setup_completed: true,
       server: { host: 'localhost', port: 18765 },
       ai: {
         default_provider_id: providers[0].id,

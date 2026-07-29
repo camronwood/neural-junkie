@@ -20,6 +20,9 @@ var (
 	xNamespaceLinkRe = regexp.MustCompile(`href="/(x/[^":]+)"`)
 	tagLinkRe        = regexp.MustCompile(`href="/library/([a-zA-Z0-9._:-]+)"`)
 	xTagLinkRe       = regexp.MustCompile(`href="/(x/[^"]+)"`)
+	// ollama.com tags/model pages: `llama3.1:latest</p> ... <p class="flex text-neutral-500">4.9GB ·`
+	tagSizeRe = regexp.MustCompile(`(?is):([a-z0-9._-]+)</[^>]+>\s*</span>\s*<p[^>]*flex text-neutral-500[^>]*>\s*([\d.]+)\s*([GM]B)`)
+	anySizeRe = regexp.MustCompile(`(?i)flex text-neutral-500[^>]*>\s*([\d.]+)\s*([GM]B)`)
 )
 
 // RegistryModel is one model family from the public Ollama library.
@@ -32,7 +35,8 @@ type RegistryModel struct {
 
 // RegistryTag is one pull tag for a model family.
 type RegistryTag struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	SizeHint string `json:"size_hint,omitempty"`
 }
 
 // RegistrySearchResult is returned by library search.
@@ -47,6 +51,7 @@ type RegistrySearchResult struct {
 type RegistryTagsResult struct {
 	Name         string        `json:"name"`
 	DefaultTag   string        `json:"default_tag,omitempty"`
+	SizeHint     string        `json:"size_hint,omitempty"`
 	Tags         []RegistryTag `json:"tags"`
 	AllTagsCount int           `json:"all_tags_count,omitempty"`
 }
@@ -181,20 +186,74 @@ func (c *registryClient) tags(ctx context.Context, name string) (RegistryTagsRes
 		defaultTag = filtered[0]
 	}
 
+	sizeBySuffix := parseTagSizeHints(body)
 	out := RegistryTagsResult{
 		Name:         name,
 		DefaultTag:   defaultTag,
 		Tags:         make([]RegistryTag, 0, len(filtered)),
 		AllTagsCount: len(all),
 	}
+	if hint := sizeBySuffix["latest"]; hint != "" {
+		out.SizeHint = hint
+	} else if hint := sizeHintForTag(defaultTag, sizeBySuffix); hint != "" {
+		out.SizeHint = hint
+	} else if hint := parseFirstSizeHint(body); hint != "" {
+		out.SizeHint = hint
+	}
 	for _, tag := range filtered {
-		out.Tags = append(out.Tags, RegistryTag{Name: tag})
+		out.Tags = append(out.Tags, RegistryTag{
+			Name:     tag,
+			SizeHint: sizeHintForTag(tag, sizeBySuffix),
+		})
 	}
 
 	c.cacheMu.Lock()
 	c.tagsCache[name] = cachedTags{at: time.Now(), result: out}
 	c.cacheMu.Unlock()
 	return out, nil
+}
+
+func sizeHintForTag(tag string, bySuffix map[string]string) string {
+	if i := strings.LastIndex(tag, ":"); i >= 0 {
+		if hint := bySuffix[tag[i+1:]]; hint != "" {
+			return hint
+		}
+	}
+	return bySuffix[tag]
+}
+
+func parseTagSizeHints(html string) map[string]string {
+	out := make(map[string]string)
+	for _, m := range tagSizeRe.FindAllStringSubmatch(html, -1) {
+		if len(m) < 4 {
+			continue
+		}
+		suffix := strings.ToLower(strings.TrimSpace(m[1]))
+		hint := formatScrapedSize(m[2], m[3])
+		if suffix == "" || hint == "" {
+			continue
+		}
+		if _, exists := out[suffix]; !exists {
+			out[suffix] = hint
+		}
+	}
+	return out
+}
+
+func parseFirstSizeHint(html string) string {
+	if m := anySizeRe.FindStringSubmatch(html); len(m) >= 3 {
+		return formatScrapedSize(m[1], m[2])
+	}
+	return ""
+}
+
+func formatScrapedSize(num, unit string) string {
+	num = strings.TrimSpace(num)
+	unit = strings.ToUpper(strings.TrimSpace(unit))
+	if num == "" || (unit != "GB" && unit != "MB" && unit != "TB") {
+		return ""
+	}
+	return "~" + num + " " + unit
 }
 
 func (c *registryClient) fetch(ctx context.Context, target string) (string, error) {

@@ -268,9 +268,9 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 		if activationTool, ok := a.activationToolDefinition(msg); ok {
 			tools = append(tools, activationTool)
 		}
-		if helpTool, ok := a.capabilityHelpToolDefinition(msg); ok {
-			tools = append(tools, helpTool)
-		}
+	}
+	if helpTool, ok := a.capabilityHelpToolDefinition(msg); ok {
+		tools = append(tools, helpTool)
 	}
 	// Neural Canvas deliverables must not expose shell/file tools — local models
 	// otherwise call `npx mermaid` / edit App.tsx instead of create_artifact.

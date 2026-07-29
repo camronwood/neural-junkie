@@ -5,7 +5,9 @@
     "collab",
     "execution",
     "regression",
-    "website"
+    "website",
+    "soak",
+    "optional"
   ],
   "channel": "collab-scenarios",
   "agents": "@FrontendEngineer @SoftwareArchitect @Claude",
@@ -192,5 +194,6 @@
       ]
     }
   ],
-  "cleanup": "cancel"
+  "cleanup": "cancel",
+  "optional": true
 }

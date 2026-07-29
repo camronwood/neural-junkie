@@ -61,7 +61,7 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 |--------|------|
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | System design | [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Testing and parity gates | [TESTING.md](docs/TESTING.md) — start with `make release-help`; user journeys: [USER_FLOW_SCENARIOS.md](docs/USER_FLOW_SCENARIOS.md) |
+| Testing and parity gates | [TESTING.md](docs/TESTING.md) — start with `make release-help`; portfolio: [TEST_PORTFOLIO.md](docs/TEST_PORTFOLIO.md); user journeys: [USER_FLOW_SCENARIOS.md](docs/USER_FLOW_SCENARIOS.md) |
 | Maintainer / internals | [DEVELOPMENT_NOTES.md](docs/DEVELOPMENT_NOTES.md) |
 | Security | [SECURITY.md](docs/SECURITY.md) · [SECURITY_HARDENING.md](docs/SECURITY_HARDENING.md) |
 | Current status | [STATUS.md](docs/STATUS.md) |

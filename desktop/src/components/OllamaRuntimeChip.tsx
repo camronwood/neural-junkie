@@ -5,6 +5,7 @@ import type { SettingsTab } from './SettingsModal';
 import { useSettingsStore } from '../stores/settingsStore';
 import {
   fetchOllamaRuntimeStatus,
+  installOllamaRuntime,
   restartOllamaRuntime,
   startOllamaRuntime,
   stopOllamaRuntime,
@@ -54,6 +55,7 @@ export function OllamaRuntimeChip({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updateProgress, setUpdateProgress] = useState('');
+  const [installProgress, setInstallProgress] = useState('');
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
   const anchorRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -95,7 +97,7 @@ export function OllamaRuntimeChip({
     if (top < pad) top = pad;
 
     setPopoverPos({ top, left });
-  }, [open, isVertical, status, error, defaultModel, updateProgress]);
+  }, [open, isVertical, status, error, defaultModel, updateProgress, installProgress]);
 
   const runAction = async (action: 'start' | 'stop' | 'restart') => {
     setBusy(true);
@@ -108,6 +110,21 @@ export function OllamaRuntimeChip({
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ollama action failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runInstall = async () => {
+    setBusy(true);
+    setError(null);
+    setInstallProgress('Preparing Ollama install…');
+    try {
+      await installOllamaRuntime(serverAddr, (msg) => setInstallProgress(msg));
+      setInstallProgress('');
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ollama install failed');
     } finally {
       setBusy(false);
     }
@@ -130,7 +147,12 @@ export function OllamaRuntimeChip({
 
   const chipTitle = status?.running
     ? `Ollama running${defaultModel ? ` — default ${defaultModel}` : ''}${status.updateAvailable ? ' — update available' : ''}`
-    : 'Ollama local runtime';
+    : status && !status.installed
+      ? 'Ollama not installed — click to install'
+      : 'Ollama local runtime';
+
+  const notInstalled = status !== null && !status.installed;
+  const canAutoInstall = status?.autoInstallSupported !== false;
 
   const popover = open
     ? createPortal(
@@ -173,55 +195,99 @@ export function OllamaRuntimeChip({
             </div>
 
             {error && <p className="text-xs text-red-400">{error}</p>}
+            {installProgress && <p className="text-[11px] text-slack-textMuted">{installProgress}</p>}
             {updateProgress && <p className="text-[11px] text-slack-textMuted">{updateProgress}</p>}
 
             <div className="flex flex-wrap gap-2">
-              {status?.updateAvailable && status.updateSupported !== false && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void runUpdate()}
-                  className="px-2.5 py-1 text-xs rounded bg-amber-700/50 text-amber-100 hover:bg-amber-700/70 disabled:opacity-50"
-                >
-                  Update Ollama
-                </button>
-              )}
-              {status?.running ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void runAction('stop')}
-                  className="px-2.5 py-1 text-xs rounded bg-red-700/40 text-red-200 hover:bg-red-700/60 disabled:opacity-50"
-                >
-                  Stop
-                </button>
+              {notInstalled ? (
+                <>
+                  {canAutoInstall ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void runInstall()}
+                      className="px-2.5 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50"
+                      data-testid="ollama-install-button"
+                    >
+                      {busy ? 'Installing…' : 'Install Ollama'}
+                    </button>
+                  ) : (
+                    <a
+                      href="https://ollama.com"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2.5 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-500"
+                    >
+                      Get Ollama
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void refresh()}
+                    className="px-2.5 py-1 text-xs rounded bg-slack-bgHover text-slack-textMuted hover:text-slack-text disabled:opacity-50"
+                  >
+                    Refresh
+                  </button>
+                </>
               ) : (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void runAction('start')}
-                  className="px-2.5 py-1 text-xs rounded bg-green-700/40 text-green-200 hover:bg-green-700/60 disabled:opacity-50"
-                >
-                  Start
-                </button>
+                <>
+                  {status?.updateAvailable && status.updateSupported !== false && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void runUpdate()}
+                      className="px-2.5 py-1 text-xs rounded bg-amber-700/50 text-amber-100 hover:bg-amber-700/70 disabled:opacity-50"
+                    >
+                      Update Ollama
+                    </button>
+                  )}
+                  {status?.running ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void runAction('stop')}
+                      className="px-2.5 py-1 text-xs rounded bg-red-700/40 text-red-200 hover:bg-red-700/60 disabled:opacity-50"
+                    >
+                      Stop
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void runAction('start')}
+                      className="px-2.5 py-1 text-xs rounded bg-green-700/40 text-green-200 hover:bg-green-700/60 disabled:opacity-50"
+                    >
+                      Start
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void runAction('restart')}
+                    className="px-2.5 py-1 text-xs rounded bg-slack-bgHover text-slack-text hover:bg-slack-border disabled:opacity-50"
+                  >
+                    Restart
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void refresh()}
+                    className="px-2.5 py-1 text-xs rounded bg-slack-bgHover text-slack-textMuted hover:text-slack-text disabled:opacity-50"
+                  >
+                    Refresh
+                  </button>
+                </>
               )}
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void runAction('restart')}
-                className="px-2.5 py-1 text-xs rounded bg-slack-bgHover text-slack-text hover:bg-slack-border disabled:opacity-50"
-              >
-                Restart
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void refresh()}
-                className="px-2.5 py-1 text-xs rounded bg-slack-bgHover text-slack-textMuted hover:text-slack-text disabled:opacity-50"
-              >
-                Refresh
-              </button>
             </div>
+
+            {notInstalled && (
+              <p className="text-[11px] text-slack-textMuted">
+                {canAutoInstall
+                  ? 'One-click install (internet required; Linux may ask for your password).'
+                  : 'Install from ollama.com, then Refresh.'}
+              </p>
+            )}
 
             <div className="border-t border-slack-border pt-2 space-y-1">
               <button

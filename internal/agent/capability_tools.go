@@ -57,17 +57,17 @@ func isConversationalOnlyTurn(msg *protocol.Message) bool {
 	return false
 }
 
-// shouldOfferCapabilityTools reports whether activate_capability / request_capability_help
-// should be exposed for this turn.
+// shouldOfferCapabilityTools reports whether activate_capability should be exposed
+// for this turn. request_capability_help uses shouldOfferCapabilityHandoff.
 func shouldOfferCapabilityTools(msg *protocol.Message) bool {
 	if isConversationalOnlyTurn(msg) {
 		return false
 	}
 	if msg == nil {
-		return true
+		return false
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		// Casual turns never escalate into capability handoffs.
+		// Casual turns never escalate into capability tools.
 		if decision.Interaction == intent.InteractionCasual {
 			return false
 		}
@@ -77,6 +77,35 @@ func shouldOfferCapabilityTools(msg *protocol.Message) bool {
 			!hasCodeTaskSignals(msg.Content) {
 			return false
 		}
+		return true
+	}
+	// No semantic stamp: fail closed unless the user text itself has work signals.
+	// Previously this defaulted to true and let presence pings open handoffs.
+	return hasCodeTaskSignals(msg.Content)
+}
+
+// shouldOfferCapabilityHandoff reports whether request_capability_help may be exposed
+// or executed. Handoffs are stricter than local activation: when the user text has
+// no work signals, do not open a temporary room for chat-shaped or interrogative
+// turns — even if the semantic stamp misclassified them as task/edit. This reuses
+// conversation-mode inference and the "?" cue; it does not phrase-match readiness.
+func shouldOfferCapabilityHandoff(msg *protocol.Message) bool {
+	if !shouldOfferCapabilityTools(msg) {
+		return false
+	}
+	if msg == nil {
+		return false
+	}
+	if hasCodeTaskSignals(msg.Content) {
+		return true
+	}
+	content := strings.TrimSpace(msg.Content)
+	// Presence / readiness / open questions often lack task verbs. Keep handoffs off.
+	if strings.Contains(content, "?") {
+		return false
+	}
+	if inferConversationModeFromMessage(msg, protocol.ChannelTypePublic) == ConversationModeChat {
+		return false
 	}
 	return true
 }
@@ -230,6 +259,9 @@ func (a *Agent) activationToolDefinition(msg *protocol.Message) (ai.ClaudeToolDe
 }
 
 func (a *Agent) capabilityHelpToolDefinition(msg *protocol.Message) (ai.ClaudeToolDefinition, bool) {
+	if !shouldOfferCapabilityHandoff(msg) {
+		return ai.ClaudeToolDefinition{}, false
+	}
 	if msg != nil && msg.Metadata != nil {
 		if depth, ok := msg.Metadata["handoff_depth"].(int); ok && depth >= 1 {
 			return ai.ClaudeToolDefinition{}, false
@@ -312,6 +344,12 @@ func (a *Agent) executeRequestCapabilityHelpTool(ctx context.Context, msg *proto
 	}
 	if msg == nil {
 		return "", fmt.Errorf("capability help requires an active message")
+	}
+	// Gate on the USER turn, not the invented task string. Models invent concrete
+	// Express/scaffolding tasks from readiness pings; ValidateCapabilityHandoffTask
+	// alone cannot catch that.
+	if !shouldOfferCapabilityHandoff(msg) {
+		return "Capability handoff is not appropriate for this turn (casual/presence or no work signals). Answer the user locally; do not open another handoff.", nil
 	}
 	task := strings.TrimSpace(args.Task)
 	if err := ValidateCapabilityHandoffTask(task); err != nil {

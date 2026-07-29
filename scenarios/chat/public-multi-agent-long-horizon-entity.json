@@ -1,0 +1,67 @@
+{
+  "name": "public-multi-agent-long-horizon-entity",
+  "description": "Public multi-agent thread: Frontend then Backend retain ProjectOrion / DisplayPreferences across turns.",
+  "tags": ["public", "multi-agent", "long-horizon", "regression"],
+  "evaluation": { "long_horizon": true, "min_user_turns": 4 },
+  "channel": "chat-scenarios",
+  "channel_type": "public",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer", "BackendEngineer"],
+  "steps": [
+    {
+      "action": "send",
+      "mention": "@FrontendEngineer",
+      "content": "We're building ProjectOrion. The UI component must be named DisplayPreferences under Appearance.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "send",
+      "mention": "@BackendEngineer",
+      "content": "For ProjectOrion, sketch the JSON API that would back DisplayPreferences.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
+    {
+      "action": "send",
+      "mention": "@FrontendEngineer",
+      "content": "Add a note about keyboard focus for that component.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "send",
+      "mention": "@FrontendEngineer",
+      "content": "Remind me of the project name and the required component name from earlier.",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "assert_transcript_metrics",
+      "cases": [
+        {
+          "metric": "instruction_retention",
+          "user_match": "ProjectOrion",
+          "after_user_match": "Remind me of the project name",
+          "assistant_match": "(?i)ProjectOrion"
+        },
+        {
+          "metric": "instruction_retention",
+          "user_match": "DisplayPreferences",
+          "after_user_match": "Remind me of the project name",
+          "assistant_match": "DisplayPreferences"
+        },
+        {
+          "metric": "stale_plan",
+          "user_match": "DisplayPreferences",
+          "stale_match": "(?i)ThemeSettings(?!.*DisplayPreferences)"
+        }
+      ],
+      "thresholds": {
+        "instruction_retention_rate": 1.0,
+        "stale_plan_rate": 0.0
+      }
+    }
+  ],
+  "cleanup": "clear"
+}

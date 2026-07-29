@@ -22,6 +22,7 @@ from lib.hub_auth import refresh_hub_auth_after_restart  # noqa: E402
 from lib.hub_regression import restart_regression_hub, wait_for_hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
+from lib.release_prep_layers import IMPLEMENT_GATE_MIN_PASS  # noqa: E402
 
 
 def parse_results(output: str) -> tuple[list[str], list[str]]:
@@ -55,7 +56,12 @@ def run_sweep(hub_url: str, script: Path) -> tuple[int, str, list[str], list[str
 def main() -> int:
     p = argparse.ArgumentParser(description="Stability gate for implement-scenarios")
     p.add_argument("--runs", type=int, default=3, help="Number of full sweeps (default 3)")
-    p.add_argument("--min-pass", type=int, default=20, help="Minimum scenarios that must pass per run (20 total)")
+    p.add_argument(
+        "--min-pass",
+        type=int,
+        default=0,
+        help="Minimum scenarios that must pass per run (default: non-optional gate size from release_prep_layers)",
+    )
     p.add_argument("--hub", default="http://127.0.0.1:18765")
     p.add_argument("--log-dir", default=str(TESTING_DIR))
     p.add_argument(
@@ -69,6 +75,8 @@ def main() -> int:
         help="Accepted for layer-gate compatibility (sweeps already stream full output).",
     )
     args = p.parse_args()
+    if args.min_pass <= 0:
+        args.min_pass = IMPLEMENT_GATE_MIN_PASS
 
     if args.runs < 1:
         print("runs must be >= 1", file=sys.stderr)

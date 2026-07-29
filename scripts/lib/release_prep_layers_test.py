@@ -11,7 +11,10 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib.release_prep_layers import (  # noqa: E402
+    CLIMB_ORDER,
     LAYER_ORDER,
+    QUARANTINE_ORDER,
+    SOAK_ORDER,
     build_layer_agent_prompt,
     get_layer,
     parse_layer_gate_report,
@@ -21,9 +24,22 @@ from lib.release_prep_layers import (  # noqa: E402
 class ReleasePrepLayersTest(unittest.TestCase):
     def test_layer_order_complete(self) -> None:
         for name in LAYER_ORDER:
-            self.assertIn(name, LAYER_ORDER)
             spec = get_layer(name)
             self.assertEqual(spec.name, name)
+            self.assertIn(spec.tier, ("climb", "soak"))
+
+    def test_climb_order_is_tier_a(self) -> None:
+        self.assertEqual(CLIMB_ORDER, ("ci", "implement", "collab-core", "chat"))
+        for name in CLIMB_ORDER:
+            self.assertEqual(get_layer(name).tier, "climb")
+
+    def test_soak_and_quarantine(self) -> None:
+        self.assertIn("chat-full", SOAK_ORDER)
+        self.assertIn("bundle", QUARANTINE_ORDER)
+        self.assertIn("user-flows", QUARANTINE_ORDER)
+        self.assertEqual(get_layer("bundle").tier, "quarantine")
+        self.assertEqual(get_layer("chat").stages[0].cmd[-1], "canary")
+        self.assertEqual(get_layer("chat-full").stages[0].cmd[-1], "regression")
 
     def test_parse_layer_gate_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

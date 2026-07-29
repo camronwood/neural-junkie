@@ -84,6 +84,8 @@ export function statusPillClass(status: string): string {
       return 'bg-green-900/40 text-green-300';
     case 'cloud':
       return 'bg-sky-900/40 text-sky-300';
+    case 'downloading':
+      return 'bg-amber-900/40 text-amber-200';
     default:
       return 'bg-slate-800 text-slate-400';
   }
@@ -97,6 +99,8 @@ export function defaultStatusLabel(status: string): string {
       return 'On disk';
     case 'cloud':
       return 'Cloud';
+    case 'downloading':
+      return 'Downloading';
     default:
       return 'Available';
   }

@@ -187,7 +187,7 @@ async function readOllamaInstallSSE(
   }
 }
 
-/** Download and install system Ollama via the hub (macOS/Linux). Skips when bundled. */
+/** Download and install system Ollama via the hub (macOS/Linux/Windows). Skips when bundled. */
 export async function installOllamaRuntime(
   serverAddr: string,
   onProgress: (message: string) => void,
@@ -198,6 +198,12 @@ export async function installOllamaRuntime(
     throw new Error(text || 'Failed to install Ollama');
   }
   await readOllamaInstallSSE(resp, onProgress);
+  try {
+    onProgress('Starting Ollama…');
+    await startOllamaRuntime(serverAddr);
+  } catch {
+    // Install may have succeeded; user can Start manually.
+  }
 }
 
 /** Upgrade bundled user-runtime or re-run the system installer toward the NJ-recommended version. */

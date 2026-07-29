@@ -86,6 +86,7 @@ func handleDebugChannelContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	summary := chatHub.GetChannelSessionSummary(channel)
+	ledger := chatHub.GetChannelTurnLedgerRaw(channel, 20)
 	msgs, _ := chatHub.GetMessages(channel, 50)
 	out := map[string]interface{}{
 		"channel":       channel,
@@ -93,9 +94,13 @@ func handleDebugChannelContext(w http.ResponseWriter, r *http.Request) {
 		"summary_len":   len(summary),
 		"history_count": len(msgs),
 		"has_summary":   summary != "",
+		"ledger_count":  len(ledger),
 	}
 	if summary != "" {
 		out["session_summary"] = summary
+	}
+	if len(ledger) > 0 {
+		out["turn_ledger"] = ledger
 	}
 	if sample := strings.TrimSpace(r.URL.Query().Get("message")); sample != "" {
 		msg := protocol.NewMessage(protocol.MessageTypeQuestion, channel, protocol.AgentInfo{ID: "debug", Name: "Debug", Type: "human"}, sample)

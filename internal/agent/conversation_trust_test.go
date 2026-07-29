@@ -90,6 +90,8 @@ func TestClassifyConversationTrustSignals(t *testing.T) {
 		},
 		{name: "correction", content: "No, that is wrong; use the configured provider", want: ConversationTierReliable, reason: ConversationReasonUserCorrection},
 		{name: "correction prefix rename", content: "Correction: rename the component to DisplayPreferences, but keep the Appearance placement.", want: ConversationTierReliable, reason: ConversationReasonUserCorrection},
+		{name: "code critique hold on", content: "Hold on — you never restore focus (that triggerElementRef is dead code). Show me the corrected effect block.", want: ConversationTierReliable, reason: ConversationReasonUserCorrection},
+		{name: "push for actual code", content: "This is still just prose — show me the actual hook implementation with real code.", want: ConversationTierReliable, reason: ConversationReasonUserCorrection},
 		{name: "repeated from history", content: "Explain the deployment failure", want: ConversationTierReliable, reason: ConversationReasonRepeatedRequest},
 		{name: "quality failure", content: "answer", meta: map[string]interface{}{conversationQualityFailureKey: true}, want: ConversationTierReliable, reason: ConversationReasonQualityGateFailure},
 		{name: "mutation trust is independent", content: "hello", meta: map[string]interface{}{"mutation_trust": "elevated"}, want: ConversationTierStandard},

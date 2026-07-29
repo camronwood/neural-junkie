@@ -93,13 +93,13 @@ function App() {
   }, [settings.fontSize, settings.fontSizeScope, settings.colorTheme]);
 
   async function onServerReady() {
-    // Check if first-run setup is needed (no config.json yet)
+    // First-run setup when the wizard has not completed (defaults seed a provider, so
+    // empty-providers is not a reliable gate).
     try {
       const resp = await fetch(`${serverAddr}/api/settings`);
       if (resp.ok) {
         const config = await resp.json();
-        // If no providers are configured, show setup wizard
-        if (!config.ai?.providers || config.ai.providers.length === 0) {
+        if (config.setup_needed === true || config.setup_completed === false) {
           setPhase('setup');
           return;
         }

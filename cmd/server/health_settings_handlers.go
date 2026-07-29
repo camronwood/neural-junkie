@@ -90,7 +90,8 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.Features = incoming.Features
 		appConfig.Performance = incoming.Performance
 		appConfig.Slack = incoming.Slack
-		appConfig.WebSearch = incoming.WebSearch
+		// Web search is owned by /api/web-search/config. General settings PUTs often omit
+		// web_search (or send a zero value), which previously wiped Enabled/Keyless.
 		appConfig.Phoenix = incoming.Phoenix
 		appConfig.WorkspaceIndex = incoming.WorkspaceIndex
 		appConfig.SpecialistCompose = incoming.SpecialistCompose
@@ -103,6 +104,10 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.Debug = incoming.Debug
 		appConfig.Automation = incoming.Automation
 		appConfig.Storage = incoming.Storage
+		// Sticky: once the wizard completes, later settings saves must not clear it.
+		if incoming.SetupCompleted {
+			appConfig.SetupCompleted = true
+		}
 		if incoming.Packs.Enabled != nil {
 			if appConfig.Packs.Enabled == nil {
 				appConfig.Packs.Enabled = make(map[string]bool)
@@ -168,6 +173,8 @@ func settingsResponse() map[string]interface{} {
 	if p := capabilities.Global(); p != nil {
 		out["capability_profiles"] = p.Status()
 	}
+	out["setup_completed"] = appConfig.SetupCompleted
+	out["setup_needed"] = appConfig.NeedsSetup()
 	return out
 }
 

@@ -1,10 +1,12 @@
 {
   "name": "go-build-error-fix",
-  "description": "Fix-like flow: Go test failure fixed via repro-first session (Multiply bug in math.go).",
+  "description": "Fix-like flow: Go test failure fixed via repro-first session (Multiply bug in math.go). Optional soak twin \u2014 excluded from default implement --all.",
   "tags": [
     "implement",
     "fix-like",
-    "go"
+    "go",
+    "soak",
+    "optional"
   ],
   "channel": "implement-scenarios",
   "channel_type": "public",
@@ -75,5 +77,6 @@
       ]
     }
   ],
-  "cleanup": "clear"
+  "cleanup": "clear",
+  "optional": true
 }

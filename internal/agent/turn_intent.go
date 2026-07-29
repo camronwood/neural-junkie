@@ -179,12 +179,78 @@ func (a *Agent) sessionSummaryBlock(channel string) string {
 	return b.String()
 }
 
+// turnLedgerProvider is optional on HubClient implementations.
+type turnLedgerProvider interface {
+	GetChannelTurnLedger(channel string, limit int) []TurnLedgerRow
+}
+
+// TurnLedgerRow is a compact durable turn used in the Memory-stage overlay.
+type TurnLedgerRow struct {
+	Speaker     string
+	SpeakerType string
+	Excerpt     string
+	Entities    []string
+}
+
+const turnLedgerPromptRows = 12
+
+func (a *Agent) turnLedgerBlock(channel string) string {
+	if a == nil || a.Hub == nil || strings.TrimSpace(channel) == "" {
+		return ""
+	}
+	provider, ok := a.Hub.(turnLedgerProvider)
+	if !ok {
+		return ""
+	}
+	rows := provider.GetChannelTurnLedger(channel, turnLedgerPromptRows)
+	if len(rows) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("=== TURN LEDGER (recent) ===\n")
+	b.WriteString("Structured recent turns (speaker-attributed). Recent exchanges remain ground truth.\n")
+	for _, e := range rows {
+		who := strings.TrimSpace(e.Speaker)
+		if who == "" {
+			who = "?"
+		}
+		if kind := strings.TrimSpace(e.SpeakerType); kind != "" {
+			who = who + "/" + kind
+		}
+		line := strings.TrimSpace(e.Excerpt)
+		if line == "" {
+			line = "(empty)"
+		}
+		// Bound overlay line length for context budget safety.
+		if runes := []rune(line); len(runes) > 180 {
+			line = string(runes[:179]) + "…"
+		}
+		b.WriteString("- ")
+		b.WriteString(who)
+		b.WriteString(": ")
+		b.WriteString(line)
+		if len(e.Entities) > 0 {
+			b.WriteString(" [")
+			b.WriteString(strings.Join(e.Entities, ", "))
+			b.WriteString("]")
+		}
+		b.WriteByte('\n')
+	}
+	b.WriteByte('\n')
+	return b.String()
+}
+
 func (a *Agent) injectSessionSummary(prompt string, msg *protocol.Message) string {
-	block := a.sessionSummaryBlock(msg.Channel)
-	if block == "" {
+	if msg == nil {
 		return prompt
 	}
-	return block + prompt
+	block := a.sessionSummaryBlock(msg.Channel)
+	ledger := a.turnLedgerBlock(msg.Channel)
+	if block == "" && ledger == "" {
+		return prompt
+	}
+	// Ledger first (timeline), then rolled-up summary — never replaces ConversationWindow in prompt body.
+	return ledger + block + prompt
 }
 
 func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
@@ -207,8 +273,14 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 			b.WriteString("\n")
 		}
 	}
-	if block := a.sessionSummaryBlock(msg.Channel); block != "" && !userAsksAboutModelIdentity(msg.Content) {
-		b.WriteString(block)
+	if !userAsksAboutModelIdentity(msg.Content) {
+		// Ledger first (timeline), then rolled-up summary — matches injectSessionSummary.
+		if ledger := a.turnLedgerBlock(msg.Channel); ledger != "" {
+			b.WriteString(ledger)
+		}
+		if block := a.sessionSummaryBlock(msg.Channel); block != "" {
+			b.WriteString(block)
+		}
 	}
 	fallback := ResolveUserRulesHubFallback(msg)
 	AppendUserAndAgentRules(&b, msg, &a.Info, fallback, 0)

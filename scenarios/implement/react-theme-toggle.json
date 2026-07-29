@@ -1,10 +1,12 @@
 {
   "name": "react-theme-toggle",
-  "description": "Frontend implementation session adds darkMode to Tailwind on React fixture; rejects Vue paths.",
+  "description": "Frontend implementation session adds darkMode to Tailwind on React fixture; rejects Vue paths. Optional soak twin \u2014 excluded from default implement --all.",
   "tags": [
     "implement",
     "frontend",
-    "react"
+    "react",
+    "soak",
+    "optional"
   ],
   "channel": "implement-scenarios",
   "channel_type": "public",
@@ -111,5 +113,6 @@
       ]
     }
   ],
-  "cleanup": "clear"
+  "cleanup": "clear",
+  "optional": true
 }

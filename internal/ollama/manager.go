@@ -501,31 +501,47 @@ func (m *Manager) PullModel(ctx context.Context, model string, onProgress func(P
 	return scanner.Err()
 }
 
-// DeleteModel removes a model from the local Ollama store (POST /api/delete).
+// DeleteModel removes a model from the local Ollama store (DELETE /api/delete).
+// Ollama 0.17+ rejects POST on this route (405); older docs used {"name"}; current API uses {"model"}.
 func (m *Manager) DeleteModel(ctx context.Context, model string) error {
 	model = strings.TrimSpace(model)
 	if model == "" {
 		return fmt.Errorf("model name is required")
 	}
-	payload, err := json.Marshal(map[string]string{"name": model})
+	payload, err := json.Marshal(map[string]string{"model": model, "name": model})
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", m.endpoint+"/api/delete", bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 120 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("delete request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	doDelete := func(method string) (int, []byte, error) {
+		req, err := http.NewRequestWithContext(ctx, method, m.endpoint+"/api/delete", bytes.NewReader(payload))
+		if err != nil {
+			return 0, nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{Timeout: 120 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			return 0, nil, fmt.Errorf("delete request failed: %w", err)
+		}
+		defer resp.Body.Close()
 		data, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("delete failed with status %d: %s", resp.StatusCode, string(data))
+		return resp.StatusCode, data, nil
+	}
+
+	status, data, err := doDelete(http.MethodDelete)
+	if err != nil {
+		return err
+	}
+	// Some older Ollama builds accepted POST instead of DELETE.
+	if status == http.StatusMethodNotAllowed {
+		status, data, err = doDelete(http.MethodPost)
+		if err != nil {
+			return err
+		}
+	}
+	if status != http.StatusOK {
+		return fmt.Errorf("delete failed with status %d: %s", status, string(data))
 	}
 	return nil
 }

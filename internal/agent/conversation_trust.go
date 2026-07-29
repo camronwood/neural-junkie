@@ -42,7 +42,7 @@ type ConversationTrustDecision struct {
 
 var (
 	explicitToolActionRE = regexp.MustCompile(`(?i)\b(?:run|execute|test|build|deploy|search|inspect|read|open|edit|write|create|delete|remove|rename|move|commit|push|apply|generate)\b`)
-	userCorrectionRE     = regexp.MustCompile(`(?i)(?:\b(?:no|incorrect|actually|instead|you missed|you forgot|that is not|that's not|do not ask|correction)\b|\b(?:that is|that's|you are|you're)\s+wrong\b|\bwrong\s+(?:file|path|branch|model|provider|approach|answer)\b|\brename\s+(?:the\s+)?\w+\s+to\b|(?:^|\s)(?:again|as i (?:said|asked|requested))[,.:;!\s])`)
+	userCorrectionRE     = regexp.MustCompile(`(?i)(?:\b(?:no|incorrect|actually|instead|you missed|you forgot|that is not|that's not|do not ask|correction|hold on)\b|\b(?:that is|that's|you are|you're)\s+wrong\b|\bwrong\s+(?:file|path|branch|model|provider|approach|answer)\b|\brename\s+(?:the\s+)?\w+\s+to\b|\bdead code\b|\byou never\b|\byou didn't\b|\byou haven't\b|\bfights itself\b|\bstill just prose\b|\bstrategy memo\b|\bshow me the actual\b|\bshow me the corrected\b|(?:^|\s)(?:again|as i (?:said|asked|requested))[,.:;!\s])`)
 	repeatedRequestRE    = regexp.MustCompile(`(?i)\b(?:again|retry|try again|as i (?:said|asked|requested)|still need|already asked)\b`)
 )
 

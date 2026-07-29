@@ -1,4 +1,4 @@
-.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-transcript-metrics test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-preflight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads sync-sd-pack user-flow-scenario user-flow-scenarios user-flow-scenarios-list
+.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-transcript-metrics test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-preflight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads sync-sd-pack user-flow-scenario user-flow-scenarios user-flow-scenarios-list sut-loop sut-loop-once sut-loop-list sut-overnight semantic-eval semantic-eval-compare
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -32,20 +32,25 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "Neural Junkie — release & testing commands"
 	@echo "=========================================="
 	@echo ""
-	@echo "PRIMARY (use these day-to-day — each boots Ollama + hub automatically)"
-	@echo "  make layer-list                         # layers in order + time estimates"
-	@echo "  make layer-gate LAYER=implement         # test ONE layer (~15m–3h)"
+	@echo "See docs/TEST_PORTFOLIO.md for tiers (climb / soak / quarantine)."
+	@echo ""
+	@echo "PRIMARY (Tier A climb — each boots Ollama + hub automatically)"
+	@echo "  make layer-list                         # climb + soak + quarantine estimates"
+	@echo "  make layer-gate LAYER=implement         # one layer (ci|implement|collab-core|chat|…)"
 	@echo "  make layer-fix-loop LAYER=chat          # layer test → Cursor fix → verify"
-	@echo "  make test-growth-loop                   # discover gaps → add/strengthen tests"
-	@echo "  make layer-climb                        # run layers until first failure"
-	@echo "  make layer-climb CONTINUE=1             # run all layers; rollup + live status file"
+	@echo "  make layer-climb                        # Tier A until first failure (~45–60m)"
+	@echo "  make layer-climb CONTINUE=1             # all climb layers; rollup + status file"
 	@echo "  #   progress: docs/testing/layer-climb-status.txt  (tail -f)"
-	@echo "  make model-benchmark SUITE=standard     # multi-model live benchmark (boots stack)"
 	@echo "  make overnight-preflight                # afternoon check before overnight"
-	@echo "  make overnight                          # walk-away full release-prep (tmux)"
+	@echo "  make overnight                          # walk-away release-prep (tmux; clean ~4h)"
 	@echo "  make layer-overnight LAYER=implement    # walk-away layer fix loop"
 	@echo ""
-	@echo "FULL GATE (only after layers pass)"
+	@echo "RELEASE-ENG / META (not ship gates)"
+	@echo "  make sut-loop-once SCENARIO=… NO_COMMIT=1  # Claude Human→SUT→Judge→Cursor"
+	@echo "  make test-growth-loop                   # defaults SKIP_LIVE=1 (unit companions)"
+	@echo "  make model-benchmark SUITE=standard     # multi-model; Arena missing → skip in release-prep"
+	@echo ""
+	@echo "FULL GATE (after Tier A; soak optional)"
 	@echo "  make release-prep                       # test-everything-full + parity + benchmark"
 	@echo "  make release-prep-fix-loop              # full gate + Cursor agent fix loop"
 	@echo "  make overnight NJ_OVERNIGHT_TARGET=release-prep-fix-loop"
@@ -56,15 +61,9 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  make test-scenario-assert               # scenario contract unit tests"
 	@echo ""
 	@echo "LAYERS (make layer-gate LAYER=<name>)"
-	@echo "  ci            test-all + conversation-contract"
-	@echo "  implement     implement-scenarios user-flow-scenario user-flow-scenarios user-flow-scenarios-list (20/20)"
-	@echo "  chat          chat + conversation regression"
-	@echo "  collab        collab edge-case regression (~13)"
-	@echo "  collab-core   participation/planning core (~8; fix-loop target)"
-	@echo "  collab-full   all collab scenarios (25)"
-	@echo "  bundle        implement + chat + conversation"
-	@echo "  user-flows    real-world product journeys (~7)"
-	@echo "  parity        3x implement with hub restart"
+	@echo "  climb:  ci → implement → collab-core → chat (canary)"
+	@echo "  soak:   chat-full | collab | collab-full | parity (implement×3)"
+	@echo "  quarantine: bundle | user-flows (not in climb)"
 	@echo ""
 	@echo "DEBUG (single scenario)"
 	@echo "  make implement-scenario SCENARIO=go-handler"
@@ -74,6 +73,8 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  make *-scenarios-list                   # list scenario names"
 	@echo ""
 	@echo "  make gen-pack-capabilities             # regenerate TS capability tokens from JSON"
+	@echo "  make semantic-eval                     # live classify+policy corpus (needs Ollama)"
+	@echo "  make semantic-eval-compare             # 3b vs candidate model on same corpus"
 
 test-regression-live: release-help
 
@@ -295,7 +296,7 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
-	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py user_flow_scenarios_test.py transcript_contract_test.py test_growth_candidates_test.py test_growth_guardrails_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py release_prep_failures_test.py fix_loop_git_test.py hub_cleanup_test.py scenario_flake_retry_test.py release_prep_layers_test.py regression_boot_test.py regression_models_test.py regression_collab_test.py
+	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py user_flow_scenarios_test.py transcript_contract_test.py test_growth_candidates_test.py test_growth_guardrails_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py release_prep_failures_test.py fix_loop_git_test.py hub_cleanup_test.py scenario_flake_retry_test.py release_prep_layers_test.py regression_boot_test.py regression_models_test.py regression_collab_test.py sut_loop_test.py
 	@PYTHONPATH=scripts python3 scripts/lib/scenario_contract.py
 
 test-transcript-metrics: ## Deterministic sanitized conversation metrics (no hub, judge, retry, or network)
@@ -422,11 +423,11 @@ overnight: ## Walk-away clean gate: reset + hub + preflight + release-prep in tm
 	 LAYER='$(LAYER)' SKIP_GATE='$(SKIP_GATE)' \
 	 ./scripts/overnight.sh
 
-layer-list: ## List release-prep layers in recommended order (ci → implement → … → parity)
+layer-list: ## List climb + soak + quarantine layers (docs/TEST_PORTFOLIO.md)
 	@chmod +x scripts/layer-gate.py
 	@python3 scripts/layer-gate.py --layer ci --list
 
-layer-climb: ## Run layers in order (default stop on fail; CONTINUE=1 runs all + writes docs/testing/layer-climb-*.md)
+layer-climb: ## Tier A climb: ci → implement → collab-core → chat (CONTINUE=1 full climb scoreboard)
 	@chmod +x scripts/layer-climb.py scripts/layer-gate.py
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 \
 		python3 scripts/layer-climb.py \
@@ -435,7 +436,7 @@ layer-climb: ## Run layers in order (default stop on fail; CONTINUE=1 runs all +
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(NO_RESTART_HUB),--no-restart-hub,)'
 
-layer-gate: ## Run one layer gate (LAYER=ci|implement|chat|collab|collab-core|collab-full|bundle|parity)
+layer-gate: ## Run one layer (LAYER=ci|implement|collab-core|chat|chat-full|collab|collab-full|parity|bundle|user-flows)
 	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-gate LAYER=implement [VERBOSE=1] [NO_RESTART_HUB=1]"; $(MAKE) layer-list; exit 1; fi
 	@chmod +x scripts/layer-gate.py
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 \
@@ -477,6 +478,46 @@ layer-overnight: ## Walk-away layer fix loop in tmux (LAYER=implement)
 	 PREFER_SDK='$(PREFER_SDK)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
 	 NO_WORKTREE='$(NO_WORKTREE)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
 
+sut-loop-list: ## List SUT self-improve episodes (scenarios/sut/)
+	@chmod +x scripts/sut-loop.py
+	@python3 scripts/sut-loop.py --list
+
+sut-loop-once: ## Single SUT episode iteration (SCENARIO=… MAX_ITER=1 NO_COMMIT=1)
+	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make sut-loop-once SCENARIO=dm-long-horizon-entity-retention [NO_COMMIT=1]"; $(MAKE) sut-loop-list; exit 1; fi
+	@$(MAKE) sut-loop SCENARIO='$(SCENARIO)' MAX_ITER=1 \
+	 $(if $(DRY_RUN),DRY_RUN=1,) $(if $(NO_COMMIT),NO_COMMIT=1,) $(if $(SKIP_AGENT),SKIP_AGENT=1,) \
+	 $(if $(SKIP_VERIFY),SKIP_VERIFY=1,) $(if $(NO_RESTART_HUB),NO_RESTART_HUB=1,) \
+	 $(if $(MODEL),MODEL='$(MODEL)',) $(if $(PREFER_SDK),PREFER_SDK=1,) \
+	 $(if $(AGENT_TIMEOUT),AGENT_TIMEOUT=$(AGENT_TIMEOUT),) $(if $(VERBOSE),VERBOSE=1,)
+
+sut-loop: ## Claude Human→local SUT→Claude Judge→Cursor fix→LoRA rows (SCENARIO=… or ALL=1)
+	@chmod +x scripts/sut-loop.py
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/sut-loop.py \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
+		--max-iterations $${MAX_ITER:-3} \
+		$(if $(SCENARIO),--scenario "$(SCENARIO)",) \
+		$(if $(ALL),--all,) \
+		$(if $(SKIP_AGENT),--skip-agent,) \
+		$(if $(SKIP_VERIFY),--skip-verify,) \
+		$(if $(DRY_RUN),--dry-run,) \
+		$(if $(NO_RESTART_HUB),--no-restart-hub,) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(MODEL),--model "$(MODEL)",) \
+		$(if $(PREFER_SDK),--prefer-sdk,) \
+		$(if $(AGENT_TIMEOUT),--agent-timeout $(AGENT_TIMEOUT),) \
+		$(if $(NO_COMMIT),--no-commit,) \
+		$(if $(FIX_BRANCH),--fix-branch "$(FIX_BRANCH)",) \
+		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",) \
+		$(if $(USE_WORKTREE),--use-worktree,--no-worktree)'
+
+sut-overnight: ## Walk-away SUT self-improve loop in tmux (SCENARIO=… or ALL=1)
+	@$(MAKE) overnight NJ_OVERNIGHT_TARGET=sut-loop SCENARIO='$(SCENARIO)' ALL='$(ALL)' \
+	 MAX_ITER='$(MAX_ITER)' NO_COMMIT='$(NO_COMMIT)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
+	 SKIP_AGENT='$(SKIP_AGENT)' SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' \
+	 MODEL='$(MODEL)' PREFER_SDK='$(PREFER_SDK)' FIX_BRANCH='$(FIX_BRANCH)' \
+	 BASE_BRANCH='$(BASE_BRANCH)' USE_WORKTREE='$(USE_WORKTREE)' VERBOSE='$(VERBOSE)' \
+	 IN_TMUX='$(IN_TMUX)'
+
 test-growth-list: ## List ranked test-growth candidates (no agent)
 	@chmod +x scripts/test-growth-loop.py
 	@python3 scripts/test-growth-loop.py --list
@@ -484,7 +525,7 @@ test-growth-list: ## List ranked test-growth candidates (no agent)
 test-growth-once: ## Single test-growth iteration (MAX_ITER=1)
 	@$(MAKE) test-growth-loop MAX_ITER=1 $(if $(DRY_RUN),DRY_RUN=1,) $(if $(NO_COMMIT),NO_COMMIT=1,) $(if $(SKIP_LIVE),SKIP_LIVE=1,) $(if $(SKIP_AGENT),SKIP_AGENT=1,)
 
-test-growth-loop: ## Test-growth loop: discover gaps → Cursor agent → verify → commit (MAX_ITER=3)
+test-growth-loop: ## Test-growth loop (defaults SKIP_LIVE=1; set SKIP_LIVE=0 for live strengthen)
 	@chmod +x scripts/test-growth-loop.py
 	@bash -c 'source load-env.sh && python3 scripts/test-growth-loop.py \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
@@ -492,7 +533,7 @@ test-growth-loop: ## Test-growth loop: discover gaps → Cursor agent → verify
 		$(if $(CANDIDATE_KIND),--candidate-kind "$(CANDIDATE_KIND)",) \
 		$(if $(SKIP_AGENT),--skip-agent,) \
 		$(if $(SKIP_VERIFY),--skip-verify,) \
-		$(if $(SKIP_LIVE),--skip-live,) \
+		$(if $(filter 0 false FALSE no NO,$(SKIP_LIVE)),,$(if $(filter 1 true TRUE yes YES,$(SKIP_LIVE)),--skip-live,--skip-live)) \
 		$(if $(DRY_RUN),--dry-run,) \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(MODEL),--model "$(MODEL)",) \
@@ -702,6 +743,24 @@ test-go: ## Run Go unit tests only (repeatable: -count=1)
 	@chmod +x ./scripts/cleanup-test-artifacts.py
 	@./scripts/cleanup-test-artifacts.py || true
 	@echo "✅ Go tests complete."
+
+semantic-eval: ## Live semantic classify+policy corpus (Ollama). MODEL=qwen3.5:9b MIN_ACC=0.90
+	@mkdir -p docs/testing
+	@stamp=$$(date -u +%Y-%m-%d-%H%M); \
+	out="docs/testing/semantic-eval-$${stamp}.json"; \
+	echo "semantic-eval → $$out (model=$${MODEL:-default})"; \
+	NJ_RUN_LOCAL_SEMANTIC_EVAL=1 \
+	NJ_SEMANTIC_EVAL_OUT="$$out" \
+	$(if $(MODEL),NJ_SEMANTIC_CLASSIFIER_MODEL="$(MODEL)",) \
+	$(if $(MIN_ACC),NJ_SEMANTIC_EVAL_MIN_ACC="$(MIN_ACC)",) \
+	go test ./cmd/server/ -count=1 -run 'TestLocalSemanticIntentEvaluation$$' -timeout 30m -v
+
+semantic-eval-compare: ## Compare BASE_MODEL (default prior 3b) vs MODEL (default current 9b)
+	@echo "=== baseline $(or $(BASE_MODEL),qwen2.5:3b) ==="
+	@$(MAKE) semantic-eval MODEL=$(or $(BASE_MODEL),qwen2.5:3b) MIN_ACC=$(or $(MIN_ACC),0.0)
+	@echo "=== candidate $(or $(MODEL),qwen3.5:9b) ==="
+	@$(MAKE) semantic-eval MODEL=$(or $(MODEL),qwen3.5:9b) MIN_ACC=$(or $(MIN_ACC),0.0)
+	@echo "Compare latest docs/testing/semantic-eval-*.json — promote a new default only if candidate action_accuracy >= 0.90 and beats baseline."
 
 test-all: ## Run go vet, Go tests, desktop tsc, and Vitest (full CI-style)
 	@echo "🔍 go vet..."

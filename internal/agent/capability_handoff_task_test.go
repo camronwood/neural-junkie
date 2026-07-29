@@ -51,7 +51,7 @@ func TestCapabilityHandoffTurnState_oncePerTurn(t *testing.T) {
 	st.count = 1
 
 	a := &Agent{Info: protocol.AgentInfo{ID: "a1", Name: "Assistant", Type: protocol.AgentTypeAssistant}}
-	msg := &protocol.Message{ID: "m1", Channel: "general", From: protocol.AgentInfo{Name: "camron"}, Content: "help"}
+	msg := &protocol.Message{ID: "m1", Channel: "general", From: protocol.AgentInfo{Name: "camron"}, Content: "debug the failing auth middleware in auth.go"}
 	out, err := a.executeRequestCapabilityHelpTool(ctx, msg, []byte(`{"capability_id":"web-browser","task":"Verify the page accessibility"}`))
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -65,7 +65,7 @@ func TestExecuteRequestCapabilityHelpTool_rejectsVagueTaskWithoutHandoff(t *test
 	t.Parallel()
 	ctx := withCapabilityHandoffTurnState(context.Background())
 	a := &Agent{Info: protocol.AgentInfo{ID: "a1", Name: "Assistant", Type: protocol.AgentTypeAssistant}}
-	msg := &protocol.Message{ID: "m1", Channel: "general", From: protocol.AgentInfo{Name: "camron"}, Content: "help"}
+	msg := &protocol.Message{ID: "m1", Channel: "general", From: protocol.AgentInfo{Name: "camron"}, Content: "debug the failing auth middleware in auth.go"}
 	out, err := a.executeRequestCapabilityHelpTool(ctx, msg, []byte(`{"capability_id":"web-browser","task":"whats up every body?"}`))
 	if err != nil {
 		t.Fatalf("err: %v", err)

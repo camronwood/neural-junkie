@@ -62,8 +62,12 @@ export function ModelStoreDetail({ item, onBack, showBackButton = true }: ModelS
               <p className="text-xs text-gray-500 mt-0.5">{item.publisher}</p>
             )}
             <p className="text-sm text-gray-500 font-mono mt-1 break-all">{item.subtitle}</p>
-            {item.sizeHint && (
-              <p className="text-xs text-gray-500 mt-1">{item.sizeHint}</p>
+            {item.sizeHint ? (
+              <p className="text-base font-semibold text-amber-300 mt-2 tabular-nums">
+                Download size: {item.sizeHint}
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500 mt-2">Download size unavailable</p>
             )}
           </div>
 

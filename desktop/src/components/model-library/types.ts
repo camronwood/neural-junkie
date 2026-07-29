@@ -1,4 +1,4 @@
-export type StoreModelStatus = 'available' | 'installed' | 'on_disk' | 'cloud';
+export type StoreModelStatus = 'available' | 'installed' | 'on_disk' | 'cloud' | 'downloading';
 
 export interface StoreDetailRow {
   label: string;

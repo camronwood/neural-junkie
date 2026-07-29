@@ -20,9 +20,12 @@ import (
 const maxFetchBytes = 256 * 1024
 
 // AttachTools registers web_search and fetch_url on an MCP server.
-// Config is read from hub app config on each tool call.
+// Config is read from hub app config on each tool call. Idempotent if already attached.
 func AttachTools(mcpServer *server.MCPServer) {
 	if mcpServer == nil {
+		return
+	}
+	if mcpServer.GetTool("web_search") != nil {
 		return
 	}
 	t := &tools{

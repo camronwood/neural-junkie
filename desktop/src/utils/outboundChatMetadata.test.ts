@@ -425,6 +425,35 @@ describe('buildHumanOutboundMetadata open_artifact', () => {
     });
   });
 
+  it('defaults renderer_id to nj.markdown when tab lacks cached renderer', () => {
+    useEditorStore.setState({
+      tabs: [
+        {
+          id: 'tab-nc',
+          workspaceId: 'ws-1',
+          path: 'Trip Planning',
+          content: '',
+          isDirty: false,
+          viewMode: 'neural-canvas',
+          artifactId: 'art-trip-1',
+        },
+      ],
+      activeTabId: 'tab-nc',
+    });
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'off',
+      message: 'the 3rd item is Arrive in Flordia',
+      channel: 'dm-camron-assistant',
+      channelType: 'dm',
+      composerMetadata: { editor_mode: 'agent' },
+    });
+    expect(meta?.open_artifact).toEqual({
+      id: 'art-trip-1',
+      title: 'Trip Planning',
+      renderer_id: 'nj.markdown',
+    });
+  });
+
   it('skips library placeholder tabs', () => {
     useEditorStore.setState({
       tabs: [

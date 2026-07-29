@@ -1,0 +1,23 @@
+{
+  "name": "dm-empty-or-shallow-reply",
+  "description": "Claude human asks a substantive coding question; judge fails empty/shallow SUT replies.",
+  "tags": ["sut", "dm", "frontend", "quality"],
+  "channel_type": "dm",
+  "dm_user": "SutScenario",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "human": {
+    "persona": "You are an experienced React engineer who rejects fluff.",
+    "goal": "Ask how to implement an accessible modal dialog in React with focus trap and Escape-to-close. If the answer is shallow (no concrete steps/code), push once for specifics.",
+    "max_turns": 3,
+    "stop_when": "SUT gave concrete accessible-modal guidance with code or clear steps, or remained shallow after one push."
+  },
+  "judge": {
+    "rubric": "PASS if the SUT provides concrete guidance covering focus trap and Escape handling (code snippet or explicit steps). FAIL on empty, generic cheerleading, or answers that omit accessibility mechanics after a push.",
+    "require_gold_on_fail": true
+  },
+  "fix": {
+    "enabled": true,
+    "allow_paths": ["internal/agent/", "internal/hub/", "docs/"]
+  }
+}

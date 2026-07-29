@@ -35,7 +35,7 @@ Interpret meaning rather than matching words:
 - plan is only for explicit approach/design requests without execution ("propose a plan", "how should we approach"). Do not stamp plan when the user asks you to fix or repair.
 - edit is the primary action for creating or changing source files. run is only the primary action when the user asks to execute a command, test, build, or script; implementing code is never run.
 - writing fiction, stories, alternate endings, essays, poems, jokes, or other creative prose is answer — never edit, run, ask_user, or artifact.
-- presence checks ("are you there?", "you here?", "ping") are casual/answer with empty retrieval or conversation_memory only — never prior_reference, codebase, or ask_user.
+- presence / readiness checks ("are you there?", "you here?", "ping", "are you ready?", "hello, are you ready?", "you ready?") are casual/answer with empty retrieval or conversation_memory only — never task, edit, inspect, prior_reference, codebase, or ask_user.
 - prior_reference only when the user points at an earlier assistant reply (e.g. "what you wrote", "previous reply", "few messages back").
 - continue advances one pending action. When interaction is continuation, requested_action must be continue and continuation_target must copy pending_action_id.
 - artifact creates a durable chat-side report/canvas; image creates image media; music creates audio. Neither artifact nor image means a source-code component with a similar name.

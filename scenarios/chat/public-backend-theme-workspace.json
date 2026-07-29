@@ -1,31 +1,59 @@
 {
   "name": "public-backend-theme-workspace",
   "description": "Public channel @BackendEngineer: workspace visibility on second turn.",
-  "tags": ["public", "backend", "workspace", "regression"],
+  "tags": [
+    "public",
+    "backend",
+    "workspace",
+    "regression",
+    "canary"
+  ],
   "channel": "chat-scenarios",
   "channel_type": "public",
   "mention": "@BackendEngineer",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
+  "required_agents": [
+    "BackendEngineer"
+  ],
   "steps": [
     {
       "action": "send",
       "content": "I want to add theme support to this app",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
     {
       "action": "send",
       "content": "can you see my workspace?",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "90s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "90s"
+    },
     {
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "BackendEngineer",
-      "any_match": ["workspace|file tree|Yes — I have|Project:"],
-      "none_match": ["golang.org/x/themes", "gin-gonic", "successfully added"]
+      "any_match": [
+        "workspace|file tree|Yes \u2014 I have|Project:"
+      ],
+      "none_match": [
+        "golang.org/x/themes",
+        "gin-gonic",
+        "successfully added"
+      ]
     }
   ],
   "cleanup": "clear"

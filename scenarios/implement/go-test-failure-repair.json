@@ -1,11 +1,13 @@
 {
   "name": "go-test-failure-repair",
-  "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+  "description": "Fix failing Go unit test in core/sample/math.go (verify loop). Optional soak twin \u2014 excluded from default implement --all.",
   "tags": [
     "implement",
     "cursor-parity",
     "go",
-    "verify"
+    "verify",
+    "soak",
+    "optional"
   ],
   "channel": "implement-scenarios",
   "channel_type": "public",
@@ -78,5 +80,6 @@
       ]
     }
   ],
-  "cleanup": "clear"
+  "cleanup": "clear",
+  "optional": true
 }

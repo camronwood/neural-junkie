@@ -74,3 +74,32 @@ func TestPreferCommonQuants(t *testing.T) {
 		t.Fatalf("expected Q4_K_M first, got %#v", out)
 	}
 }
+
+func TestEscapeHFRepoPath(t *testing.T) {
+	got := escapeHFRepoPath("GrEarl/Kimi-K3-GGUF")
+	if got != "GrEarl/Kimi-K3-GGUF" {
+		t.Fatalf("got %q, want unencoded slash", got)
+	}
+	if strings.Contains(got, "%2F") || strings.Contains(got, "%2f") {
+		t.Fatalf("must not url-encode slash: %q", got)
+	}
+	got = escapeHFRepoPath("org/model with space")
+	if got != "org/model%20with%20space" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestFormatSizeHint(t *testing.T) {
+	if got := formatSizeHint(0); got != "" {
+		t.Fatalf("empty for 0, got %q", got)
+	}
+	if got := formatSizeHint(668_203_584); got != "~637 MB" {
+		t.Fatalf("got %q want ~637 MB", got)
+	}
+	if got := formatSizeHint(4_700_000_000); got != "~4.4 GB" {
+		t.Fatalf("got %q want ~4.4 GB", got)
+	}
+	if got := formatSizeHint(12 * 1024 * 1024 * 1024); got != "~12 GB" {
+		t.Fatalf("got %q want ~12 GB", got)
+	}
+}

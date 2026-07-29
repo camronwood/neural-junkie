@@ -6,6 +6,27 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.19] - 2026-07-29
+
+Linux/Windows Ollama install-and-go, first-run wizard gate fix, chat routing/continuity hardening, model library polish, web search settings, and SUT/release-prep tooling.
+
+### Fixed
+- **Setup wizard gate** — first launch no longer skips the wizard because default config seeds an Ollama provider; hub now exposes `setup_needed` / `setup_completed`.
+- **One-click Ollama install** — Install Ollama from the toolbar **OLL** chip and model-library Ollama panel (no wizard required); installer auto-starts the runtime.
+- **Chat continuity** — turn routing, capability handoffs, conversation trust/mode, and response-echo hardening for cleaner multi-turn DM behavior.
+
+### Added
+- **Installed models library** — dedicated installed/transfers view in the model library.
+- **Web search settings tab** — desktop settings surface for web search configuration.
+- **SUT loop** — Claude Human→SUT→Judge→Cursor harness (`scripts/sut-loop.py`) plus SUT scenarios.
+- **Turn ledger** — hub/agent turn ledger for longer-horizon continuity.
+- **Test portfolio** — `docs/TEST_PORTFOLIO.md` maps climb / soak / quarantine tiers.
+
+### Changed
+- **Semantic routing corpus** — expanded intent/policy fixtures and eval coverage.
+- **Release-prep layers** — layer climb/overnight and release-prep scripts updated for the thinned suite.
+- **Model library UX** — size hints, HF search/catalog tweaks, transfer store.
+
 ## [1.2.0-beta.18] - 2026-07-27
 
 Neural Canvas Mermaid reliability, Maps canvas artifacts, Composition Model docs/campaign, Share Agent / tool-grant exports, and implement grounding.

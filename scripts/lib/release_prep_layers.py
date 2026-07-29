@@ -1,9 +1,12 @@
-"""Release-prep layer gates — test and fix one layer at a time before the full gate."""
+"""Release-prep layer gates — test and fix one layer at a time before the full gate.
+
+See docs/TEST_PORTFOLIO.md for tiers (climb / soak / quarantine).
+"""
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from lib.release_prep_failures import (
@@ -12,23 +15,38 @@ from lib.release_prep_failures import (
     PHASE_ROW_RE,
     ParsedFailure,
     ReleasePrepFailureReport,
-    _extract_scenarios_from_log,
     _extract_scenarios_from_text,
     _prioritize_rerun_cmds,
     build_agent_prompt,
 )
 
-LAYER_ORDER: tuple[str, ...] = (
+# Tier A — daily / pre-tag / layer-climb default
+CLIMB_ORDER: tuple[str, ...] = (
     "ci",
     "implement",
-    "chat",
-    "collab",
     "collab-core",
+    "chat",
+)
+
+# Tier B — overnight soak (explicit layer-gate; not default climb)
+SOAK_ORDER: tuple[str, ...] = (
+    "chat-full",
+    "collab",
     "collab-full",
-    "bundle",
-    "user-flows",
     "parity",
 )
+
+# Tier C — invokable but not climb/soak defaults
+QUARANTINE_ORDER: tuple[str, ...] = (
+    "bundle",
+    "user-flows",
+)
+
+# Default list + climb path (excludes quarantine)
+LAYER_ORDER: tuple[str, ...] = CLIMB_ORDER + SOAK_ORDER
+
+# Non-optional implement gate size after twin collapse (docs/TEST_PORTFOLIO.md)
+IMPLEMENT_GATE_MIN_PASS = 14
 
 
 @dataclass(frozen=True)
@@ -45,6 +63,7 @@ class LayerSpec:
     stages: tuple[LayerStage, ...]
     next_layer: str = ""
     est_minutes: int = 30
+    tier: str = "climb"  # climb | soak | quarantine
 
 
 def _hub_url_placeholder() -> str:
@@ -56,7 +75,8 @@ LAYERS: dict[str, LayerSpec] = {
         name="ci",
         description="CI smoke — vet, Go, desktop tsc, contracts (no live hub)",
         requires_hub=False,
-        est_minutes=15,
+        est_minutes=5,
+        tier="climb",
         stages=(
             LayerStage("test-all", ["make", "test-all"]),
             LayerStage("test-conversation-contract", ["make", "test-conversation-contract"]),
@@ -65,23 +85,53 @@ LAYERS: dict[str, LayerSpec] = {
     ),
     "implement": LayerSpec(
         name="implement",
-        description="Implementation session scenarios (target 20/20 PASS)",
+        description="Implementation session scenarios (non-optional file gates; optional soak twins skipped)",
         requires_hub=True,
-        est_minutes=45,
+        est_minutes=15,
+        tier="climb",
         stages=(
             LayerStage(
                 "implement-scenarios",
                 ["python3", "scripts/implement-scenarios.py", "--all", "--hub", _hub_url_placeholder()],
             ),
         ),
+        next_layer="collab-core",
+    ),
+    "collab-core": LayerSpec(
+        name="collab-core",
+        description="Collab participation + planning core (~8 scenarios)",
+        requires_hub=True,
+        est_minutes=30,
+        tier="climb",
+        stages=(
+            LayerStage("collab-scenarios-core", ["make", "collab-scenarios-core"]),
+        ),
         next_layer="chat",
     ),
     "chat": LayerSpec(
         name="chat",
-        description="Chat + conversation regression (closure, DM, workspace)",
+        description="Chat canary + conversation regression (Tier A)",
         requires_hub=True,
-        # Live chat has many multi-turn DMs + flake retries; 90m still timed out at 5400s.
+        est_minutes=30,
+        tier="climb",
+        stages=(
+            LayerStage(
+                "chat-scenarios-canary",
+                ["python3", "scripts/chat-scenarios.py", "--all", "--tag", "canary"],
+            ),
+            LayerStage(
+                "conversation-scenarios-regression",
+                ["python3", "scripts/conversation-scenarios-regression.py", "--chat-only"],
+            ),
+        ),
+        next_layer="",
+    ),
+    "chat-full": LayerSpec(
+        name="chat-full",
+        description="Full chat regression tag (Tier B soak)",
+        requires_hub=True,
         est_minutes=120,
+        tier="soak",
         stages=(
             LayerStage(
                 "chat-scenarios-regression",
@@ -96,65 +146,32 @@ LAYERS: dict[str, LayerSpec] = {
     ),
     "collab": LayerSpec(
         name="collab",
-        description="Collab edge-case regression (plan parser, execution guards, full-completion paths, ~13 scenarios)",
-        requires_hub=True,
-        est_minutes=105,
-        stages=(
-            LayerStage("collab-scenario-regression", ["make", "collab-scenario-regression"]),
-        ),
-        next_layer="collab-core",
-    ),
-    "collab-core": LayerSpec(
-        name="collab-core",
-        description="Collab participation + planning core (~8 scenarios, ~45–90m; hub restart between)",
+        description="Collab edge regression (thinned website/findings twins)",
         requires_hub=True,
         est_minutes=75,
+        tier="soak",
         stages=(
-            LayerStage("collab-scenarios-core", ["make", "collab-scenarios-core"]),
+            LayerStage("collab-scenario-regression", ["make", "collab-scenario-regression"]),
         ),
         next_layer="collab-full",
     ),
     "collab-full": LayerSpec(
         name="collab-full",
-        description="Full collab-scenarios sweep (24 scenarios, ~2–4h)",
+        description="Full collab-scenarios sweep (24 scenarios)",
         requires_hub=True,
         est_minutes=120,
+        tier="soak",
         stages=(
             LayerStage("collab-scenarios-all", ["make", "collab-scenarios-all"]),
-        ),
-        next_layer="bundle",
-    ),
-    "bundle": LayerSpec(
-        name="bundle",
-        description="Regression bundle — implement + chat + conversation in one run",
-        requires_hub=True,
-        est_minutes=90,
-        stages=(
-            LayerStage(
-                "regression-bundle",
-                ["python3", "scripts/regression-bundle.py", "--hub", _hub_url_placeholder()],
-            ),
-        ),
-        next_layer="user-flows",
-    ),
-    "user-flows": LayerSpec(
-        name="user-flows",
-        description="Real-world product journeys (trip research, games, APIs, websites, boot fix)",
-        requires_hub=True,
-        est_minutes=240,
-        stages=(
-            LayerStage(
-                "user-flow-scenarios",
-                ["python3", "scripts/user-flow-scenarios.py", "--all"],
-            ),
         ),
         next_layer="parity",
     ),
     "parity": LayerSpec(
         name="parity",
-        description="Implement stability — 3× sweep with hub restart (hardest layer)",
+        description="Implement stability — 3× sweep with hub restart (not scenarios/parity/)",
         requires_hub=True,
-        est_minutes=180,
+        est_minutes=45,
+        tier="soak",
         stages=(
             LayerStage(
                 "test-parity-stable-restart",
@@ -164,7 +181,7 @@ LAYERS: dict[str, LayerSpec] = {
                     "--runs",
                     "3",
                     "--min-pass",
-                    "20",
+                    str(IMPLEMENT_GATE_MIN_PASS),
                     "--restart-between",
                     "--hub",
                     _hub_url_placeholder(),
@@ -173,17 +190,50 @@ LAYERS: dict[str, LayerSpec] = {
         ),
         next_layer="",
     ),
+    "bundle": LayerSpec(
+        name="bundle",
+        description="Quarantine — overlaps implement+chat; prefer climb layers",
+        requires_hub=True,
+        est_minutes=90,
+        tier="quarantine",
+        stages=(
+            LayerStage(
+                "regression-bundle",
+                ["python3", "scripts/regression-bundle.py", "--hub", _hub_url_placeholder()],
+            ),
+        ),
+        next_layer="",
+    ),
+    "user-flows": LayerSpec(
+        name="user-flows",
+        description="Quarantine — product journeys until 2 consecutive green overnight runs",
+        requires_hub=True,
+        est_minutes=240,
+        tier="quarantine",
+        stages=(
+            LayerStage(
+                "user-flow-scenarios",
+                ["python3", "scripts/user-flow-scenarios.py", "--all"],
+            ),
+        ),
+        next_layer="",
+    ),
 }
 
 
-def list_layers() -> list[LayerSpec]:
-    return [LAYERS[name] for name in LAYER_ORDER if name in LAYERS]
+def list_layers(*, include_quarantine: bool = False) -> list[LayerSpec]:
+    order = LAYER_ORDER + (QUARANTINE_ORDER if include_quarantine else ())
+    return [LAYERS[name] for name in order if name in LAYERS]
+
+
+def list_climb_layers() -> list[LayerSpec]:
+    return [LAYERS[name] for name in CLIMB_ORDER if name in LAYERS]
 
 
 def get_layer(name: str) -> LayerSpec:
     key = name.strip().lower()
     if key not in LAYERS:
-        known = ", ".join(LAYER_ORDER)
+        known = ", ".join(sorted(LAYERS))
         raise ValueError(f"unknown layer {name!r} — choose from: {known}")
     return LAYERS[key]
 
@@ -260,7 +310,7 @@ def parse_layer_gate_report(summary_path: Path, *, hub_url: str = "http://127.0.
 
     report.rerun_cmds = _prioritize_rerun_cmds(report.failures)
     if layer_name:
-        report.summary_path = summary_path  # anchor for prompt
+        report.summary_path = summary_path
     return report
 
 

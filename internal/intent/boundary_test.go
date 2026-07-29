@@ -15,6 +15,8 @@ import (
 var legacySemanticRecognizerFiles = map[string]bool{
 	// Post-hoc quality / claim validators — not turn routing.
 	"internal/agent/response_validation.go": true,
+	// Chat/code mode inference and advisory prompt NL cues — not stamp-first routing.
+	"internal/agent/conversation_mode.go": true,
 	// Conversation trust / playbook helpers still hold NL cues (not stamp overrides).
 	"internal/agent/conversation_trust.go":       true,
 	"internal/agent/implementation_fallback.go":  true,

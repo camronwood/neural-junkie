@@ -29,7 +29,8 @@ func channelMaintainsSessionSummary(chType protocol.ChannelType, channel string)
 	if !ChannelMaintainsSessionSummary(channel) {
 		return false
 	}
-	if chType == protocol.ChannelTypeDM || chType == protocol.ChannelTypeCustom || chType == protocol.ChannelTypePublic {
+	if chType == protocol.ChannelTypeDM || chType == protocol.ChannelTypeCustom ||
+		chType == protocol.ChannelTypePublic || chType == protocol.ChannelTypeCollaboration {
 		return true
 	}
 	channel = strings.TrimSpace(strings.ToLower(channel))
@@ -38,6 +39,7 @@ func channelMaintainsSessionSummary(chType protocol.ChannelType, channel string)
 
 // noteChannelActivity updates turn counters and may schedule an async summary refresh.
 func (h *Hub) noteChannelActivity(msg *protocol.Message) {
+	h.noteTurnLedger(msg)
 	if msg == nil || strings.TrimSpace(msg.Channel) == "" {
 		return
 	}
@@ -145,7 +147,9 @@ func (h *Hub) summaryRefreshInputLocked(channel string) summaryRefreshInput {
 		version = 1
 	}
 	prompt := fmt.Sprintf(
-		"Update the cumulative conversation digest. Preserve still-valid facts, decisions, corrections, open questions, and unfinished work. "+
+		"Update the cumulative conversation digest for a multi-speaker Neural Junkie channel. "+
+			"Attribute commitments, open questions, and corrections to named speakers (user and agent names). "+
+			"Preserve still-valid facts, decisions, named entities that must be retained, and unfinished work. "+
 			"Prefer dialogue facts (topic, constraints, user preferences) over coding task state when the transcript is casual chat. "+
 			"Never restore instructions marked superseded.\n\nPREVIOUS DIGEST (v%d):\n%s\n\nSTRUCTURED STATE:\n%s\n\nTRANSCRIPT DELTA:\n%s",
 		version, strings.TrimSpace(st.Summary), stateJSON, transcript,

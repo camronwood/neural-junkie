@@ -29,6 +29,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/channel-export", corsMiddleware(localOnly(handleChannelExport)))
 	http.HandleFunc("/api/channel-durable", corsMiddleware(localOnly(handleChannelDurable)))
 	http.HandleFunc("/api/channel-durable/status", corsMiddleware(localOnly(handleChannelDurableGet)))
+	http.HandleFunc("/api/channels/turn-ledger", corsMiddleware(localOnly(handleChannelTurnLedger)))
 	http.HandleFunc("/api/channels/agents", corsMiddleware(localOnly(handleChannelAgentsManage)))
 	http.HandleFunc("/api/channels/", corsMiddleware(localOnly(handleChannelInterjectRoute)))
 	http.HandleFunc("/api/agent-channels", corsMiddleware(handleAgentChannels))

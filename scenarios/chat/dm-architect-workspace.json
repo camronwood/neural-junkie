@@ -1,11 +1,18 @@
 {
   "name": "dm-architect-workspace",
   "description": "SoftwareArchitect DM: workspace visibility from outline scope.",
-  "tags": ["dm", "architecture", "workspace", "regression"],
+  "tags": [
+    "dm",
+    "architecture",
+    "workspace",
+    "soak"
+  ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "SoftwareArchitect",
-  "required_agents": ["SoftwareArchitect"],
+  "required_agents": [
+    "SoftwareArchitect"
+  ],
   "workspace": {
     "fixture": "minimal-repo",
     "file_tree": "core/\n  sample/\n    main.go\nREADME.md\n"
@@ -14,15 +21,27 @@
     {
       "action": "send",
       "content": "can you see my workspace I have open?",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
     },
-    { "action": "wait_reply", "from": "SoftwareArchitect", "timeout": "90s" },
+    {
+      "action": "wait_reply",
+      "from": "SoftwareArchitect",
+      "timeout": "90s"
+    },
     {
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "SoftwareArchitect",
-      "any_match": ["workspace context|file tree|Yes — I have|Project:"],
-      "none_match": ["I don't have access", "share your workspace"]
+      "any_match": [
+        "workspace context|file tree|Yes \u2014 I have|Project:"
+      ],
+      "none_match": [
+        "I don't have access",
+        "share your workspace"
+      ]
     }
   ],
   "cleanup": "clear"

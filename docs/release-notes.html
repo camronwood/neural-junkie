@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.18">v1.2.0-beta.18</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.19">v1.2.0-beta.19</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.19">1.2.0-beta.19</a>
+      ·
       <a href="#v1.2.0-beta.18">1.2.0-beta.18</a>
       ·
       <a href="#v1.2.0-beta.17">1.2.0-beta.17</a>
@@ -254,6 +256,24 @@
       <h3>Known limitation</h3>
       <ul>
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
+      </ul>
+
+      <h2 id="v1.2.0-beta.19" class="release-version-heading">1.2.0-beta.19 <span class="release-date">— 2026-07-29</span></h2>
+
+      <p><strong>Install-and-go Ollama, working first-run wizard, and cleaner chat.</strong> Linux/Windows can one-click install Ollama from the app (OLL chip / model library); the setup wizard no longer skips itself because defaults seed a provider; plus routing/continuity hardening, model-library polish, web search settings, and SUT/release-prep tooling. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.19">GitHub Releases</a>.</p>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Setup wizard gate</strong> — <code>setup_needed</code> / <code>setup_completed</code> so first launch shows the wizard.</li>
+        <li><strong>One-click Ollama</strong> — Install from OLL chip or model library without re-running setup; auto-starts runtime.</li>
+        <li><strong>Chat continuity</strong> — turn routing, handoffs, trust/mode, and response-echo hardening.</li>
+      </ul>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Installed models library</strong> — transfers/installed view in the model library.</li>
+        <li><strong>Web search settings</strong> — dedicated settings tab.</li>
+        <li><strong>SUT loop + test portfolio</strong> — Human→SUT→Judge harness and climb/soak map.</li>
       </ul>
 
       <h2 id="v1.2.0-beta.18" class="release-version-heading">1.2.0-beta.18 <span class="release-date">— 2026-07-27</span></h2>

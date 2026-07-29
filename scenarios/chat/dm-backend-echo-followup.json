@@ -1,20 +1,45 @@
 {
   "name": "dm-backend-echo-followup",
   "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
-  "tags": ["dm", "backend", "echo", "regression"],
+  "tags": [
+    "dm",
+    "backend",
+    "echo",
+    "regression",
+    "canary"
+  ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
+  "required_agents": [
+    "BackendEngineer"
+  ],
   "steps": [
     {
       "action": "send",
       "content": "I want to add theme support to this project",
-      "metadata": { "conversation_mode": "chat", "context_scope": "hint" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "hint"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
-    { "action": "send", "content": "What?", "metadata": { "conversation_mode": "chat" } },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
+    {
+      "action": "send",
+      "content": "What?",
+      "metadata": {
+        "conversation_mode": "chat"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
     {
       "action": "assert_messages",
       "last_reply_only": true,

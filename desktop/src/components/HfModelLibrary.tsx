@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModelStoreBrowse } from './model-library/ModelStoreBrowse';
 import type { StoreModelAction, StoreModelItem } from './model-library/types';
+import {
+  actionLabelWithSize,
+  estimateSizeHintFromName,
+  formatSizeBytes,
+} from './model-library/sizeHint';
+import { useModelTransferStore } from '../stores/modelTransferStore';
 
 export interface HfCatalogEntry {
   kind?: string;
@@ -17,7 +23,7 @@ export interface HfCatalogEntry {
   agent_type?: string;
   deprecated?: boolean;
   ollama_compose_supported?: boolean;
-  files?: { filename: string; quant?: string; size_hint?: string; role?: string }[];
+  files?: { filename: string; quant?: string; size_hint?: string; size_bytes?: number; role?: string }[];
   min_ollama_version?: string;
 }
 
@@ -43,9 +49,10 @@ function isAdapterEntry(entry: HfCatalogEntry): boolean {
   return kind === 'adapter' || kind === 'lora';
 }
 
-function fileRole(f: { role?: string }): string {
+function fileRole(f: { role?: string; filename?: string }): string {
   const role = (f.role ?? '').trim().toLowerCase();
   if (role === 'mmproj' || role === 'projector') return 'mmproj';
+  if ((f.filename ?? '').toLowerCase().includes('mmproj')) return 'mmproj';
   return 'main';
 }
 
@@ -119,6 +126,8 @@ interface HfModelLibraryProps {
   onViewChange?: (view: 'grid' | 'detail') => void;
   resetDetailSignal?: number;
   canComposeLoRA?: boolean;
+  /** Called when a download starts so the parent can switch to Installed. */
+  onDownloadStarted?: () => void;
 }
 
 type LibraryTab = 'hosted' | 'local';
@@ -137,7 +146,8 @@ interface HfSearchHit {
   description?: string;
   tags?: string[];
   modes?: string[];
-  files?: { filename: string; quant?: string; size_hint?: string }[];
+  size_hint?: string;
+  files?: { filename: string; quant?: string; size_hint?: string; size_bytes?: number; role?: string }[];
 }
 
 interface HfSearchResponse {
@@ -146,6 +156,28 @@ interface HfSearchResponse {
   models: HfSearchHit[];
   has_more: boolean;
   offset: number;
+}
+
+function primarySizeHint(entry: {
+  size_hint?: string;
+  title?: string;
+  repo_id?: string;
+  files?: { filename?: string; quant?: string; size_hint?: string; size_bytes?: number; role?: string }[];
+}): string | undefined {
+  if (entry.size_hint?.trim()) return entry.size_hint.trim();
+  const files = entry.files ?? [];
+  const main =
+    files.find((f) => (f.role ?? '').toLowerCase() === 'main') ??
+    files.find((f) => !(f.filename ?? '').toLowerCase().includes('mmproj') && (f.role ?? '').toLowerCase() !== 'mmproj') ??
+    files[0];
+  if (main) {
+    const fromFile = main.size_hint?.trim() || formatSizeBytes(main.size_bytes);
+    if (fromFile) return fromFile;
+  }
+  return (
+    estimateSizeHintFromName(entry.title || '') ||
+    estimateSizeHintFromName(entry.repo_id || '')
+  );
 }
 
 function mergeHfCatalog(curated: HfCatalogEntry[], hits: HfSearchHit[], mode: LibraryTab): HfCatalogEntry[] {
@@ -161,6 +193,7 @@ function mergeHfCatalog(curated: HfCatalogEntry[], hits: HfSearchHit[], mode: Li
       description: hit.description || hit.repo_id,
       tags: hit.tags ?? [],
       modes: hit.modes ?? [mode],
+      size_hint: hit.size_hint || primarySizeHint(hit),
       files: hit.files,
     });
   }
@@ -201,6 +234,7 @@ export function HfModelLibrary({
   onViewChange,
   resetDetailSignal,
   canComposeLoRA = true,
+  onDownloadStarted,
 }: HfModelLibraryProps) {
   const [tab, setTab] = useState<LibraryTab>('hosted');
   const [curated, setCurated] = useState<HfCatalogEntry[]>([]);
@@ -224,11 +258,27 @@ export function HfModelLibrary({
   const [actionMessage, setActionMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [configuredAgents, setConfiguredAgents] = useState<ConfiguredAgent[]>([]);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  /** Hub-resolved GGUF/adapter files keyed by repo_id (search hits start without files). */
+  const [resolvedFiles, setResolvedFiles] = useState<
+    Record<string, NonNullable<HfCatalogEntry['files']>>
+  >({});
+  const [resolvingSizeIds, setResolvingSizeIds] = useState<Set<string>>(() => new Set());
+  const resolveInflightRef = useRef(new Set<string>());
+  const resolveFailedRef = useRef(new Set<string>());
+  const resolveGenRef = useRef(0);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedQuery(query.trim()), 300);
     return () => clearTimeout(id);
   }, [query]);
+
+  useEffect(() => {
+    resolveGenRef.current += 1;
+    setResolvedFiles({});
+    setResolvingSizeIds(new Set());
+    resolveInflightRef.current.clear();
+    resolveFailedRef.current.clear();
+  }, [tab]);
 
   const refreshLocal = useCallback(async () => {
     try {
@@ -384,17 +434,101 @@ export function HfModelLibrary({
     [curated, searchHits, tab]
   );
 
+  const catalogWithFiles = useMemo(() => {
+    return catalog.map((entry) => {
+      if (entry.files?.length) return entry;
+      const files = resolvedFiles[entry.repo_id];
+      return files?.length ? { ...entry, files } : entry;
+    });
+  }, [catalog, resolvedFiles]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter((e) => {
+    if (!q) return catalogWithFiles;
+    return catalogWithFiles.filter((e) => {
       const hay = `${e.repo_id} ${e.title} ${e.description} ${e.publisher ?? ''} ${(e.tags || []).join(' ')}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [catalog, query]);
+  }, [catalogWithFiles, query]);
+
+  // Prefetch preferred GGUF sizes for Download-tab cards (search hits have no files until resolved).
+  useEffect(() => {
+    if (tab !== 'local') return;
+
+    const pending = catalog.filter((entry) => {
+      if (entry.files?.length || entry.size_hint) return false;
+      if (resolvedFiles[entry.repo_id]?.length) return false;
+      if (resolveFailedRef.current.has(entry.repo_id)) return false;
+      if (resolveInflightRef.current.has(entry.repo_id)) return false;
+      return true;
+    });
+    if (pending.length === 0) return;
+
+    const gen = resolveGenRef.current;
+    let stopQueue = false;
+    const queue = [...pending];
+    const concurrency = Math.min(4, queue.length);
+
+    const markResolving = (repoId: string, on: boolean) => {
+      if (gen !== resolveGenRef.current) return;
+      setResolvingSizeIds((prev) => {
+        const next = new Set(prev);
+        if (on) next.add(repoId);
+        else next.delete(repoId);
+        return next;
+      });
+    };
+
+    async function resolveOne(entry: HfCatalogEntry) {
+      const repoId = entry.repo_id;
+      resolveInflightRef.current.add(repoId);
+      markResolving(repoId, true);
+      try {
+        const kind = isAdapterEntry(entry) ? 'adapter' : '';
+        const qs = kind ? `&kind=${encodeURIComponent(kind)}` : '';
+        const r = await fetch(
+          `${serverAddr}/api/hf/files?repo_id=${encodeURIComponent(repoId)}${qs}`
+        );
+        if (!r.ok) throw new Error(await r.text());
+        const data = (await r.json()) as { files?: HfCatalogEntry['files'] };
+        const files = data.files ?? [];
+        if (gen !== resolveGenRef.current) return;
+        if (files.length === 0) {
+          resolveFailedRef.current.add(repoId);
+          return;
+        }
+        setResolvedFiles((prev) => (prev[repoId]?.length ? prev : { ...prev, [repoId]: files }));
+      } catch {
+        if (gen === resolveGenRef.current) resolveFailedRef.current.add(repoId);
+      } finally {
+        resolveInflightRef.current.delete(repoId);
+        markResolving(repoId, false);
+      }
+    }
+
+    async function worker() {
+      while (!stopQueue) {
+        const entry = queue.shift();
+        if (!entry) return;
+        await resolveOne(entry);
+      }
+    }
+
+    void Promise.all(Array.from({ length: concurrency }, () => worker()));
+    return () => {
+      // Stop dequeuing more work; in-flight fetches still complete and write if gen matches.
+      stopQueue = true;
+    };
+  }, [tab, catalog, resolvedFiles, serverAddr]);
+
+  function rememberResolvedFiles(repoId: string, files: NonNullable<HfCatalogEntry['files']>) {
+    setResolvedFiles((prev) => (prev[repoId]?.length ? prev : { ...prev, [repoId]: files }));
+  }
 
   async function ensureEntryFiles(entry: HfCatalogEntry): Promise<HfCatalogEntry> {
     if (entry.files?.length) return entry;
+    const cached = resolvedFiles[entry.repo_id];
+    if (cached?.length) return { ...entry, files: cached };
     const kind = isAdapterEntry(entry) ? 'adapter' : '';
     const qs = kind ? `&kind=${encodeURIComponent(kind)}` : '';
     const r = await fetch(`${serverAddr}/api/hf/files?repo_id=${encodeURIComponent(entry.repo_id)}${qs}`);
@@ -408,6 +542,7 @@ export function HfModelLibrary({
           : `No GGUF files found for ${entry.repo_id}`
       );
     }
+    rememberResolvedFiles(entry.repo_id, files);
     return { ...entry, files };
   }
 
@@ -437,7 +572,11 @@ export function HfModelLibrary({
     return localFiles.some((f) => f.repo_id === entry.repo_id);
   }
 
-  async function downloadOneFile(repoId: string, filename: string): Promise<void> {
+  async function downloadOneFile(
+    repoId: string,
+    filename: string,
+    onProgress?: (percent?: number, status?: string) => void
+  ): Promise<void> {
     const st = await pollDownloadStatus(repoId, filename);
     if (st?.status === 'success') {
       return;
@@ -463,8 +602,10 @@ export function HfModelLibrary({
       const pct = data.percent;
       if (typeof pct === 'number' && pct > 0) {
         setDownloadProgress(`${filename}: ${pct.toFixed(1)}%`);
+        onProgress?.(pct, undefined);
       } else if (typeof data.status === 'string') {
         setDownloadProgress(`${filename}: ${String(data.status)}`);
+        onProgress?.(undefined, String(data.status));
       }
     });
     if (streamError) {
@@ -548,27 +689,60 @@ export function HfModelLibrary({
   }
 
   async function downloadModel(entry: HfCatalogEntry) {
+    const transferId = `hf:${entry.repo_id}`;
+    const transfers = useModelTransferStore.getState();
+    transfers.start({
+      id: transferId,
+      source: 'huggingface',
+      title: entry.title,
+      subtitle: entry.repo_id,
+      progressLabel: 'Resolving files…',
+    });
+    onDownloadStarted?.();
+    setDownloadingKey(entry.repo_id);
+    setDownloadProgress('Resolving files…');
+    setActionMessage(null);
     let resolved = entry;
     try {
       resolved = await ensureEntryFiles(entry);
     } catch (e) {
-      setActionMessage({ kind: 'err', text: e instanceof Error ? e.message : String(e) });
+      const msg = e instanceof Error ? e.message : String(e);
+      setDownloadingKey(null);
+      setDownloadProgress('');
+      setActionMessage({ kind: 'err', text: msg });
+      transfers.fail(transferId, msg);
       return;
     }
     const filenames = catalogFilenames(resolved);
     if (filenames.length === 0) {
-      setActionMessage({ kind: 'err', text: 'No GGUF file available for this model.' });
+      setDownloadingKey(null);
+      setDownloadProgress('');
+      const msg = 'No GGUF file available for this model.';
+      setActionMessage({ kind: 'err', text: msg });
+      transfers.fail(transferId, msg);
       return;
     }
     const key = `${resolved.repo_id}:${filenames[0]}`;
     setDownloadingKey(key);
     setDownloadProgress('Starting…');
-    setActionMessage(null);
+    transfers.update(transferId, { progressLabel: 'Starting…' });
 
     try {
       for (const filename of filenames) {
-        setDownloadProgress(`Downloading ${filename}…`);
-        await downloadOneFile(resolved.repo_id, filename);
+        const label = `Downloading ${filename}…`;
+        setDownloadProgress(label);
+        transfers.update(transferId, { progressLabel: label });
+        await downloadOneFile(resolved.repo_id, filename, (pct, status) => {
+          if (typeof pct === 'number' && pct > 0) {
+            const progressLabel = `${filename}: ${pct.toFixed(1)}%`;
+            setDownloadProgress(progressLabel);
+            transfers.update(transferId, { progressLabel, percent: pct });
+          } else if (status) {
+            const progressLabel = `${filename}: ${status}`;
+            setDownloadProgress(progressLabel);
+            transfers.update(transferId, { progressLabel });
+          }
+        });
       }
       setActionMessage({
         kind: 'ok',
@@ -577,6 +751,7 @@ export function HfModelLibrary({
             ? `Downloaded ${filenames.join(' + ')}`
             : `Downloaded ${filenames[0]}`,
       });
+      transfers.complete(transferId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const filename = filenames[0];
@@ -584,12 +759,18 @@ export function HfModelLibrary({
       if (still?.status === 'downloading' || still?.status === 'starting' || still?.status === 'queued') {
         setActionMessage({
           kind: 'ok',
-          text: 'Download continues on the hub in the background. Reopen Model Library to see progress.',
+          text: 'Download continues on the hub in the background. Check the Installed tab for progress.',
+        });
+        transfers.update(transferId, {
+          progressLabel: still.percent ? `${still.percent.toFixed(1)}%` : String(still.status),
+          percent: typeof still.percent === 'number' ? still.percent : undefined,
         });
       } else if (still?.status === 'success' && filenames.length === 1) {
         setActionMessage({ kind: 'ok', text: `Downloaded ${filename}` });
+        transfers.complete(transferId);
       } else {
         setActionMessage({ kind: 'err', text: msg });
+        transfers.fail(transferId, msg);
       }
     } finally {
       setDownloadingKey(null);
@@ -690,7 +871,10 @@ export function HfModelLibrary({
   }
 
   async function deleteLocal(entry: HfCatalogEntry) {
-    const filenames = catalogFilenames(entry);
+    let filenames = catalogFilenames(entry);
+    if (filenames.length === 0) {
+      filenames = localFiles.filter((f) => f.repo_id === entry.repo_id).map((f) => f.filename);
+    }
     if (filenames.length === 0) return;
     try {
       for (const filename of filenames) {
@@ -711,13 +895,32 @@ export function HfModelLibrary({
     }
   }
 
+  function isBusyForEntry(entry: HfCatalogEntry, key: string | null, mainName?: string): boolean {
+    if (!key) return false;
+    if (mainName && key === `${entry.repo_id}:${mainName}`) return true;
+    if (key === entry.repo_id) return true;
+    return key.startsWith(`${entry.repo_id}:`);
+  }
+
+  async function resolveFilesForDetail(item: StoreModelItem) {
+    if (tab !== 'local') return;
+    const entry = filtered.find((e) => e.repo_id === item.id);
+    if (!entry || entry.files?.length) return;
+    try {
+      await ensureEntryFiles(entry);
+    } catch {
+      /* detail still useful without files; download will surface the error */
+    }
+  }
+
   const storeItems = useMemo((): StoreModelItem[] => {
     return filtered.map((entry) => {
       const mainName = primaryFilename(entry);
       const file = (entry.files ?? []).find((f) => f.filename === mainName) ?? entry.files?.[0];
-      const dlKey = mainName ? `${entry.repo_id}:${mainName}` : entry.repo_id;
       const downloaded = tab === 'local' && isDownloaded(entry);
       const isHosted = tab === 'hosted';
+      const downloading = isBusyForEntry(entry, downloadingKey, mainName);
+      const importing = isBusyForEntry(entry, importingKey, mainName);
 
       const adapter = isAdapterEntry(entry);
       const adapterComposeBlocked = adapter && (!canComposeLoRA || !adapterComposeSupported(entry));
@@ -739,7 +942,15 @@ export function HfModelLibrary({
                 ]),
             ...(file.size_hint ? [{ label: 'File size', value: file.size_hint }] : []),
           ]
-        : [{ label: 'Repository', value: entry.repo_id }];
+        : [
+            { label: 'Repository', value: entry.repo_id },
+            {
+              label: 'Files',
+              value: resolvingSizeIds.has(entry.repo_id)
+                ? 'Looking up preferred GGUF size…'
+                : 'Resolves preferred GGUF on download (Q4_K_M when available)',
+            },
+          ];
 
       if (entry.files && entry.files.length > 1) {
         for (const f of entry.files) {
@@ -775,50 +986,61 @@ export function HfModelLibrary({
             onClick: () => void useHostedForAgents(entry),
           }
         );
-      } else if (file) {
-        if (!downloaded) {
-          primaryAction = {
-            id: 'download',
-            label: 'Download',
-            disabled: downloadingKey === dlKey,
-            busyLabel:
-              downloadingKey === dlKey ? downloadProgress || 'Downloading…' : undefined,
-            onClick: () => void downloadModel(entry),
-          };
-          detailActions.push({
-            id: 'download',
-            label: `Download ${adapter ? 'adapter' : file.quant || 'GGUF'}`,
-            disabled: downloadingKey === dlKey,
-            busyLabel:
-              downloadingKey === dlKey ? downloadProgress || 'Downloading…' : undefined,
-            onClick: () => void downloadModel(entry),
-          });
-        } else {
-          const importLabel = adapter ? 'Compose & import' : 'Import to Ollama';
-          primaryAction = {
+      } else if (!downloaded) {
+        const sizeHint = primarySizeHint(entry);
+        const downloadLabel = actionLabelWithSize(
+          file ? `Download ${adapter ? 'adapter' : file.quant || 'GGUF'}` : 'Download',
+          sizeHint
+        );
+        primaryAction = {
+          id: 'download',
+          label: actionLabelWithSize('Download', sizeHint),
+          disabled: downloading,
+          busyLabel: downloading ? downloadProgress || 'Resolving…' : undefined,
+          onClick: () => void downloadModel(entry),
+        };
+        detailActions.push({
+          id: 'download',
+          label: downloadLabel,
+          disabled: downloading,
+          busyLabel: downloading ? downloadProgress || 'Resolving…' : undefined,
+          onClick: () => void downloadModel(entry),
+        });
+      } else {
+        const sizeHint = primarySizeHint(entry);
+        const importLabel = actionLabelWithSize(
+          adapter ? 'Compose & import' : 'Import to Ollama',
+          sizeHint
+        );
+        primaryAction = {
+          id: 'import',
+          label: importLabel,
+          disabled: !ollamaRunning || importing || adapterComposeBlocked,
+          busyLabel: importing ? (adapter ? 'Composing…' : 'Importing…') : undefined,
+          onClick: () => void importToOllama(entry),
+        };
+        detailActions.push(
+          {
             id: 'import',
             label: importLabel,
-            disabled: !ollamaRunning || importingKey === dlKey || adapterComposeBlocked,
-            busyLabel: importingKey === dlKey ? (adapter ? 'Composing…' : 'Importing…') : undefined,
+            disabled: !ollamaRunning || importing || adapterComposeBlocked,
+            busyLabel: importing ? (adapter ? 'Composing…' : 'Importing…') : undefined,
             onClick: () => void importToOllama(entry),
-          };
-          detailActions.push(
-            {
-              id: 'import',
-              label: importLabel,
-              disabled: !ollamaRunning || importingKey === dlKey || adapterComposeBlocked,
-              busyLabel: importingKey === dlKey ? (adapter ? 'Composing…' : 'Importing…') : undefined,
-              onClick: () => void importToOllama(entry),
-            },
-            {
-              id: 'delete',
-              label: 'Delete file',
-              variant: 'danger',
-              onClick: () => void deleteLocal(entry),
-            }
-          );
-        }
+          },
+          {
+            id: 'delete',
+            label: 'Delete file',
+            variant: 'danger',
+            onClick: () => void deleteLocal(entry),
+          }
+        );
       }
+
+      const sizeHint =
+        primarySizeHint(entry) ??
+        (tab === 'local' && !downloaded && resolvingSizeIds.has(entry.repo_id)
+          ? 'Looking up size…'
+          : undefined);
 
       return {
         id: entry.repo_id,
@@ -826,13 +1048,18 @@ export function HfModelLibrary({
         subtitle: entry.repo_id,
         description: entry.description,
         tags: entry.tags ?? [],
-        sizeHint: entry.size_hint,
+        sizeHint,
         publisher: entry.publisher,
         iconKey: entry.icon_key,
         status: isHosted ? 'cloud' : downloaded ? 'on_disk' : 'available',
         statusLabel: isHosted ? 'Cloud' : downloaded ? 'On disk' : undefined,
         externalUrl: `https://huggingface.co/${entry.repo_id}`,
-        detailRows,
+        detailRows: [
+          ...detailRows,
+          ...(sizeHint && sizeHint !== 'Looking up size…'
+            ? [{ label: 'Download size', value: sizeHint }]
+            : []),
+        ],
         primaryAction,
         detailActions,
       };
@@ -848,6 +1075,7 @@ export function HfModelLibrary({
     hfStatus,
     hfToken,
     canComposeLoRA,
+    resolvingSizeIds,
   ]);
 
   const tabSwitcher = (
@@ -898,8 +1126,8 @@ export function HfModelLibrary({
 
       {tab === 'local' && (
         <p className="text-xs text-amber-500/90">
-          Downloads GGUF or LoRA adapter files, then imports or composes in Ollama. LoRA adapters compose on
-          Llama/Mistral bases (default llama3.1:8b for training); inference specialists may still use qwen2.5-coder:14b.
+          Search any GGUF on the Hub — Download resolves the preferred quant (Q4_K_M when available), then
+          import or compose in Ollama. LoRA adapters compose on Llama/Mistral bases (default llama3.1:8b).
           {!ollamaRunning && ' (Ollama is not running.)'}
           {ollamaEffectiveVersion && ` Running Ollama ${ollamaEffectiveVersion}.`}
         </p>
@@ -925,6 +1153,7 @@ export function HfModelLibrary({
       searchPlaceholder="Search Hugging Face models…"
       onViewChange={onViewChange}
       resetDetailSignal={resetDetailSignal}
+      onDetailOpen={(item) => void resolveFilesForDetail(item)}
       banner={banner}
       footer={
         searchHasMore ? (

@@ -5,7 +5,9 @@
     "collab",
     "execution",
     "regression",
-    "website"
+    "website",
+    "soak",
+    "optional"
   ],
   "channel": "collab-scenarios",
   "agents": "@FrontendEngineer @Claude",
@@ -27,7 +29,7 @@
       "--messages",
       "12"
     ],
-    "goal": "@FrontendEngineer @Claude Make Collaboration Station (colors: black, white, gray, blue, red). Produce EXACTLY four tasks and no others, using these exact lines:\n- Task 1: @FrontendEngineer - Write collabs/<id>/style.css with the color palette\n- Task 2: @FrontendEngineer - Write collabs/<id>/index.html home page linking about/contact\n- Task 3: @Claude - Write collabs/<id>/about.html using style.css\n- Task 4: @Claude - Write collabs/<id>/contact.html using style.css\nReal HTML/CSS only — no markdown specs."
+    "goal": "@FrontendEngineer @Claude Make Collaboration Station (colors: black, white, gray, blue, red). Produce EXACTLY four tasks and no others, using these exact lines:\n- Task 1: @FrontendEngineer - Write collabs/<id>/style.css with the color palette\n- Task 2: @FrontendEngineer - Write collabs/<id>/index.html home page linking about/contact\n- Task 3: @Claude - Write collabs/<id>/about.html using style.css\n- Task 4: @Claude - Write collabs/<id>/contact.html using style.css\nReal HTML/CSS only \u2014 no markdown specs."
   },
   "expect_deliverables": [
     {
@@ -227,5 +229,6 @@
       "path": "collabs/<collab-id>/style.css"
     }
   ],
-  "cleanup": "cancel"
+  "cleanup": "cancel",
+  "optional": true
 }

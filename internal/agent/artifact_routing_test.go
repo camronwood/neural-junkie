@@ -292,3 +292,26 @@ func TestNoChangeOutcomeDoesNotReportInspectedCandidates(t *testing.T) {
 		t.Fatalf("files_changed=%v, want empty for no-change outcome", outcome["files_changed"])
 	}
 }
+
+func TestOpenCanvasReviseKeepsEditSoftFailResponse(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "the 3rd item is Arrive in Flordia")
+	msg.Metadata = map[string]interface{}{
+		"open_artifact": map[string]interface{}{
+			"id": "art-trip-1", "renderer_id": "nj.markdown", "title": "Trip Planning",
+		},
+	}
+	goal := TurnGoal{Action: ActionEdit, ExpectedEvidence: []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}}
+	issues := []responseValidationIssue{issueUnsupportedEdit, issueMissingRequiredEvidence}
+	if !shouldKeepOpenCanvasReviseResponse(msg, goal, issues) {
+		t.Fatal("expected keep response for open-canvas list-item revise under Edit goal")
+	}
+	askGoal := TurnGoal{Action: ActionAskUser, ExpectedEvidence: []EvidenceKind{EvidenceUserAnswer}}
+	if !shouldKeepOpenCanvasReviseResponse(msg, askGoal, []responseValidationIssue{issueActionDeflection}) {
+		t.Fatal("expected keep response for open-canvas revise under AskUser goal")
+	}
+	if shouldKeepOpenCanvasReviseResponse(msg, TurnGoal{Action: ActionRun}, issues) {
+		t.Fatal("run goals must not use canvas revise keep path")
+	}
+}

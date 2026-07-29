@@ -74,7 +74,7 @@ func handleHfSearch(w http.ResponseWriter, r *http.Request) {
 			offset = n
 		}
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 40*time.Second)
 	defer cancel()
 	result, err := hfhub.SearchModels(ctx, query, mode, limit, offset)
 	if err != nil {

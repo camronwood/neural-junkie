@@ -465,6 +465,81 @@ func TestPolicyOpenCanvasPromotesWeatherFillAsk(t *testing.T) {
 	}
 }
 
+func TestPolicyOpenCanvasPromotesListItemReviseAsk(t *testing.T) {
+	cases := []struct {
+		name   string
+		text   string
+		action Action
+	}{
+		{name: "declarative_item", text: "the 3rd item is Arrive in Flordia", action: ActionAnswer},
+		{name: "add_list_item", text: "ok add a 3rd list item, arrive in flordia", action: ActionAskUser},
+		{name: "continue_add_item", text: "ok add a 3rd list item, arrive in flordia", action: ActionContinue},
+		{name: "edit_item", text: "the 3rd item is Arrive in Flordia", action: ActionEdit},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			decision := ResolvePolicy(TurnFeatures{
+				Text:                 tc.text,
+				ComposerMode:         "agent",
+				OpenArtifactID:       "73fdd68522d91b3669a679c0e4a58c74",
+				OpenArtifactRenderer: "nj.markdown",
+				OpenArtifactTitle:    "Trip Planning",
+			}, SemanticIntent{
+				SchemaVersion:     SchemaVersion,
+				Interaction:       InteractionQuestion,
+				RequestedAction:   tc.action,
+				MutationRequested: MutationNone,
+				Confidence:        0.9,
+			}, SourceLocalModel)
+			if decision.Action != ActionArtifact {
+				t.Fatalf("action=%s overrides=%v, want artifact", decision.Action, decision.PolicyOverrides)
+			}
+			if decision.Mutation != MutationExternal {
+				t.Fatalf("mutation=%s, want external", decision.Mutation)
+			}
+			if !containsString(decision.PolicyOverrides, "open_canvas_artifact") {
+				t.Fatalf("overrides=%v, want open_canvas_artifact", decision.PolicyOverrides)
+			}
+			if !containsRetrievalTarget(decision.Retrieval, RetrievalPriorReference) {
+				t.Fatalf("retrieval=%v, want prior_reference", decision.Retrieval)
+			}
+		})
+	}
+}
+
+func TestPolicyOpenCanvasPromotesWithIDOnlyNoRenderer(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:           "ok add a 3rd list item, arrive in flordia",
+		ComposerMode:   "agent",
+		OpenArtifactID: "art-md-1",
+		// Renderer intentionally empty — promote must still fire on open id.
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionTask,
+		RequestedAction:   ActionAskUser,
+		MutationRequested: MutationNone,
+		Confidence:        0.85,
+	}, SourceLocalModel)
+	if decision.Action != ActionArtifact {
+		t.Fatalf("action=%s overrides=%v, want artifact with open id only", decision.Action, decision.PolicyOverrides)
+	}
+}
+
+func TestLooksLikeOpenCanvasReviseAsk(t *testing.T) {
+	if !LooksLikeOpenCanvasReviseAsk("the 3rd item is Arrive in Flordia") {
+		t.Fatal("expected declarative item revise")
+	}
+	if !LooksLikeOpenCanvasReviseAsk("ok add a 3rd list item, arrive in flordia") {
+		t.Fatal("expected add list item revise")
+	}
+	if LooksLikeOpenCanvasReviseAsk("fix the typo in main.go") {
+		t.Fatal("workspace file edit must not match")
+	}
+	if LooksLikeOpenCanvasReviseAsk("did you update the canvas with the info?") {
+		t.Fatal("status question must not match")
+	}
+}
+
 func TestPolicyOpenCanvasDoesNotPromoteStatusQuestion(t *testing.T) {
 	decision := ResolvePolicy(TurnFeatures{
 		Text:                 "did you update the canvas with the info?",

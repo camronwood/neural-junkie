@@ -1,36 +1,72 @@
 {
   "name": "dm-topic-continuity-same-thread",
   "description": "Same-theme 4-turn chat without mode flips; must retain topic and not re-ask the opening question.",
-  "tags": ["dm", "assistant", "dialogue", "regression"],
+  "tags": [
+    "dm",
+    "assistant",
+    "dialogue",
+    "regression",
+    "canary"
+  ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "Assistant",
-  "required_agents": ["Assistant"],
+  "required_agents": [
+    "Assistant"
+  ],
   "steps": [
     {
       "action": "send",
       "content": "I want a simple weekend meal-prep plan for two people.",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "120s"
+    },
     {
       "action": "send",
       "content": "Make it vegetarian.",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "120s"
+    },
     {
       "action": "send",
       "content": "What about Sunday lunch?",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "Assistant", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "120s"
+    },
     {
       "action": "send",
       "content": "Summarize the full weekend plan with that Sunday lunch.",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "Assistant", "timeout": "180s" },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "180s"
+    },
     {
       "action": "assert_transcript_metrics",
       "cases": [

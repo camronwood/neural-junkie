@@ -5,7 +5,8 @@
     "dm",
     "backend",
     "topic-switch",
-    "regression"
+    "regression",
+    "canary"
   ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",

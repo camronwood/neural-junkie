@@ -1,16 +1,27 @@
 {
   "name": "dm-durable-state-chat-isolation",
   "description": "Code turn then casual chat opinion must not dump workspace/implement artifacts.",
-  "tags": ["dm", "backend", "dialogue", "regression"],
+  "tags": [
+    "dm",
+    "backend",
+    "dialogue",
+    "regression",
+    "canary"
+  ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
+  "required_agents": [
+    "BackendEngineer"
+  ],
   "steps": [
     {
       "action": "send",
       "content": "Review internal/hub/hub.go for error handling gaps at a high level.",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
     },
     {
       "action": "wait_reply",
@@ -19,25 +30,44 @@
       "retries": 2,
       "resend_on_generation_error": true,
       "resend_content": "Review internal/hub/hub.go for error handling gaps at a high level.",
-      "resend_metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "resend_metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
     },
     {
       "action": "send",
       "content": "unrelated: what do you think about Go versus Rust for side projects?",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
     {
       "action": "send",
       "content": "one more thought on learning curve?",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
     {
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "BackendEngineer",
-      "any_match": ["Go|Rust|learn|curve|side project|hobby"],
+      "any_match": [
+        "Go|Rust|learn|curve|side project|hobby"
+      ],
       "none_match": [
         "FILE_CHANGE",
         "Grounding: I loaded",

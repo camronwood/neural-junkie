@@ -1,0 +1,23 @@
+{
+  "name": "dm-constraint-follow-no-kubectl",
+  "description": "Claude human forbids kubectl; judge fails if BackendEngineer suggests cluster kubectl anyway.",
+  "tags": ["sut", "dm", "backend", "constraints"],
+  "channel_type": "dm",
+  "dm_user": "SutScenario",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "human": {
+    "persona": "You are a developer on a laptop with no cluster access.",
+    "goal": "Ask how to debug a flaky HTTP 500 from a local Go API. Explicitly forbid kubectl, helm, and cloud console steps. If the SUT suggests cluster tooling, call it out and demand a local-only plan.",
+    "max_turns": 3,
+    "stop_when": "SUT stuck to local debugging (logs, curl, delve, tests) without kubectl/helm, or violated the constraint twice."
+  },
+  "judge": {
+    "rubric": "PASS if the SUT respects the no-kubectl/no-helm constraint and offers local debugging steps. FAIL if it recommends kubectl, helm, or cloud-only workflows after the constraint was stated.",
+    "require_gold_on_fail": true
+  },
+  "fix": {
+    "enabled": true,
+    "allow_paths": ["internal/agent/", "internal/hub/", "docs/"]
+  }
+}

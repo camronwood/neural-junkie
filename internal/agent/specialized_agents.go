@@ -19,6 +19,7 @@ import (
 	mapsmcp "github.com/camronwood/neural-junkie/internal/mcp/maps"
 	"github.com/camronwood/neural-junkie/internal/mcp/usertools"
 	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
+	webmcp "github.com/camronwood/neural-junkie/internal/mcp/web"
 	"github.com/camronwood/neural-junkie/internal/packs"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/mark3labs/mcp-go/server"
@@ -53,6 +54,32 @@ func startDomainAgentMCP(agent *Agent, label string, srv MCPServerInterface) {
 	startAgentMCPWithOptions(agent, label, srv, false)
 }
 
+func attachWebSearchTools(srv MCPServerInterface) {
+	if srv == nil {
+		return
+	}
+	webmcp.AttachTools(srv.GetMCPServer())
+}
+
+// ensureAgentWebSearchTools attaches shared web_search / fetch_url tools so every
+// agent can use hub web search when configured (not Assistant-only).
+func ensureAgentWebSearchTools(agent *Agent) {
+	if agent == nil {
+		return
+	}
+	if agent.MCPServer != nil {
+		attachWebSearchTools(agent.MCPServer)
+		return
+	}
+	mcpServer, err := mcp.NewInProcessMCPServer("shared-web-mcp", "1.0.0")
+	if err != nil {
+		log.Printf("Failed to create shared web MCP for %s: %v", agent.Info.Name, err)
+		return
+	}
+	webmcp.AttachTools(mcpServer)
+	agent.MCPServer = &rawMCPServer{srv: mcpServer}
+}
+
 func startAgentMCPWithOptions(agent *Agent, label string, srv MCPServerInterface, attachWorkspace bool) {
 	if agent == nil || srv == nil {
 		return
@@ -62,6 +89,7 @@ func startAgentMCPWithOptions(agent *Agent, label string, srv MCPServerInterface
 		attachWorkspaceTools(agent, srv)
 	}
 	attachContextCompressTools(srv)
+	attachWebSearchTools(srv)
 	if err := srv.Start(); err != nil {
 		log.Printf("Failed to start %s MCP server: %v", label, err)
 	} else {
@@ -552,57 +580,59 @@ func NewRepoAgentWrapper(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 // AgentFactory creates specialized agents based on type
 func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, hub HubClient) (*Agent, error) {
+	var agent *Agent
 	switch agentType {
 	case protocol.AgentTypeFrontend:
-		return NewFrontendAgent(name, ai, hub), nil
+		agent = NewFrontendAgent(name, ai, hub)
 	case protocol.AgentTypeBackend:
-		return NewBackendAgent(name, ai, hub), nil
+		agent = NewBackendAgent(name, ai, hub)
 	case protocol.AgentTypeDevOps:
-		return NewDevOpsAgent(name, ai, hub), nil
+		agent = NewDevOpsAgent(name, ai, hub)
 	case protocol.AgentTypeDatabase:
-		return NewDatabaseAgent(name, ai, hub), nil
+		agent = NewDatabaseAgent(name, ai, hub)
 	case protocol.AgentTypeSecurity:
-		return NewSecurityAgent(name, ai, hub), nil
+		agent = NewSecurityAgent(name, ai, hub)
 	case protocol.AgentTypeRust:
-		return NewRustAgent(name, ai, hub), nil
+		agent = NewRustAgent(name, ai, hub)
 	case protocol.AgentTypeArchitecture:
-		return NewArchitectureAgent(name, ai, hub), nil
+		agent = NewArchitectureAgent(name, ai, hub)
 	case protocol.AgentTypeSRE:
-		return NewSREAgent(name, ai, hub), nil
+		agent = NewSREAgent(name, ai, hub)
 	case protocol.AgentTypeMobile:
-		return NewMobileAgent(name, ai, hub), nil
+		agent = NewMobileAgent(name, ai, hub)
 	case protocol.AgentTypeDataML:
-		return NewDataMLAgent(name, ai, hub), nil
+		agent = NewDataMLAgent(name, ai, hub)
 	case protocol.AgentTypeBiology:
-		return NewBiologyAgent(name, ai, hub), nil
+		agent = NewBiologyAgent(name, ai, hub)
 	case protocol.AgentTypeGenomics:
-		return NewGenomicsAgent(name, ai, hub), nil
+		agent = NewGenomicsAgent(name, ai, hub)
 	case protocol.AgentTypeStructuralBiology:
-		return NewStructuralBiologyAgent(name, ai, hub), nil
+		agent = NewStructuralBiologyAgent(name, ai, hub)
 	case protocol.AgentTypeCheminformatics:
-		return NewCheminformaticsAgent(name, ai, hub), nil
+		agent = NewCheminformaticsAgent(name, ai, hub)
 	case protocol.AgentTypeCAD:
-		return NewCADAgent(name, ai, hub), nil
+		agent = NewCADAgent(name, ai, hub)
 	case protocol.AgentTypeManufacturing:
-		return NewManufacturingAgent(name, ai, hub), nil
+		agent = NewManufacturingAgent(name, ai, hub)
 	case protocol.AgentTypeAWS:
-		return NewAWSAgent(name, ai, hub), nil
+		agent = NewAWSAgent(name, ai, hub)
 	case protocol.AgentTypeIncident:
-		return NewIncidentAgent(name, ai, hub), nil
+		agent = NewIncidentAgent(name, ai, hub)
 	case protocol.AgentTypeArena:
-		return NewArenaAgent(name, ai, hub), nil
+		agent = NewArenaAgent(name, ai, hub)
 	case protocol.AgentTypeBrowser, protocol.AgentTypeMusic, protocol.AgentTypeMaps, protocol.AgentTypeCodeReview:
 		return nil, fmt.Errorf("%s agents were removed — enable the ability pack for Assistant tools, or use Composition grants for custom experts", agentType)
 	case protocol.AgentTypeRepo:
-		return NewRepoAgentWrapper(name, ai, hub), nil
+		agent = NewRepoAgentWrapper(name, ai, hub)
 	case protocol.AgentTypeAssistant:
-		assistant := NewAssistantAgent(name, ai, hub)
-		return assistant.Agent, nil
+		agent = NewAssistantAgent(name, ai, hub).Agent
 	case protocol.AgentTypeCLI:
-		return NewCursorCLIAgent(name, ai, hub), nil
+		agent = NewCursorCLIAgent(name, ai, hub)
 	default:
-		return NewAgent(agentType, name, []string{}, ai, hub), nil
+		agent = NewAgent(agentType, name, []string{}, ai, hub)
 	}
+	ensureAgentWebSearchTools(agent)
+	return agent, nil
 }
 
 // ResolveAgentTypeFromPackSpec picks the runtime agent type from a pack AgentSpec.

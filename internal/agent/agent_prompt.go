@@ -76,6 +76,15 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 		!msg.ImplementationSession() && !msg.IdeEditorModeIsExport() {
 		appendConversationModeChatPrompt(&system)
 	}
+	appendCodeCritiqueFollowUpPrompt(&system, msg)
+	appendModalAccessibilityGapFollowUpPrompt(&system, msg)
+	appendConcreteCodeRequestPrompt(&system, msg)
+	appendRepoFactGroundingPrompt(&system, msg)
+	if looksLikeRepoFactAsk(msg.Content) || looksLikeRepoFactChallengeFollowUp(msg.Content) {
+		if wsPath := a.resolveWorkspacePath(msg); wsPath != "" {
+			appendRepoFactSeedFiles(&system, wsPath)
+		}
+	}
 	if isSocialOrStatusPing(msg.Content) {
 		appendHereOrSocialPingPrompt(&system)
 	}
@@ -534,7 +543,8 @@ Lead with findings ordered by severity.
 For each issue, cite the specific file, function, and line number when available, and suggest a concrete fix.`
 
 	case protocol.AgentTypeBackend:
-		return `When asked to review or analyze code, focus on:
+		return `When asked about HTTP paths, health checks, or API routes in this repo, never state unverified paths as fact — admit uncertainty rather than guessing from conventions. Never endorse an arbitrarily named user-suggested endpoint as the correct health check just because it could be registered in a router.
+When asked to review or analyze code, focus on:
 - Error handling patterns (unchecked errors, error wrapping, sentinel errors)
 - Resource management (deferred closes, connection pool leaks, goroutine leaks)
 - Concurrency safety (race conditions, mutex usage, channel patterns)
@@ -550,6 +560,8 @@ When suggesting improvements, show concrete code examples.`
 	case protocol.AgentTypeFrontend:
 		return `You are the go-to frontend specialist for **all** user-facing UI: web (React/Vue/Svelte), desktop (Tauri/Electron), mobile (iOS/SwiftUI, Android/Kotlin), terminal/TUI (Bubble Tea, ncurses, Ink), and native shell UI.
 When the user asks you to implement UI work (themes, components, styling, layouts), emit [FILE_CHANGE] blocks for real edits — do not stop at advice.
+When the user asks how to implement UI behavior, lead with copy-paste code — not a strategy overview or "would you like me to generate" deferral.
+When the user critiques code you previously provided, fix each named bug substantively — assign refs before restore, remove duplicate handlers, avoid guards that reintroduce the same failure mode (e.g. e.target === container when focus lives on a child), call onClose on Escape (never console.log placeholders), keep Tab focus-trap cycling, capture document.activeElement for focus restore in effect cleanup (no getElementById hacks), guard modal focus effects with if (!isOpen) return before querying modalRef when the component returns null while closed, call hooks before early returns, and never assign to hook boolean parameters inside handlers (call onClose/setter instead). For modal gap-fill follow-ups: querySelectorAll does not filter display:none (filter with offsetParent/getClientRects), use tabIndex={-1} in JSX not setAttribute at runtime, and guard the whole document keydown handler with contains(document.activeElement) so Escape and Tab both ignore nested overlays.
 When asked to review or analyze code, evaluate:
 - Component/view architecture (composition, prop drilling, view size, platform idioms)
 - State management (local vs global state, unnecessary re-renders, platform lifecycle)
@@ -621,6 +633,13 @@ func getResponseLengthGuidanceForMessage(a *Agent, msg *protocol.Message) string
 
 func getResponseLengthGuidance(content string, implementation ...bool) string {
 	lower := strings.ToLower(content)
+
+	if looksLikeCodeCritiqueFollowUp(content) {
+		return "The user is correcting bugs in your prior code. Provide the complete corrected code block they asked for, addressing every issue they named. Brief prose without working code is insufficient."
+	}
+	if looksLikeConcreteCodeRequest(content) {
+		return "The user asked for working code, not a strategy memo. Lead with a complete copy-paste-ready code block (hook + usage). Keep intro prose to 1-2 sentences."
+	}
 
 	impl := len(implementation) > 0 && implementation[0]
 	if !impl {

@@ -428,9 +428,9 @@ export function buildHumanOutboundMetadata(options: {
     meta.open_artifact = {
       id: activeTab.artifactId,
       title: activeTab.path || 'Neural Canvas',
-      ...(activeTab.artifactRendererId
-        ? { renderer_id: activeTab.artifactRendererId }
-        : {}),
+      // Always stamp renderer_id — hub open-canvas promote needs it. Default
+      // markdown when the tab has not yet cached a renderer from a fetch.
+      renderer_id: activeTab.artifactRendererId || 'nj.markdown',
     };
   }
   const channelKind = options.channelKind ?? channelNameToKind(channel, channelType);

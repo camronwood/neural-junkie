@@ -1,36 +1,72 @@
 {
   "name": "dm-chat-mode-soft-followups",
   "description": "Backend DM chat-mode opinion thread with soft follow-ups must not dump tools or promote to implement.",
-  "tags": ["dm", "backend", "dialogue", "regression"],
+  "tags": [
+    "dm",
+    "backend",
+    "dialogue",
+    "regression",
+    "canary"
+  ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
+  "required_agents": [
+    "BackendEngineer"
+  ],
   "steps": [
     {
       "action": "send",
       "content": "What do you think about Go versus Rust for backend services?",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
     {
       "action": "send",
       "content": "why?",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
     {
       "action": "send",
       "content": "one more tradeoff please",
-      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "120s"
+    },
     {
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "BackendEngineer",
-      "any_match": ["Go|Rust|tradeoff|memory|concurrency|ecosystem"],
-      "none_match": ["FILE_CHANGE", "Grounding: I loaded", "MCP", "kubectl apply"]
+      "any_match": [
+        "Go|Rust|tradeoff|memory|concurrency|ecosystem"
+      ],
+      "none_match": [
+        "FILE_CHANGE",
+        "Grounding: I loaded",
+        "MCP",
+        "kubectl apply"
+      ]
     },
     {
       "action": "assert_messages",

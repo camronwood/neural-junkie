@@ -48,6 +48,16 @@ func TestSummaryRefreshBuildsCumulativeVersionedCheckpoint(t *testing.T) {
 		strings.Contains(input.Prompt, "already compacted request") {
 		t.Fatalf("unexpected cumulative summary prompt:\n%s", input.Prompt)
 	}
+	for _, want := range []string{
+		"multi-speaker",
+		"Attribute commitments",
+		"named speakers",
+		"named entities",
+	} {
+		if !strings.Contains(input.Prompt, want) {
+			t.Fatalf("speaker-attributed summary prompt missing %q:\n%s", want, input.Prompt)
+		}
+	}
 	h.runSummaryRefresh(name, gen, input, func(prompt string) (string, error) {
 		return "updated cumulative digest", nil
 	})

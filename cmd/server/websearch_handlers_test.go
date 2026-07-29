@@ -81,3 +81,38 @@ func TestHandleWebSearchConfigPut(t *testing.T) {
 		t.Fatalf("reloaded api key = %q", reloaded.WebSearch.APIKey)
 	}
 }
+
+func TestHandleSettingsPutPreservesWebSearch(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "1")
+	hubSessions = hub.NewSessionManager()
+	sess := hubSessions.CreateSession("test", "admin")
+	chatHub = hub.NewHub()
+	appConfig = config.DefaultConfig()
+	appConfig.WebSearch = config.WebSearchConfig{
+		Enabled:    true,
+		Provider:   "tavily",
+		APIKey:     "keep-me",
+		MaxResults: 9,
+		Keyless:    true,
+	}
+
+	// Simulate a general settings save that omits web_search entirely.
+	body, _ := json.Marshal(map[string]interface{}{
+		"server": appConfig.Server,
+		"ai":     appConfig.AI,
+		"agents": appConfig.Agents,
+	})
+	req := httptest.NewRequest(http.MethodPut, "/api/settings", bytes.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("X-NJ-Session", sess.Token)
+	rec := httptest.NewRecorder()
+	handleSettings(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !appConfig.WebSearch.Enabled || appConfig.WebSearch.APIKey != "keep-me" || !appConfig.WebSearch.Keyless || appConfig.WebSearch.MaxResults != 9 {
+		t.Fatalf("web search wiped by settings PUT: %+v", appConfig.WebSearch)
+	}
+}

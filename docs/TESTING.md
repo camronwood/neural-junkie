@@ -2,24 +2,39 @@
 
 **Start here:** `make release-help` — canonical list of release/testing commands (layers, overnight, full gate).
 
-## Layered release workflow (beta.27+)
+**Portfolio / thinning:** [TEST_PORTFOLIO.md](TEST_PORTFOLIO.md) — Tier A climb vs soak vs quarantine, overlap clusters, cost reality (clean overnight ~4h; ~30h is thrashing).
 
-Test and fix **one layer at a time** before running the full ~30h `release-prep` gate:
+## Layered release workflow
+
+Test and fix **one layer at a time**. Default climb is **Tier A only** (~45–60m):
 
 ```bash
-make layer-list                         # layers in order + time estimates
+make layer-list                         # climb + soak + quarantine
 make layer-gate LAYER=ci                # fast CI smoke (no hub)
-make layer-gate LAYER=implement         # implement-scenarios (20/20)
-make layer-gate LAYER=chat              # chat + conversation regression
-make layer-gate LAYER=collab            # collab edge-case regression (~11)
-make layer-gate LAYER=collab-full       # full collab sweep (~15, 1–3h)
-make layer-gate LAYER=bundle            # implement + chat + conversation
-make layer-gate LAYER=user-flows        # real-world product journeys (~7)
-make layer-gate LAYER=parity            # 3× implement with hub restart
-make layer-climb                        # run layers in order until first failure
+make layer-gate LAYER=implement         # non-optional implement file gates (~14)
+make layer-gate LAYER=collab-core       # participation/planning (~8)
+make layer-gate LAYER=chat              # chat canary tag + conversation regression
+make layer-climb                        # Tier A until first failure
+make layer-climb CONTINUE=1             # full Tier A scoreboard
 ```
 
-**User-flow suite** (product journeys — see [USER_FLOW_SCENARIOS.md](USER_FLOW_SCENARIOS.md)):
+**Tier B soak** (overnight / pre-tag optional — not in default climb):
+
+```bash
+make layer-gate LAYER=chat-full         # full chat regression tag
+make layer-gate LAYER=collab            # thinned edge suite
+make layer-gate LAYER=collab-full       # all collab (~24)
+make layer-gate LAYER=parity            # 3× implement with hub restart (≠ scenarios/parity/)
+```
+
+**Quarantine** (invokable, not ship gates — see TEST_PORTFOLIO.md):
+
+```bash
+make layer-gate LAYER=bundle            # overlaps implement+chat; prefer climb
+make layer-gate LAYER=user-flows        # product journeys until 2 consecutive green overnight runs
+```
+
+**User-flow suite** (quarantine — see [USER_FLOW_SCENARIOS.md](USER_FLOW_SCENARIOS.md)):
 
 ```bash
 make user-flow-scenarios-list
@@ -36,22 +51,38 @@ make layer-overnight LAYER=implement    # walk-away layer fix loop (tmux)
 
 Reports: `docs/testing/layer-gate-<layer>-*.md` and `layer-fix-loop-*.md`.
 
-**Test-growth loop** (discover gaps → add/strengthen tests → verify → commit):
+**SUT self-improve loop** (release-eng only — not a ship gate; Claude Human + Judge, local NJ as SUT, Cursor Fix on fail, Alpaca LoRA row emit):
+
+```bash
+make sut-loop-list
+make sut-loop-once SCENARIO=dm-long-horizon-entity-retention NO_COMMIT=1
+make sut-loop SCENARIO=dm-json-format-strict MAX_ITER=2 NO_COMMIT=1
+make sut-loop ALL=1 NO_COMMIT=1
+make sut-overnight SCENARIO=dm-long-horizon-entity-retention
+```
+
+Episodes live under `scenarios/sut/`. Reports: `docs/testing/sut-loop-*.md`. Failed turns with gold answers append Alpaca JSONL under `docs/testing/sut-lora-rows/` (`source_kind: sut_eval`) for later import via Train LoRA — no auto-train/assign.
+
+Claude Human + Judge default to **Claude CLI** (`NJ_SUT_CLAUDE_MODE=auto|cli|hub`), because regression boot often pins hub `@Claude` to Ollama when `ANTHROPIC_API_KEY` is not an `sk-ant-…` cloud key. Set `NJ_SUT_CLAUDE_MODE=hub` only when hub Claude is real Anthropic.
+
+**Hub restart after Cursor is intentional:** Cursor Go fixes load via `go run` / hub restart. There is no prompt hot-reload path — sut-loop restarts the regression hub between fix iterations on purpose.
+
+**Test-growth loop** (defaults to **SKIP_LIVE=1** — unit / Layer A companions only; do not auto-strengthen flaky live scenarios):
 
 ```bash
 make test-growth-list              # ranked candidates (no agent)
 make test-growth-once DRY_RUN=1    # preview one iteration
-make test-growth-loop              # MAX_ITER=3, branch commits per accepted iteration
-make test-growth-loop SKIP_LIVE=1  # CI/unit + scenario contract only (no hub)
+make test-growth-loop              # SKIP_LIVE=1 by default
+make test-growth-loop SKIP_LIVE=0  # opt-in live strengthen
 ```
 
 Reports: `docs/testing/test-growth-*.md` and `test-growth-candidates.md`.
 
-Use `layer-fix-loop` when tests fail and product code needs repair. Use `test-growth-loop` when the suite is green but coverage or edge-case assertions should improve.
+Use `layer-fix-loop` when tests fail and product code needs repair. Use `test-growth-loop` when the suite is green but unit coverage should grow.
 
 **Model cap (14B):** Live regression (`layer-gate`, `layer-fix-loop`, `collab-full`, `release-prep`) never runs specialists above **14B**. Boot calls `POST /api/agents/switch-all-providers` to pin agents to `OLLAMA_CODE_MODEL` from `env.local` when ≤14B (default `qwen2.5-coder:14b`), skips warming oversized tags like `qwen3.5:27b` from hub config, and unloads loaded models above the cap. Override with `NJ_REGRESSION_AGENT_MODEL=qwen2.5-coder:14b` if needed.
 
-**Breaking change:** `make chat-scenarios-regression` and `make conversation-scenarios-regression` are removed — use `make layer-gate LAYER=chat` (scripts still run internally).
+**Breaking change:** `make chat-scenarios-regression` and `make conversation-scenarios-regression` are removed — use `make layer-gate LAYER=chat` (canary) or `LAYER=chat-full` (full regression). Scripts still run internally.
 
 **One command:** Live test targets (`layer-gate`, `layer-fix-loop`, `implement-scenarios`, `release-prep`, etc.) automatically start Ollama, warm models, and boot the regression hub. No separate `ollama serve` / `make server-regression` required. Set `SKIP_BOOT=1` to skip when the stack is already up.
 
@@ -72,7 +103,7 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Deliverables on real paths | Plan parser, execution sandbox | Collab regression scenarios with `NEURAL_JUNKIE_SCENARIO_REPO` |
 | Slack = same agent surface | Slack bridge → bound channel | `make slack-smoke`; optional `LIVE=1` (synthetic inbound, no posts); `SLACK_SMOKE_OUTBOUND=1` for gated outbound |
 | Cursor CLI on PATH | [CLI_AGENTS.md](CLI_AGENTS.md) | Optional manual `@Cursor` chat/collab (not CI) |
-| Go test failure repair | Verify loop + `go test ./...` | `go-test-failure-repair` |
+| Go test failure repair | Verify loop + `go test ./...` | `verify-failure-one-repair` (soak twins: `go-test-failure-repair`) |
 | TS compile error fix | Node verify / tsc | `typescript-compile-error-fix` |
 | Rules-constrained implement | `.neural-junkie/rules.md` | `rules-constrained-implement` |
 | Selection-scoped edit | `workspace_context.open_files` + selection | `selection-scoped-edit` |
@@ -81,7 +112,7 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Destructive command denial | `assert_suggested_commands` + no writes | `deny-destructive-command` |
 | Plan mode no-write | Plan composer + read-only gates | `plan-mode-no-write` |
 | **Implement wait gates** | `until_file_match` / `until_file_absent` / `until_metadata_keys` (chat phrases optional) | `make implement-scenarios` |
-| **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (20/20 PASS) |
+| **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (non-optional ~14) |
 | **Agent Runtime v2 (open loop)** | [CURSOR_PARITY.md](CURSOR_PARITY.md), `features.agent_runtime_v2` | `make parity-scenarios`; model-aware budgets |
 | **Large-repo semantic discovery** | `internal/codeindex` + SQLite store | `large-repo-semantic-find` parity scenario |
 | **Multi-file + repair without nudge** | Agent Runtime v2 verify/repair | `multi-file-refactor-10`, `long-agent-loop-repair` |
@@ -105,13 +136,13 @@ Scenarios marked with `evaluation.long_horizon: true` must declare at least four
 
 ## Phase 1 acceptance (~80% Cursor “implement this feature”)
 
-**Gate:** `make implement-scenarios` with a regression hub and Ollama tool model (`qwen3.5:9b` or Settings → Implementation tool model).
+**Gate:** `make implement-scenarios` with a regression hub and Ollama tool model (`qwen3.5:9b` or Settings → Implementation tool model). Optional soak twins are skipped unless `--include-optional`.
 
 ```bash
 ollama serve   # optional — live targets boot Ollama automatically
 ollama pull qwen3.5:9b    # specialists, tool loop, and utility (OLLAMA_CODE_MODEL / OLLAMA_MODEL)
-make layer-gate LAYER=implement         # boots stack + runs implement-scenarios (20/20)
-make parity-scenarios          # Cursor parity contract (scenarios/parity/)
+make layer-gate LAYER=implement         # boots stack + non-optional implement gates (~14)
+make parity-scenarios          # Cursor parity contract (scenarios/parity/ — opt-in)
 make layer-gate LAYER=parity   # 3× implement with hub restart
 ```
 
@@ -127,16 +158,9 @@ make test-parity-stable              # 3× back-to-back (may OOM hub)
 make test-parity-stable-restart      # 3× with hub restart between sweeps
 ```
 
-**Regression bundle (beta.25+):** implement + chat + conversation in one run — prefer the **chat** or **bundle** layer:
+**Regression bundle:** quarantine — prefer climb layers (`implement` + `chat`). Still available as `make layer-gate LAYER=bundle`.
 
-```bash
-make server-regression
-make layer-gate LAYER=bundle
-# report: docs/testing/layer-gate-bundle-*.md
-# legacy alias (hidden from make help): make test-regression-bundle
-```
-
-**Full test sweep (beta.26+):** CI smoke + live harness in one run; reviewable summary + full log:
+**Full test sweep:** CI smoke + live harness in one run; reviewable summary + full log:
 
 ```bash
 make test-everything              # CI + live (hub + agents required)
@@ -145,12 +169,11 @@ make test-everything-full         # above + collab-scenarios-all (~1-3h extra)
 # reports: docs/testing/test-everything-*.md (summary) + test-everything-*.log (full output)
 ```
 
-**Release prep (one command):** `test-everything-full` + `test-parity-stable-restart` + `model-benchmark` with a unified report:
+**Release prep (one command):** `test-everything-full` + `test-parity-stable-restart` + `model-benchmark` with a unified report. Clean green ~**4h**; ~30h usually means fix-loop thrashing. Missing Model Arena pack **skips** (does not fail) the benchmark phase.
 
 ```bash
 make release-prep VERBOSE=1
 # unified: docs/testing/release-prep-*.md + release-prep-*.log
-# child:   test-everything-*.md, parity-stable-restart-*.log, model-benchmark-*.{md,json,tsv}
 ```
 
 **Overnight (walk away):** one command before bed — starts Ollama if needed, detaches in tmux, keeps the Mac awake, tees a log, and runs the full release gate:
@@ -177,6 +200,7 @@ make layer-overnight LAYER=chat
 - Cloud-first deliverable judge (hub Gemini) with Ollama fallback and RPM pacing
 - Verifies hub health + judge smoke (restarts regression hub once if needed)
 - Runs `collab-preflight --require-gemini` before the long phases
+- Skips model-benchmark when Model Arena pack is not installable (no false FAIL)
 
 Prerequisites: Ollama (started automatically by live test commands and `make overnight`). `ollama pull qwen2.5-coder:14b` recommended (fallback judge). Optional: `.gemini-api-key` for cloud judge when quota allows.
 

@@ -51,4 +51,7 @@ func TestChannelMaintainsSessionSummary_channelTypeEligible(t *testing.T) {
 	if !channelMaintainsSessionSummary(protocol.ChannelTypeDM, "dm-user-assistant") {
 		t.Fatal("user DM should maintain session summary")
 	}
+	if !channelMaintainsSessionSummary(protocol.ChannelTypeCollaboration, "collab-demo") {
+		t.Fatal("collaboration channel should maintain session summary")
+	}
 }

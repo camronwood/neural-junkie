@@ -2,7 +2,8 @@ package config
 
 import "strings"
 
-// WebSearchConfig configures online lookup for the Assistant MCP tools.
+// WebSearchConfig configures online lookup for shared web_search / fetch_url tools
+// available to all agents when enabled in Settings → Web search.
 type WebSearchConfig struct {
 	Enabled    bool   `json:"enabled"`
 	Provider   string `json:"provider,omitempty"` // tavily (default), brave

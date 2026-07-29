@@ -163,5 +163,10 @@
       "phase": "completed"
     }
   ],
-  "cleanup": "cancel"
+  "cleanup": "cancel",
+  "optional": true,
+  "tags": [
+    "soak",
+    "optional"
+  ]
 }

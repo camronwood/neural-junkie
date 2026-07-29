@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   fetchOllamaRuntimeStatus,
+  installOllamaRuntime,
   startOllamaRuntime,
   stopOllamaRuntime,
   type OllamaRuntimeStatus,
@@ -14,11 +15,15 @@ interface OllamaManagerProps {
 
 export function OllamaManager({ serverAddr, showLibraryHint = true }: OllamaManagerProps) {
   const [status, setStatus] = useState<OllamaRuntimeStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [installProgress, setInstallProgress] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const data = await fetchOllamaRuntimeStatus(serverAddr);
       setStatus(data);
+      setError(null);
     } catch {
       setStatus({ installed: false, running: false });
     }
@@ -29,14 +34,48 @@ export function OllamaManager({ serverAddr, showLibraryHint = true }: OllamaMana
   }, [refresh]);
 
   async function handleStart() {
-    await startOllamaRuntime(serverAddr);
-    setTimeout(() => void refresh(), 1200);
+    setBusy(true);
+    setError(null);
+    try {
+      await startOllamaRuntime(serverAddr);
+      setTimeout(() => void refresh(), 1200);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to start Ollama');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleStop() {
-    await stopOllamaRuntime(serverAddr);
-    setTimeout(() => void refresh(), 400);
+    setBusy(true);
+    setError(null);
+    try {
+      await stopOllamaRuntime(serverAddr);
+      setTimeout(() => void refresh(), 400);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to stop Ollama');
+    } finally {
+      setBusy(false);
+    }
   }
+
+  async function handleInstall() {
+    setBusy(true);
+    setError(null);
+    setInstallProgress('Preparing Ollama install…');
+    try {
+      await installOllamaRuntime(serverAddr, (msg) => setInstallProgress(msg));
+      setInstallProgress('');
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ollama install failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const notInstalled = status !== null && !status.installed;
+  const canAutoInstall = status?.autoInstallSupported !== false;
 
   return (
     <div className="space-y-4">
@@ -64,13 +103,53 @@ export function OllamaManager({ serverAddr, showLibraryHint = true }: OllamaMana
             {status.version && <span className="text-xs text-gray-600">{status.version}</span>}
           </div>
 
-          {status.installed && (
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          {installProgress && <p className="text-xs text-gray-400">{installProgress}</p>}
+
+          {notInstalled ? (
+            <div className="flex flex-wrap gap-2 items-center">
+              {canAutoInstall ? (
+                <button
+                  type="button"
+                  onClick={() => void handleInstall()}
+                  disabled={busy}
+                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
+                  data-testid="ollama-manager-install"
+                >
+                  {busy ? 'Installing…' : 'Install Ollama'}
+                </button>
+              ) : (
+                <a
+                  href="https://ollama.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-500"
+                >
+                  Get Ollama
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                disabled={busy}
+                className="px-3 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50"
+              >
+                Refresh
+              </button>
+              {canAutoInstall && (
+                <p className="text-xs text-gray-500 w-full">
+                  One-click install (internet required; Linux may ask for your password).
+                </p>
+              )}
+            </div>
+          ) : (
             <div className="flex gap-2">
               {status.running ? (
                 <button
                   type="button"
                   onClick={() => void handleStop()}
-                  className="px-3 py-1 text-xs bg-red-700/50 text-red-300 rounded hover:bg-red-700"
+                  disabled={busy}
+                  className="px-3 py-1 text-xs bg-red-700/50 text-red-300 rounded hover:bg-red-700 disabled:opacity-50"
                 >
                   Stop
                 </button>
@@ -78,7 +157,8 @@ export function OllamaManager({ serverAddr, showLibraryHint = true }: OllamaMana
                 <button
                   type="button"
                   onClick={() => void handleStart()}
-                  className="px-3 py-1 text-xs bg-green-700/50 text-green-300 rounded hover:bg-green-700"
+                  disabled={busy}
+                  className="px-3 py-1 text-xs bg-green-700/50 text-green-300 rounded hover:bg-green-700 disabled:opacity-50"
                 >
                   Start
                 </button>
@@ -86,7 +166,8 @@ export function OllamaManager({ serverAddr, showLibraryHint = true }: OllamaMana
               <button
                 type="button"
                 onClick={() => void refresh()}
-                className="px-3 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+                disabled={busy}
+                className="px-3 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50"
               >
                 Refresh
               </button>

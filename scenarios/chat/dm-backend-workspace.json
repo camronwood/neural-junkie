@@ -1,11 +1,20 @@
 {
   "name": "dm-backend-workspace",
-  "description": "BackendEngineer DM: theme ask then workspace visibility — no fake Go packages or echo.",
-  "tags": ["dm", "backend", "workspace", "regression", "debug"],
+  "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+  "tags": [
+    "dm",
+    "backend",
+    "workspace",
+    "regression",
+    "debug",
+    "canary"
+  ],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "BackendEngineer",
-  "required_agents": ["BackendEngineer"],
+  "required_agents": [
+    "BackendEngineer"
+  ],
   "workspace": {
     "fixture": "minimal-repo",
     "file_tree": "core/\n  sample/\n    main.go\nREADME.md\n"
@@ -14,15 +23,29 @@
     {
       "action": "send",
       "content": "I want to add theme support to this app I am working on now",
-      "metadata": { "conversation_mode": "chat", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "outline"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "180s"
+    },
     {
       "action": "send",
       "content": "can you see my workspace I have open?",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "90s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "90s"
+    },
     {
       "action": "assert_debug_context",
       "message": "can you see my workspace I have open?",
@@ -35,8 +58,15 @@
       "action": "assert_messages",
       "last_reply_only": true,
       "from": "BackendEngineer",
-      "any_match": ["workspace context|file tree|Yes — I have|Project:"],
-      "none_match": ["golang.org/x/themes", "gin-gonic", "go get github.com/gin", "successfully added theme"]
+      "any_match": [
+        "workspace context|file tree|Yes \u2014 I have|Project:"
+      ],
+      "none_match": [
+        "golang.org/x/themes",
+        "gin-gonic",
+        "go get github.com/gin",
+        "successfully added theme"
+      ]
     }
   ],
   "cleanup": "clear"

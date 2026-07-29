@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModelStoreBrowse } from './model-library/ModelStoreBrowse';
 import type { StoreModelAction, StoreModelItem } from './model-library/types';
+import { actionLabelWithSize, estimateSizeHintFromName } from './model-library/sizeHint';
+import { useModelTransferStore } from '../stores/modelTransferStore';
 
 export interface OllamaCatalogEntry {
   name: string;
@@ -28,7 +30,8 @@ interface RegistrySearchResponse {
 interface RegistryTagsResponse {
   name: string;
   default_tag?: string;
-  tags: { name: string }[];
+  size_hint?: string;
+  tags: { name: string; size_hint?: string }[];
 }
 
 interface HubProvider {
@@ -48,6 +51,8 @@ interface OllamaModelLibraryProps {
   onAfterModelChange?: () => void;
   onViewChange?: (view: 'grid' | 'detail') => void;
   resetDetailSignal?: number;
+  /** Called when a pull starts so the parent can switch to Installed. */
+  onDownloadStarted?: () => void;
 }
 
 function hubFetchError(status: number, fallback: string): string {
@@ -123,6 +128,7 @@ export function OllamaModelLibrary({
   onAfterModelChange,
   onViewChange,
   resetDetailSignal,
+  onDownloadStarted,
 }: OllamaModelLibraryProps) {
   const [curated, setCurated] = useState<OllamaCatalogEntry[]>([]);
   const [registry, setRegistry] = useState<RegistryModel[]>([]);
@@ -306,6 +312,16 @@ export function OllamaModelLibrary({
   async function pullModel(model: string) {
     const tag = (await resolvePullTag(model)).trim();
     if (!tag || !ollamaRunning) return;
+    const transferId = `ollama:${tag}`;
+    const transfers = useModelTransferStore.getState();
+    transfers.start({
+      id: transferId,
+      source: 'ollama',
+      title: tag,
+      subtitle: tag,
+      progressLabel: 'Starting…',
+    });
+    onDownloadStarted?.();
     setPullingName(tag);
     setPullProgress('Starting…');
     setActionMessage(null);
@@ -328,27 +344,37 @@ export function OllamaModelLibrary({
         if (data.status === 'error') {
           streamError = typeof data.error === 'string' ? data.error : 'Pull failed';
           setPullProgress(streamError);
+          transfers.fail(transferId, streamError);
           return;
         }
         if (typeof data.error === 'string' && data.error) {
           streamError = data.error;
           setPullProgress(streamError);
+          transfers.fail(transferId, streamError);
           return;
         }
         const pct = data.percent;
         if (typeof pct === 'number' && pct > 0) {
-          setPullProgress(`${pct.toFixed(1)}%`);
+          const label = `${pct.toFixed(1)}%`;
+          setPullProgress(label);
+          transfers.update(transferId, { progressLabel: label, percent: pct });
         } else if (typeof data.status === 'string') {
-          setPullProgress(String(data.status));
+          const label = String(data.status);
+          setPullProgress(label);
+          transfers.update(transferId, { progressLabel: label });
         }
       });
       if (streamError) {
         setActionMessage({ kind: 'err', text: streamError });
+        transfers.fail(transferId, streamError);
+      } else {
+        transfers.complete(transferId);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setPullProgress(msg);
       setActionMessage({ kind: 'err', text: msg });
+      transfers.fail(transferId, msg);
     } finally {
       setPullingName(null);
       setPullProgress('');
@@ -359,7 +385,7 @@ export function OllamaModelLibrary({
 
   async function deleteModel(model: string) {
     if (!ollamaRunning) return;
-    if (!confirm(`Remove Ollama model "${model}" from this machine?`)) return;
+    if (!confirm(`Uninstall Ollama model "${model}" from this machine?`)) return;
     setDeletingName(model);
     setActionMessage(null);
     try {
@@ -372,7 +398,7 @@ export function OllamaModelLibrary({
         const t = await resp.text();
         throw new Error(t || resp.statusText);
       }
-      setActionMessage({ kind: 'ok', text: `Removed ${model}` });
+      setActionMessage({ kind: 'ok', text: `Uninstalled ${model}` });
     } catch (e) {
       setActionMessage({
         kind: 'err',
@@ -439,10 +465,17 @@ export function OllamaModelLibrary({
         deletingName === row.name ||
         deletingName === installedTag ||
         useBusyName === row.name;
+      const tagInfo = tagCache[familyName(row.name)];
+      const sizeHint =
+        row.size_hint?.trim() ||
+        tagInfo?.size_hint?.trim() ||
+        estimateSizeHintFromName(installedTag) ||
+        estimateSizeHintFromName(row.name) ||
+        estimateSizeHintFromName(row.title);
       const pullLabel =
         pullingName === row.name || pullingName === installedTag
           ? pullProgress || 'Pulling…'
-          : 'Install';
+          : actionLabelWithSize('Install', sizeHint);
 
       const primaryAction: StoreModelAction | undefined = isIn
         ? {
@@ -455,19 +488,19 @@ export function OllamaModelLibrary({
           }
         : {
             id: 'install',
-            label: 'Install',
+            label: actionLabelWithSize('Install', sizeHint),
             disabled: !ollamaRunning || rowBusy || globalPullBusy,
             busyLabel: pullingName === row.name ? pullLabel : undefined,
             onClick: () => void pullModel(row.name),
           };
 
       const detailActions: StoreModelAction[] = [];
-      const tagInfo = tagCache[familyName(row.name)];
       if (tagInfo?.tags?.length) {
         for (const tag of tagInfo.tags) {
+          const tagSize = tag.size_hint || sizeHint;
           detailActions.push({
             id: `install-${tag.name}`,
-            label: `Install ${tag.name}`,
+            label: actionLabelWithSize(`Install ${tag.name}`, tagSize),
             disabled: !ollamaRunning || rowBusy || globalPullBusy,
             onClick: () => void pullModel(tag.name),
           });
@@ -478,7 +511,7 @@ export function OllamaModelLibrary({
         if (detailActions.length === 0) {
           detailActions.push({
             id: 'install',
-            label: 'Install',
+            label: actionLabelWithSize('Install', sizeHint),
             disabled: !ollamaRunning || rowBusy || globalPullBusy,
             busyLabel: pullingName === row.name ? pullLabel : undefined,
             onClick: () => void pullModel(row.name),
@@ -495,10 +528,10 @@ export function OllamaModelLibrary({
         });
         detailActions.push({
           id: 'remove',
-          label: 'Remove',
+          label: 'Uninstall',
           variant: 'danger',
           disabled: rowBusy || globalPullBusy,
-          busyLabel: deletingName === installedTag ? 'Removing…' : undefined,
+          busyLabel: deletingName === installedTag ? 'Uninstalling…' : undefined,
           onClick: () => void deleteModel(installedTag),
         });
       }
@@ -509,11 +542,14 @@ export function OllamaModelLibrary({
         subtitle: row.name,
         description: row.description,
         tags: row.tags ?? [],
-        sizeHint: row.size_hint,
+        sizeHint,
         publisher: row.publisher,
         iconKey: row.icon_key,
         status: isIn ? 'installed' : 'available',
-        detailRows: [{ label: 'Ollama tag', value: row.name }],
+        detailRows: [
+          { label: 'Ollama tag', value: row.name },
+          ...(sizeHint ? [{ label: 'Download size', value: sizeHint }] : []),
+        ],
         primaryAction,
         detailActions,
       };
@@ -528,6 +564,16 @@ export function OllamaModelLibrary({
     useBusyName,
     tagCache,
   ]);
+
+  // Prefetch default-tag sizes for visible rows missing size_hint.
+  useEffect(() => {
+    const missing = filtered
+      .filter((row) => !row.size_hint && !tagCache[familyName(row.name)]?.size_hint)
+      .slice(0, 12);
+    for (const row of missing) {
+      void loadTagsForFamily(row.name);
+    }
+  }, [filtered, tagCache, loadTagsForFamily]);
 
   const handleDetailOpen = useCallback(
     (item: StoreModelItem) => {

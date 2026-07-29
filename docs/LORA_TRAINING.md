@@ -32,6 +32,10 @@ Open **Model library** (⇧⌘M) → **Train LoRA** tab (visible when Specialist
 
 Minimum **10** training rows required.
 
+### SUT self-improve rows (`source_kind: sut_eval`)
+
+The release-engineering `make sut-loop` harness appends Alpaca JSONL under `docs/testing/sut-lora-rows/` when Claude Judge fails an episode and provides `GOLD_OUTPUT`. Import those files in Train LoRA (Advanced → Import JSONL) or pass them as `extra_rows` to `POST /api/lora/train`. Training and adapter assign stay **manual / eval-gated** — the loop does not auto-train.
+
 ## API
 
 | Method | Path | Purpose |

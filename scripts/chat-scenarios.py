@@ -70,10 +70,12 @@ class ChatScenarioContext:
         if self.verbose:
             print(msg)
 
-    def format_send_content(self, content: str) -> str:
+    def format_send_content(self, content: str, mention: str | None = None) -> str:
         content = content.strip()
-        if self.mention and self.mention not in content:
-            return f"{self.mention} {content}"
+        m = (mention if mention is not None else self.mention) or ""
+        m = str(m).strip()
+        if m and m not in content:
+            return f"{m} {content}"
         return content
 
 
@@ -124,16 +126,29 @@ def dump_transcript(ctx: ChatScenarioContext, tail: int = 12) -> None:
         print(f"    [{typ}] {who}: {body}", file=sys.stderr)
 
 
+def _reply_agent_for_send(ctx: ChatScenarioContext, step: dict, content: str) -> str:
+    """Agent expected to reply — used for wait_reply baseline on multi-agent public channels."""
+    if raw := (step.get("reply_from") or step.get("wait_from") or "").strip():
+        return raw.lstrip("@")
+    match = re.search(r"@([A-Za-z][A-Za-z0-9_-]*)", content or "")
+    if match:
+        return match.group(1)
+    return ctx.target_agent
+
+
 def step_send(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
-    content = ctx.format_send_content(step.get("content") or "")
+    step_mention = (step.get("mention") or "").strip() or None
+    content = ctx.format_send_content(step.get("content") or "", mention=step_mention)
     if not content:
         return False, "send: empty content"
     meta = enrich_send_metadata_for_chat(step.get("metadata"), ctx.scenario, content=content)
     from_name = (step.get("from") or DEFAULT_FROM).strip()
+    reply_from = _reply_agent_for_send(ctx, step, content)
     # Baseline before send so instant replies (e.g. closure) still satisfy wait_reply.
+    # Count the agent expected to answer (supports multi-agent public threads).
     ctx.baseline_agent_count = hub.count_chat_agent_messages(
         hub.list_messages(ctx.base, ctx.channel, 200),
-        ctx.target_agent,
+        reply_from,
     )
     code, _data = hub.send_message(
         ctx.base, ctx.channel, content, metadata=meta, from_name=from_name, max_retries=5

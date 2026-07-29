@@ -27,9 +27,13 @@ const (
 	BioOllamaToolModel = "qwen3.5:9b"
 	// UtilityOllamaModel is the hub utility tier for routing classifier and similar background tasks.
 	UtilityOllamaModel = "qwen3.5:9b"
-	// SemanticClassifierOllamaModel is the fast local model for per-turn semantic intent JSON.
-	// Keep this smaller than UtilityOllamaModel so SendMessage stays within the classify budget.
-	SemanticClassifierOllamaModel = "qwen2.5:3b"
+	// SemanticClassifierOllamaModel is the local model for per-turn semantic intent JSON.
+	// Promoted from qwen2.5:3b after make semantic-eval-compare (2026-07-29): candidate
+	// action_accuracy 0.915 ≥ 0.90 and beat 3b baseline 0.797 on semantic-intents.json.
+	SemanticClassifierOllamaModel = "qwen3.5:9b"
+	// SemanticClassifierCandidateModel is reserved for the next eval candidate
+	// (make semantic-eval-compare). Keep equal to the default until a larger trial is queued.
+	SemanticClassifierCandidateModel = "qwen3.5:9b"
 	// SessionSummaryOllamaModel is the dedicated local model for async channel session summaries.
 	SessionSummaryOllamaModel = "qwen2.5:3b"
 	// BioOllamaTag is the canonical Ollama model name for OpenBioLLM (import via HF GGUF).

@@ -12,9 +12,10 @@ var libraryJSON []byte
 
 // CatalogFile describes one downloadable or hosted HF model entry.
 type CatalogFile struct {
-	Filename string `json:"filename"`
-	Quant    string `json:"quant,omitempty"`
-	SizeHint string `json:"size_hint,omitempty"`
+	Filename  string `json:"filename"`
+	Quant     string `json:"quant,omitempty"`
+	SizeHint  string `json:"size_hint,omitempty"`
+	SizeBytes int64  `json:"size_bytes,omitempty"`
 	// Role is "main" (weights) or "mmproj" (vision projector). Empty means main.
 	Role string `json:"role,omitempty"`
 }

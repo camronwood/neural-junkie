@@ -42,7 +42,7 @@ flowchart TB
   userMsg[User message]
   mode[1 Mode: chat / code / collab]
   intent[2 Intent: closure / casual / substantive / task]
-  memory[3 Memory: session summary + history slice]
+  memory[3 Memory: turn ledger + session summary + history slice]
   grounding[4 Grounding: context_scope + optional scan]
   persona[5 Persona: direct / channel / collaboration]
   budget[6 Budget: byte caps per section]
@@ -55,7 +55,7 @@ flowchart TB
 |-------|-------|------------------|-------|
 | **Mode** | Composer UI + heuristics | `conversation_mode`: `chat` \| `code` \| `collab` | Desktop |
 | **Intent** | Message text + channel type | Internal: `closure` / `casual` / `substantive` / `task` / `meta` | Server `turn_intent.go` |
-| **Memory** | Channel transcript | `session_summary` (hub) + history slice | Hub + agent |
+| **Memory** | Channel transcript | turn ledger + `session_summary` (hub) + history slice | Hub + agent |
 | **Grounding** | Mode + intent + scope | `context_scope` + optional file scan | Desktop + agent |
 | **Persona** | Channel type | Prompt framing tier | Agent `buildPrompt` |
 | **Budget** | Assembled prompt | Truncation order before LLM | Agent `context_budget.go` |
@@ -106,12 +106,25 @@ The hub maintains a rolling **session summary** per eligible channel:
 
 - Updated asynchronously with `qwen2.5:3b` (`config.SessionSummaryOllamaModel`) after every 3 user turns (or sooner when empty and enough transcript exists)
 - **90s** LLM timeout (`NJ_SESSION_SUMMARY_TIMEOUT`); override model via `NJ_SESSION_SUMMARY_MODEL`
-- **Eligible channels:** DM, custom, public (`#general`, etc.), and `dm-*` specialist slugs — **not** regression harness channels (`implement-scenarios`, `chat-scenarios`, etc.)
+- **Eligible channels:** DM, custom, public (`#general`, etc.), collaboration rooms, and `dm-*` specialist slugs — **not** regression harness channels (`implement-scenarios`, `chat-scenarios`, etc.)
+- Digests are **speaker-attributed** (who committed to what, open questions, named entities to retain)
 - Persisted in `last-session.json` as `session_summary` / `session_summary_at`
 - Cleared with **Clear message history** (also clears durable conversation state for that channel)
 - Injected into agent prompts as `=== SESSION SUMMARY ===` with continue-thread guidance (summary is overlay; recent exchanges remain ground truth)
 
 Implementation: `internal/hub/channel_summary.go`, `internal/chatcontext` for transcript filtering.
+
+### Turn ledger (long-conversation tracking)
+
+Alongside the prose summary, the hub appends a durable **turn ledger** for eligible channels:
+
+- Path: `~/.neural-junkie/turn-ledgers/{safe_channel}.jsonl`
+- Each chat/question/answer turn records speaker, type, bounded excerpt, lightweight entities (backticks / CamelCase), and optional goal/collab/trace links
+- Injected as `=== TURN LEDGER (recent) ===` (last ~12 rows) before the session summary in the Memory stage — still an overlay; the ConversationWindow remains ground truth
+- API: `GET /api/channels/turn-ledger?channel=…&limit=50`
+- Debug: `GET /api/debug/channel-context?channel=…` includes `turn_ledger` when `NEURAL_JUNKIE_DEBUG=1`
+
+Implementation: `internal/turnledger`, `internal/hub/turn_ledger.go`.
 
 ### Thread-scoped history
 
@@ -136,10 +149,11 @@ Implementation: `promptPersonaTier()` in `internal/agent/prompt_persona.go`.
 Before the LLM call, `applyContextBudget()` enforces a ~32KB prompt target (tunable):
 
 1. User message + attachments (required, never truncated)
-2. Session summary (cap 2KB)
-3. Recent turns in prompt body (cap 12KB)
-4. Workspace outline (cap 4KB)
-5. Open file bodies / scan (remainder, cap 12KB)
+2. Turn ledger overlay (cap ~1.5KB)
+3. Session summary (cap 2KB)
+4. Recent turns in prompt body (cap 12KB)
+5. Workspace outline (cap 4KB)
+6. Open file bodies / scan (remainder, cap 12KB)
 
 Truncate tail sections first. When context compression is enabled, oversized sections are stored in the hub cache with a ref marker instead of silent truncation — see [CONTEXT_COMPRESSION.md](CONTEXT_COMPRESSION.md).
 
@@ -188,6 +202,8 @@ Response includes: `session_summary`, `conversation_mode`, resolved intent (when
 
 | Area | Test file |
 |------|-----------|
+| **Semantic corpus (CI policy)** | `internal/intent/corpus_policy_test.go` + `scenarios/routing/semantic-intents.json` |
+| **Semantic live classify+policy** | `make semantic-eval` / `make semantic-eval-compare` (`NJ_RUN_LOCAL_SEMANTIC_EVAL=1`) |
 | **Chat quality router (CI catalog)** | `internal/agent/chat_quality_router_test.go` |
 | Intent + mode interaction | `internal/agent/turn_intent_test.go` |
 | Mention overrides IDE route | `internal/agent/should_respond_test.go` |
@@ -198,9 +214,30 @@ Response includes: `session_summary`, `conversation_mode`, resolved intent (when
 | DM persona (no MCP block) | `internal/agent/prompt_persona_test.go` |
 | **Live multi-turn chat (local)** | `scenarios/chat/*.json` — `make chat-scenario` — see [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) |
 
+### Semantic stamp graduation
+
+The binding constraint is **untrusted stamps patched by `LooksLike*` policy**. Workflow:
+
+1. Expand `scenarios/routing/semantic-intents.json` (policy classes: workspace_fix, project_overview, canvas_*, open_canvas_*, …)
+2. CI: `go test ./internal/intent/ -run TestResolvePolicyAgainstCorpus` (gold stamps + structural features)
+3. Live: `make semantic-eval` (classify+policy, default min action accuracy 0.90)
+4. Delete `LooksLike*` branches only when a class holds live accuracy; open-canvas revise/fill already graduated to `open_artifact_*`
+5. Bump `SemanticClassifierOllamaModel` only after `make semantic-eval-compare` shows a candidate ≥0.90 that beats the current default (done 2026-07-29: → `qwen3.5:9b`)
+
+### Live scoreboard (2026-07-29)
+
+| Model | action_accuracy | full_accuracy | n | Artifact |
+|-------|-----------------|---------------|---|----------|
+| `qwen2.5:3b` (prior default) | 0.797 | 0.797 | 59 | `docs/testing/semantic-eval-2026-07-29-1732.json` |
+| `qwen3.5:9b` (promoted default) | 0.915 | 0.915 | 59 | `docs/testing/semantic-eval-2026-07-29-1735.json` |
+
+**Promotion decision:** default bumped to `qwen3.5:9b` — candidate ≥0.90 and beats prior 3b baseline on the same corpus.
+
+**Graduated from ResolvePolicy text cues:** open-canvas revise/fill → structural `open_artifact_*` + `open_canvas_meta_demote`. Remaining `LooksLike*` (workspace_fix, project_overview, canvas create/demote, git inspect) stay until those classes hold ≥0.90 on the live classifier alone.
+
 ## Preconditions
 
-- Ollama running with `qwen2.5:3b` for session summaries (`ollama pull qwen2.5:3b`)
+- Ollama running with `qwen3.5:9b` for semantic classify (`ollama pull qwen3.5:9b`) and `qwen2.5:3b` for session summaries
 - Rebuild hub: `make stop && make start-all`
 
 ## Related

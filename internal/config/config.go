@@ -202,6 +202,9 @@ type Config struct {
 	Debug             DebugSettings                     `json:"debug"`
 	Automation        AutomationConfig                  `json:"automation"`
 	Storage           StorageConfig                     `json:"storage"`
+	// SetupCompleted is set when the desktop first-run wizard finishes.
+	// Missing on disk for legacy installs is migrated to true so existing users are not re-prompted.
+	SetupCompleted bool `json:"setup_completed"`
 
 	mu       sync.RWMutex `json:"-"`
 	filePath string       `json:"-"`
@@ -319,6 +322,7 @@ func Load() (*Config, error) {
 
 	cfg.migrateCapabilityPolicy(data)
 	cfg.migrateIfNeeded(data)
+	cfg.migrateSetupCompleted(data)
 	cfg.MigrateBiologyMCPModels()
 	cfg.migrateSoftwareDevelopmentPackIfNeeded()
 	cfg.migrateIdePackIfNeeded()
@@ -333,6 +337,30 @@ func Load() (*Config, error) {
 	cfg.SyncAgentsFromPacks()
 	SetAppConfig(cfg)
 	return cfg, nil
+}
+
+// migrateSetupCompleted treats configs written before setup_completed existed as already set up.
+func (c *Config) migrateSetupCompleted(raw []byte) {
+	if c == nil {
+		return
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return
+	}
+	if _, ok := probe["setup_completed"]; !ok {
+		c.SetupCompleted = true
+	}
+}
+
+// NeedsSetup reports whether the desktop first-run wizard should run.
+func (c *Config) NeedsSetup() bool {
+	if c == nil {
+		return true
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return !c.SetupCompleted
 }
 
 // EnsureMCPDefaults fills MCP agent map when missing (full defaults come from migrateIfNeeded when "mcp" is absent).
@@ -773,6 +801,7 @@ func (c *Config) Redacted() *Config {
 	debug := c.Debug
 	automation := c.Automation
 	storage := c.Storage
+	setupCompleted := c.SetupCompleted
 	filePath := c.filePath
 	c.mu.RUnlock()
 
@@ -842,6 +871,7 @@ func (c *Config) Redacted() *Config {
 		Debug:             debug,
 		Automation:        automation,
 		Storage:           storage,
+		SetupCompleted:    setupCompleted,
 		filePath:          filePath,
 	}
 }

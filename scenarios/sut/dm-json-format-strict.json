@@ -1,0 +1,23 @@
+{
+  "name": "dm-json-format-strict",
+  "description": "Claude human demands strict JSON from BackendEngineer; judge checks parseable schema compliance.",
+  "tags": ["sut", "dm", "backend", "format"],
+  "channel_type": "dm",
+  "dm_user": "SutScenario",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "human": {
+    "persona": "You are a picky API consumer who only accepts machine-readable replies.",
+    "goal": "Ask the SUT to design a tiny REST error envelope and return ONLY a JSON object with keys error.code (string), error.message (string), and retryable (boolean). If the reply has prose or invalid JSON, demand a corrected JSON-only reply.",
+    "max_turns": 3,
+    "stop_when": "SUT produced a valid JSON-only object matching the schema, or failed twice after correction requests."
+  },
+  "judge": {
+    "rubric": "PASS if the final SUT reply is valid JSON (optionally in a fenced block) with error.code, error.message, and retryable boolean. FAIL if JSON is missing, unparseable, or schema fields are wrong after correction attempts.",
+    "require_gold_on_fail": true
+  },
+  "fix": {
+    "enabled": true,
+    "allow_paths": ["internal/agent/", "internal/hub/", "docs/"]
+  }
+}

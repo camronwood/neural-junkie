@@ -101,6 +101,7 @@ func effectiveMCPToolAllowlist(a *Agent, msg *protocol.Message) []string {
 	if a != nil {
 		base = a.MCPToolAllowlist
 	}
+	base = withSharedWebSearchAllowlist(base)
 	if !collaborationRestrictsDiscoveryTools(msg) {
 		return base
 	}
@@ -121,6 +122,28 @@ func effectiveMCPToolAllowlist(a *Agent, msg *protocol.Message) []string {
 	if len(out) == 0 {
 		// Keep prior allowlist but still drop discovery tools at execution time.
 		return base
+	}
+	return out
+}
+
+// withSharedWebSearchAllowlist keeps web_search/fetch_url available even when an
+// agent uses a narrow MCP allowlist (maps, biology profiles, etc.).
+func withSharedWebSearchAllowlist(base []string) []string {
+	if len(base) == 0 {
+		return base
+	}
+	out := append([]string{}, base...)
+	for _, name := range []string{"web_search", "fetch_url"} {
+		found := false
+		for _, existing := range out {
+			if existing == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out = append(out, name)
+		}
 	}
 	return out
 }

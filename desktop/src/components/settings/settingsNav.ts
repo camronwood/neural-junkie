@@ -12,6 +12,7 @@ export type SettingsTab =
   | 'capabilities'
   | 'api-credentials'
   | 'integrations'
+  | 'web-search'
   | 'assistant-tools'
   | 'slack'
   | 'streams'
@@ -64,6 +65,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     items: [
       { id: 'api-credentials', label: 'API credentials' },
       { id: 'integrations', label: 'Integrations' },
+      { id: 'web-search', label: 'Web search' },
       { id: 'assistant-tools', label: 'Assistant tools' },
       { id: 'slack', label: 'Slack' },
       { id: 'streams', label: 'Streams' },

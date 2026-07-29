@@ -1272,15 +1272,16 @@ fn wait_for_ollama_stopped(timeout: std::time::Duration) -> bool {
     false
 }
 
-/// Stop any process listening on port (e.g. orphaned `ollama serve` not tracked by Tauri).
+/// Stop any process listening on port (e.g. orphaned `ollama serve` / `nj-server` not tracked by Tauri).
 fn kill_listeners_on_port(port: u16) {
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         let port_arg = format!(":{}", port);
         if let Ok(out) = Command::new("lsof").args(["-ti", &port_arg]).output() {
             for pid in String::from_utf8_lossy(&out.stdout).split_whitespace() {
+                // Prefer graceful stop so Go hub can tear down pack sidecars; then force.
                 let _ = Command::new("kill").arg(pid).status();
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                std::thread::sleep(std::time::Duration::from_millis(150));
                 let _ = Command::new("kill").args(["-9", pid]).status();
             }
         }
@@ -1290,6 +1291,70 @@ fn kill_listeners_on_port(port: u16) {
 fn stop_all_ollama_on_port() {
     kill_listeners_on_port(11434);
     let _ = wait_for_ollama_stopped(std::time::Duration::from_secs(8));
+}
+
+/// Default packaged hub listen port (matches desktop hubUrl DEFAULT_HUB_HTTP).
+const DEFAULT_HUB_PORT: u16 = 18765;
+
+/// Port for the hub this app manages (from NEURAL_JUNKIE_HUB_URL / VITE_NJ_HUB_URL, else 18765).
+fn managed_hub_port() -> u16 {
+    let base = std::env::var("NEURAL_JUNKIE_HUB_URL")
+        .or_else(|_| std::env::var("VITE_NJ_HUB_URL"))
+        .unwrap_or_else(|_| format!("http://127.0.0.1:{DEFAULT_HUB_PORT}"));
+    parse_hub_port(&base).unwrap_or(DEFAULT_HUB_PORT)
+}
+
+fn parse_hub_port(base: &str) -> Option<u16> {
+    let trimmed = base.trim().trim_end_matches('/');
+    let without_scheme = trimmed
+        .strip_prefix("http://")
+        .or_else(|| trimmed.strip_prefix("https://"))
+        .unwrap_or(trimmed);
+    let host_port = without_scheme.split('/').next().unwrap_or(without_scheme);
+    // IPv6 in brackets: [::1]:18765 — uncommon for local hub; handle host:port.
+    if let Some((host, port_str)) = host_port.rsplit_once(':') {
+        if !host.is_empty() && !host.contains(']') {
+            return port_str.parse().ok();
+        }
+    }
+    None
+}
+
+fn wait_for_hub_stopped(timeout: std::time::Duration) -> bool {
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        if !hub_health_once() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    !hub_health_once()
+}
+
+fn hub_health_once() -> bool {
+    let health_url = dev_hub_health_url();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_millis(800))
+        .build();
+    let Ok(client) = client else {
+        return false;
+    };
+    match client.get(&health_url).send() {
+        Ok(resp) if resp.status().is_success() => resp
+            .json::<serde_json::Value>()
+            .ok()
+            .and_then(|v| v.get("status").and_then(|s| s.as_str()).map(|s| s == "ok"))
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+/// Reap orphan/external hubs on the managed port (packaged builds only).
+fn stop_managed_hub_on_port() {
+    let port = managed_hub_port();
+    eprintln!("Stopping hub listeners on port {port}…");
+    kill_listeners_on_port(port);
+    let _ = wait_for_hub_stopped(std::time::Duration::from_secs(8));
 }
 
 fn bundled_ollama_version(binary: &std::path::Path) -> Option<String> {
@@ -1572,6 +1637,11 @@ fn shutdown_managed_processes(
     if let Some(child) = sidecar_state.lock().unwrap().take() {
         let _ = child.kill();
     }
+    // Packaged builds own the hub on the managed port. Reap orphans the same way we
+    // clear Ollama on 11434 — tracked-child kill alone can miss an external/stale hub.
+    if !cfg!(debug_assertions) {
+        stop_managed_hub_on_port();
+    }
     stop_bundled_ollama_child(ollama_state);
     SIDECAR_READY.store(false, Ordering::SeqCst);
 }
@@ -1720,6 +1790,10 @@ fn main() {
                     spawn_bundled_ollama(&app_handle, &ollama_state)
                 };
 
+                // Clear stale hubs on the managed port before spawn so health checks
+                // don't pass against an orphan from a previous session / make run-hub.
+                stop_managed_hub_on_port();
+
                 match spawn_sidecar(&app_handle, bundled_ollama.as_ref()) {
                     Ok(child) => {
                         *sidecar_state.lock().unwrap() = Some(child);
@@ -1787,7 +1861,7 @@ fn main() {
 
 #[cfg(test)]
 mod lifecycle_tests {
-    use super::begin_shutdown;
+    use super::{begin_shutdown, parse_hub_port, DEFAULT_HUB_PORT};
     use std::sync::atomic::AtomicBool;
 
     #[test]
@@ -1795,5 +1869,14 @@ mod lifecycle_tests {
         let flag = AtomicBool::new(false);
         assert!(begin_shutdown(&flag));
         assert!(!begin_shutdown(&flag));
+    }
+
+    #[test]
+    fn parse_hub_port_from_url() {
+        assert_eq!(parse_hub_port("http://127.0.0.1:18765"), Some(18765));
+        assert_eq!(parse_hub_port("http://127.0.0.1:18766/"), Some(18766));
+        assert_eq!(parse_hub_port("https://localhost:19999/api"), Some(19999));
+        assert_eq!(parse_hub_port("http://127.0.0.1"), None);
+        assert_eq!(DEFAULT_HUB_PORT, 18765);
     }
 }

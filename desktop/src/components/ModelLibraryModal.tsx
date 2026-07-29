@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { OllamaManager } from './OllamaManager';
 import { OllamaModelLibrary } from './OllamaModelLibrary';
 import { HfModelLibrary } from './HfModelLibrary';
+import { InstalledModelsLibrary } from './InstalledModelsLibrary';
 import { LoraTrainingPanel, type LoraTrainPrefill } from './LoraTrainingPanel';
 import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
+import { useModelTransferStore } from '../stores/modelTransferStore';
 
-type LibrarySource = 'ollama' | 'huggingface' | 'train';
+type LibrarySource = 'installed' | 'ollama' | 'huggingface' | 'train';
 type BrowseDepth = 'grid' | 'detail';
 
 interface ModelLibraryModalProps {
@@ -37,6 +39,15 @@ export function ModelLibraryModal({
 }: ModelLibraryModalProps) {
   const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
   const hasLoRACompose = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_COMPOSE));
+  const hasActiveTransfers = useModelTransferStore((s) =>
+    Object.values(s.transfers).some((t) => t.status === 'downloading')
+  );
+  const keepOllamaMounted = useModelTransferStore((s) =>
+    Object.values(s.transfers).some((t) => t.source === 'ollama' && t.status === 'downloading')
+  );
+  const keepHfMounted = useModelTransferStore((s) =>
+    Object.values(s.transfers).some((t) => t.source === 'huggingface' && t.status === 'downloading')
+  );
   const [source, setSource] = useState<LibrarySource>(initialTab ?? 'ollama');
   const [browseDepth, setBrowseDepth] = useState<BrowseDepth>('grid');
   const [resetDetailSignal, setResetDetailSignal] = useState(0);
@@ -49,6 +60,12 @@ export function ModelLibraryModal({
 
   const handleSourceChange = useCallback((next: LibrarySource) => {
     setSource(next);
+    setBrowseDepth('grid');
+    setResetDetailSignal((n) => n + 1);
+  }, []);
+
+  const handleDownloadStarted = useCallback(() => {
+    setSource('installed');
     setBrowseDepth('grid');
     setResetDetailSignal((n) => n + 1);
   }, []);
@@ -77,6 +94,9 @@ export function ModelLibraryModal({
   if (!isOpen) return null;
 
   const showBack = browseDepth === 'detail';
+  // Keep download sources mounted (hidden) so in-flight pulls/downloads aren't aborted on tab switch.
+  const showOllama = source === 'ollama' || keepOllamaMounted;
+  const showHf = source === 'huggingface' || keepHfMounted;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto py-6 px-4" role="presentation">
@@ -104,6 +124,19 @@ export function ModelLibraryModal({
           </div>
           <div className="flex items-center gap-2">
             <div className="flex rounded-md border border-slack-border overflow-hidden text-xs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={source === 'installed'}
+                onClick={() => handleSourceChange('installed')}
+                className={`px-3 py-1.5 font-medium transition-colors ${
+                  source === 'installed'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+                }`}
+              >
+                Installed{hasActiveTransfers ? ' · …' : ''}
+              </button>
               <button
                 type="button"
                 role="tab"
@@ -157,13 +190,24 @@ export function ModelLibraryModal({
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
-          {source === 'ollama' && (
-            <>
-              {browseDepth === 'grid' && (
-                <div className="rounded-lg border border-slack-border bg-slack-bgHover/40 p-4">
-                  <OllamaManager serverAddr={serverAddr} showLibraryHint={false} />
-                </div>
-              )}
+          <div className={source === 'installed' ? '' : 'hidden'}>
+            <div className="rounded-lg border border-slack-border bg-slack-bgHover/40 p-4">
+              <InstalledModelsLibrary
+                serverAddr={serverAddr}
+                switchAllAgentProviders={switchAllAgentProviders}
+                onAfterModelChange={onAfterModelChange}
+                onViewChange={setBrowseDepth}
+                resetDetailSignal={resetDetailSignal}
+              />
+            </div>
+          </div>
+          {browseDepth === 'grid' && source === 'ollama' && (
+            <div className="rounded-lg border border-slack-border bg-slack-bgHover/40 p-4">
+              <OllamaManager serverAddr={serverAddr} showLibraryHint={false} />
+            </div>
+          )}
+          {showOllama && (
+            <div className={source === 'ollama' ? '' : 'hidden'}>
               <div className="rounded-lg border border-slack-border bg-slack-bgHover/40 p-4">
                 <OllamaModelLibrary
                   serverAddr={serverAddr}
@@ -171,22 +215,26 @@ export function ModelLibraryModal({
                   onAfterModelChange={onAfterModelChange}
                   onViewChange={setBrowseDepth}
                   resetDetailSignal={resetDetailSignal}
+                  onDownloadStarted={handleDownloadStarted}
                 />
               </div>
-            </>
+            </div>
           )}
-          {source === 'huggingface' && (
-            <div className="rounded-lg border border-slack-border bg-slack-bgHover/40 p-4">
-              <HfModelLibrary
-                serverAddr={serverAddr}
-                switchAllAgentProviders={switchAllAgentProviders}
-                switchAgentProvider={switchAgentProvider}
-                runtimeAgents={runtimeAgents}
-                onAfterModelChange={onAfterModelChange}
-                onViewChange={setBrowseDepth}
-                resetDetailSignal={resetDetailSignal}
-                canComposeLoRA={hasLoRACompose}
-              />
+          {showHf && (
+            <div className={source === 'huggingface' ? '' : 'hidden'}>
+              <div className="rounded-lg border border-slack-border bg-slack-bgHover/40 p-4">
+                <HfModelLibrary
+                  serverAddr={serverAddr}
+                  switchAllAgentProviders={switchAllAgentProviders}
+                  switchAgentProvider={switchAgentProvider}
+                  runtimeAgents={runtimeAgents}
+                  onAfterModelChange={onAfterModelChange}
+                  onViewChange={setBrowseDepth}
+                  resetDetailSignal={resetDetailSignal}
+                  canComposeLoRA={hasLoRACompose}
+                  onDownloadStarted={handleDownloadStarted}
+                />
+              </div>
             </div>
           )}
           {source === 'train' && (

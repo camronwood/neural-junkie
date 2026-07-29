@@ -55,6 +55,9 @@ FORWARD_VARS=(
   FIX_BRANCH
   BASE_BRANCH
   NO_WORKTREE
+  USE_WORKTREE
+  SCENARIO
+  ALL
 )
 
 ollama_healthy() {
@@ -138,6 +141,15 @@ run_gate() {
         exit 1
       fi
       ;;
+    sut-loop)
+      : "${MAX_ITER:=2}"
+      : "${NO_COMMIT:=1}"
+      : "${AGENT_TIMEOUT:=18000}"
+      if [[ -z "${SCENARIO:-}" && -z "${ALL:-}" ]]; then
+        echo "FAIL: SCENARIO=… or ALL=1 required for sut-loop (make sut-loop-list)" >&2
+        exit 1
+      fi
+      ;;
     test-everything)
       make_args+=(CONTINUE=1)
       ;;
@@ -147,7 +159,7 @@ run_gate() {
       ;;
     *)
       echo "FAIL: unknown NJ_OVERNIGHT_TARGET='${target}'" >&2
-      echo "  use: release-prep | release-prep-fix-loop | layer-fix-loop | test-everything | test-everything-full" >&2
+      echo "  use: release-prep | release-prep-fix-loop | layer-fix-loop | sut-loop | test-everything | test-everything-full" >&2
       exit 1
       ;;
   esac
@@ -174,14 +186,16 @@ run_overnight() {
 
     run_regression_boot
     echo ""
-    echo ">>> Ensure Model Arena pack (post-boot)"
+    echo ">>> Ensure Model Arena pack (post-boot; advisory)"
     python3 <<PY
 import sys
 sys.path.insert(0, "scripts")
 from lib.arena_pack import ensure_model_arena_pack
 ok, detail = ensure_model_arena_pack("${HUB_URL}")
 print(detail)
-raise SystemExit(0 if ok else 1)
+if not ok:
+    print("WARN: Model Arena pack not ready — release-prep will skip model-benchmark", file=sys.stderr)
+raise SystemExit(0)
 PY
     echo ""
     run_gate

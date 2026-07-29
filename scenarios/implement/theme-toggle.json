@@ -1,9 +1,11 @@
 {
   "name": "theme-toggle",
-  "description": "Frontend implementation session asks for theme-related deliverable.",
+  "description": "Frontend implementation session asks for theme-related deliverable. Optional soak twin \u2014 excluded from default implement --all.",
   "tags": [
     "implement",
-    "frontend"
+    "frontend",
+    "soak",
+    "optional"
   ],
   "channel": "implement-scenarios",
   "channel_type": "public",
@@ -79,5 +81,6 @@
       ]
     }
   ],
-  "cleanup": "clear"
+  "cleanup": "clear",
+  "optional": true
 }
