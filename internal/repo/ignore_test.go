@@ -18,6 +18,11 @@ func TestShouldIgnoreEntry(t *testing.T) {
 		{"desktop/src-tauri/icons/icon.icns", "icon.icns", true},
 		{".scenario-baseline/Makefile", "Makefile", true},
 		{"Makefile", "Makefile", false},
+		{"reader/libatikcameras.so", "libatikcameras.so", true},
+		{"ui/package-lock.json", "package-lock.json", true},
+		{"go.sum", "go.sum", true},
+		{"Cargo.lock", "Cargo.lock", true},
+		{"assets/photo.png", "photo.png", true},
 	}
 	for _, tt := range tests {
 		if got := ShouldIgnoreEntry(tt.relPath, tt.name); got != tt.want {

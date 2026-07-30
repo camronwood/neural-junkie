@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/codeindex/store"
+	"github.com/camronwood/neural-junkie/internal/repo"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/camronwood/neural-junkie/internal/workspacefiles"
 )
@@ -49,27 +50,44 @@ func BuildIndexViaBackend(ctx context.Context, repoPath string, b workspacebacke
 		if ctx.Err() != nil {
 			break
 		}
-		if !isSourceFile(rel) {
+		rel = filepath.ToSlash(rel)
+		if !IsIndexableRelPath(rel) {
 			continue
 		}
 		data, err := b.ReadFile(ctx, rel)
 		if err != nil {
 			continue
 		}
+		if int64(len(data)) > repo.MaxFileSize || LooksLikeBinary(data) {
+			continue
+		}
 		chunks = append(chunks, chunkFile(rel, string(data))...)
 	}
 
-	cp, _ := chunksPath(repoPath)
-	raw, _ := json.MarshalIndent(chunks, "", "  ")
-	if err := os.WriteFile(cp, raw, 0o644); err != nil {
+	sqlStore, err := store.Open(dir)
+	if err != nil {
 		return err
 	}
+	defer sqlStore.Close()
+
+	recs := make([]store.ChunkRecord, len(chunks))
+	for i, ch := range chunks {
+		recs[i] = store.ChunkRecord{
+			ID: ch.ID, Path: ch.Path, Start: ch.Start, End: ch.End, Content: ch.Content,
+		}
+	}
+	if err := sqlStore.ReplaceAllChunks(recs); err != nil {
+		return err
+	}
+	removeLegacyJSON(dir)
+
 	meta := IndexMeta{
 		RepoPath:       repoPath,
 		RepoHash:       hash,
 		ChunkCount:     len(chunks),
 		EmbeddingModel: globalModel,
 		LastBuiltAt:    time.Now().UTC(),
+		SchemaVersion:  CurrentSchemaVersion,
 		Ready:          len(chunks) > 0,
 	}
 	mp, _ := metaPath(repoPath)
@@ -102,8 +120,14 @@ func keywordSearchBackend(ctx context.Context, b workspacebackend.Backend, query
 		if len(results) >= limit {
 			break
 		}
+		if !IsIndexableRelPath(rel) {
+			continue
+		}
 		data, err := b.ReadFile(ctx, rel)
 		if err != nil {
+			continue
+		}
+		if LooksLikeBinary(data) {
 			continue
 		}
 		content := string(data)
@@ -113,14 +137,4 @@ func keywordSearchBackend(ctx context.Context, b workspacebackend.Backend, query
 		results = append(results, SearchResult{Path: rel, Content: content})
 	}
 	return results, nil
-}
-
-func isSourceFile(rel string) bool {
-	ext := strings.ToLower(filepath.Ext(rel))
-	switch ext {
-	case ".go", ".ts", ".tsx", ".js", ".jsx", ".rs", ".py", ".md", ".json", ".yaml", ".yml", ".toml":
-		return true
-	default:
-		return false
-	}
 }

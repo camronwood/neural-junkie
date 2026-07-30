@@ -63,6 +63,8 @@ Environment: `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
 | `dm-assistant-trip-followup` | DM | Assistant | dm, assistant, dialogue, regression |
 | `dm-pronoun-followup-3turn` | DM | FrontendEngineer | dm, frontend, dialogue, regression |
 | `dm-chat-mode-soft-followups` | DM | BackendEngineer | dm, backend, dialogue, regression |
+| `dm-correction-soft-followup` | DM | Assistant | dm, assistant, dialogue, continuity, regression |
+| `dm-entity-second-option-followup` | DM | FrontendEngineer | dm, frontend, dialogue, continuity, regression |
 | `dm-topic-continuity-same-thread` | DM | Assistant | dm, assistant, dialogue, regression |
 | `dm-summary-continuity-long-horizon` | DM | Assistant | dm, assistant, dialogue, long-horizon, regression |
 | `dm-durable-state-chat-isolation` | DM | BackendEngineer | dm, backend, dialogue, regression |
@@ -93,6 +95,8 @@ These cover the conversation bugs we hit in production chat:
   - **`dm-assistant-trip-followup`** — trip → enable websearch → stay on trip; never `wrong_route` / FrontendEngineer
   - **`dm-pronoun-followup-3turn`** — anaphoric “move it …” retains ThemeSettings/Appearance
   - **`dm-chat-mode-soft-followups`** — opinion → why → one more tradeoff without tool dumps
+  - **`dm-correction-soft-followup`** — city correction → soft “second option” stays answer/none
+  - **`dm-entity-second-option-followup`** — ThemeSettings options → “second option?” → “why?” without tools
   - **`dm-topic-continuity-same-thread`** — 4-turn same theme retention
   - **`dm-summary-continuity-long-horizon`** — early constraint survives past summary refresh
   - **`dm-durable-state-chat-isolation`** — code turn then chat opinion without implement dumps

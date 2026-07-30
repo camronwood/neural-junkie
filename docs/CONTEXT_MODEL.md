@@ -220,20 +220,41 @@ The binding constraint is **untrusted stamps patched by `LooksLike*` policy**. W
 
 1. Expand `scenarios/routing/semantic-intents.json` (policy classes: workspace_fix, project_overview, canvas_*, open_canvas_*, …)
 2. CI: `go test ./internal/intent/ -run TestResolvePolicyAgainstCorpus` (gold stamps + structural features)
-3. Live: `make semantic-eval` (classify+policy, default min action accuracy 0.90)
-4. Delete `LooksLike*` branches only when a class holds live accuracy; open-canvas revise/fill already graduated to `open_artifact_*`
-5. Bump `SemanticClassifierOllamaModel` only after `make semantic-eval-compare` shows a candidate ≥0.90 that beats the current default (done 2026-07-29: → `qwen3.5:9b`)
+3. Live: `make semantic-eval` (classify+policy; default `action_accuracy ≥ 0.90` and `misstamp_rate ≤ 0.05`)
+4. Prefer **reason_codes** (+ gold `stamp_*`) as the primary policy signal; keep `LooksLike*` as live fallback until a class holds ≥0.90 **without** text gates
+5. Delete `LooksLike*` branches only when that live-without-text gate holds; open-canvas revise/fill already graduated to `open_artifact_*`
+6. Bump `SemanticClassifierOllamaModel` only after `make semantic-eval-compare` shows a candidate that passes the dual gate and beats the current default (done 2026-07-29: → `qwen3.5:9b`)
 
-### Live scoreboard (2026-07-29)
+**2026-07-30 graduation progress**
 
-| Model | action_accuracy | full_accuracy | n | Artifact |
-|-------|-----------------|---------------|---|----------|
-| `qwen2.5:3b` (prior default) | 0.797 | 0.797 | 59 | `docs/testing/semantic-eval-2026-07-29-1732.json` |
-| `qwen3.5:9b` (promoted default) | 0.915 | 0.915 | 59 | `docs/testing/semantic-eval-2026-07-29-1735.json` |
+| Class | Status |
+|-------|--------|
+| open-canvas revise/fill | Graduated to `open_artifact_*` (unchanged) |
+| workspace_fix / project_overview / git_inspect / open_canvas_meta | Reason codes + gold stamps in corpus; `LooksLike*` retained as fallback |
+| canvas create | Gold `stamp_action=artifact` + deliverable reason codes; text corroboration still used for spray demote |
+| spurious canvas demote | Kept text negative gates (spray safety) |
+| dialogue soft-followup / closure ask_user spray | Policy demotes `continue` without pending → answer; empty-ambiguity `ask_user` → answer (incl. correction) |
+| repo_fact | Reason code + narrow text fallback promotes answer → inspect |
+| plan→edit implementation | Direct “add/create/implement …” asks mis-stamped as plan promote to edit |
 
-**Promotion decision:** default bumped to `qwen3.5:9b` — candidate ≥0.90 and beats prior 3b baseline on the same corpus.
+New reason codes taught to the classifier: `canvas_meta_question`, `canvas_title_question`, `project_overview`, `git_inspect`, `repo_fact`.
 
-**Graduated from ResolvePolicy text cues:** open-canvas revise/fill → structural `open_artifact_*` + `open_canvas_meta_demote`. Remaining `LooksLike*` (workspace_fix, project_overview, canvas create/demote, git inspect) stay until those classes hold ≥0.90 on the live classifier alone.
+Pack domain/recipient vocabulary is now an **OntologyRegistry** rebuilt from enabled pack agents in `SyncAgentsFromPacks` (typed routing authority — not Auto model routing).
+
+### Live scoreboard
+
+| Model | action_accuracy | full_accuracy | abstention_rate | misstamp_rate | n | Artifact |
+|-------|-----------------|---------------|-----------------|---------------|---|----------|
+| `qwen2.5:3b` (prior default) | 0.797 | 0.797 | — | — | 59 | `docs/testing/semantic-eval-2026-07-29-1732.json` |
+| `qwen3.5:9b` (promoted default) | 0.915 | 0.915 | — | — | 59 | `docs/testing/semantic-eval-2026-07-29-1735.json` |
+| `qwen3.5:9b` (post-gap metrics) | 0.903 | 0.903 | 0.016 | 0.081 | 62 | `docs/testing/semantic-eval-2026-07-30-1850.json` |
+| `qwen3.5:9b` (low misstamp / timeout-heavy) | 0.887 | 0.887 | 0.113 | 0.000 | 62 | `docs/testing/semantic-eval-2026-07-30-1900.json` |
+| `qwen3.5:9b` (dialogue + repo_fact harden) | 0.984 | 0.984 | 0.000 | 0.016 | 62 | `docs/testing/semantic-eval-2026-07-30-2328.json` |
+| `qwen3.5:9b` (dual-gate pass / load abstentions) | 0.903 | 0.903 | 0.097 | 0.000 | 62 | `docs/testing/semantic-eval-2026-07-30-2337.json` |
+
+**Metric split:** `misstamp` = confident wrong `local_model` end decision (dangerous). `abstention` = `safe_fallback` (often classifier timeout). Promote when `action_accuracy ≥ 0.90` **and** `misstamp_rate ≤ 0.05`. Per-case misses are logged as diagnostics; the dual gate is the hard ship bar. Under Ollama load, abstentions can dominate `action_accuracy` even when `committed_action_accuracy` is near 1.0 — use both rates when comparing.
+
+**Promotion decision (2026-07-29):** default bumped to `qwen3.5:9b` — candidate ≥0.90 and beats prior 3b baseline on the same corpus.
 
 ## Preconditions
 

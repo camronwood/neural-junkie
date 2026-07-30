@@ -1,0 +1,91 @@
+{
+  "name": "dm-correction-soft-followup",
+  "description": "Assistant DM: name two cities, correct the choice, then soft follow-up stays conversational answer.",
+  "tags": [
+    "dm",
+    "assistant",
+    "dialogue",
+    "continuity",
+    "regression"
+  ],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "Assistant",
+  "required_agents": [
+    "Assistant"
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "We're choosing between Austin and Denver for the offsite. Which fits a small engineering team better?",
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "120s"
+    },
+    {
+      "action": "send",
+      "content": "no, I meant the second city, not Austin",
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_messages",
+      "semantic_turn_decision": {
+        "optional": true,
+        "user_match": "no, I meant the second city",
+        "action": "answer",
+        "mutation": "none"
+      }
+    },
+    {
+      "action": "send",
+      "content": "and what about the second option for lodging?",
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "Assistant",
+      "any_match": [
+        "Denver|lodging|hotel|option|stay"
+      ],
+      "none_match": [
+        "FILE_CHANGE",
+        "Grounding: I loaded",
+        "which file should I",
+        "provide the path"
+      ]
+    },
+    {
+      "action": "assert_messages",
+      "semantic_turn_decision": {
+        "optional": true,
+        "user_match": "and what about the second option",
+        "action": "answer",
+        "mutation": "none"
+      }
+    }
+  ],
+  "cleanup": "clear"
+}

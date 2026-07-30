@@ -1,0 +1,119 @@
+{
+  "abstention_count": 6,
+  "abstention_rate": 0.0967741935483871,
+  "action_accuracy": 0.8709677419354839,
+  "committed_action_accuracy": 0.9642857142857143,
+  "committed_full_accuracy": 0.9642857142857143,
+  "fails": [
+    {
+      "Name": "source-code-canvas",
+      "PolicyClass": "source_canvas_edit",
+      "GotAction": "answer",
+      "WantAction": "edit",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "pending-continuation",
+      "PolicyClass": "continuation",
+      "GotAction": "answer",
+      "WantAction": "continue",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "image-generation",
+      "PolicyClass": "image_gen",
+      "GotAction": "answer",
+      "WantAction": "image",
+      "GotMutation": "none",
+      "WantMutation": "external",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "soft-followup",
+      "PolicyClass": "dialogue_followup",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "continuation_target_missing"
+      ],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "repo-fact-inspect",
+      "PolicyClass": "repo_fact",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "edit-frontend-component",
+      "PolicyClass": "edit",
+      "GotAction": "answer",
+      "WantAction": "edit",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": dial tcp [::1]:11434: connect: connection refused"
+    },
+    {
+      "Name": "run-tests",
+      "PolicyClass": "run",
+      "GotAction": "answer",
+      "WantAction": "run",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": dial tcp [::1]:11434: connect: connection refused"
+    },
+    {
+      "Name": "music-gen",
+      "PolicyClass": "music",
+      "GotAction": "answer",
+      "WantAction": "music",
+      "GotMutation": "none",
+      "WantMutation": "external",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": dial tcp [::1]:11434: connect: connection refused"
+    }
+  ],
+  "full_accuracy": 0.8709677419354839,
+  "misstamp_count": 2,
+  "misstamp_rate": 0.03225806451612903,
+  "model": "qwen3.5:9b",
+  "n": 62,
+  "n_committed": 56,
+  "source_counts": {
+    "local_model": 26,
+    "safe_fallback": 35,
+    "structural": 1
+  },
+  "structural_miss_count": 0
+}

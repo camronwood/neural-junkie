@@ -8,7 +8,6 @@
       "has_workspace": true,
       "want_action": "debug",
       "want_mutation": "workspace",
-      "want_recipient": "frontend",
       "want_retrieval": [
         "codebase"
       ],
@@ -124,13 +123,15 @@
         "codebase"
       ],
       "policy_class": "workspace_fix",
-      "stamp_action": "plan",
-      "stamp_mutation": "none",
-      "stamp_interaction": "question",
-      "want_override_any": "workspace_fix_promote",
+      "stamp_action": "debug",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
       "want_actions": [
         "debug",
         "edit"
+      ],
+      "stamp_reason_codes": [
+        "runtime_failure"
       ]
     },
     {
@@ -144,13 +145,15 @@
         "codebase"
       ],
       "policy_class": "workspace_fix",
-      "stamp_action": "plan",
-      "stamp_mutation": "none",
-      "stamp_interaction": "question",
-      "want_override_any": "workspace_fix_promote",
+      "stamp_action": "debug",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
       "want_actions": [
         "debug",
         "edit"
+      ],
+      "stamp_reason_codes": [
+        "runtime_failure"
       ]
     },
     {
@@ -164,13 +167,15 @@
         "codebase"
       ],
       "policy_class": "workspace_fix",
-      "stamp_action": "plan",
-      "stamp_mutation": "none",
-      "stamp_interaction": "question",
-      "want_override_any": "workspace_fix_promote",
+      "stamp_action": "debug",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
       "want_actions": [
         "debug",
         "edit"
+      ],
+      "stamp_reason_codes": [
+        "startup_failure"
       ]
     },
     {
@@ -184,13 +189,15 @@
         "codebase"
       ],
       "policy_class": "workspace_fix",
-      "stamp_action": "plan",
-      "stamp_mutation": "none",
-      "stamp_interaction": "question",
-      "want_override_any": "workspace_fix_promote",
+      "stamp_action": "debug",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
       "want_actions": [
         "debug",
         "edit"
+      ],
+      "stamp_reason_codes": [
+        "runtime_failure"
       ]
     },
     {
@@ -204,13 +211,15 @@
         "codebase"
       ],
       "policy_class": "workspace_fix",
-      "stamp_action": "plan",
-      "stamp_mutation": "none",
-      "stamp_interaction": "question",
-      "want_override_any": "workspace_fix_promote",
+      "stamp_action": "debug",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
       "want_actions": [
         "debug",
         "edit"
+      ],
+      "stamp_reason_codes": [
+        "runtime_failure"
       ]
     },
     {
@@ -224,13 +233,15 @@
         "codebase"
       ],
       "policy_class": "workspace_fix",
-      "stamp_action": "plan",
-      "stamp_mutation": "none",
-      "stamp_interaction": "question",
-      "want_override_any": "workspace_fix_promote",
+      "stamp_action": "debug",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
       "want_actions": [
         "debug",
         "edit"
+      ],
+      "stamp_reason_codes": [
+        "startup_failure"
       ]
     },
     {
@@ -253,10 +264,12 @@
         "codebase"
       ],
       "policy_class": "project_overview",
-      "stamp_action": "run",
-      "stamp_mutation": "workspace",
-      "stamp_interaction": "task",
-      "want_override_any": "project_overview_inspect"
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ]
     },
     {
       "name": "project-overview-2",
@@ -269,10 +282,12 @@
         "codebase"
       ],
       "policy_class": "project_overview",
-      "stamp_action": "run",
-      "stamp_mutation": "workspace",
-      "stamp_interaction": "task",
-      "want_override_any": "project_overview_inspect"
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ]
     },
     {
       "name": "project-overview-3",
@@ -285,10 +300,12 @@
         "codebase"
       ],
       "policy_class": "project_overview",
-      "stamp_action": "run",
-      "stamp_mutation": "workspace",
-      "stamp_interaction": "task",
-      "want_override_any": "project_overview_inspect"
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ]
     },
     {
       "name": "project-overview-4",
@@ -301,10 +318,12 @@
         "codebase"
       ],
       "policy_class": "project_overview",
-      "stamp_action": "run",
-      "stamp_mutation": "workspace",
-      "stamp_interaction": "task",
-      "want_override_any": "project_overview_inspect"
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ]
     },
     {
       "name": "project-overview-5",
@@ -317,10 +336,12 @@
         "codebase"
       ],
       "policy_class": "project_overview",
-      "stamp_action": "run",
-      "stamp_mutation": "workspace",
-      "stamp_interaction": "task",
-      "want_override_any": "project_overview_inspect"
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ]
     },
     {
       "name": "project-overview-canvas",
@@ -338,13 +359,13 @@
       "want_action": "artifact",
       "want_mutation": "external",
       "policy_class": "canvas_create",
-      "stamp_action": "ask_user",
-      "stamp_mutation": "none",
-      "stamp_interaction": "casual",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "task",
       "stamp_reason_codes": [
-        "blank_canvas"
-      ],
-      "want_override_any": "canvas_reason_artifact"
+        "blank_canvas",
+        "durable_artifact"
+      ]
     },
     {
       "name": "canvas-create-2",
@@ -353,13 +374,13 @@
       "want_action": "artifact",
       "want_mutation": "external",
       "policy_class": "canvas_create",
-      "stamp_action": "ask_user",
-      "stamp_mutation": "none",
-      "stamp_interaction": "casual",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "task",
       "stamp_reason_codes": [
-        "blank_canvas"
-      ],
-      "want_override_any": "canvas_reason_artifact"
+        "blank_canvas",
+        "durable_artifact"
+      ]
     },
     {
       "name": "canvas-create-3",
@@ -368,13 +389,13 @@
       "want_action": "artifact",
       "want_mutation": "external",
       "policy_class": "canvas_create",
-      "stamp_action": "ask_user",
-      "stamp_mutation": "none",
-      "stamp_interaction": "casual",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "task",
       "stamp_reason_codes": [
-        "blank_canvas"
-      ],
-      "want_override_any": "canvas_reason_artifact"
+        "blank_canvas",
+        "durable_artifact"
+      ]
     },
     {
       "name": "canvas-create-4",
@@ -383,13 +404,13 @@
       "want_action": "artifact",
       "want_mutation": "external",
       "policy_class": "canvas_create",
-      "stamp_action": "ask_user",
-      "stamp_mutation": "none",
-      "stamp_interaction": "casual",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "task",
       "stamp_reason_codes": [
-        "blank_canvas"
-      ],
-      "want_override_any": "canvas_reason_artifact"
+        "blank_canvas",
+        "durable_artifact"
+      ]
     },
     {
       "name": "canvas-create-5",
@@ -398,13 +419,13 @@
       "want_action": "artifact",
       "want_mutation": "external",
       "policy_class": "canvas_create",
-      "stamp_action": "ask_user",
-      "stamp_mutation": "none",
-      "stamp_interaction": "casual",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "task",
       "stamp_reason_codes": [
-        "blank_canvas"
-      ],
-      "want_override_any": "canvas_reason_artifact"
+        "blank_canvas",
+        "durable_artifact"
+      ]
     },
     {
       "name": "canvas-prior-content",
@@ -416,10 +437,13 @@
         "prior_reference"
       ],
       "policy_class": "canvas_create",
-      "stamp_action": "answer",
-      "stamp_mutation": "none",
-      "stamp_interaction": "question",
-      "want_override_any": "canvas_text_artifact"
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "task",
+      "stamp_reason_codes": [
+        "durable_artifact",
+        "blank_canvas"
+      ]
     },
     {
       "name": "spurious-canvas-demote-1",
@@ -580,10 +604,12 @@
       "want_action": "answer",
       "want_mutation": "none",
       "policy_class": "open_canvas_meta",
-      "stamp_action": "artifact",
-      "stamp_mutation": "external",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
       "stamp_interaction": "question",
-      "want_override_any": "open_canvas_meta_demote"
+      "stamp_reason_codes": [
+        "canvas_meta_question"
+      ]
     },
     {
       "name": "open-canvas-title-q",
@@ -594,10 +620,12 @@
       "want_action": "answer",
       "want_mutation": "none",
       "policy_class": "open_canvas_meta",
-      "stamp_action": "artifact",
-      "stamp_mutation": "external",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
       "stamp_interaction": "question",
-      "want_override_any": "open_canvas_meta_demote"
+      "stamp_reason_codes": [
+        "canvas_title_question"
+      ]
     },
     {
       "name": "maps-route",
@@ -606,12 +634,13 @@
       "want_action": "artifact",
       "want_mutation": "external",
       "policy_class": "maps_route",
-      "stamp_action": "ask_user",
-      "stamp_mutation": "none",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
       "stamp_reason_codes": [
-        "maps_route"
+        "maps_route",
+        "durable_artifact"
       ],
-      "want_override_any": "canvas_reason_artifact"
+      "stamp_interaction": "task"
     },
     {
       "name": "workspace-report-canvas",
@@ -621,12 +650,13 @@
       "want_action": "artifact",
       "want_mutation": "external",
       "policy_class": "workspace_report",
-      "stamp_action": "answer",
-      "stamp_mutation": "none",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
       "stamp_reason_codes": [
-        "workspace_report"
+        "workspace_report",
+        "durable_artifact"
       ],
-      "want_override_any": "canvas_reason_artifact"
+      "stamp_interaction": "task"
     },
     {
       "name": "soft-followup",
@@ -635,7 +665,11 @@
       "has_workspace": false,
       "want_action": "answer",
       "want_mutation": "none",
-      "policy_class": "dialogue_followup"
+      "policy_class": "dialogue_followup",
+      "stamp_action": "continue",
+      "stamp_mutation": "none",
+      "stamp_interaction": "continuation",
+      "want_override_any": "continuation_target_missing"
     },
     {
       "name": "entity-retention",
@@ -655,7 +689,14 @@
       "want_retrieval": [
         "codebase"
       ],
-      "policy_class": "repo_fact"
+      "policy_class": "repo_fact",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "repo_fact"
+      ],
+      "want_override_any": "repo_fact_inspect"
     },
     {
       "name": "presence-casual",
@@ -673,7 +714,11 @@
       "want_action": "answer",
       "want_mutation": "none",
       "want_interaction": "closure",
-      "policy_class": "closure"
+      "policy_class": "closure",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "closure",
+      "want_override_any": "spurious_ask_user_demote"
     },
     {
       "name": "git-status-inspect",
@@ -685,7 +730,13 @@
       "want_retrieval": [
         "codebase"
       ],
-      "policy_class": "git_inspect"
+      "policy_class": "git_inspect",
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "git_inspect"
+      ]
     },
     {
       "name": "plan-mode-no-edit",
@@ -724,7 +775,11 @@
       "want_retrieval": [
         "codebase"
       ],
-      "policy_class": "edit"
+      "policy_class": "edit",
+      "stamp_action": "plan",
+      "stamp_mutation": "none",
+      "stamp_interaction": "task",
+      "want_override_any": "implementation_plan_promote"
     },
     {
       "name": "run-tests",
@@ -757,7 +812,11 @@
       "composer_mode": "agent",
       "want_action": "answer",
       "want_mutation": "none",
-      "policy_class": "dialogue_followup"
+      "policy_class": "dialogue_followup",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "spurious_ask_user_demote"
     },
     {
       "name": "concrete-code-chat",
@@ -766,6 +825,10 @@
       "has_workspace": false,
       "want_action": "answer",
       "want_mutation": "none",
+      "want_actions": [
+        "answer",
+        "inspect"
+      ],
       "policy_class": "concrete_answer"
     },
     {
@@ -787,12 +850,15 @@
         "codebase"
       ],
       "policy_class": "workspace_fix",
-      "stamp_action": "answer",
-      "stamp_mutation": "none",
-      "want_override_any": "workspace_fix_promote",
+      "stamp_action": "debug",
+      "stamp_mutation": "workspace",
       "want_actions": [
         "debug",
         "edit"
+      ],
+      "stamp_interaction": "task",
+      "stamp_reason_codes": [
+        "startup_failure"
       ]
     },
     {
@@ -806,9 +872,12 @@
         "codebase"
       ],
       "policy_class": "project_overview",
-      "stamp_action": "edit",
-      "stamp_mutation": "workspace",
-      "want_override_any": "project_overview_inspect"
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ]
     },
     {
       "name": "open-canvas-edit-misstamp",
@@ -823,6 +892,167 @@
       "stamp_mutation": "workspace",
       "stamp_interaction": "task",
       "want_override_any": "open_canvas_artifact"
+    },
+    {
+      "name": "git-log-inspect",
+      "text": "show me the git log for the last few commits",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "policy_class": "git_inspect",
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "git_inspect"
+      ]
+    },
+    {
+      "name": "git-diff-inspect",
+      "text": "what's in my git diff right now?",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "policy_class": "git_inspect",
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "git_inspect"
+      ]
+    },
+    {
+      "name": "git-status-run-misstamp",
+      "text": "check git status",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "policy_class": "git_inspect",
+      "stamp_action": "run",
+      "stamp_mutation": "none",
+      "stamp_interaction": "task",
+      "stamp_reason_codes": [
+        "git_inspect"
+      ],
+      "want_override_any": "git_inspect_promote"
+    },
+    {
+      "name": "soft-followup-why",
+      "text": "why?",
+      "composer_mode": "agent",
+      "has_workspace": false,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "dialogue_followup",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "spurious_ask_user_demote"
+    },
+    {
+      "name": "soft-followup-go-on",
+      "text": "go on",
+      "composer_mode": "agent",
+      "has_workspace": false,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "dialogue_followup",
+      "stamp_action": "continue",
+      "stamp_mutation": "none",
+      "stamp_interaction": "continuation",
+      "want_override_any": "continuation_target_missing"
+    },
+    {
+      "name": "soft-followup-invented-target",
+      "text": "and what about the third option?",
+      "composer_mode": "agent",
+      "has_workspace": false,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "dialogue_followup",
+      "stamp_action": "continue",
+      "stamp_mutation": "none",
+      "stamp_interaction": "continuation",
+      "want_continuation": "",
+      "want_override_any": "continuation_target_missing"
+    },
+    {
+      "name": "meeting-notes-inspect-demote",
+      "text": "When was the last meeting that does have notes?",
+      "composer_mode": "agent",
+      "has_workspace": false,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "dialogue_followup",
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "inspect_requires_workspace"
+    },
+    {
+      "name": "repo-fact-where-file",
+      "text": "Where is the Express dependency declared in this repo?",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "repo_fact",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "repo_fact"
+      ],
+      "want_override_any": "repo_fact_inspect"
+    },
+    {
+      "name": "pronoun-it-followup",
+      "text": "can you expand on that a bit?",
+      "composer_mode": "agent",
+      "has_workspace": false,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "dialogue_followup",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "want_override_any": "spurious_ask_user_demote"
+    },
+    {
+      "name": "correction-stay-answer",
+      "text": "no, I meant the second city, not Austin",
+      "composer_mode": "agent",
+      "has_workspace": false,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "want_interaction": "correction",
+      "policy_class": "correction",
+      "stamp_action": "ask_user",
+      "stamp_mutation": "none",
+      "stamp_interaction": "correction",
+      "want_override_any": "spurious_ask_user_demote"
+    },
+    {
+      "name": "implement-component-not-plan",
+      "text": "Create a SettingsPanel component for the React app.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "edit",
+      "want_mutation": "workspace",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "edit",
+      "stamp_action": "plan",
+      "stamp_mutation": "none",
+      "stamp_interaction": "task",
+      "want_override_any": "implementation_plan_promote"
     }
   ]
 }

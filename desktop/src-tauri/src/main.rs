@@ -1374,6 +1374,115 @@ fn stop_bundled_ollama_child(ollama_state: &OllamaChild) {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct SessionOllamaModelsFile {
+    models: Vec<SessionOllamaModelRef>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct SessionOllamaModelRef {
+    endpoint: String,
+    model: String,
+}
+
+fn session_ollama_models_path() -> PathBuf {
+    default_home()
+        .join(".neural-junkie")
+        .join("session-ollama-models.json")
+}
+
+fn read_persisted_session_ollama_models() -> Vec<SessionOllamaModelRef> {
+    let path = session_ollama_models_path();
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    serde_json::from_str::<SessionOllamaModelsFile>(&raw)
+        .map(|doc| {
+            doc.models
+                .into_iter()
+                .filter(|m| !m.model.trim().is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn unload_ollama_model(endpoint: &str, model: &str) -> Result<(), String> {
+    let endpoint = endpoint.trim().trim_end_matches('/');
+    let endpoint = if endpoint.is_empty() {
+        "http://127.0.0.1:11434"
+    } else {
+        endpoint
+    };
+    let model = model.trim();
+    if model.is_empty() {
+        return Err("empty model".into());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let body = serde_json::json!({
+        "model": model,
+        "keep_alive": 0,
+    });
+    let resp = client
+        .post(format!("{endpoint}/api/generate"))
+        .json(&body)
+        .send()
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().unwrap_or_default();
+        return Err(format!("ollama unload {status}: {text}"));
+    }
+    Ok(())
+}
+
+/// Ask the hub to unload session models; fall back to the persisted session file + Ollama HTTP.
+fn unload_session_ollama_models_on_exit() {
+    let hub_base = std::env::var("NEURAL_JUNKIE_HUB_URL")
+        .or_else(|_| std::env::var("VITE_NJ_HUB_URL"))
+        .unwrap_or_else(|_| format!("http://127.0.0.1:{DEFAULT_HUB_PORT}"));
+    let hub_base = hub_base.trim().trim_end_matches('/');
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(35))
+        .build();
+    if let Ok(client) = client {
+        if let Ok(resp) = client
+            .post(format!("{hub_base}/api/ollama/unload-session"))
+            .send()
+        {
+            if resp.status().is_success() {
+                let _ = std::fs::remove_file(session_ollama_models_path());
+                eprintln!("Unloaded Ollama session models via hub");
+                return;
+            }
+        }
+    }
+
+    let models = read_persisted_session_ollama_models();
+    if models.is_empty() {
+        return;
+    }
+    let mut unloaded = 0usize;
+    for entry in &models {
+        match unload_ollama_model(&entry.endpoint, &entry.model) {
+            Ok(()) => {
+                unloaded += 1;
+                eprintln!("Unloaded Ollama model {}", entry.model);
+            }
+            Err(err) => eprintln!(
+                "Failed to unload Ollama model {}: {}",
+                entry.model, err
+            ),
+        }
+    }
+    if unloaded > 0 {
+        let _ = std::fs::remove_file(session_ollama_models_path());
+    }
+}
+
 fn spawn_bundled_ollama(app: &tauri::AppHandle, ollama_state: &OllamaChild) -> Option<PathBuf> {
     let runtime_dir = bundled_ollama_runtime_dir(app)?;
     let binary = bundled_ollama_binary(&runtime_dir);
@@ -1621,6 +1730,9 @@ fn shutdown_managed_processes(
     if !begin_shutdown(&SHUTTING_DOWN) {
         return;
     }
+
+    // Soft-unload models NJ loaded before killing the hub (which may be SIGKILL'd).
+    unload_session_ollama_models_on_exit();
 
     let sessions = {
         let mut guard = pty_sessions.lock().unwrap();

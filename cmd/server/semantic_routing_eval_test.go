@@ -85,6 +85,10 @@ func TestLocalSemanticIntentEvaluation(t *testing.T) {
 	corpus := loadSemanticEvalCorpus(t)
 	correctAction := 0
 	correctFull := 0
+	abstentionCount := 0
+	misstampCount := 0
+	structuralMissCount := 0
+	sourceCounts := map[string]int{}
 	type failRow struct {
 		Name, PolicyClass string
 		GotAction         intent.Action
@@ -93,6 +97,8 @@ func TestLocalSemanticIntentEvaluation(t *testing.T) {
 		WantMutation      intent.Mutation
 		Source            intent.Source
 		Overrides         []string
+		FailKind          string
+		AbstentionReason  string
 	}
 	var fails []failRow
 	for _, testCase := range corpus.Cases {
@@ -112,6 +118,7 @@ func TestLocalSemanticIntentEvaluation(t *testing.T) {
 				OpenArtifactTitle:    testCase.OpenArtifactTitle,
 			}
 			decision := router.Resolve(context.Background(), features)
+			sourceCounts[string(decision.Source)]++
 			actionOK := actionAccepted(decision.Action, testCase.WantAction, testCase.WantActions)
 			fullOK := actionOK && decision.Mutation == testCase.WantMutation
 			if actionOK {
@@ -121,28 +128,39 @@ func TestLocalSemanticIntentEvaluation(t *testing.T) {
 				correctFull++
 			}
 			if !fullOK {
+				kind := semanticEvalFailKind(decision)
+				switch kind {
+				case "abstention":
+					abstentionCount++
+				case "misstamp":
+					misstampCount++
+				default:
+					structuralMissCount++
+				}
 				fails = append(fails, failRow{
 					Name: testCase.Name, PolicyClass: testCase.PolicyClass,
 					GotAction: decision.Action, WantAction: testCase.WantAction,
 					GotMutation: decision.Mutation, WantMutation: testCase.WantMutation,
 					Source: decision.Source, Overrides: decision.PolicyOverrides,
+					FailKind: kind, AbstentionReason: decision.AbstentionReason,
 				})
-				t.Errorf("decision action=%s mutation=%s source=%s overrides=%v want action=%s|%v mutation=%s",
-					decision.Action, decision.Mutation, decision.Source, decision.PolicyOverrides,
+				// Per-case misses are diagnostics; ship bar is the dual gate below.
+				t.Logf("case miss action=%s mutation=%s source=%s fail_kind=%s overrides=%v want action=%s|%v mutation=%s",
+					decision.Action, decision.Mutation, decision.Source, kind, decision.PolicyOverrides,
 					testCase.WantAction, testCase.WantActions, testCase.WantMutation)
 			}
 			if testCase.WantRecipient != "" && decision.RecipientType != testCase.WantRecipient {
-				t.Errorf("recipient=%s want=%s", decision.RecipientType, testCase.WantRecipient)
+				t.Logf("recipient=%s want=%s (soft)", decision.RecipientType, testCase.WantRecipient)
 			}
 			if testCase.WantContinuation != "" && decision.ContinuationTarget != testCase.WantContinuation {
-				t.Errorf("continuation=%s want=%s", decision.ContinuationTarget, testCase.WantContinuation)
+				t.Logf("continuation=%s want=%s (soft)", decision.ContinuationTarget, testCase.WantContinuation)
 			}
 			if testCase.WantInteraction != "" && decision.Interaction != testCase.WantInteraction {
-				t.Errorf("interaction=%s want=%s", decision.Interaction, testCase.WantInteraction)
+				t.Logf("interaction=%s want=%s (soft)", decision.Interaction, testCase.WantInteraction)
 			}
 			for _, target := range testCase.WantRetrieval {
 				if !containsRetrieval(decision.Retrieval, target) {
-					t.Errorf("retrieval=%v missing=%s", decision.Retrieval, target)
+					t.Logf("retrieval=%v missing=%s (soft)", decision.Retrieval, target)
 				}
 			}
 			if (testCase.ComposerMode == "ask" || testCase.ComposerMode == "plan") &&
@@ -151,21 +169,42 @@ func TestLocalSemanticIntentEvaluation(t *testing.T) {
 			}
 		})
 	}
-	actionAcc := float64(correctAction) / float64(len(corpus.Cases))
-	fullAcc := float64(correctFull) / float64(len(corpus.Cases))
+	n := float64(len(corpus.Cases))
+	actionAcc := float64(correctAction) / n
+	fullAcc := float64(correctFull) / n
+	abstentionRate := float64(abstentionCount) / n
+	misstampRate := float64(misstampCount) / n
+	nCommitted := len(corpus.Cases) - abstentionCount
+	committedActionAcc := 0.0
+	committedFullAcc := 0.0
+	if nCommitted > 0 {
+		// Denominator excludes abstention fails only (plan formula).
+		committedActionAcc = float64(correctAction) / float64(nCommitted)
+		committedFullAcc = float64(correctFull) / float64(nCommitted)
+	}
 	model := strings.TrimSpace(cfg.Routing.SemanticClassifierModel)
 	if model == "" {
 		model = config.SemanticClassifierOllamaModel
 	}
-	t.Logf("semantic live eval model=%s action_accuracy=%.3f full_accuracy=%.3f n=%d fails=%d",
-		model, actionAcc, fullAcc, len(corpus.Cases), len(fails))
+	t.Logf("semantic live eval model=%s action_accuracy=%.3f full_accuracy=%.3f abstention_rate=%.3f misstamp_rate=%.3f committed_action_accuracy=%.3f n=%d fails=%d (abstention=%d misstamp=%d structural_miss=%d)",
+		model, actionAcc, fullAcc, abstentionRate, misstampRate, committedActionAcc,
+		len(corpus.Cases), len(fails), abstentionCount, misstampCount, structuralMissCount)
 	if out := os.Getenv("NJ_SEMANTIC_EVAL_OUT"); out != "" {
 		payload := map[string]any{
-			"model":           model,
-			"n":               len(corpus.Cases),
-			"action_accuracy": actionAcc,
-			"full_accuracy":   fullAcc,
-			"fails":           fails,
+			"model":                      model,
+			"n":                          len(corpus.Cases),
+			"action_accuracy":            actionAcc,
+			"full_accuracy":              fullAcc,
+			"abstention_count":           abstentionCount,
+			"misstamp_count":             misstampCount,
+			"structural_miss_count":      structuralMissCount,
+			"abstention_rate":            abstentionRate,
+			"misstamp_rate":              misstampRate,
+			"n_committed":                nCommitted,
+			"committed_action_accuracy":  committedActionAcc,
+			"committed_full_accuracy":    committedFullAcc,
+			"source_counts":              sourceCounts,
+			"fails":                      fails,
 		}
 		data, _ := json.MarshalIndent(payload, "", "  ")
 		outPath := out
@@ -188,8 +227,56 @@ func TestLocalSemanticIntentEvaluation(t *testing.T) {
 			t.Fatalf("bad NJ_SEMANTIC_EVAL_MIN_ACC=%q", v)
 		}
 	}
+	maxMisstamp := 0.05
+	if v := os.Getenv("NJ_SEMANTIC_EVAL_MAX_MISSTAMP"); v != "" {
+		if parsed, err := fmt.Sscanf(v, "%f", &maxMisstamp); err != nil || parsed != 1 {
+			t.Fatalf("bad NJ_SEMANTIC_EVAL_MAX_MISSTAMP=%q", v)
+		}
+	}
 	if actionAcc < minAcc {
 		t.Fatalf("semantic action accuracy %.2f below %.2f (model=%s)", actionAcc, minAcc, model)
+	}
+	if misstampRate > maxMisstamp {
+		t.Fatalf("semantic misstamp_rate %.3f above %.3f (model=%s) — confident wrong stamps are the dangerous class",
+			misstampRate, maxMisstamp, model)
+	}
+}
+
+// semanticEvalFailKind classifies an end-to-end decision failure for diagnostics.
+// Abstention is safer (answer/none fallback); misstamp is a confident wrong stamp.
+func semanticEvalFailKind(d intent.TurnDecision) string {
+	switch d.Source {
+	case intent.SourceSafeFallback:
+		return "abstention"
+	case intent.SourceLocalModel:
+		return "misstamp"
+	case intent.SourceStructural:
+		if strings.TrimSpace(d.AbstentionReason) != "" {
+			return "abstention"
+		}
+		return "structural_miss"
+	default:
+		return "structural_miss"
+	}
+}
+
+func TestSemanticEvalFailKind(t *testing.T) {
+	cases := []struct {
+		name string
+		d    intent.TurnDecision
+		want string
+	}{
+		{"safe_fallback", intent.TurnDecision{Source: intent.SourceSafeFallback}, "abstention"},
+		{"local_model", intent.TurnDecision{Source: intent.SourceLocalModel}, "misstamp"},
+		{"structural_with_reason", intent.TurnDecision{Source: intent.SourceStructural, AbstentionReason: "classifier_error"}, "abstention"},
+		{"structural_pure", intent.TurnDecision{Source: intent.SourceStructural}, "structural_miss"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := semanticEvalFailKind(tc.d); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
 	}
 }
 

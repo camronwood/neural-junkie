@@ -39,7 +39,7 @@ func DefaultRoutingConfig() RoutingConfig {
 		RulesFallback:                 true,
 		MinConfidence:                 0.6,
 		SemanticClassifierModel:       SemanticClassifierOllamaModel,
-		SemanticClassifierTimeoutMS:   8000,
+		SemanticClassifierTimeoutMS:   12000,
 		ModelCapabilityRoutingEnabled: true,
 		LocalEscalationEnabled:        true,
 	}
@@ -61,7 +61,7 @@ func (r RoutingConfig) Normalized() RoutingConfig {
 		out.SemanticClassifierModel = SemanticClassifierOllamaModel
 	}
 	if out.SemanticClassifierTimeoutMS <= 0 {
-		out.SemanticClassifierTimeoutMS = 8000
+		out.SemanticClassifierTimeoutMS = 12000
 	}
 	return out
 }

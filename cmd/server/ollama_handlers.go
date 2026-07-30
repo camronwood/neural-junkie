@@ -128,6 +128,33 @@ func handleOllamaStop(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "stopped"})
 }
 
+// handleOllamaUnloadSession soft-unloads models Neural Junkie loaded this process.
+func handleOllamaUnloadSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	unloaded, errs := ai.UnloadTrackedOllamaModels(ctx)
+	errMsgs := make([]string, 0, len(errs))
+	for _, err := range errs {
+		if err != nil {
+			errMsgs = append(errMsgs, err.Error())
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	status := http.StatusOK
+	if len(errMsgs) > 0 && len(unloaded) == 0 {
+		status = http.StatusBadGateway
+	}
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"unloaded": unloaded,
+		"errors":   errMsgs,
+	})
+}
+
 func handleOllamaPull(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

@@ -114,9 +114,9 @@ func (es *Store) Count() int {
 
 // Client calls Ollama /api/embed.
 type Client struct {
-	Endpoint string
-	Model    string
-	FastHTTP *http.Client
+	Endpoint  string
+	Model     string
+	FastHTTP  *http.Client
 	BatchHTTP *http.Client
 }
 
@@ -135,7 +135,13 @@ func NewClient(endpoint, model string) *Client {
 	}
 }
 
+// OnOllamaModelUsed is set by the hub so embedding calls join the session unload set.
+var OnOllamaModelUsed func(endpoint, model string)
+
 func (c *Client) Embed(ctx context.Context, text string, batch bool) ([]float64, error) {
+	if OnOllamaModelUsed != nil {
+		OnOllamaModelUsed(c.Endpoint, c.Model)
+	}
 	httpClient := c.FastHTTP
 	if batch {
 		httpClient = c.BatchHTTP

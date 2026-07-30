@@ -17,11 +17,11 @@ func TestSemanticTurnRouterEnabledByDefault(t *testing.T) {
 	if rc.SemanticClassifierModel != config.SemanticClassifierOllamaModel {
 		t.Fatalf("semantic model=%q, want %q", rc.SemanticClassifierModel, config.SemanticClassifierOllamaModel)
 	}
-	if rc.SemanticClassifierTimeoutMS != 8000 {
-		t.Fatalf("timeout_ms=%d, want 8000", rc.SemanticClassifierTimeoutMS)
+	if rc.SemanticClassifierTimeoutMS != 12000 {
+		t.Fatalf("timeout_ms=%d, want 12000", rc.SemanticClassifierTimeoutMS)
 	}
-	if router.Timeout != 8*time.Second {
-		t.Fatalf("router timeout=%s, want 8s", router.Timeout)
+	if router.Timeout != 12*time.Second {
+		t.Fatalf("router timeout=%s, want 12s", router.Timeout)
 	}
 }
 

@@ -767,27 +767,30 @@ func (a *Agent) tryNeuralCanvasMarkdownUpdateShortcut(
 
 	body := existing
 	usedPrior := false
-	if looksLikePriorContentCanvasAsk(msg.Content) {
-		if prior := a.priorAssistantContentForCanvas(msg); prior != "" {
-			body = markdownBodyFromPriorAssistantContent(prior)
-			usedPrior = true
-			a.recordKnowledgeExecutedFor(msg.ID, "prior_reference")
-		}
-	}
-	if !usedPrior {
-		revised, err := a.generateMarkdownRevisionForCanvas(ctx, msg, existing, liveCtx, eff)
-		if err == nil {
-			if cleaned := strings.TrimSpace(stripMarkdownFence(revised)); cleaned != "" &&
-				!looksLikeSpuriousCanvasJSONPayload(cleaned) {
-				body = cleaned
+	renameOnly := canvasRenameOnlyAsk(msg.Content)
+	if !renameOnly {
+		if looksLikePriorContentCanvasAsk(msg.Content) {
+			if prior := a.priorAssistantContentForCanvas(msg); prior != "" {
+				body = markdownBodyFromPriorAssistantContent(prior)
+				usedPrior = true
+				a.recordKnowledgeExecutedFor(msg.ID, "prior_reference")
 			}
 		}
-	}
-	if looksLikeSpuriousCanvasJSONPayload(body) {
-		if prior := a.priorAssistantContentForCanvas(msg); prior != "" {
-			body = markdownBodyFromPriorAssistantContent(prior)
-		} else {
-			body = existing
+		if !usedPrior {
+			revised, err := a.generateMarkdownRevisionForCanvas(ctx, msg, existing, liveCtx, eff)
+			if err == nil {
+				if cleaned := strings.TrimSpace(stripMarkdownFence(revised)); cleaned != "" &&
+					!looksLikeSpuriousCanvasJSONPayload(cleaned) {
+					body = cleaned
+				}
+			}
+		}
+		if looksLikeSpuriousCanvasJSONPayload(body) {
+			if prior := a.priorAssistantContentForCanvas(msg); prior != "" {
+				body = markdownBodyFromPriorAssistantContent(prior)
+			} else {
+				body = existing
+			}
 		}
 	}
 	if strings.TrimSpace(body) == "" {
@@ -863,9 +866,13 @@ func firstMarkdownH1(body string) string {
 	return ""
 }
 
-// resolveMarkdownCanvasUpdateTitle picks a title from THIS turn's user ask when the
-// page is still the default "Canvas". Never invents labels missing from the ask.
+// resolveMarkdownCanvasUpdateTitle picks a title for a markdown canvas update.
+// Explicit rename asks always win (even when the page already has a non-default
+// title). Otherwise the title is frozen once it leaves the default "Canvas".
 func resolveMarkdownCanvasUpdateTitle(currentTitle, userAsk, body string) string {
+	if renamed := titleFromCanvasRenameAsk(userAsk); renamed != "" {
+		return renamed
+	}
 	title := strings.TrimSpace(currentTitle)
 	if title != "" && title != "Canvas" {
 		return title
@@ -882,10 +889,139 @@ func resolveMarkdownCanvasUpdateTitle(currentTitle, userAsk, body string) string
 	return title
 }
 
+// canvasRenameOnlyAsk reports a turn that only renames the open canvas (no
+// content fill/revise). Those turns skip the revision LLM and only retitle.
+func canvasRenameOnlyAsk(content string) bool {
+	if !intent.LooksLikeCanvasRenameAsk(content) {
+		return false
+	}
+	if titleFromCanvasRenameAsk(content) == "" {
+		return false
+	}
+	c := strings.ToLower(strings.TrimSpace(content))
+	for _, cue := range []string{
+		"add ", "put ", "fill", "include ", "insert ", "embed ",
+		"write ", "append ", "update the canvas", "update this",
+	} {
+		if strings.Contains(c, cue) {
+			return false
+		}
+	}
+	return true
+}
+
+// titleFromCanvasRenameAsk extracts the intended canvas title from a rename ask.
+// Returns "" when the text is not a rename or no target title can be recovered.
+func titleFromCanvasRenameAsk(content string) string {
+	c := strings.TrimSpace(content)
+	if c == "" || !intent.LooksLikeCanvasRenameAsk(c) {
+		return ""
+	}
+	lower := strings.ToLower(c)
+	markers := []string{
+		"the title of the document should be ",
+		"the title of the page should be ",
+		"the title of the canvas should be ",
+		"title of the document should be ",
+		"title of the page should be ",
+		"title of the canvas should be ",
+		"the title should be ",
+		"title should be ",
+		"change the title to ",
+		"change its title to ",
+		"set the title to ",
+		"rename it to ",
+		"rename to ",
+		"retitle it to ",
+		"retitle to ",
+		"call it ",
+		"title it ",
+		"name it ",
+		"name this ",
+		"call this ",
+		"rename it ",
+		"rename ",
+		"retitle ",
+	}
+	rest := ""
+	for _, m := range markers {
+		if idx := strings.Index(lower, m); idx >= 0 {
+			rest = strings.TrimSpace(c[idx+len(m):])
+			break
+		}
+	}
+	if rest == "" {
+		return ""
+	}
+	if q := firstQuotedTitleSpan(rest); q != "" {
+		return cleanCanvasRenameTitle(q)
+	}
+	return cleanCanvasRenameTitle(rest)
+}
+
+func firstQuotedTitleSpan(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	runes := []rune(s)
+	for i, r := range runes {
+		var closer rune
+		switch r {
+		case '"':
+			closer = '"'
+		case '\'':
+			closer = '\''
+		case '\u201c':
+			closer = '\u201d'
+		case '\u2018':
+			closer = '\u2019'
+		default:
+			continue
+		}
+		for j := i + 1; j < len(runes); j++ {
+			if runes[j] == closer {
+				return string(runes[i+1 : j])
+			}
+		}
+		return strings.TrimSpace(string(runes[i+1:]))
+	}
+	return ""
+}
+
+func cleanCanvasRenameTitle(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, "\"'` \t\n\r\u201c\u201d\u2018\u2019")
+	s = strings.TrimSpace(s)
+	s = strings.TrimRight(s, "!.?;,")
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	// Keep St. / U.S. style abbreviations; only drop a trailing sentence period
+	// when the title has multiple words and does not look like an abbreviation.
+	if strings.HasSuffix(s, ".") && strings.Contains(s, " ") {
+		trimmed := strings.TrimSuffix(s, ".")
+		if !strings.HasSuffix(trimmed, ".") {
+			s = strings.TrimSpace(trimmed)
+		}
+	}
+	if len([]rune(s)) > 120 {
+		s = string([]rune(s)[:120])
+	}
+	return s
+}
+
 func titleFromCanvasFillRequest(content string) string {
 	c := strings.TrimSpace(content)
 	if c == "" {
 		return ""
+	}
+	// Rename asks have a dedicated extractor; never Title-Case the utterance.
+	if intent.LooksLikeCanvasRenameAsk(c) {
+		if renamed := titleFromCanvasRenameAsk(c); renamed != "" {
+			return renamed
+		}
 	}
 	lower := strings.ToLower(c)
 	for _, phrase := range []string{
@@ -895,6 +1031,10 @@ func titleFromCanvasFillRequest(content string) string {
 		"fill in the canvas", "fill the canvas", "update the canvas",
 		"get me", "get ", "todays ", "today's ", "today ",
 		"and put", "for me",
+		"lets name it", "let's name it", "name it", "call it", "title it",
+		"rename it to", "rename to", "retitle it to", "change the title to",
+		"set the title to", "the title should be", "title should be",
+		"lets ", "let's ",
 	} {
 		lower = strings.ReplaceAll(lower, phrase, " ")
 	}
@@ -912,6 +1052,8 @@ func titleFromCanvasFillRequest(content string) string {
 		"a": true, "an": true, "the": true, "and": true, "or": true,
 		"it": true, "this": true, "that": true, "with": true, "from": true,
 		"into": true, "onto": true, "there": true, "here": true,
+		"name": true, "rename": true, "retitle": true, "call": true,
+		"lets": true, "let": true, "title": true, "set": true,
 	}
 	for _, w := range words {
 		if skip[w] || w == "canvas" || w == "page" || w == "document" {
@@ -1023,6 +1165,7 @@ func (a *Agent) generateMarkdownRevisionForCanvas(
 	b.WriteString("Add or fill content as requested (new headings, lists, sections).\n")
 	b.WriteString("When the user asks for a diagram, insert or update a ```mermaid fenced block in this document with valid Mermaid source.\n")
 	b.WriteString("If the H1 is still \"Canvas\", retitle it using ONLY words/topics from USER REQUEST (e.g. location + topic).\n")
+	b.WriteString("If the user asks to rename/retitle the page, set the H1 to their exact requested title.\n")
 	b.WriteString("Do NOT invent generic labels (e.g. \"Weather Forecast\") that are not in USER REQUEST.\n")
 	b.WriteString("Do NOT reuse topics from CURRENT DOCUMENT that are absent from USER REQUEST (cleared chat must not leak).\n")
 	b.WriteString("Do NOT invent Neural Canvas product plumbing. Do NOT create a separate artifact — revise this page only.\n")

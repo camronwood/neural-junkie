@@ -1,0 +1,43 @@
+{
+  "abstention_count": 0,
+  "abstention_rate": 0,
+  "action_accuracy": 0.967741935483871,
+  "committed_action_accuracy": 0.967741935483871,
+  "committed_full_accuracy": 0.967741935483871,
+  "fails": [
+    {
+      "Name": "spurious-canvas-demote-1",
+      "PolicyClass": "spurious_artifact_demote",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "soft-followup",
+      "PolicyClass": "dialogue_followup",
+      "GotAction": "continue",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    }
+  ],
+  "full_accuracy": 0.967741935483871,
+  "misstamp_count": 2,
+  "misstamp_rate": 0.03225806451612903,
+  "model": "qwen3.5:9b",
+  "n": 62,
+  "n_committed": 62,
+  "source_counts": {
+    "local_model": 62
+  },
+  "structural_miss_count": 0
+}

@@ -1054,6 +1054,158 @@ func TestResolveMarkdownCanvasUpdateTitleFromUserAsk(t *testing.T) {
 	}
 }
 
+func TestCanvasRenameTitleExtraction(t *testing.T) {
+	cases := []struct {
+		ask  string
+		want string
+	}{
+		{`Lets name it "St. Louis to Florida"`, "St. Louis to Florida"},
+		{`Lets name it St. Louis to Florida`, "St. Louis to Florida"},
+		{`The title of the document should be "St. Louis to Florida"`, "St. Louis to Florida"},
+		{`The title of the document should be St. Louis to Florida`, "St. Louis to Florida"},
+		{`rename it to Trip Plan`, "Trip Plan"},
+		{`set the title to Packing List`, "Packing List"},
+		{`change the title to Road Trip`, "Road Trip"},
+	}
+	for _, tc := range cases {
+		if !intent.LooksLikeCanvasRenameAsk(tc.ask) {
+			t.Fatalf("LooksLikeCanvasRenameAsk(%q)=false, want true", tc.ask)
+		}
+		got := titleFromCanvasRenameAsk(tc.ask)
+		if got != tc.want {
+			t.Fatalf("titleFromCanvasRenameAsk(%q)=%q, want %q", tc.ask, got, tc.want)
+		}
+	}
+}
+
+func TestResolveMarkdownCanvasUpdateTitleRenameUnfreezes(t *testing.T) {
+	// First naming from blank Canvas must not Title-Case the utterance.
+	got := resolveMarkdownCanvasUpdateTitle("Canvas",
+		`Lets name it "St. Louis to Florida"`,
+		"# Canvas\n\n")
+	if got != "St. Louis to Florida" {
+		t.Fatalf("initial rename title=%q, want St. Louis to Florida", got)
+	}
+
+	// Correction after a bad frozen title must win.
+	got = resolveMarkdownCanvasUpdateTitle("Lets Name St Louis To Florida",
+		`The title of the document should be "St. Louis to Florida"`,
+		"# Lets Name St Louis To Florida\n\n")
+	if got != "St. Louis to Florida" {
+		t.Fatalf("correction title=%q, want St. Louis to Florida", got)
+	}
+
+	// Non-rename updates keep the existing title.
+	got = resolveMarkdownCanvasUpdateTitle("St. Louis to Florida",
+		"add a packing list to the canvas",
+		"# St. Louis to Florida\n\n")
+	if got != "St. Louis to Florida" {
+		t.Fatalf("fill keep title=%q, want St. Louis to Florida", got)
+	}
+}
+
+func TestCanvasRenameOnlyAsk(t *testing.T) {
+	if !canvasRenameOnlyAsk(`Lets name it "St. Louis to Florida"`) {
+		t.Fatal("expected rename-only for name-it ask")
+	}
+	if !canvasRenameOnlyAsk(`The title of the document should be St. Louis to Florida`) {
+		t.Fatal("expected rename-only for title-should-be ask")
+	}
+	if canvasRenameOnlyAsk("add a packing list and name it Trip") {
+		t.Fatal("combined fill+rename must not be rename-only")
+	}
+	if canvasRenameOnlyAsk("add a packing list to the canvas") {
+		t.Fatal("fill ask must not be rename-only")
+	}
+}
+
+func TestTryNeuralCanvasMarkdownRenameOnlyUpdatesTitle(t *testing.T) {
+	store, err := artifacts.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	agentArtifactStoreOnce = sync.Once{}
+	agentArtifactStore = nil
+	agentArtifactStoreErr = nil
+	agentArtifactStoreOnce.Do(func() { agentArtifactStore = store })
+	t.Cleanup(func() {
+		agentArtifactStoreOnce = sync.Once{}
+		agentArtifactStore = nil
+		agentArtifactStoreErr = nil
+	})
+
+	provider := &failIfCalledProvider{t: t}
+	hub := newConversationStateCaptureHub()
+	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, provider, hub)
+
+	created, err := store.Create(artifacts.Artifact{
+		Kind:  "markdown",
+		Title: "Lets Name St Louis To Florida",
+		Links: artifacts.ArtifactLinks{ChannelID: "dm-camron-assistant"},
+		Renderer: artifacts.Renderer{
+			ID: "nj.markdown", APIVersion: "1", MediaType: "text/markdown",
+		},
+		Payload: mustJSONString("# Lets Name St Louis To Florida\n\n## Notes\n\n- start planning\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := protocol.NewMessage(protocol.MessageTypeArtifactChanged, "dm-camron-assistant", a.Info, created.Title)
+	changed.SetArtifactReference(protocol.ArtifactReference{
+		ID: created.ID, Title: created.Title, RendererID: "nj.markdown",
+		MediaType: "text/markdown", Revision: int64(created.Revision), Action: "created",
+	})
+	a.replaceChannelHistory("dm-camron-assistant", []*protocol.Message{changed})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-camron-assistant",
+		protocol.AgentInfo{ID: "user-1", Name: "Camron", Type: "human"},
+		`The title of the document should be "St. Louis to Florida"`,
+	)
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionArtifact, Action: intent.ActionArtifact,
+		Mutation: intent.MutationExternal, Confidence: 1, Source: intent.SourceLocalModel,
+		Retrieval: []intent.RetrievalTarget{intent.RetrievalPriorReference},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, ok := a.tryNeuralCanvasMarkdownShortcut(context.Background(), msg, "", provider)
+	if !ok {
+		t.Fatal("expected markdown rename shortcut")
+	}
+	if !strings.Contains(resp, "Updated the Neural Canvas") {
+		t.Fatalf("resp=%q", resp)
+	}
+	got, err := store.Get(created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "St. Louis to Florida" {
+		t.Fatalf("title=%q, want St. Louis to Florida", got.Title)
+	}
+	var payload string
+	_ = json.Unmarshal(got.Payload, &payload)
+	if !strings.HasPrefix(strings.TrimSpace(payload), "# St. Louis to Florida") {
+		t.Fatalf("H1 not retitled; payload=%q", payload)
+	}
+	if !strings.Contains(payload, "## Notes") || !strings.Contains(payload, "start planning") {
+		t.Fatalf("rename-only must preserve body; payload=%q", payload)
+	}
+}
+
+type failIfCalledProvider struct {
+	ai.MockProvider
+	t *testing.T
+}
+
+func (p *failIfCalledProvider) GenerateResponse(context.Context, string, []protocol.Message) (string, error) {
+	p.t.Fatal("rename-only update must not call the revision LLM")
+	return "", nil
+}
+
 func TestMarkdownCanvasCreateKindPrefersPriorContentOverBlankReason(t *testing.T) {
 	msg := protocol.NewMessage(
 		protocol.MessageTypeQuestion,

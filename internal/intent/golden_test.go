@@ -163,7 +163,7 @@ func TestClassifierGoldenContract(t *testing.T) {
 				CanRunImplementation: true,
 			},
 			intent: func() SemanticIntent {
-				i := mustIntent(t, ActionRun, MutationExternal, "explicit_continuation")
+				i := mustIntent(t, ActionRun, MutationExternal, "project_overview", "explicit_continuation")
 				i.Interaction = InteractionContinuation
 				return i
 			}(),

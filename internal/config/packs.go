@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/packs"
 )
 
@@ -634,6 +635,44 @@ func (c *Config) SyncAgentsFromPacks() {
 	c.mergeModelsToEnsureFromPacksLocked()
 	c.mergeSpecialistComposeFromPacksLocked()
 	c.syncMCPFromPacksLocked()
+	c.syncOntologyFromPacksLocked()
+}
+
+// syncOntologyFromPacksLocked rebuilds the semantic domain/recipient vocabulary from
+// enabled pack agent types. Does not touch model/cost routing.
+func (c *Config) syncOntologyFromPacksLocked() {
+	types := make([]string, 0, 32)
+	seen := map[string]struct{}{}
+	add := func(t string) {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			return
+		}
+		key := strings.ToLower(t)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		types = append(types, t)
+	}
+	for _, pack := range c.packCatalogLocked() {
+		if !c.packEnabledLocked(pack.ID) {
+			continue
+		}
+		for _, a := range pack.Agents {
+			add(a.Type)
+		}
+	}
+	for _, a := range c.Agents {
+		if !a.Enabled {
+			continue
+		}
+		add(a.Type)
+	}
+	for _, t := range devSpecialistTypes {
+		add(t)
+	}
+	intent.SetOntologyRegistry(intent.OntologyFromAgentTypes(types))
 }
 
 func (c *Config) mergeSpecialistComposeFromPacksLocked() {

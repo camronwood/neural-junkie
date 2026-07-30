@@ -218,23 +218,11 @@ func validRetrieval(value RetrievalTarget) bool {
 }
 
 func validDomain(value string) bool {
-	if strings.TrimSpace(value) == "" {
-		return true
-	}
-	return slices.Contains([]string{
-		"general", "security", "biology", "frontend", "backend", "devops",
-		"architecture", "code_review", "database", "rust", "cad",
-	}, value)
+	return CurrentOntology().ValidDomain(value)
 }
 
 func validRecipient(value string) bool {
-	if strings.TrimSpace(value) == "" {
-		return true
-	}
-	return slices.Contains([]string{
-		"general", "assistant", "frontend", "backend", "devops", "architecture",
-		"code-review", "database", "security", "biology", "rust", "cad",
-	}, value)
+	return CurrentOntology().ValidRecipient(value)
 }
 
 func validComplexity(value string) bool {

@@ -1,0 +1,192 @@
+{
+  "abstention_count": 11,
+  "abstention_rate": 0.1774193548387097,
+  "action_accuracy": 0.7741935483870968,
+  "committed_action_accuracy": 0.9411764705882353,
+  "committed_full_accuracy": 0.9411764705882353,
+  "fails": [
+    {
+      "Name": "startup-failure-repair",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "answer",
+      "WantAction": "debug",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "startup-failure-paraphrase",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "answer",
+      "WantAction": "debug",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "retraction",
+      "PolicyClass": "correction",
+      "GotAction": "continue",
+      "WantAction": "answer",
+      "GotMutation": "workspace",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "workspace_requires_codebase_retrieval"
+      ],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "workspace-fix-4",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "answer",
+      "WantAction": "debug",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "workspace-fix-6",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "answer",
+      "WantAction": "debug",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "project-overview-1",
+      "PolicyClass": "project_overview",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "project-overview-2",
+      "PolicyClass": "project_overview",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "project-overview-4",
+      "PolicyClass": "project_overview",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "project-overview-5",
+      "PolicyClass": "project_overview",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "open-canvas-title-q",
+      "PolicyClass": "open_canvas_meta",
+      "GotAction": "artifact",
+      "WantAction": "answer",
+      "GotMutation": "external",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [
+        "open_canvas_artifact"
+      ],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "soft-followup",
+      "PolicyClass": "dialogue_followup",
+      "GotAction": "continue",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "repo-fact-inspect",
+      "PolicyClass": "repo_fact",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "concrete-code-chat",
+      "PolicyClass": "concrete_answer",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "workspace-fix-blank-screen",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "answer",
+      "WantAction": "debug",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    }
+  ],
+  "full_accuracy": 0.7741935483870968,
+  "misstamp_count": 3,
+  "misstamp_rate": 0.04838709677419355,
+  "model": "qwen3.5:9b",
+  "n": 62,
+  "n_committed": 51,
+  "source_counts": {
+    "local_model": 41,
+    "safe_fallback": 21
+  },
+  "structural_miss_count": 0
+}

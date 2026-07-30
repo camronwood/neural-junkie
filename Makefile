@@ -744,7 +744,7 @@ test-go: ## Run Go unit tests only (repeatable: -count=1)
 	@./scripts/cleanup-test-artifacts.py || true
 	@echo "✅ Go tests complete."
 
-semantic-eval: ## Live semantic classify+policy corpus (Ollama). MODEL=qwen3.5:9b MIN_ACC=0.90
+semantic-eval: ## Live semantic classify+policy corpus (Ollama). MODEL=qwen3.5:9b MIN_ACC=0.90 MAX_MISSTAMP=0.05
 	@mkdir -p docs/testing
 	@stamp=$$(date -u +%Y-%m-%d-%H%M); \
 	out="docs/testing/semantic-eval-$${stamp}.json"; \
@@ -753,14 +753,15 @@ semantic-eval: ## Live semantic classify+policy corpus (Ollama). MODEL=qwen3.5:9
 	NJ_SEMANTIC_EVAL_OUT="$$out" \
 	$(if $(MODEL),NJ_SEMANTIC_CLASSIFIER_MODEL="$(MODEL)",) \
 	$(if $(MIN_ACC),NJ_SEMANTIC_EVAL_MIN_ACC="$(MIN_ACC)",) \
+	$(if $(MAX_MISSTAMP),NJ_SEMANTIC_EVAL_MAX_MISSTAMP="$(MAX_MISSTAMP)",) \
 	go test ./cmd/server/ -count=1 -run 'TestLocalSemanticIntentEvaluation$$' -timeout 30m -v
 
 semantic-eval-compare: ## Compare BASE_MODEL (default prior 3b) vs MODEL (default current 9b)
 	@echo "=== baseline $(or $(BASE_MODEL),qwen2.5:3b) ==="
-	@$(MAKE) semantic-eval MODEL=$(or $(BASE_MODEL),qwen2.5:3b) MIN_ACC=$(or $(MIN_ACC),0.0)
+	@$(MAKE) semantic-eval MODEL=$(or $(BASE_MODEL),qwen2.5:3b) MIN_ACC=$(or $(MIN_ACC),0.0) MAX_MISSTAMP=$(or $(MAX_MISSTAMP),1.0)
 	@echo "=== candidate $(or $(MODEL),qwen3.5:9b) ==="
-	@$(MAKE) semantic-eval MODEL=$(or $(MODEL),qwen3.5:9b) MIN_ACC=$(or $(MIN_ACC),0.0)
-	@echo "Compare latest docs/testing/semantic-eval-*.json — promote a new default only if candidate action_accuracy >= 0.90 and beats baseline."
+	@$(MAKE) semantic-eval MODEL=$(or $(MODEL),qwen3.5:9b) MIN_ACC=$(or $(MIN_ACC),0.0) MAX_MISSTAMP=$(or $(MAX_MISSTAMP),1.0)
+	@echo "Compare latest docs/testing/semantic-eval-*.json — promote only if candidate action_accuracy >= 0.90, misstamp_rate <= 0.05, and beats baseline on action_accuracy."
 
 test-all: ## Run go vet, Go tests, desktop tsc, and Vitest (full CI-style)
 	@echo "🔍 go vet..."

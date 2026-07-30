@@ -2,6 +2,10 @@ package codeindex
 
 import "time"
 
+// CurrentSchemaVersion is the on-disk codeindex format. Legacy chunks.json
+// indexes (schema < 2) are treated as not ready and must be rebuilt.
+const CurrentSchemaVersion = 2
+
 // Chunk is a searchable slice of a source file.
 type Chunk struct {
 	ID      string `json:"id"`
@@ -19,13 +23,14 @@ type IndexMeta struct {
 	EmbeddingModel string    `json:"embedding_model"`
 	LastBuiltAt    time.Time `json:"last_built_at"`
 	GitHEAD        string    `json:"git_head,omitempty"`
+	SchemaVersion  int       `json:"schema_version,omitempty"`
 	Ready          bool      `json:"ready"`
 	Building       bool      `json:"building"`
 }
 
 // SearchResult is returned to callers and API handlers.
 type SearchResult struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
+	Path    string  `json:"path"`
+	Content string  `json:"content"`
 	Score   float64 `json:"score,omitempty"`
 }

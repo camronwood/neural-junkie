@@ -131,6 +131,11 @@ func recipientForDomain(domain string) string {
 	case "frontend", "backend", "devops", "architecture", "database", "security", "biology", "rust", "cad":
 		return domain
 	default:
+		// Pack-extended domains map 1:1 onto recipient tokens when registered.
+		rec := normalizeRecipientToken(domain)
+		if CurrentOntology().ValidRecipient(rec) {
+			return rec
+		}
 		return "assistant"
 	}
 }
@@ -213,13 +218,16 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	}
 
 	// Open Neural Canvas in-channel: revisions stay artifact (external), not workspace edit.
-	// Structural — driven by open_artifact_* features. Meta questions about the open
-	// canvas (status/title) stay conversational; all other turns promote to artifact.
-	// Graduated: no longer depends on LooksLikeOpenCanvasFillAsk / LooksLikeOpenCanvasReviseAsk.
+	// Structural — driven by open_artifact_* features. Meta questions prefer classifier
+	// reason codes; LooksLike* remains a live fallback until meta stamps are reliable.
 	hasOpenCanvas := strings.TrimSpace(features.OpenArtifactID) != "" ||
 		strings.TrimSpace(features.OpenArtifactRenderer) != ""
-	metaCanvasQ := hasOpenCanvas && (LooksLikeCanvasStatusQuestion(features.Text) ||
-		LooksLikeCanvasTitleQuestion(features.Text))
+	metaCanvasQ := hasOpenCanvas &&
+		!LooksLikeCanvasRenameAsk(features.Text) &&
+		!LooksLikeOpenCanvasFillAsk(features.Text) &&
+		(hasMetaCanvasReasonCode(decision.ReasonCodes) ||
+			LooksLikeCanvasStatusQuestion(features.Text) ||
+			LooksLikeCanvasTitleQuestion(features.Text))
 	if hasOpenCanvas && features.ExplicitAction == "" &&
 		strings.ToLower(strings.TrimSpace(features.ComposerMode)) != "export" &&
 		!pendingActionBlocksCanvasPromote(features) {
@@ -334,10 +342,11 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		decision.PolicyOverrides = append(decision.PolicyOverrides, "spurious_canvas_ask_user_demote")
 	}
 
-	// "summarize/review the project I have open" is read-only inspect — local models
-	// often stamp run/edit/continue. Skip canvas/map deliverables and explicit shell runs.
+	// Project overview / workspace fix / git inspect: reason_codes are primary;
+	// LooksLike* remains fallback until live per-class accuracy holds without text gates.
+	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))
 	if features.ExplicitAction == "" &&
-		LooksLikeProjectOverviewAsk(features.Text) &&
+		(hasReasonCode(decision.ReasonCodes, "project_overview") || LooksLikeProjectOverviewAsk(features.Text)) &&
 		!LooksLikeCanvasDeliverableAsk(features.Text) &&
 		!LooksLikeMapsRouteAsk(features.Text) &&
 		!looksLikeExplicitCommandRunAsk(features.Text) {
@@ -354,16 +363,13 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		}
 	}
 
-	// "fix/repair the app" / "broken / not booting" must become debug|edit + workspace
-	// mutation. Local classifiers often stamp plan/answer instead, which skips
-	// implementation delivery and derails into greenfield plans.
-	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))
 	if features.ExplicitAction == "" &&
 		mode != "ask" && mode != "plan" &&
 		features.HasWorkspace &&
-		LooksLikeWorkspaceFixAsk(features.Text) &&
+		(hasFailureFixReasonCodes(decision.ReasonCodes) || LooksLikeWorkspaceFixAsk(features.Text)) &&
 		!LooksLikeCanvasDeliverableAsk(features.Text) &&
 		!LooksLikeMapsRouteAsk(features.Text) &&
+		!hasReasonCode(decision.ReasonCodes, "project_overview") &&
 		!LooksLikeProjectOverviewAsk(features.Text) {
 		switch decision.Action {
 		case ActionAnswer, ActionPlan, ActionInspect, ActionAskUser, ActionRun, ActionContinue:
@@ -373,7 +379,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			if decision.Interaction == InteractionCasual || decision.Interaction == InteractionQuestion {
 				decision.Interaction = InteractionTask
 			}
-			if !hasSpuriousClassifierFailureCodes(decision.ReasonCodes) {
+			if !hasFailureFixReasonCodes(decision.ReasonCodes) {
 				decision.ReasonCodes = append(decision.ReasonCodes, "runtime_failure")
 			}
 			decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_fix_promote")
@@ -382,11 +388,10 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 				decision.Mutation = MutationWorkspace
 				decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_fix_mutation")
 			}
-			if !hasSpuriousClassifierFailureCodes(decision.ReasonCodes) {
+			if !hasFailureFixReasonCodes(decision.ReasonCodes) {
 				decision.ReasonCodes = append(decision.ReasonCodes, "runtime_failure")
 			}
 		case ActionArtifact, ActionImage, ActionMusic:
-			// Tiny classifiers spray creative actions on "fix the app".
 			decision.Action = ActionDebug
 			decision.RequestedAction = ActionDebug
 			decision.Mutation = MutationWorkspace
@@ -395,10 +400,10 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		}
 	}
 
-	// "check git status/log/diff" is inspect — classifiers often stamp run/answer/edit.
+	// git_inspect reason code preferred; LooksLikeGitInspectRequest is fallback.
 	if features.ExplicitAction == "" &&
 		mode != "ask" && mode != "plan" &&
-		LooksLikeGitInspectRequest(features.Text) {
+		(hasReasonCode(decision.ReasonCodes, "git_inspect") || LooksLikeGitInspectRequest(features.Text)) {
 		switch decision.Action {
 		case ActionRun, ActionEdit, ActionDebug, ActionAnswer, ActionAskUser, ActionContinue, ActionPlan:
 			decision.Action = ActionInspect
@@ -407,6 +412,48 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			decision.ContinuationTarget = ""
 			decision.PolicyOverrides = append(decision.PolicyOverrides, "git_inspect_promote")
 		}
+	}
+
+	// Direct implementation asks mis-stamped as plan (no execution) become edit.
+	if features.ExplicitAction == "" &&
+		mode != "ask" && mode != "plan" &&
+		features.HasWorkspace &&
+		decision.Action == ActionPlan &&
+		LooksLikeDirectImplementationAsk(features.Text) {
+		decision.Action = ActionEdit
+		decision.RequestedAction = ActionEdit
+		decision.Mutation = MutationWorkspace
+		decision.Interaction = InteractionTask
+		decision.PolicyOverrides = append(decision.PolicyOverrides, "implementation_plan_promote")
+	}
+
+	// Prior-content canvas creates need prior_reference even when the stamp is already artifact.
+	if decision.Action == ActionArtifact && features.ExplicitAction == "" &&
+		LooksLikePriorContentCanvasAsk(features.Text) &&
+		!slices.Contains(decision.Retrieval, RetrievalPriorReference) {
+		decision.Retrieval = append(decision.Retrieval, RetrievalPriorReference)
+	}
+
+	// Repo fact questions ("which package declares X in this repo?") need inspect + codebase,
+	// not chat-only answer. Reason code is primary; narrow text fallback until live holds.
+	if features.ExplicitAction == "" &&
+		features.HasWorkspace &&
+		mode != "ask" && mode != "plan" &&
+		decision.Action == ActionAnswer &&
+		(hasReasonCode(decision.ReasonCodes, "repo_fact") || LooksLikeRepoFactAsk(features.Text)) &&
+		!LooksLikeCanvasDeliverableAsk(features.Text) &&
+		!LooksLikeProjectOverviewAsk(features.Text) {
+		decision.Action = ActionInspect
+		decision.RequestedAction = ActionInspect
+		decision.Mutation = MutationNone
+		decision.ContinuationTarget = ""
+		if decision.Interaction == InteractionCasual || decision.Interaction == InteractionClosure {
+			decision.Interaction = InteractionQuestion
+		}
+		if !hasReasonCode(decision.ReasonCodes, "repo_fact") {
+			decision.ReasonCodes = append(decision.ReasonCodes, "repo_fact")
+		}
+		decision.PolicyOverrides = append(decision.PolicyOverrides, "repo_fact_inspect")
 	}
 
 	if mode == "ask" || mode == "plan" {
@@ -441,14 +488,51 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_required")
 		}
 	}
-	if decision.Action == ActionContinue && decision.ContinuationTarget == "" {
-		decision.ContinuationTarget = strings.TrimSpace(features.PendingActionID)
+	if decision.Action == ActionContinue {
+		pendingID := strings.TrimSpace(features.PendingActionID)
 		if decision.ContinuationTarget == "" {
-			decision.Action = ActionAskUser
+			decision.ContinuationTarget = pendingID
+		}
+		// Soft dialogue follow-ups often stamp continue (sometimes with an invented
+		// target) when no pending action exists. Answer in-thread instead.
+		if pendingID == "" {
+			decision.Action = ActionAnswer
+			decision.RequestedAction = ActionAnswer
 			decision.Mutation = MutationNone
+			decision.ContinuationTarget = ""
+			if decision.Interaction == InteractionContinuation {
+				decision.Interaction = InteractionQuestion
+			}
 			decision.PolicyOverrides = append(decision.PolicyOverrides, "continuation_target_missing")
 		}
 	}
+
+	// Inspect requires a workspace. Without one, treat as ordinary chat answer
+	// (e.g. meeting-notes / memory questions mis-stamped as inspect).
+	if decision.Action == ActionInspect && features.ExplicitAction == "" && !features.HasWorkspace {
+		decision.Action = ActionAnswer
+		decision.RequestedAction = ActionAnswer
+		decision.Mutation = MutationNone
+		decision.PolicyOverrides = append(decision.PolicyOverrides, "inspect_requires_workspace")
+	}
+
+	// Tiny classifiers spray ask_user on ordinary chat. Demote when there is no named
+	// ambiguity and policy did not force ask_user for auth/workspace gates.
+	if decision.Action == ActionAskUser && features.ExplicitAction == "" &&
+		!containsString(decision.PolicyOverrides, "workspace_mutation_not_authorized") &&
+		!containsString(decision.PolicyOverrides, "workspace_required") &&
+		len(normalizeStrings(semantic.Ambiguities)) == 0 &&
+		(decision.Interaction == InteractionCasual ||
+			decision.Interaction == InteractionClosure ||
+			decision.Interaction == InteractionQuestion ||
+			decision.Interaction == InteractionContinuation ||
+			decision.Interaction == InteractionCorrection) {
+		decision.Action = ActionAnswer
+		decision.RequestedAction = ActionAnswer
+		decision.Mutation = MutationNone
+		decision.PolicyOverrides = append(decision.PolicyOverrides, "spurious_ask_user_demote")
+	}
+
 	if features.HasWorkspace {
 		switch decision.Action {
 		case ActionInspect, ActionDebug, ActionEdit, ActionRun, ActionContinue:
@@ -502,6 +586,47 @@ func LooksLikeGitInspectRequest(text string) bool {
 	return false
 }
 
+// LooksLikeRepoFactAsk reports factual repo questions that need inspect + codebase
+// retrieval (dependency ownership, which package/file declares X) — not chat-only answer.
+func LooksLikeRepoFactAsk(text string) bool {
+	c := strings.ToLower(strings.TrimSpace(text))
+	if c == "" {
+		return false
+	}
+	repoCue := strings.Contains(c, "repo") || strings.Contains(c, "codebase") ||
+		strings.Contains(c, "workspace") || strings.Contains(c, "package.json") ||
+		strings.Contains(c, "go.mod") || strings.Contains(c, "cargo.toml")
+	factCue := strings.Contains(c, "which package") || strings.Contains(c, "which file") ||
+		strings.Contains(c, "where is") || strings.Contains(c, "where does") ||
+		strings.Contains(c, "declares") || strings.Contains(c, "dependency") ||
+		strings.Contains(c, "depends on")
+	return repoCue && factCue
+}
+
+// LooksLikeDirectImplementationAsk reports concrete "do the work" asks that must not
+// stay as plan. Explicit planning phrasing is excluded.
+func LooksLikeDirectImplementationAsk(text string) bool {
+	c := strings.ToLower(strings.TrimSpace(text))
+	if c == "" {
+		return false
+	}
+	if strings.Contains(c, "propose a plan") || strings.Contains(c, "how should we") ||
+		strings.Contains(c, "what's the approach") || strings.Contains(c, "what is the approach") ||
+		strings.Contains(c, "draft a plan") || strings.HasPrefix(c, "plan ") {
+		return false
+	}
+	verbs := []string{
+		"add a ", "add an ", "create a ", "create an ", "implement ", "write a ", "write an ",
+		"build a ", "build an ", "insert a ", "insert an ",
+	}
+	for _, v := range verbs {
+		if strings.HasPrefix(c, v) || strings.Contains(c, " "+v) {
+			return true
+		}
+	}
+	return false
+}
+
 // shouldPromoteCanvasReasonCodes reports mis-stamped turns where the classifier
 // named a canvas/map deliverable via reason_codes but chose the wrong action.
 // Reason codes alone are not enough — qwen2.5:3b sprays blank_canvas on unrelated
@@ -545,9 +670,30 @@ func shouldPromoteCanvasReasonCodes(decision TurnDecision, text string) bool {
 }
 
 func hasSpuriousClassifierFailureCodes(codes []string) bool {
+	return hasFailureFixReasonCodes(codes)
+}
+
+func hasFailureFixReasonCodes(codes []string) bool {
 	for _, code := range codes {
 		switch strings.ToLower(strings.TrimSpace(code)) {
 		case "startup_failure", "runtime_failure", "build_failure":
+			return true
+		}
+	}
+	return false
+}
+
+func hasMetaCanvasReasonCode(codes []string) bool {
+	return hasReasonCode(codes, "canvas_meta_question") || hasReasonCode(codes, "canvas_title_question")
+}
+
+func hasReasonCode(codes []string, want string) bool {
+	want = strings.ToLower(strings.TrimSpace(want))
+	if want == "" {
+		return false
+	}
+	for _, code := range codes {
+		if strings.EqualFold(strings.TrimSpace(code), want) {
 			return true
 		}
 	}
@@ -873,7 +1019,8 @@ func LooksLikeOpenCanvasFillAsk(text string) bool {
 		strings.Contains(c, "insert ") || strings.Contains(c, "embed ") ||
 		strings.Contains(c, "write ") || strings.Contains(c, "update ") ||
 		strings.Contains(c, "rename ") || strings.Contains(c, "call it ") ||
-		strings.Contains(c, "title it ") || strings.Contains(c, "name it ")
+		strings.Contains(c, "title it ") || strings.Contains(c, "name it ") ||
+		LooksLikeCanvasRenameAsk(c)
 	if !hasVerb {
 		return false
 	}
@@ -972,10 +1119,20 @@ func LooksLikeCanvasRenameAsk(text string) bool {
 	if c == "" || LooksLikeCanvasTitleQuestion(c) {
 		return false
 	}
-	return strings.Contains(c, "rename") || strings.Contains(c, "retitle") ||
+	if strings.Contains(c, "rename") || strings.Contains(c, "retitle") ||
 		strings.Contains(c, "call it ") || strings.Contains(c, "title it ") ||
-		strings.Contains(c, "name it ") || strings.Contains(c, "change the title") ||
-		strings.Contains(c, "change its title")
+		strings.Contains(c, "name it ") || strings.Contains(c, "name this ") ||
+		strings.Contains(c, "call this ") || strings.Contains(c, "change the title") ||
+		strings.Contains(c, "change its title") || strings.Contains(c, "set the title") ||
+		strings.Contains(c, "title should be") {
+		return true
+	}
+	// "The title of the document should be …" / "title of the page is …"
+	if strings.Contains(c, "the title of") &&
+		(strings.Contains(c, "should be") || strings.Contains(c, " to ")) {
+		return true
+	}
+	return false
 }
 
 // LooksLikeAdvisoryImplementationQuestion is deprecated. Advisory turns are

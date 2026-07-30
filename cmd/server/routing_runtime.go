@@ -84,7 +84,7 @@ func (g semanticAIGenerator) Generate(ctx context.Context, systemPrompt, userPay
 		result, err := provider.GenerateStructuredResponse(ctx, ai.StructuredOutputRequest{
 			Prompt:     prompt,
 			SchemaName: "semantic_intent",
-			JSONSchema: intent.SemanticIntentSchema,
+			JSONSchema: intent.SemanticIntentSchemaJSON(),
 		})
 		if err == nil && strings.TrimSpace(result.Content) != "" {
 			return result.Content, nil

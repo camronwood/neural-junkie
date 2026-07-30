@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/intent"
 )
 
 const routingClassifierSystemPrompt = `You classify user tasks for an AI routing system.
@@ -135,6 +136,10 @@ func (c LLMClassifier) Classify(ctx context.Context, in Input) (RoutingDecision,
 }
 
 func validRoutingDomain(domain string) bool {
+	if intent.CurrentOntology().ValidDomain(domain) {
+		return true
+	}
+	// Keep historical routing constants as names even if ontology not yet synced.
 	switch domain {
 	case DomainGeneral, DomainSecurity, DomainBiology, DomainFrontend, DomainBackend,
 		DomainDevOps, DomainArchitecture, DomainCodeReview, DomainDatabase, DomainRust, DomainCAD:

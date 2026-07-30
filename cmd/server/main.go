@@ -18,6 +18,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
+	njembed "github.com/camronwood/neural-junkie/internal/embed"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 	lspserver "github.com/camronwood/neural-junkie/internal/lsp/server"
@@ -106,6 +107,9 @@ func main() {
 
 	// GUI-launched apps often get PATH=/usr/bin:/bin only. Augment before any CLI probes.
 	pathutil.ApplyEnhancedPATH()
+
+	// Embeddings share the session unload set with chat/image models.
+	njembed.OnOllamaModelUsed = ai.NoteOllamaModelUsed
 
 	// Load application config (falls back to defaults if no config.json exists)
 	var err error
@@ -382,6 +386,16 @@ func main() {
 			}
 		} else {
 			log.Println("🛑 Shutdown signal received (session snapshot persist off)")
+		}
+
+		unloadCtx, unloadCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		unloaded, unloadErrs := ai.UnloadTrackedOllamaModels(unloadCtx)
+		unloadCancel()
+		if len(unloaded) > 0 {
+			log.Printf("🧹 Unloaded Ollama session models: %s", strings.Join(unloaded, ", "))
+		}
+		if len(unloadErrs) > 0 {
+			log.Printf("⚠️  Ollama session unload had %d error(s)", len(unloadErrs))
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -1,0 +1,105 @@
+{
+  "abstention_count": 7,
+  "abstention_rate": 0.11290322580645161,
+  "action_accuracy": 0.8870967741935484,
+  "committed_action_accuracy": 1,
+  "committed_full_accuracy": 1,
+  "fails": [
+    {
+      "Name": "source-code-canvas",
+      "PolicyClass": "source_canvas_edit",
+      "GotAction": "answer",
+      "WantAction": "edit",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "pending-continuation",
+      "PolicyClass": "continuation",
+      "GotAction": "answer",
+      "WantAction": "continue",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "image-generation",
+      "PolicyClass": "image_gen",
+      "GotAction": "answer",
+      "WantAction": "image",
+      "GotMutation": "none",
+      "WantMutation": "external",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "repo-fact-inspect",
+      "PolicyClass": "repo_fact",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "edit-frontend-component",
+      "PolicyClass": "edit",
+      "GotAction": "answer",
+      "WantAction": "edit",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "run-tests",
+      "PolicyClass": "run",
+      "GotAction": "answer",
+      "WantAction": "run",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    },
+    {
+      "Name": "music-gen",
+      "PolicyClass": "music",
+      "GotAction": "answer",
+      "WantAction": "music",
+      "GotMutation": "none",
+      "WantMutation": "external",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "failed to send request: Post \"http://localhost:11434/api/chat\": context deadline exceeded"
+    }
+  ],
+  "full_accuracy": 0.8870967741935484,
+  "misstamp_count": 0,
+  "misstamp_rate": 0,
+  "model": "qwen3.5:9b",
+  "n": 62,
+  "n_committed": 55,
+  "source_counts": {
+    "local_model": 2,
+    "safe_fallback": 59,
+    "structural": 1
+  },
+  "structural_miss_count": 0
+}

@@ -62,22 +62,6 @@ func indexDir(repoPath string) (string, error) {
 	return filepath.Join(home, ".neural-junkie", "codeindex", RepoHash(repoPath)), nil
 }
 
-func chunksPath(repoPath string) (string, error) {
-	dir, err := indexDir(repoPath)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "chunks.json"), nil
-}
-
-func vectorsPath(repoPath string) (string, error) {
-	dir, err := indexDir(repoPath)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "vectors.json"), nil
-}
-
 func metaPath(repoPath string) (string, error) {
 	dir, err := indexDir(repoPath)
 	if err != nil {
@@ -86,7 +70,14 @@ func metaPath(repoPath string) (string, error) {
 	return filepath.Join(dir, "meta.json"), nil
 }
 
+func removeLegacyJSON(dir string) {
+	_ = os.Remove(filepath.Join(dir, "chunks.json"))
+	_ = os.Remove(filepath.Join(dir, "vectors.json"))
+	_ = os.Remove(filepath.Join(dir, "vectors.db"))
+}
+
 // Status returns index metadata for a repo.
+// Legacy schema (< CurrentSchemaVersion) or missing index.db is reported as not ready.
 func Status(repoPath string) (IndexMeta, error) {
 	meta := IndexMeta{RepoPath: repoPath, RepoHash: RepoHash(repoPath), EmbeddingModel: globalModel}
 	mp, err := metaPath(repoPath)
@@ -103,6 +94,10 @@ func Status(repoPath string) (IndexMeta, error) {
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		return meta, err
 	}
+	dir, _ := indexDir(repoPath)
+	if meta.SchemaVersion < CurrentSchemaVersion || !store.Exists(dir) {
+		meta.Ready = false
+	}
 	buildMu.Lock()
 	meta.Building = building[RepoHash(repoPath)]
 	buildMu.Unlock()
@@ -110,6 +105,7 @@ func Status(repoPath string) (IndexMeta, error) {
 }
 
 // Search finds relevant code chunks using hybrid embed + keyword retrieval.
+// Candidates come from SQLite FTS/LIKE — never a full chunks.json load.
 func Search(ctx context.Context, repoPath, query string, limit int) ([]SearchResult, error) {
 	if limit <= 0 || limit > 20 {
 		limit = 8
@@ -120,16 +116,31 @@ func Search(ctx context.Context, repoPath, query string, limit int) ([]SearchRes
 		return nil, fmt.Errorf("repo_path and query required")
 	}
 
-	chunks, err := loadChunks(repoPath)
-	if err != nil || len(chunks) == 0 {
+	meta, _ := Status(repoPath)
+	if !meta.Ready {
 		return keywordSearch(ctx, repoPath, query, limit)
 	}
 
-	vecStore, _ := embed.NewStore("")
-	vp, _ := vectorsPath(repoPath)
-	if vp != "" {
-		vecStore, _ = embed.NewStore(vp)
+	dir, err := indexDir(repoPath)
+	if err != nil {
+		return keywordSearch(ctx, repoPath, query, limit)
 	}
+	sqlStore, err := store.Open(dir)
+	if err != nil {
+		return keywordSearch(ctx, repoPath, query, limit)
+	}
+	defer sqlStore.Close()
+
+	candidates := sqlStore.LexicalCandidates(query, limit*10)
+	if len(candidates) == 0 {
+		return keywordSearch(ctx, repoPath, query, limit)
+	}
+
+	ids := make([]string, len(candidates))
+	for i, ch := range candidates {
+		ids[i] = ch.ID
+	}
+	vectors := sqlStore.GetVectors(ids)
 
 	client := getClient()
 	var queryVec []float64
@@ -139,24 +150,18 @@ func Search(ctx context.Context, repoPath, query string, limit int) ([]SearchRes
 		embedOK = err == nil && len(queryVec) > 0
 	}
 
-	candidates := prefilterChunks(chunks, query, limit*10)
-	if len(candidates) == 0 {
-		candidates = chunks
-		if len(candidates) > limit*10 {
-			candidates = candidates[:limit*10]
-		}
-	}
-
 	scored := make([]embed.ScoredItem[SearchResult], 0, len(candidates))
-	for _, ch := range candidates {
+	for i, ch := range candidates {
 		score := embed.KeywordScore(query, ch.Path+" "+ch.Content)
-		if embedOK && vecStore != nil {
-			if rec, ok := vecStore.Get(ch.ID); ok && len(rec.Vector) > 0 {
-				score = embed.CosineSimilarity(queryVec, rec.Vector)
+		if embedOK {
+			if vec, ok := vectors[ch.ID]; ok && len(vec) > 0 {
+				score = embed.CosineSimilarity(queryVec, vec)
 			}
 		}
 		if score <= 0 {
-			continue
+			// FTS/LIKE already selected these rows; keep a rank floor so punctuation
+			// quirks in KeywordScore do not discard every candidate.
+			score = 1 / (1 + 0.15*float64(i))
 		}
 		content := ch.Content
 		if len(content) > maxChunkContent {
@@ -168,26 +173,7 @@ func Search(ctx context.Context, repoPath, query string, limit int) ([]SearchRes
 		})
 	}
 
-	if len(scored) == 0 {
-		return keywordSearch(ctx, repoPath, query, limit)
-	}
-	top := embed.TopKByScore(scored, limit)
-	return top, nil
-}
-
-func prefilterChunks(chunks []Chunk, query string, max int) []Chunk {
-	q := strings.ToLower(query)
-	var out []Chunk
-	for _, ch := range chunks {
-		if strings.Contains(strings.ToLower(ch.Path+" "+ch.Content), q) ||
-			embed.KeywordScore(query, ch.Path+" "+ch.Content) > 0.1 {
-			out = append(out, ch)
-			if len(out) >= max {
-				break
-			}
-		}
-	}
-	return out
+	return embed.TopKByScore(scored, limit), nil
 }
 
 func keywordSearch(ctx context.Context, repoPath, query string, limit int) ([]SearchResult, error) {
@@ -200,7 +186,13 @@ func keywordSearch(ctx context.Context, repoPath, query string, limit int) ([]Se
 		if len(results) >= limit {
 			break
 		}
+		if !IsIndexableRelPath(rel) {
+			continue
+		}
 		full := filepath.Join(repoPath, filepath.FromSlash(rel))
+		if !IsReadableSourceFile(full, rel) {
+			continue
+		}
 		b, err := os.ReadFile(full)
 		if err != nil {
 			continue
@@ -212,22 +204,6 @@ func keywordSearch(ctx context.Context, repoPath, query string, limit int) ([]Se
 		results = append(results, SearchResult{Path: rel, Content: content})
 	}
 	return results, nil
-}
-
-func loadChunks(repoPath string) ([]Chunk, error) {
-	cp, err := chunksPath(repoPath)
-	if err != nil {
-		return nil, err
-	}
-	raw, err := os.ReadFile(cp)
-	if err != nil {
-		return nil, err
-	}
-	var chunks []Chunk
-	if err := json.Unmarshal(raw, &chunks); err != nil {
-		return nil, err
-	}
-	return chunks, nil
 }
 
 // BuildIndex chunks and embeds files under repoPath (incremental when meta matches git HEAD).
@@ -260,9 +236,8 @@ func BuildIndex(ctx context.Context, repoPath string) error {
 		head, _ = git.RevParseHEAD(repoPath)
 	}
 
-	existing, _ := loadChunks(repoPath)
 	prevMeta, _ := Status(repoPath)
-	if prevMeta.Ready && prevMeta.GitHEAD == head && len(existing) > 0 {
+	if prevMeta.Ready && prevMeta.SchemaVersion >= CurrentSchemaVersion && prevMeta.GitHEAD == head && prevMeta.ChunkCount > 0 {
 		return nil
 	}
 
@@ -276,55 +251,65 @@ func BuildIndex(ctx context.Context, repoPath string) error {
 
 	var chunks []Chunk
 	for _, rel := range files {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if !IsIndexableRelPath(rel) {
+			continue
+		}
 		full := filepath.Join(repoPath, filepath.FromSlash(rel))
+		if !IsReadableSourceFile(full, rel) {
+			continue
+		}
 		b, err := os.ReadFile(full)
 		if err != nil {
+			continue
+		}
+		if LooksLikeBinary(b) {
 			continue
 		}
 		chunks = append(chunks, chunkFileAST(rel, string(b))...)
 	}
 
-	cp, _ := chunksPath(repoPath)
-	raw, _ := json.MarshalIndent(chunks, "", "  ")
-	if err := os.WriteFile(cp, raw, 0o644); err != nil {
-		return err
-	}
-
-	vp, _ := vectorsPath(repoPath)
-	vecStore, err := embed.NewStore(vp)
+	sqlStore, err := store.Open(dir)
 	if err != nil {
 		return err
 	}
+	defer sqlStore.Close()
+
+	recs := make([]store.ChunkRecord, len(chunks))
+	keep := make(map[string]struct{}, len(chunks))
+	for i, ch := range chunks {
+		recs[i] = store.ChunkRecord{
+			ID: ch.ID, Path: ch.Path, Start: ch.Start, End: ch.End, Content: ch.Content,
+		}
+		keep[ch.ID] = struct{}{}
+	}
+	if err := sqlStore.ReplaceAllChunks(recs); err != nil {
+		return err
+	}
+
 	client := getClient()
 	model := globalModel
 	if client != nil {
 		model = client.Model
 		for _, ch := range chunks {
-			if _, ok := vecStore.Get(ch.ID); ok {
-				continue
-			}
-			if client == nil {
+			if ctx.Err() != nil {
 				break
+			}
+			if _, ok := sqlStore.Get(ch.ID); ok {
+				continue
 			}
 			vec, err := client.Embed(ctx, ch.Path+"\n"+ch.Content, true)
 			if err != nil {
 				continue
 			}
-			_ = vecStore.Set(ch.ID, model, vec)
-			if sqlStore, err := store.Open(dir); err == nil {
-				_ = sqlStore.Put(ch.ID, vec)
-				_ = sqlStore.Close()
-			}
+			_ = sqlStore.Put(ch.ID, vec)
 		}
 	}
-	keep := make(map[string]struct{}, len(chunks))
-	for _, ch := range chunks {
-		keep[ch.ID] = struct{}{}
-	}
-	if sqlStore, err := store.Open(dir); err == nil {
-		_ = sqlStore.DeleteMissing(keep)
-		_ = sqlStore.Close()
-	}
+	_ = sqlStore.DeleteMissing(keep)
+
+	removeLegacyJSON(dir)
 
 	meta := IndexMeta{
 		RepoPath:       repoPath,
@@ -333,6 +318,7 @@ func BuildIndex(ctx context.Context, repoPath string) error {
 		EmbeddingModel: model,
 		LastBuiltAt:    time.Now().UTC(),
 		GitHEAD:        head,
+		SchemaVersion:  CurrentSchemaVersion,
 		Ready:          len(chunks) > 0,
 	}
 	mp, _ := metaPath(repoPath)
@@ -340,7 +326,6 @@ func BuildIndex(ctx context.Context, repoPath string) error {
 	if err := os.WriteFile(mp, mb, 0o644); err != nil {
 		return err
 	}
-	// Keep the knowledge graph in sync with the semantic index (async, best-effort).
 	graph.BuildIndexAsync(repoPath)
 	return nil
 }
@@ -365,11 +350,15 @@ func listSourceFiles(ctx context.Context, repoPath string) ([]string, error) {
 				for p := range idx.SourceFiles {
 					paths = append(paths, p)
 				}
-				return paths, nil
+				return filterIndexablePaths(paths), nil
 			}
 		}
 	}
-	return workspacefiles.Search(ctx, repoPath, "", maxFilesPerBuild)
+	paths, err := workspacefiles.Search(ctx, repoPath, "", maxFilesPerBuild)
+	if err != nil {
+		return nil, err
+	}
+	return filterIndexablePaths(paths), nil
 }
 
 func chunkFile(relPath, content string) []Chunk {

@@ -15,13 +15,39 @@ var rootBuildOutputNames = map[string]struct{}{
 	"tool-approval-hook":  {},
 }
 
-// nonSourceExtensions are skipped during repository walks (marketing media, etc.).
+// nonSourceExtensions are skipped during repository walks (media, binaries, archives).
 var nonSourceExtensions = map[string]struct{}{
-	".mp4":  {},
-	".mov":  {},
-	".webm": {},
-	".mkv":  {},
-	".icns": {},
+	".mp4": {}, ".mov": {}, ".webm": {}, ".mkv": {}, ".avi": {}, ".icns": {},
+	".png": {}, ".jpg": {}, ".jpeg": {}, ".gif": {}, ".webp": {}, ".ico": {},
+	".svg": {}, ".bmp": {}, ".tiff": {},
+	".zip": {}, ".tar": {}, ".gz": {}, ".bz2": {}, ".xz": {}, ".rar": {},
+	".exe": {}, ".dll": {}, ".so": {}, ".dylib": {}, ".bin": {},
+	".pdf": {}, ".doc": {}, ".docx": {}, ".xls": {}, ".xlsx": {},
+	".mp3": {}, ".wav": {},
+	".woff": {}, ".woff2": {}, ".ttf": {}, ".eot": {},
+	".o": {}, ".a": {}, ".pyc": {}, ".class": {},
+	".gguf": {}, ".safetensors": {}, ".pb": {}, ".onnx": {},
+}
+
+// lockfileNames are dependency lock manifests excluded from source indexes.
+var lockfileNames = map[string]struct{}{
+	"package-lock.json": {},
+	"yarn.lock":         {},
+	"pnpm-lock.yaml":    {},
+	"cargo.lock":        {},
+	"go.sum":            {},
+	"composer.lock":     {},
+	"gemfile.lock":      {},
+	"poetry.lock":       {},
+}
+
+// IsLockfileName reports whether basename is a dependency lockfile.
+func IsLockfileName(name string) bool {
+	base := strings.ToLower(filepath.Base(name))
+	if _, ok := lockfileNames[base]; ok {
+		return true
+	}
+	return strings.HasSuffix(base, ".lock")
 }
 
 // ScenarioBaselineDir is the harness seed tree copied onto fixture roots for reset.
@@ -54,6 +80,9 @@ func ShouldIgnoreEntry(relPath, name string) bool {
 	}
 	slashPath := filepath.ToSlash(relPath)
 	if strings.HasPrefix(slashPath, "docs/media") {
+		return true
+	}
+	if IsLockfileName(name) {
 		return true
 	}
 	ext := strings.ToLower(filepath.Ext(name))

@@ -44,6 +44,10 @@ func NewOllamaImageGenerator(endpoint, model string) ImageGenerator {
 }
 
 func (g *OllamaImageGenerator) GenerateImage(ctx context.Context, prompt, size string) (string, string, error) {
+	if !g.unloadAfter {
+		// Kept resident after generate — free it when the app/hub exits.
+		NoteOllamaModelUsed(g.baseEndpoint, g.model)
+	}
 	mime, data, err := g.inner.GenerateImage(ctx, prompt, size)
 	if g.unloadAfter {
 		unloadCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

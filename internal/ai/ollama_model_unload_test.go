@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 )
 
@@ -77,6 +78,10 @@ func TestOllamaImageGeneratorUnloadsAfterGenerate(t *testing.T) {
 }
 
 func TestOllamaImageGeneratorSkipsUnloadWhenKeepAlive(t *testing.T) {
+	clearTrackedOllamaModels()
+	t.Cleanup(clearTrackedOllamaModels)
+	t.Setenv("NEURAL_JUNKIE_SESSION_OLLAMA_MODELS", filepath.Join(t.TempDir(), "session-ollama-models.json"))
+
 	var unloadCalls int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -100,5 +105,8 @@ func TestOllamaImageGeneratorSkipsUnloadWhenKeepAlive(t *testing.T) {
 	}
 	if unloadCalls != 0 {
 		t.Fatalf("unload calls = %d want 0", unloadCalls)
+	}
+	if len(TrackedOllamaModels()) != 1 {
+		t.Fatalf("expected image model tracked for session unload, got %#v", TrackedOllamaModels())
 	}
 }

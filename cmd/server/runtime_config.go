@@ -20,5 +20,8 @@ func applyRuntimeConfigSideEffects(before *config.Config) {
 		hubSessions.SetTTLHours(sec.SessionTTLHours)
 	}
 	hub.InvalidateRuntimeConfigCache()
+	if chatHub != nil {
+		chatHub.SetSemanticTurnRouter(semanticTurnRouter(appConfig))
+	}
 	_ = before
 }

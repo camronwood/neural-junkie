@@ -1,0 +1,94 @@
+{
+  "abstention_count": 1,
+  "abstention_rate": 0.016129032258064516,
+  "action_accuracy": 0.9032258064516129,
+  "committed_action_accuracy": 0.9180327868852459,
+  "committed_full_accuracy": 0.9180327868852459,
+  "fails": [
+    {
+      "Name": "image-generation",
+      "PolicyClass": "image_gen",
+      "GotAction": "answer",
+      "WantAction": "image",
+      "GotMutation": "none",
+      "WantMutation": "external",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "soft-followup",
+      "PolicyClass": "dialogue_followup",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "continuation_target_missing"
+      ],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "repo-fact-inspect",
+      "PolicyClass": "repo_fact",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "thanks-closure",
+      "PolicyClass": "closure",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "topic-switch",
+      "PolicyClass": "dialogue_followup",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "concrete-code-chat",
+      "PolicyClass": "concrete_answer",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    }
+  ],
+  "full_accuracy": 0.9032258064516129,
+  "misstamp_count": 5,
+  "misstamp_rate": 0.08064516129032258,
+  "model": "qwen3.5:9b",
+  "n": 62,
+  "n_committed": 61,
+  "source_counts": {
+    "local_model": 55,
+    "safe_fallback": 7
+  },
+  "structural_miss_count": 0
+}

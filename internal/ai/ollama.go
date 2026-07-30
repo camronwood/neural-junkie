@@ -221,6 +221,7 @@ func (o *OllamaProvider) buildChatMessages(systemPrompt, userMessage string, con
 }
 
 func (o *OllamaProvider) newChatRequest(messages []OllamaMessage, stream bool) OllamaRequest {
+	NoteOllamaModelUsed(o.Endpoint, o.Model)
 	req := OllamaRequest{
 		Model:    o.Model,
 		Messages: messages,

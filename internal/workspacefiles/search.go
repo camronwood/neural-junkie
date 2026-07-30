@@ -79,6 +79,9 @@ func gitLsFiles(ctx context.Context, root string) ([]string, error) {
 		if repo.IsScenarioBaselinePath(slash) {
 			continue
 		}
+		if repo.ShouldIgnoreEntry(filepath.FromSlash(slash), filepath.Base(slash)) {
+			continue
+		}
 		lines = append(lines, slash)
 	}
 	return lines, nil
@@ -105,7 +108,11 @@ func walkFiles(root string) ([]string, error) {
 		if err != nil {
 			return nil
 		}
-		out = append(out, filepath.ToSlash(rel))
+		slash := filepath.ToSlash(rel)
+		if repo.ShouldIgnoreEntry(rel, d.Name()) {
+			return nil
+		}
+		out = append(out, slash)
 		return nil
 	})
 	if err != nil && !strings.Contains(err.Error(), "file limit") {

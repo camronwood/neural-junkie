@@ -553,9 +553,31 @@ func TestPolicyOpenCanvasDoesNotPromoteStatusQuestion(t *testing.T) {
 		RequestedAction:   ActionAnswer,
 		MutationRequested: MutationNone,
 		Confidence:        0.9,
+		ReasonCodes:       []string{"canvas_meta_question"},
 	}, SourceLocalModel)
 	if decision.Action != ActionAnswer {
 		t.Fatalf("action=%s, want answer for canvas status question", decision.Action)
+	}
+}
+
+func TestLooksLikeCanvasRenameAsk(t *testing.T) {
+	cases := []string{
+		`Lets name it "St. Louis to Florida"`,
+		`The title of the document should be St. Louis to Florida`,
+		`set the title to Trip Plan`,
+		`change the title to Road Trip`,
+		`rename the canvas to Packing List`,
+	}
+	for _, c := range cases {
+		if !LooksLikeCanvasRenameAsk(c) {
+			t.Fatalf("LooksLikeCanvasRenameAsk(%q)=false, want true", c)
+		}
+	}
+	if LooksLikeCanvasRenameAsk("why did you name it weather forcast?") {
+		t.Fatal("title questions must not count as rename asks")
+	}
+	if LooksLikeCanvasRenameAsk("add a packing list to the canvas") {
+		t.Fatal("fill asks must not count as rename asks")
 	}
 }
 
@@ -572,6 +594,7 @@ func TestPolicyOpenCanvasDoesNotPromoteTitleQuestion(t *testing.T) {
 		RequestedAction:   ActionAnswer,
 		MutationRequested: MutationNone,
 		Confidence:        0.9,
+		ReasonCodes:       []string{"canvas_title_question"},
 	}, SourceLocalModel)
 	if decision.Action != ActionAnswer {
 		t.Fatalf("action=%s, want answer for canvas title question", decision.Action)
@@ -594,6 +617,7 @@ func TestPolicyOpenCanvasDoesNotPromoteQuestionAnswer(t *testing.T) {
 		RequestedAction:   ActionAnswer,
 		MutationRequested: MutationNone,
 		Confidence:        0.9,
+		ReasonCodes:       []string{"canvas_meta_question"},
 	}, SourceLocalModel)
 	if decision.Action != ActionAnswer {
 		t.Fatalf("action=%s, want answer for canvas question", decision.Action)
@@ -743,7 +767,7 @@ func TestPolicyWorkspaceFixPromotesPlanStamp(t *testing.T) {
 		RequestedAction:   ActionPlan,
 		MutationRequested: MutationNone,
 		Confidence:        0.9,
-		ReasonCodes:       []string{"advisory_question"},
+		ReasonCodes:       []string{"runtime_failure"},
 	}, SourceLocalModel)
 	if decision.Action != ActionDebug {
 		t.Fatalf("action=%s overrides=%v, want debug", decision.Action, decision.PolicyOverrides)
@@ -792,7 +816,7 @@ func TestPolicyProjectOverviewDemotesRunToInspect(t *testing.T) {
 		RequestedAction:   ActionRun,
 		MutationRequested: MutationExternal,
 		Confidence:        0.92,
-		ReasonCodes:       []string{"explicit_continuation"},
+		ReasonCodes:       []string{"project_overview", "explicit_continuation"},
 	}, SourceLocalModel)
 	if decision.Action != ActionInspect || decision.Mutation != MutationNone {
 		t.Fatalf("decision=%+v, want inspect/none", decision)
@@ -821,5 +845,163 @@ func TestPolicyProjectOverviewDoesNotStealShellRun(t *testing.T) {
 	}, SourceLocalModel)
 	if decision.Action != ActionRun {
 		t.Fatalf("action=%s, explicit test run must stay run", decision.Action)
+	}
+}
+
+func TestPolicyContinueWithoutTargetBecomesAnswer(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "and what about the second option?",
+		ComposerMode: "agent",
+	}, SemanticIntent{
+		SchemaVersion:      SchemaVersion,
+		Interaction:        InteractionContinuation,
+		RequestedAction:    ActionContinue,
+		MutationRequested:  MutationNone,
+		ContinuationTarget: "invented-target",
+		Confidence:         0.9,
+	}, SourceLocalModel)
+	if decision.Action != ActionAnswer || decision.Mutation != MutationNone {
+		t.Fatalf("decision=%+v, want answer/none for soft follow-up", decision)
+	}
+	if !containsString(decision.PolicyOverrides, "continuation_target_missing") {
+		t.Fatalf("overrides=%v, want continuation_target_missing", decision.PolicyOverrides)
+	}
+}
+
+func TestPolicyInspectWithoutWorkspaceBecomesAnswer(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "When was the last meeting that does have notes?",
+		ComposerMode: "agent",
+		HasWorkspace: false,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionInspect,
+		MutationRequested: MutationNone,
+		Confidence:        0.9,
+	}, SourceLocalModel)
+	if decision.Action != ActionAnswer {
+		t.Fatalf("action=%s, want answer without workspace", decision.Action)
+	}
+	if !containsString(decision.PolicyOverrides, "inspect_requires_workspace") {
+		t.Fatalf("overrides=%v, want inspect_requires_workspace", decision.PolicyOverrides)
+	}
+}
+
+func TestPolicySpuriousAskUserDemoteOnClosure(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "thanks, that's all for now",
+		ComposerMode: "agent",
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionClosure,
+		RequestedAction:   ActionAskUser,
+		MutationRequested: MutationNone,
+		Confidence:        0.9,
+	}, SourceLocalModel)
+	if decision.Action != ActionAnswer {
+		t.Fatalf("action=%s, want answer", decision.Action)
+	}
+	if !containsString(decision.PolicyOverrides, "spurious_ask_user_demote") {
+		t.Fatalf("overrides=%v, want spurious_ask_user_demote", decision.PolicyOverrides)
+	}
+}
+
+func TestPolicyRepoFactPromotesInspect(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "Which package declares the Express dependency in this repo?",
+		ComposerMode: "agent",
+		HasWorkspace: true,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionAnswer,
+		MutationRequested: MutationNone,
+		Confidence:        0.9,
+		ReasonCodes:       []string{"repo_fact"},
+	}, SourceLocalModel)
+	if decision.Action != ActionInspect || decision.Mutation != MutationNone {
+		t.Fatalf("decision=%+v, want inspect/none", decision)
+	}
+	if !containsString(decision.PolicyOverrides, "repo_fact_inspect") {
+		t.Fatalf("overrides=%v, want repo_fact_inspect", decision.PolicyOverrides)
+	}
+	if !containsRetrievalTarget(decision.Retrieval, RetrievalCodebase) {
+		t.Fatalf("retrieval=%v, want codebase", decision.Retrieval)
+	}
+}
+
+func TestPolicyAskUserWithAmbiguityPreserved(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:         "which file should I edit?",
+		ComposerMode: "agent",
+		HasWorkspace: true,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionAskUser,
+		MutationRequested: MutationNone,
+		Confidence:        0.9,
+		Ambiguities:       []string{"target_file"},
+	}, SourceLocalModel)
+	if decision.Action != ActionAskUser {
+		t.Fatalf("action=%s, named ambiguity must keep ask_user", decision.Action)
+	}
+}
+
+func TestLooksLikeRepoFactAsk(t *testing.T) {
+	if !LooksLikeRepoFactAsk("Which package declares the Express dependency in this repo?") {
+		t.Fatal("expected repo fact ask")
+	}
+	if LooksLikeRepoFactAsk("how are you today?") {
+		t.Fatal("ordinary chat is not a repo fact ask")
+	}
+}
+
+func TestPolicyOpenCanvasRenameNotMetaDemoted(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:                 "rename the title to Trip Plan",
+		ComposerMode:         "agent",
+		OpenArtifactID:       "art-1",
+		OpenArtifactRenderer: "markdown",
+		OpenArtifactTitle:    "Plan",
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionAnswer,
+		MutationRequested: MutationNone,
+		Confidence:        0.9,
+		ReasonCodes:       []string{"canvas_title_question"},
+	}, SourceLocalModel)
+	if decision.Action != ActionArtifact || decision.Mutation != MutationExternal {
+		t.Fatalf("decision=%+v, rename must stay artifact", decision)
+	}
+	if containsString(decision.PolicyOverrides, "open_canvas_meta_demote") {
+		t.Fatalf("overrides=%v, rename must not meta-demote", decision.PolicyOverrides)
+	}
+	if !containsString(decision.PolicyOverrides, "open_canvas_artifact") {
+		t.Fatalf("overrides=%v, want open_canvas_artifact", decision.PolicyOverrides)
+	}
+}
+
+func TestPolicyImplementationPlanPromotesEdit(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:                 "Add a ThemeToggle component to the React app.",
+		ComposerMode:         "agent",
+		HasWorkspace:         true,
+		CanProposeFiles:      true,
+		CanRunImplementation: true,
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionTask,
+		RequestedAction:   ActionPlan,
+		MutationRequested: MutationNone,
+		Confidence:        0.9,
+	}, SourceLocalModel)
+	if decision.Action != ActionEdit || decision.Mutation != MutationWorkspace {
+		t.Fatalf("decision=%+v, want edit/workspace", decision)
+	}
+	if !containsString(decision.PolicyOverrides, "implementation_plan_promote") {
+		t.Fatalf("overrides=%v, want implementation_plan_promote", decision.PolicyOverrides)
 	}
 }
