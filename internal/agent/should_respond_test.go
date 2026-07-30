@@ -529,6 +529,35 @@ func TestShouldRespond_SlashCommandIgnoresIdeRoute(t *testing.T) {
 	}
 }
 
+func TestShouldRespond_PlanningHandoffSkippedWhenGenerationInFlight(t *testing.T) {
+	const collabID = "550e8400-e29b-41d4-a716-446655440000"
+	const agentID = "claude-id"
+	hubStub := shouldRespondTestHub{}
+	mockAI := ai.NewMockProvider()
+	ag := NewAgent(protocol.AgentTypeCLI, "Claude", []string{"code"}, mockAI, hubStub)
+	ag.Info.ID = agentID
+	ag.SetCollabClient(collabSystemTurnStub{agentID: agentID})
+
+	RegisterGenCancelForTest(ag, "collab-test", func() {})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-test",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"Collaboration turn handoff: next participant, please continue planning.",
+	)
+	msg.SetCollaborationID(collabID)
+	msg.Mention(agentID)
+	msg.Metadata = map[string]interface{}{
+		"collab_internal_event": true,
+		"collab_turn_handoff":   true,
+	}
+
+	if ag.shouldRespond(msg) {
+		t.Fatal("planning handoff must not start a second concurrent generation")
+	}
+}
+
 func TestShouldRespond_CollaborationAgentMentionInPlanDoesNotStealTurn(t *testing.T) {
 	const collabID = "550e8400-e29b-41d4-a716-446655440000"
 	hubStub := shouldRespondTestHub{}

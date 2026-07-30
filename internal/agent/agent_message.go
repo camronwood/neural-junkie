@@ -287,6 +287,12 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 					return false
 				}
 				if isCollabTurnHandoffContent(msg.Content) {
+					// One in-flight planning gen per agent/channel — watchdog
+					// redispatches must not pile concurrent Ollama streams.
+					if a.activeGenCount(msg.Channel) > 0 {
+						log.Printf("[%s] ⏸ planning handoff skipped — generation already in flight (collab %s)", a.Info.Name, collabID[:8])
+						return false
+					}
 					log.Printf("[%s] ✅ COLLABORATION TURN HANDOFF - will respond (collab %s)", a.Info.Name, collabID[:8])
 					return true
 				}
@@ -298,6 +304,10 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			// on peer discussion traffic — reduces Ollama slot contention under batch load.
 			if collabPhase == "planning" && msg.Type == protocol.MessageTypeCollabDiscussion && !msg.IsFromSystem() && !isHumanCollabSpeaker(msg) {
 				if !isCollabTurnPromptForAgent(msg, collabID, a.Info.ID, a.Collab) && !a.Collab.IsAgentTurn(collabID, a.Info.ID) {
+					return false
+				}
+				if a.activeGenCount(msg.Channel) > 0 {
+					log.Printf("[%s] ⏸ planning peer turn skipped — generation already in flight (collab %s)", a.Info.Name, collabID[:8])
 					return false
 				}
 			}

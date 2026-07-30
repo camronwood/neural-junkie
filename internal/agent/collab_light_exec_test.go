@@ -148,7 +148,7 @@ func TestSynthesizeWebsiteDesignSystemMarkdown(t *testing.T) {
 	if !strings.Contains(got, "Color Palette") || !strings.Contains(got, "black") {
 		t.Fatalf("expected design system seed, got %q", got)
 	}
-	body := buildCollabLightMarkdownBody(task, nil)
+	body := buildCollabLightMarkdownBody(task, nil, "collabs/x/design-system.md")
 	if strings.Contains(body, "No allowlisted") {
 		t.Fatalf("design-system task should synthesize without empty stub: %q", body)
 	}
@@ -159,6 +159,35 @@ func TestSynthesizeWebsiteDesignSystemMarkdown(t *testing.T) {
 	siteBody := synthesizeWebsiteMarkdownDeliverable(site)
 	if !strings.Contains(siteBody, "Navigation") || !strings.Contains(siteBody, "Hierarchy") {
 		t.Fatalf("expected site-structure seed, got %q", siteBody)
+	}
+}
+
+func TestSynthesizeResourceAPIMarkdownDeliverable(t *testing.T) {
+	scope := collaboration.CollaborationTask{
+		Title:       "Define Scope",
+		Description: "Write collabs/<id>/scope.md for resource API schema standardization",
+	}
+	got := synthesizeResourceAPIMarkdownDeliverable(scope, "collabs/x/scope.md")
+	if !strings.Contains(got, "schema") || !strings.Contains(got, "resource API") {
+		t.Fatalf("expected scope seed with schema keywords, got %q", got)
+	}
+	body := buildCollabLightMarkdownBody(scope, nil, "collabs/x/scope.md")
+	if strings.Contains(body, "No allowlisted") {
+		t.Fatalf("scope.md task should synthesize without empty stub: %q", body)
+	}
+	// Dest path alone is enough when task text is sparse.
+	sparse := collaboration.CollaborationTask{Title: "Task 1"}
+	byPath := synthesizeResourceAPIMarkdownDeliverable(sparse, "collabs/abc/scope.md")
+	if !strings.Contains(byPath, "schema") {
+		t.Fatalf("expected scope synth from dest path alone, got %q", byPath)
+	}
+	review := collaboration.CollaborationTask{
+		Title:       "Review API docs",
+		Description: "Write collabs/<id>/existing-schema.md summarizing current schemas",
+	}
+	rev := synthesizeResourceAPIMarkdownDeliverable(review, "collabs/x/existing-schema.md")
+	if !strings.Contains(rev, "Existing Schema") || !strings.Contains(rev, "registration") {
+		t.Fatalf("expected existing-schema seed, got %q", rev)
 	}
 }
 

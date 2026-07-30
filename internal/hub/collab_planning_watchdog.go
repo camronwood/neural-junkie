@@ -12,6 +12,10 @@ import (
 
 const collabPlanningHandoffRedispatchAfter = 15 * time.Second
 
+// After this many silent redispatches to the same turn holder (~45s), skip to the
+// next participant so a slow first speaker cannot burn the discussion budget.
+const collabPlanningStuckSkipAfter = 3
+
 // kickPlanningDiscussionWatchdog clears handoff throttle and re-sends turn prompts for silent participants.
 // Public entry is Hub.KickPlanningDiscussionWatchdog / CollabScheduler.OnPlanningKick.
 func (h *Hub) kickPlanningDiscussionWatchdog(collabID string) {
@@ -50,6 +54,7 @@ func (h *Hub) tickPlanningDiscussionWatchdog(c *collaboration.Collaboration, now
 
 	silent := h.collabManager.SilentPlanningParticipantIDs(c.ID)
 	if len(silent) == 0 {
+		h.clearPlanningSkipStreak(c.ID)
 		return
 	}
 
@@ -79,7 +84,14 @@ func (h *Hub) tickPlanningDiscussionWatchdog(c *collaboration.Collaboration, now
 		}
 	}
 	if targetID == "" {
+		h.clearPlanningSkipStreak(c.ID)
 		return
+	}
+
+	// Slow first speakers (Ollama queue) can burn most of the 5m discussion wall
+	// before peers speak. After repeated silent redispatches, advance the turn.
+	if skippedID, skipped := h.maybeSkipStuckSilentTurn(c.ID, targetID, len(silent)); skipped {
+		targetID = skippedID
 	}
 
 	if h.sendPlanningTurnHandoff(c, targetID) {
@@ -87,6 +99,50 @@ func (h *Hub) tickPlanningDiscussionWatchdog(c *collaboration.Collaboration, now
 		log.Printf("[Collaboration] Watchdog planning handoff for @%s (collab %s, silent=%d)",
 			name, c.ID[:8], len(silent))
 	}
+}
+
+func (h *Hub) clearPlanningSkipStreak(collabID string) {
+	if h == nil {
+		return
+	}
+	h.collabWatchdogMu.Lock()
+	defer h.collabWatchdogMu.Unlock()
+	if h.collabWatchdogPlanningSkipStreak != nil {
+		delete(h.collabWatchdogPlanningSkipStreak, collabID)
+	}
+}
+
+func (h *Hub) maybeSkipStuckSilentTurn(collabID, targetID string, silentCount int) (string, bool) {
+	if h == nil || h.collabManager == nil || strings.TrimSpace(targetID) == "" {
+		return "", false
+	}
+	h.collabWatchdogMu.Lock()
+	if h.collabWatchdogPlanningSkipStreak == nil {
+		h.collabWatchdogPlanningSkipStreak = make(map[string]planningHandoffStreak)
+	}
+	streak := h.collabWatchdogPlanningSkipStreak[collabID]
+	if streak.agentID == targetID {
+		streak.count++
+	} else {
+		streak = planningHandoffStreak{agentID: targetID, count: 1}
+	}
+	h.collabWatchdogPlanningSkipStreak[collabID] = streak
+	shouldSkip := streak.count >= collabPlanningStuckSkipAfter && silentCount >= 2
+	h.collabWatchdogMu.Unlock()
+
+	if !shouldSkip {
+		return "", false
+	}
+	nextID, ok := h.collabManager.SkipStuckSilentPlanningTurn(collabID)
+	if !ok || strings.TrimSpace(nextID) == "" {
+		return "", false
+	}
+	h.collabWatchdogMu.Lock()
+	h.collabWatchdogPlanningSkipStreak[collabID] = planningHandoffStreak{agentID: nextID, count: 1}
+	h.collabWatchdogMu.Unlock()
+	name := h.collabManager.ParticipantAgentName(collabID, nextID)
+	log.Printf("[Collaboration] Watchdog skipped stuck silent turn → @%s (collab %s)", name, collabID[:8])
+	return nextID, true
 }
 
 // maybeKickPlanningDiscussionOnHumanMessage re-dispatches turn handoffs when the user

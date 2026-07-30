@@ -514,6 +514,11 @@ type DiscussionSession struct {
 	// TurnsThisRound tracks how many messages each agent has sent in the current round
 	TurnsThisRound map[string]int `json:"turns_this_round"`
 
+	// SkippedSilentHolders tracks turn holders the planning watchdog advanced past
+	// without a recorded message. They remain silent for quorum, but must not
+	// cause the next silent speaker to be skipped again.
+	SkippedSilentHolders map[string]bool `json:"-"`
+
 	// Consensus tracks each participant's agreement state
 	Consensus map[string]ConsensusState `json:"consensus"`
 

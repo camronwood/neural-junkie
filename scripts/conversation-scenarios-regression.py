@@ -23,7 +23,8 @@ CHAT_SCENARIOS = [
     "dm-frontend-workspace",
     "dm-architect-workspace",
     "dm-security-workspace",
-    "dm-code-reviewer-workspace",
+    # CodeReviewer agent removed from SD pack — review is a specialist skill;
+    # dm-security-workspace covers the review-specialist workspace contract.
     "dm-platform-workspace",
     "dm-database-workspace",
     # Multi-turn conversation quality

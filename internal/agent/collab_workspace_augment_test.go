@@ -113,6 +113,44 @@ func TestCollaborationRestrictsDiscoveryToolsForFocusScope(t *testing.T) {
 	}
 }
 
+func TestEffectiveMCPToolAllowlist_outlinePlanningDropsRunCommand(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "chat-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"I want to add UI themes under settings with light and dark modes")
+	msg.Metadata = map[string]interface{}{
+		MetadataContextScope:    ContextScopeOutline,
+		MetadataConversationMode: ConversationModeCode,
+	}
+	allow := effectiveMCPToolAllowlist(&Agent{}, msg)
+	for _, name := range allow {
+		if name == "run_command" || name == "propose_file_edit" || name == "search_replace" {
+			t.Fatalf("mutating tool %q must not be allowlisted for outline planning, got %v", name, allow)
+		}
+	}
+	foundRead := false
+	for _, name := range allow {
+		if name == "read_file" {
+			foundRead = true
+		}
+	}
+	if !foundRead {
+		t.Fatalf("expected read_file for outline planning, got %v", allow)
+	}
+
+	impl := protocol.NewMessage(protocol.MessageTypeQuestion, "chat-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"yes please go ahead")
+	impl.Metadata = map[string]interface{}{
+		MetadataContextScope:     ContextScopeOutline,
+		"implementation_session": true,
+		"editor_mode":            "agent",
+	}
+	implAllow := effectiveMCPToolAllowlist(&Agent{}, impl)
+	if len(implAllow) != 0 {
+		t.Fatalf("impl session with empty agent allowlist should stay empty (all tools), got %v", implAllow)
+	}
+}
+
 func TestCollaborationProactiveWorkspaceScanAllowsExplicitReview(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-ch", protocol.AgentInfo{ID: "a1", Name: "Arch"}, "please review internal/hub/hub.go")
 	msg.SetCollaborationID("cid")

@@ -166,7 +166,8 @@ func acceptCollabLightRewrite(dest, rewritten string, sources map[string]string)
 }
 
 // buildCollabLightMarkdownBody synthesizes a grounded markdown deliverable from allowlisted sources.
-func buildCollabLightMarkdownBody(task collaboration.CollaborationTask, sources map[string]string) string {
+// destHint is the inferred deliverable path (e.g. collabs/<id>/scope.md) used when task text is sparse.
+func buildCollabLightMarkdownBody(task collaboration.CollaborationTask, sources map[string]string, destHint string) string {
 	var b strings.Builder
 	title := strings.TrimSpace(task.Title)
 	if title == "" {
@@ -181,6 +182,9 @@ func buildCollabLightMarkdownBody(task collaboration.CollaborationTask, sources 
 	}
 	if len(sources) == 0 {
 		if synth := synthesizeWebsiteMarkdownDeliverable(task); synth != "" {
+			return synth
+		}
+		if synth := synthesizeResourceAPIMarkdownDeliverable(task, destHint); synth != "" {
 			return synth
 		}
 		b.WriteString("- No allowlisted source content was available; fill in findings from workspace reads.\n")
@@ -267,6 +271,57 @@ Colors: black, white, gray, blue, red.
 	}
 }
 
+// synthesizeResourceAPIMarkdownDeliverable builds concrete resource-api planning
+// docs (scope.md / existing-schema.md) when no allowlisted sources are available.
+func synthesizeResourceAPIMarkdownDeliverable(task collaboration.CollaborationTask, destHint string) string {
+	combined := strings.ToLower(strings.TrimSpace(task.Title + " " + task.Description + " " + destHint))
+	base := strings.ToLower(filepath.Base(strings.TrimSpace(destHint)))
+	for _, p := range collaboration.ReferencedDeliverablePaths(task) {
+		if b := strings.ToLower(filepath.Base(p)); b != "" {
+			if base == "" {
+				base = b
+			}
+			combined += " " + b
+		}
+	}
+	wantsResourceAPI := strings.Contains(combined, "schema") || strings.Contains(combined, "resource") ||
+		strings.Contains(combined, "api") || strings.Contains(combined, "standardiz") ||
+		strings.Contains(combined, "registr") || base == "scope.md" || base == "existing-schema.md"
+	if !wantsResourceAPI {
+		return ""
+	}
+	switch {
+	case base == "scope.md" || strings.Contains(combined, "scope.md") || strings.Contains(combined, "define scope") ||
+		(strings.Contains(combined, "scope") && !strings.Contains(combined, "existing-schema")):
+		return "# Scope: Resource API Schema Standardization\n\n" +
+			"## Goal\n\n" +
+			"Define the scope for investigating resource API document schema standardization and registration.\n\n" +
+			"## In Scope\n\n" +
+			"- Inventory existing resource API schema documents in the workspace\n" +
+			"- Propose a shared schema registration approach\n" +
+			"- Capture deliverables as markdown under the collaboration folder\n\n" +
+			"## Out of Scope\n\n" +
+			"- Implementing production API handlers in this planning pass\n" +
+			"- Changing external vendor schemas without review\n\n" +
+			"## Deliverables\n\n" +
+			"- scope.md — this scope document\n" +
+			"- existing-schema.md — review notes on current API docs / schema artifacts\n"
+	case base == "existing-schema.md" || strings.Contains(combined, "existing-schema") || strings.Contains(combined, "review api"):
+		return "# Existing Schema Review\n\n" +
+			"## Summary\n\n" +
+			"Review of available resource API document schema artifacts for standardization and registration.\n\n" +
+			"## Observations\n\n" +
+			"- Locate schema / OpenAPI / protobuf / markdown API docs in the workspace\n" +
+			"- Note naming and version conventions for resource types\n" +
+			"- Flag gaps where a shared registry would help clients and backends stay aligned\n\n" +
+			"## Next Steps\n\n" +
+			"- Align on a single registration path for resource API schemas\n" +
+			"- Keep follow-up implementation tasks behind this planning deliverable\n"
+	default:
+		return ""
+	}
+}
+
 // synthesizeWebsiteDesignSystemMarkdown builds a concrete design-system.md when the task
 // asks for palette/typography/spacing and no allowlisted sources were available.
 func synthesizeWebsiteDesignSystemMarkdown(task collaboration.CollaborationTask) string {
@@ -323,7 +378,7 @@ func (a *Agent) runCollabLightMarkdownExecution(ctx context.Context, msg *protoc
 	task := collabLightTaskFromMessage(msg)
 	ws := a.resolveWorkspacePath(msg)
 	sources := collabLightReadSources(ws, msg)
-	seed := buildCollabLightMarkdownBody(task, sources)
+	seed := buildCollabLightMarkdownBody(task, sources, dest)
 	if len(sources) == 0 && strings.Contains(seed, "No allowlisted source content was available") {
 		// Do not propose the empty "fill in findings" stub as a completed deliverable.
 		log.Printf("[%s] light markdown deferred for %s: no allowlisted sources", a.Info.Name, dest)

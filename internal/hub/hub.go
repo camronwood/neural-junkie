@@ -94,16 +94,23 @@ type Hub struct {
 	handoffs              map[string]delegation.HandoffRecord
 
 	// Collaboration idle watchdog (in-memory, not persisted).
-	collabWatchdogMu              sync.Mutex
-	collabWatchdogRedispatch      map[string]int
-	collabWatchdogAutoAckTried    map[string]bool
-	collabWatchdogPlanningHandoff map[string]time.Time
-	collabAsyncWG                 sync.WaitGroup // approve-plan review assets + task dispatch
+	collabWatchdogMu                sync.Mutex
+	collabWatchdogRedispatch        map[string]int
+	collabWatchdogAutoAckTried      map[string]bool
+	collabWatchdogPlanningHandoff   map[string]time.Time
+	collabWatchdogPlanningSkipStreak map[string]planningHandoffStreak
+	collabAsyncWG                   sync.WaitGroup // approve-plan review assets + task dispatch
 
 	collabActionConfigMu sync.RWMutex
 	collabActionConfig   actions.Config
 
 	mu sync.RWMutex
+}
+
+// planningHandoffStreak tracks consecutive silent redispatches to the same turn holder.
+type planningHandoffStreak struct {
+	agentID string
+	count   int
 }
 
 // NewHub creates a new chat hub
@@ -125,12 +132,13 @@ func NewHub() *Hub {
 		conversationState:             make(map[string]*ChannelConversationState),
 		restoredChannelMemberNames:    make(map[string][]string),
 		channelHolds:                  make(map[string]ChannelHold),
-		collabWatchdogRedispatch:      make(map[string]int),
-		collabWatchdogAutoAckTried:    make(map[string]bool),
-		collabWatchdogPlanningHandoff: make(map[string]time.Time),
-		channelSummaryRefreshGen:      make(map[string]uint64),
-		channelPersistEpoch:           make(map[string]uint64),
-		handoffs:                      make(map[string]delegation.HandoffRecord),
+		collabWatchdogRedispatch:         make(map[string]int),
+		collabWatchdogAutoAckTried:       make(map[string]bool),
+		collabWatchdogPlanningHandoff:    make(map[string]time.Time),
+		collabWatchdogPlanningSkipStreak: make(map[string]planningHandoffStreak),
+		channelSummaryRefreshGen:         make(map[string]uint64),
+		channelPersistEpoch:              make(map[string]uint64),
+		handoffs:                         make(map[string]delegation.HandoffRecord),
 	}
 	hub.loadHandoffs()
 

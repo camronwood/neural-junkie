@@ -613,3 +613,51 @@ export default function App() {
 		t.Fatalf("expected darkMode on disk after early fix, got:\n%s", got)
 	}
 }
+
+// TestTryEarlyThemeToggleFix_goAheadContinuation folds the prior theme ask when the
+// current turn is only "yes please go ahead" with implementation_session stamped.
+func TestTryEarlyThemeToggleFix_goAheadContinuation(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	tailwind := `/** @type {import('tailwindcss').Config} */
+export default {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  theme: { extend: {} },
+  plugins: [],
+};
+`
+	app := `export default function App() { return <div>hi</div>; }
+`
+	writeMultifileTestFile(t, dir, "package.json", `{"dependencies":{"react":"^18"},"devDependencies":{"tailwindcss":"^3","vite":"^5"}}`)
+	writeMultifileTestFile(t, dir, "tailwind.config.js", tailwind)
+	writeMultifileTestFile(t, dir, "src/App.tsx", app)
+
+	ch := "chat-scenarios"
+	ag := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	prior := protocol.NewMessage(protocol.MessageTypeQuestion, ch,
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"I want to add UI themes under settings with light and dark modes")
+	goAhead := protocol.NewMessage(protocol.MessageTypeQuestion, ch,
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"yes please go ahead")
+	goAhead.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"editor_mode":            "agent",
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	ag.replaceChannelHistory(ch, []*protocol.Message{prior, goAhead})
+
+	if got := implementationUserContent(ag, goAhead); !strings.Contains(strings.ToLower(got), "theme") {
+		t.Fatalf("implementationUserContent should fold prior theme ask, got %q", got)
+	}
+
+	state := &ImplementationSessionState{StackManifest: DetectStackManifest(dir)}
+	ctx := withImplementationSessionState(context.Background(), state)
+	if !ag.tryEarlyThemeToggleFix(ctx, goAhead, dir, state) {
+		t.Fatal("expected early theme toggle on go-ahead continuation")
+	}
+	if len(state.FilesChanged) == 0 {
+		t.Fatal("expected file changes from early theme toggle")
+	}
+}

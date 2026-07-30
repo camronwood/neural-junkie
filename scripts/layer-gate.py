@@ -227,6 +227,11 @@ def main() -> int:
         # caused cascading generation timeouts and pending-task stalls.
         os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "2"
         os.environ["NJ_REGRESSION_COLLAB_EDGE"] = "1"
+    elif spec.name == "collab-full":
+        # Full suite includes 3-agent planning with @Claude on Ollama; concurrency 1
+        # starves late turn holders under handoff redispatches.
+        os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "2"
+        os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
     elif spec.name == "user-flows":
         # Mixed implement + collab product journeys; keep VRAM pressure low.
         os.environ["NJ_OLLAMA_MAX_CONCURRENCY"] = "1"

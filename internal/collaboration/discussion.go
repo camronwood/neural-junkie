@@ -599,6 +599,69 @@ func (cm *CollaborationManager) advanceTurnAfterGenerationErrors(c *Collaboratio
 	d.CurrentTurnIndex = (d.CurrentTurnIndex + 1) % len(d.Participants)
 }
 
+// SkipStuckSilentPlanningTurn advances past a silent turn holder when other
+// participants are also waiting. Used by the planning watchdog so a slow first
+// speaker cannot burn the discussion wall-clock before peers get a turn.
+// Returns the new turn agent ID when a skip occurred.
+func (cm *CollaborationManager) SkipStuckSilentPlanningTurn(collabID string) (string, bool) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil || c.Discussion == nil || c.Phase != PhasePlanning {
+		return "", false
+	}
+	d := c.Discussion
+	if d.Status != DiscussionActive || !c.DiscussionBudgetEnforced() {
+		return "", false
+	}
+	if len(d.Participants) < 2 {
+		return "", false
+	}
+	silent := silentParticipantIDsLocked(d)
+	cur := ""
+	if d.CurrentTurnIndex >= 0 && d.CurrentTurnIndex < len(d.Participants) {
+		cur = d.Participants[d.CurrentTurnIndex]
+	}
+	if cur == "" {
+		return "", false
+	}
+	curSilent := false
+	for _, pid := range silent {
+		if pid == cur {
+			curSilent = true
+			break
+		}
+	}
+	if !curSilent {
+		return "", false
+	}
+	// Waiting peers that have not already been skipped past this discussion.
+	waiting := 0
+	for _, pid := range silent {
+		if pid == cur {
+			continue
+		}
+		if d.SkippedSilentHolders != nil && d.SkippedSilentHolders[pid] {
+			continue
+		}
+		waiting++
+	}
+	if waiting == 0 {
+		return "", false
+	}
+	if d.SkippedSilentHolders == nil {
+		d.SkippedSilentHolders = make(map[string]bool)
+	}
+	d.SkippedSilentHolders[cur] = true
+	cm.advanceTurnAfterGenerationErrors(c)
+	next := d.Participants[d.CurrentTurnIndex]
+	c.UpdatedAt = time.Now()
+	log.Printf("[Discussion %s] Skipping stuck silent turn holder %s → %s (silent=%d waiting=%d)",
+		d.ID[:8], cur, next, len(silent), waiting)
+	return next, true
+}
+
 // advanceTurn moves to the next participant in round-robin order.
 // When all participants have used their turn budget for the current
 // round, it advances to the next round (or ends the discussion).

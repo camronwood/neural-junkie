@@ -102,19 +102,43 @@ func effectiveMCPToolAllowlist(a *Agent, msg *protocol.Message) []string {
 		base = a.MCPToolAllowlist
 	}
 	base = withSharedWebSearchAllowlist(base)
+	if outlinePlanningReadOnlyTools(msg) {
+		return narrowMCPToolAllowlist(base, outlinePlanningAllowedTools)
+	}
 	if !collaborationRestrictsDiscoveryTools(msg) {
 		return base
 	}
 	focused := []string{"read_file", "get_file_content"}
+	return narrowMCPToolAllowlist(base, focused)
+}
+
+// outlinePlanningReadOnlyTools is true for outline/hint turns that are not yet an
+// implementation session. Those turns should answer from workspace context without
+// blocking on run_command tool approvals (e.g. npm install).
+func outlinePlanningReadOnlyTools(msg *protocol.Message) bool {
+	if msg == nil || msg.ImplementationSession() {
+		return false
+	}
+	scope := ContextScopeFromMessage(msg)
+	return scope == ContextScopeOutline || scope == ContextScopeHint
+}
+
+// outlinePlanningAllowedTools are read/discovery tools safe for outline planning.
+var outlinePlanningAllowedTools = []string{
+	"read_file", "get_file_content", "list_dir", "glob", "glob_file_search",
+	"grep", "semantic_search", "web_search", "fetch_url",
+}
+
+func narrowMCPToolAllowlist(base, keep []string) []string {
 	if len(base) == 0 {
-		return focused
+		return append([]string{}, keep...)
 	}
 	allowed := make(map[string]bool, len(base))
 	for _, name := range base {
 		allowed[name] = true
 	}
 	var out []string
-	for _, name := range focused {
+	for _, name := range keep {
 		if allowed[name] {
 			out = append(out, name)
 		}

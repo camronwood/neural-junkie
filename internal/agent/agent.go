@@ -378,11 +378,15 @@ func RegisterGenCancelForTest(a *Agent, channel string, cancel context.CancelFun
 	return a.registerGenCancel(channel, cancel)
 }
 
-// ActiveGenCount returns the number of in-flight generations on a channel (tests only).
-func ActiveGenCountForTest(a *Agent, channel string) int {
+func (a *Agent) activeGenCount(channel string) int {
 	a.activeGenMu.Lock()
 	defer a.activeGenMu.Unlock()
 	return len(a.activeGens[channel])
+}
+
+// ActiveGenCountForTest returns the number of in-flight generations on a channel (tests only).
+func ActiveGenCountForTest(a *Agent, channel string) int {
+	return a.activeGenCount(channel)
 }
 
 // AbortChannel cancels all in-flight generations on a channel (user Stop / interject).

@@ -25,7 +25,7 @@
     {
       "action": "wait_discussion",
       "min_total": 1,
-      "timeout": "180s"
+      "timeout": "300s"
     },
     {"action": "assert_messages", "none_match": ["execution phase — task prompts only"]}
   ],

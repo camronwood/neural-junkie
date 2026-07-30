@@ -1522,14 +1522,17 @@ def run_setup_blocker(ctx: ScenarioContext, setup: dict, agents: str) -> bool:
             return False
     # Park the blocker: pause dispatch + skip open tasks so Ollama is free for the
     # planning probe, while the collab remains in executing for isolation.
-    if not park_executing_blocker(ctx.base, cid):
+    if not park_executing_blocker(ctx.base, cid, channel=cch):
         print(f"  WARN: could not park blocker {cid[:8]} (continuing anyway)", flush=True)
+    else:
+        # Let aborted generations release Ollama slots before the probe starts.
+        time.sleep(2.0)
     print(f"  ✓ setup: blocker collab {cid[:8]} executing on {ch} ({blocker_agents})")
     return True
 
 
-def park_executing_blocker(base: str, collab_id: str) -> bool:
-    """Pause task dispatch and skip open tasks so the blocker stops burning LLM slots."""
+def park_executing_blocker(base: str, collab_id: str, *, channel: str = "") -> bool:
+    """Pause task dispatch, skip open tasks, and abort in-flight gens on the blocker channel."""
     import urllib.parse
 
     cid = (collab_id or "").strip()
@@ -1557,6 +1560,16 @@ def park_executing_blocker(base: str, collab_id: str) -> bool:
             base, "POST", f"/api/collaborations/{enc}/tasks/{tenc}/skip"
         )
         if tcode not in (200, 201):
+            ok = False
+    # Cancel in-flight LLM work so the planning probe is not starved under
+    # NJ_OLLAMA_MAX_CONCURRENCY (pause alone does not abort active streams).
+    abort_ch = (channel or "").strip() or (collab.get("channel") or "").strip()
+    if abort_ch:
+        abort_ok, abort_detail = hub.abort_channel_agents(
+            base, abort_ch, held_by="multi-collab-park"
+        )
+        if not abort_ok:
+            print(f"  WARN: blocker abort failed: {abort_detail}", flush=True)
             ok = False
     return ok
 

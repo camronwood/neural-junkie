@@ -401,15 +401,33 @@ func implementationUserContent(a *Agent, msg *protocol.Message) string {
 		return ""
 	}
 	userContent := msg.Content
-	if userAffirmsPendingImplementation(msg.Content) {
-		for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
-			m := a.channelHistory(msg.Channel)[i]
-			if m == nil || m.ID == msg.ID {
-				continue
-			}
-			if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
-				return m.Content
-			}
+	// Continuation turns ("yes please go ahead") omit the original ask. Prefer
+	// structural continuation signals — phrase affirm helpers are stubbed no-ops.
+	shouldFold := msg.ImplementationSession() || userAffirmsPendingImplementation(msg.Content)
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok && decision.Action == semantic.ActionContinue {
+		shouldFold = true
+	}
+	if !shouldFold {
+		return userContent
+	}
+	history := a.channelHistory(msg.Channel)
+	for i := len(history) - 1; i >= 0; i-- {
+		m := history[i]
+		if m == nil || m.ID == msg.ID || !protocol.IsUserLikeSender(m.From) {
+			continue
+		}
+		if messageStampedImplAction(m) {
+			return m.Content
+		}
+	}
+	// Planning → go-ahead: prior user ask often lacks implementation_session.
+	for i := len(history) - 1; i >= 0; i-- {
+		m := history[i]
+		if m == nil || m.ID == msg.ID || !protocol.IsUserLikeSender(m.From) {
+			continue
+		}
+		if strings.TrimSpace(m.Content) != "" {
+			return m.Content
 		}
 	}
 	return userContent

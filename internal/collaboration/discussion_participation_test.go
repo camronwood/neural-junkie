@@ -334,6 +334,51 @@ func TestRecordMessage_generationErrorDoesNotConsumeTurn(t *testing.T) {
 	}
 }
 
+func TestSkipStuckSilentPlanningTurn(t *testing.T) {
+	t.Parallel()
+	h := newRunbookMockHub()
+	h.addAgent("be-id", "BackendEngineer", protocol.AgentTypeBackend, nil)
+	h.addAgent("fe-id", "FrontendEngineer", protocol.AgentTypeFrontend, nil)
+	h.addAgent("claude-id", "Claude", protocol.AgentTypeCLI, nil)
+	cm := NewCollaborationManager(h)
+	collab, err := cm.CreateCollaboration(
+		"goal",
+		[]string{"be-id", "fe-id", "claude-id"},
+		"ch",
+		"tester",
+		DiscussionConfig{MaxRounds: 1, MaxTotalMessages: 10},
+		CreateOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, err := cm.GetCurrentTurnAgent(collab.ID)
+	if err != nil || turn != "be-id" {
+		t.Fatalf("expected be-id turn, got %q err=%v", turn, err)
+	}
+	next, ok := cm.SkipStuckSilentPlanningTurn(collab.ID)
+	if !ok || next != "fe-id" {
+		t.Fatalf("expected skip to fe-id, got %q ok=%v", next, ok)
+	}
+	turn, err = cm.GetCurrentTurnAgent(collab.ID)
+	if err != nil || turn != "fe-id" {
+		t.Fatalf("expected fe-id after skip, got %q err=%v", turn, err)
+	}
+	// After one participant speaks, only one silent peer remains — do not skip.
+	first := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		collab.Channel,
+		protocol.AgentInfo{ID: "fe-id", Name: "FrontendEngineer"},
+		"fe plan",
+	)
+	if err := cm.RecordMessage(collab.ID, first); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cm.SkipStuckSilentPlanningTurn(collab.ID); ok {
+		t.Fatal("must not skip when only one silent participant remains")
+	}
+}
+
 func TestParticipationQuorumMetSolo(t *testing.T) {
 	t.Parallel()
 	solo := "solo-id"

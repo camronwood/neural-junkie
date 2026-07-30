@@ -170,7 +170,8 @@ LAYERS: dict[str, LayerSpec] = {
         name="parity",
         description="Implement stability — 3× sweep with hub restart (not scenarios/parity/)",
         requires_hub=True,
-        est_minutes=45,
+        # One implement sweep is ~15–45m on local Ollama; 3× with hub restart needs headroom.
+        est_minutes=120,
         tier="soak",
         stages=(
             LayerStage(

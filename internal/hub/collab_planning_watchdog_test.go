@@ -181,6 +181,52 @@ func TestTickPlanningDiscussionWatchdog_HandoffWhenAssigneeBusy(t *testing.T) {
 	}
 }
 
+func TestTickPlanningDiscussionWatchdog_SkipsStuckSilentTurnHolder(t *testing.T) {
+	h := newTestHub(t)
+	chName := "watchdog-skip-stuck"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	a3 := &protocol.AgentInfo{ID: "a3", Name: "AgentC", Type: protocol.AgentTypeCLI, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+	_ = h.RegisterAgent(a3)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("goal", []string{"a1", "a2", "a3"}, chName, "tester", collaboration.DiscussionConfig{
+		MaxRounds:        1,
+		MaxTotalMessages: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	base := time.Now()
+	for i := 0; i < collabPlanningStuckSkipAfter; i++ {
+		h.tickPlanningDiscussionWatchdog(collab, base.Add(time.Duration(i+1)*collabPlanningHandoffRedispatchAfter))
+	}
+
+	turn, err := cm.GetCurrentTurnAgent(collab.ID)
+	if err != nil || turn != "a2" {
+		t.Fatalf("expected skip to a2 after stuck redispatches, got %q err=%v", turn, err)
+	}
+
+	msgs, _ := h.GetMessages(chName, 50)
+	a2Handoffs := 0
+	for _, m := range msgs {
+		if m == nil || m.Type != protocol.MessageTypeCollabDiscussion || !m.IsFromSystem() {
+			continue
+		}
+		if m.IsMentioned("a2") && strings.Contains(m.Content, "turn handoff") {
+			a2Handoffs++
+		}
+	}
+	if a2Handoffs == 0 {
+		t.Fatal("expected watchdog to hand off to a2 after skipping stuck a1")
+	}
+}
+
 func TestSendPlanningTurnHandoff_OmitsWorkspaceWithoutAttachFlag(t *testing.T) {
 	h := newTestHub(t)
 	chName := "watchdog-no-ws"
