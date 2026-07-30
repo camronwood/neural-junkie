@@ -1,7 +1,27 @@
 {
-  "updated": "2026-07-26T22:00:04Z",
-  "count": 25,
+  "updated": "2026-07-30T17:06:43Z",
+  "count": 26,
   "items": [
+    {
+      "slug": "beta-20",
+      "title": "v1.2.0-beta.20: Install, Update, and Ship Artifacts",
+      "teaser": "One-click Ollama on Windows, macOS, and Linux with real password/UAC dialogs, signed Tauri v2 auto-updates, Neural Canvas + Maps, semantic turn routing, and Share Agent packaging \u2014 everything since beta.6, culminating in install-and-go local AI.",
+      "cover": "campaigns/beta20/creatives/neural-junkie-beta20-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-beta20-1200.png",
+      "topic": "release",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "opensource",
+        "developertools",
+        "release",
+        "ollama"
+      ],
+      "sourceFile": "BETA20-LINKEDIN.md",
+      "sourcePath": "campaigns/beta20/BETA20-LINKEDIN.md",
+      "href": "beta-20.html"
+    },
     {
       "slug": "beta-6",
       "title": "v1.2.0-beta.6: A Memory of Its Own Code",

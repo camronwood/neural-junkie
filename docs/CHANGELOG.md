@@ -18,6 +18,7 @@ Cross-platform in-app Ollama install with GUI elevation on Windows, macOS, and L
 
 ### Changed
 - **Install UX copy** — wizard, OLL chip, and model library describe one-click install on all three platforms.
+- **Beta.20 release article** — [articles/beta-20.html](articles/beta-20.html) with cover image.
 
 ## [1.2.0-beta.19] - 2026-07-29
 

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>v1.2.0-beta.20: Install, Update, and Ship Artifacts — Neural Junkie</title>
+  <meta name="description" content="One-click Ollama on Windows, macOS, and Linux with real password/UAC dialogs, signed Tauri v2 auto-updates, Neural Canvas + Maps, semantic turn routing, and Share Agent packaging — everything since beta.6, culminating in install-and-go local AI." />
+<!-- NJ-SITE-SEO:START -->
+  <link rel="canonical" href="https://camronwood.github.io/neural-junkie/articles/beta-20.html" />
+  <meta property="og:title" content="v1.2.0-beta.20: Install, Update, and Ship Artifacts — Neural Junkie" />
+  <meta property="og:description" content="One-click Ollama on Windows, macOS, and Linux with real password/UAC dialogs, signed Tauri v2 auto-updates, Neural Canvas + Maps, semantic turn routing, and Share Agent packaging — everything since beta.6, culminating in install-and-go local AI." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://camronwood.github.io/neural-junkie/articles/beta-20.html" />
+  <meta property="og:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-beta20-1200.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="627" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="v1.2.0-beta.20: Install, Update, and Ship Artifacts — Neural Junkie" />
+  <meta name="twitter:description" content="One-click Ollama on Windows, macOS, and Linux with real password/UAC dialogs, signed Tauri v2 auto-updates, Neural Canvas + Maps, semantic turn routing, and Share Agent packaging — everything since beta.6, culminating in install-and-go local AI." />
+  <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-beta20-1200.png" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "v1.2.0-beta.20: Install, Update, and Ship Artifacts",
+  "description": "One-click Ollama on Windows, macOS, and Linux with real password/UAC dialogs, signed Tauri v2 auto-updates, Neural Canvas + Maps, semantic turn routing, and Share Agent packaging \u2014 everything since beta.6, culminating in install-and-go local AI.",
+  "url": "https://camronwood.github.io/neural-junkie/articles/beta-20.html",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Neural Junkie"
+  },
+  "image": [
+    "https://camronwood.github.io/neural-junkie/media/articles/covers/neural-junkie-beta20-1200.png"
+  ]
+}
+  </script>
+<!-- NJ-SITE-SEO:END -->
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap site-header-bar">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-expanded="false"
+        aria-controls="site-nav-mobile"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+      </button>
+    </div>
+    <nav id="site-nav-mobile" class="nav-mobile" aria-label="Primary mobile" hidden>
+      <div class="wrap nav-mobile-inner">
+          <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+          <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+          <a class="btn btn-ghost" href="../packs.html">Packs</a>
+          <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+          <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+          <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+          <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+          <a class="btn btn-ghost" href="../security.html">Security</a>
+          <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+          <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+          <a class="btn btn-ghost" href="../download.html">Download</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </div>
+    </nav>
+  </header>
+  <script>
+  (function () {
+    var header = document.querySelector(".site-header");
+    if (!header) return;
+    var toggle = header.querySelector(".nav-toggle");
+    var panel = document.getElementById("site-nav-mobile");
+    if (!toggle || !panel) return;
+
+    function setOpen(open) {
+      header.classList.toggle("is-nav-open", open);
+      document.body.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.hidden = !open;
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    panel.addEventListener("click", function (event) {
+      if (event.target.closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!header.classList.contains("is-nav-open")) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+
+    window.addEventListener("resize", function () {
+      if (window.matchMedia("(min-width: 981px)").matches) setOpen(false);
+    });
+  })();
+  </script>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · v1.2.0-beta.20: Install, Update, and Ship Artifacts
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>v1.2.0-beta.20: Install, Update, and Ship Artifacts</h1>
+      <p class="article-lead">One-click Ollama on Windows, macOS, and Linux with real password/UAC dialogs, signed Tauri v2 auto-updates, Neural Canvas + Maps, semantic turn routing, and Share Agent packaging — everything since beta.6, culminating in install-and-go local AI.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">opensource</span><span class="article-tag">developertools</span><span class="article-tag">release</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-beta20-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p><strong>Neural Junkie v1.2.0-beta.20</strong> is the open-beta release where the desktop finally gets out of your way — from first install to day-two updates to shipping artifacts agents can actually revise.</p>
+<p>If beta.6 gave the workstation a <strong>memory of its own code</strong>, the betas since then closed the other half of the loop: <strong>install local AI without a terminal fight</strong>, <strong>update without hunting GitHub assets</strong>, <strong>route turns by meaning</strong>, and <strong>land Mermaid, maps, and canvas work</strong> that stays grounded in your workspace.</p>
+<p>Download: macOS, Windows, Linux — same local-first desktop app, same MIT-licensed hub. Prefer Homebrew? <code>brew tap camronwood/tap</code> then install the cask (macOS) or formula (Linux).</p>
+<h2>The headline in one paragraph</h2>
+<p>You get <strong>one-click Ollama install</strong> that works on Windows, macOS, and Linux with real password/UAC dialogs (not a silent GUI failure), <strong>signed Tauri v2 auto-updates</strong> on macOS and Windows, <strong>Neural Canvas</strong> with trusted Mermaid/Markdown/code/table/chart renderers plus <strong>Maps</strong> (<code>nj.map</code>), <strong>semantic turn routing</strong> and durable SQLite orchestration, <strong>Share Agent / tool-grant / runbook export</strong>, a <strong>setup wizard that no longer skips itself</strong>, and the chat/IDE polish that makes packaged soaks survivable.</p>
+<h2>1. Install-and-go Ollama — password dialogs that actually appear</h2>
+<p>Beta users on Linux and Windows kept hitting the same wall: “Install Ollama” from the app looked like it did nothing, because a GUI process cannot own a sudo TTY.</p>
+<p>Beta.19–20 fix that end-to-end:</p>
+<ul>
+<li><strong>Linux</strong> — official installer via <code>pkexec</code> (Polkit password dialog)</li>
+<li><strong>macOS</strong> — non-bundled installs use an administrator prompt (<code>osascript</code>)</li>
+<li><strong>Windows</strong> — winget or silent <code>OllamaSetup.exe</code>, with UAC elevation when needed</li>
+<li><strong>Post-install</strong> — waits for the binary (including <code>/usr/bin/ollama</code>) before reporting success</li>
+<li><strong>OLL chip + model library</strong> — install without walking the wizard again</li>
+</ul>
+<p>The setup wizard also stops skipping itself when default config seeds an Ollama provider — first launch finally means first launch.</p>
+<h2>2. Automatic updates that respect your work</h2>
+<p>Beta.10 migrated the desktop to <strong>Tauri v2</strong>. macOS and Windows check and download eligible updates in the background, then install on a <strong>clean restart</strong> — with draft protection for unsaved editor, runbook, pack, and chat state, plus active streams, collabs, and terminals.</p>
+<p>Release policy controls land in the manifests: beta/stable channels, staged rollout, critical deadlines, minimum versions. Linux <code>.deb</code> stays manual while installed-package upgrade behavior is validated.</p>
+<p>You should not need a release notes scavenger hunt to stay current.</p>
+<h2>3. Neural Canvas and Maps — artifacts agents can revise</h2>
+<p>Beta.17–18 ship <strong>Neural Canvas</strong>: app-managed, revisioned agent artifacts with trusted Markdown, Mermaid, code, table, chart, timeline, image, and graph renderers — chat cards, workspace tabs, provenance, history, and approved export.</p>
+<p>Mermaid creates stay <strong>workspace-grounded</strong> (tree-first, no meta bleed, hard deny of <code>npx mermaid</code> on canvas turns). Zoom resizes SVG display size instead of CSS <code>scale()</code>, so diagrams stay sharp. <strong>Maps</strong> land as <code>nj.map</code> with markers and route polylines.</p>
+<p>Packs can declare declarative artifact renderers without executing pack UI code. Canvas asks no longer fall through into FILE_CHANGE / implement sessions.</p>
+<h2>4. Meaning over phrases — semantic routing and durable collab</h2>
+<p>Beta.11 cut over <strong>semantic turn routing</strong>: one server-authoritative decision per turn — local structured classification for meaning, deterministic policy for writes, recipients, retrieval, and Ask/Plan safety. Deep dive: <a href="https://camronwood.github.io/neural-junkie/articles/semantic-turn-routing.html">semantic turn routing article</a>.</p>
+<p>Durable <strong>SQLite orchestration</strong> makes collab claims and HITL gates restart-safe. Agent questions coalesce, pause peers, and continue the original turn after one answer instead of looping the same prompt.</p>
+<h2>5. Composition you can take with you</h2>
+<p>Beta.18 packages the composition story: <strong>Share Agent</strong> bundles, MCP tool grants scoped to one agent by name, and runbook definition export/import with provenance. See the <a href="https://camronwood.github.io/neural-junkie/articles/composition-model.html">Composition Model article</a>.</p>
+<p>Plus the reliability path in between: hub login hotfix for large SQLite archives (beta.12), Knowledge Graph / explorer freeze caps (beta.16), Assistant meeting-notes chat routing, and Gemini CLI cwd safety.</p>
+<h2>What we are still honest about</h2>
+<p>Open beta means we ship progress and name the gaps. Linux auto-update for <code>.deb</code> is still manual. Multi-turn user-flow journeys exist under <code>scenarios/user-flows/</code> but stay opted out of the default suite until they stabilize. Known issues stays the source of truth for what is still wrong on purpose.</p>
+<h2>Get it</h2>
+<ul>
+<li>Releases: <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.20">v1.2.0-beta.20</a></li>
+<li>Download page: <a href="https://camronwood.github.io/neural-junkie/download.html">camronwood.github.io/neural-junkie/download.html</a></li>
+<li>Homebrew: <code>brew tap camronwood/tap</code> then install cask or formula</li>
+<li>Changelog: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">docs/CHANGELOG.md</a></li>
+<li>Prior release article: <a href="https://camronwood.github.io/neural-junkie/articles/beta-6.html">beta.6</a></li>
+</ul>
+<p>Star the repo if this is useful. File issues if something breaks. Beta.20 is for people who want a local multi-agent workstation that <strong>installs cleanly</strong>, <strong>updates itself</strong>, and <strong>ships artifacts you can keep revising</strong> — not just another chat window with a model picker.</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/campaigns/beta20/BETA20-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../built-for-zero.html">Built for $0</a>
+        <a class="btn btn-ghost btn-sm" href="../timeline.html">Timeline</a>
+        <a class="btn btn-ghost btn-sm" href="../thanks.html">Thank you</a>
+        <a class="btn btn-ghost btn-sm" href="../install-trust.html">Install trust</a>
+        <a class="btn btn-ghost btn-sm" href="../packs.html">Packs</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+        <a class="btn btn-ghost btn-sm" href="mailto:neuraljunkie.app@gmail.com">Contact</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="beta-20.html">v1.2.0-beta.20: Install, Update, and Ship Artifacts</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+
+<!-- NJ-SITE-ANALYTICS:START -->
+  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<!-- NJ-SITE-ANALYTICS:END -->
+</body>
+</html>

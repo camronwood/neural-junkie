@@ -21,6 +21,7 @@ from site_nav import render_footer_explore, render_site_chrome  # noqa: E402
 
 # Explicit order + optional overrides (cover when not in source metadata).
 ARTICLE_ORDER = [
+    "beta-20",
     "beta-6",
     "beta-5",
     "semantic-turn-routing",
@@ -50,6 +51,7 @@ ARTICLE_ORDER = [
 
 # Paths relative to repo root under campaigns/<slug>/
 SOURCE_BY_SLUG = {
+    "beta-20": "campaigns/beta20/BETA20-LINKEDIN.md",
     "beta-6": "campaigns/beta26/BETA26-LINKEDIN.md",
     "beta-5": "campaigns/beta25/BETA25-LINKEDIN.md",
     "semantic-turn-routing": "campaigns/semantic-turn-routing/SEMANTIC-TURN-ROUTING-LINKEDIN.md",
@@ -78,6 +80,7 @@ SOURCE_BY_SLUG = {
 }
 
 COVER_OVERRIDES = {
+    "beta-20": "campaigns/beta20/creatives/neural-junkie-beta20-1200.png",
     "beta-6": "campaigns/beta26/creatives/neural-junkie-beta6-1200.png",
     "beta-5": "campaigns/beta25/creatives/neural-junkie-beta5-1200.png",
     "collaboration": "campaigns/collaboration/creatives/neural-junkie-collaboration-ad-1080.png",
@@ -86,6 +89,15 @@ COVER_OVERRIDES = {
 }
 
 META_OVERRIDES: dict[str, dict[str, object]] = {
+    "beta-20": {
+        "title": "v1.2.0-beta.20: Install, Update, and Ship Artifacts",
+        "teaser": (
+            "One-click Ollama on Windows, macOS, and Linux with real password/UAC dialogs, signed Tauri v2 "
+            "auto-updates, Neural Canvas + Maps, semantic turn routing, and Share Agent packaging — "
+            "everything since beta.6, culminating in install-and-go local AI."
+        ),
+        "tags": ["ai", "localai", "multiagent", "opensource", "developertools", "release", "ollama"],
+    },
     "beta-6": {
         "title": "v1.2.0-beta.6: A Memory of Its Own Code",
         "teaser": (
@@ -160,6 +172,7 @@ META_OVERRIDES: dict[str, dict[str, object]] = {
 }
 
 TOPIC_BY_SLUG = {
+    "beta-20": "release",
     "beta-6": "release",
     "beta-5": "release",
     "semantic-turn-routing": "architecture",
@@ -341,8 +354,8 @@ def article_html_page(meta: dict, body_html: str) -> str:
       <img src="{html.escape(cover)}" alt="" loading="eager" decoding="async" width="1200" height="627" />
     </figure>"""
 
-    site_chrome = render_site_chrome(OUT_DIR / f"{meta['slug']}.html")
-    footer_nav = render_footer_explore(depth=2, active="articles")
+    site_chrome = render_site_chrome(OUT_DIR / f"{meta['slug']}.html", active="articles")
+    footer_nav = render_footer_explore(depth=1, active="articles")
 
     return f"""<!DOCTYPE html>
 <html lang="en">
