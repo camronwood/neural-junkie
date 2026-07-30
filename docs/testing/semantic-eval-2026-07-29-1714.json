@@ -1,0 +1,274 @@
+{
+  "action_accuracy": 0.5932203389830508,
+  "fails": [
+    {
+      "Name": "startup-failure-repair",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "run",
+      "WantAction": "debug",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": [
+        "workspace_requires_codebase_retrieval"
+      ]
+    },
+    {
+      "Name": "startup-failure-paraphrase",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "run",
+      "WantAction": "debug",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "source-code-canvas",
+      "PolicyClass": "source_canvas_edit",
+      "GotAction": "run",
+      "WantAction": "edit",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "retraction",
+      "PolicyClass": "correction",
+      "GotAction": "continue",
+      "WantAction": "answer",
+      "GotMutation": "workspace",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "image-generation",
+      "PolicyClass": "image_gen",
+      "GotAction": "run",
+      "WantAction": "image",
+      "GotMutation": "external",
+      "WantMutation": "external",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "workspace-fix-1",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "run",
+      "WantAction": "debug",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": [
+        "workspace_requires_codebase_retrieval"
+      ]
+    },
+    {
+      "Name": "workspace-fix-2",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "run",
+      "WantAction": "debug",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": [
+        "workspace_requires_codebase_retrieval"
+      ]
+    },
+    {
+      "Name": "workspace-fix-3",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "edit",
+      "WantAction": "debug",
+      "GotMutation": "workspace",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "workspace-fix-4",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "run",
+      "WantAction": "debug",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": [
+        "workspace_requires_codebase_retrieval"
+      ]
+    },
+    {
+      "Name": "workspace-fix-5",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "edit",
+      "WantAction": "debug",
+      "GotMutation": "workspace",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "workspace-fix-6",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "run",
+      "WantAction": "debug",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "workspace-fix-not-advisory",
+      "PolicyClass": "ask_mode",
+      "GotAction": "run",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "composer_mode_forbids_mutation"
+      ]
+    },
+    {
+      "Name": "spurious-canvas-demote-1",
+      "PolicyClass": "spurious_artifact_demote",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "spurious-canvas-demote-2",
+      "PolicyClass": "spurious_artifact_demote",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "spurious-ask-user-canvas",
+      "PolicyClass": "spurious_artifact_demote",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "open-canvas-status-q",
+      "PolicyClass": "open_canvas_meta",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "continuation_target_missing"
+      ]
+    },
+    {
+      "Name": "open-canvas-title-q",
+      "PolicyClass": "open_canvas_meta",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "soft-followup",
+      "PolicyClass": "dialogue_followup",
+      "GotAction": "run",
+      "WantAction": "answer",
+      "GotMutation": "external",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "entity-retention",
+      "PolicyClass": "dialogue_followup",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "thanks-closure",
+      "PolicyClass": "closure",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "continuation_target_missing"
+      ]
+    },
+    {
+      "Name": "run-tests",
+      "PolicyClass": "run",
+      "GotAction": "run",
+      "WantAction": "run",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": [
+        "workspace_requires_codebase_retrieval"
+      ]
+    },
+    {
+      "Name": "music-gen",
+      "PolicyClass": "music",
+      "GotAction": "run",
+      "WantAction": "music",
+      "GotMutation": "external",
+      "WantMutation": "external",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "concrete-code-chat",
+      "PolicyClass": "concrete_answer",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "constraint-no-kubectl",
+      "PolicyClass": "constraint_answer",
+      "GotAction": "run",
+      "WantAction": "answer",
+      "GotMutation": "external",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "workspace-fix-blank-screen",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "run",
+      "WantAction": "debug",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": []
+    }
+  ],
+  "full_accuracy": 0.576271186440678,
+  "model": "qwen2.5:3b",
+  "n": 59
+}

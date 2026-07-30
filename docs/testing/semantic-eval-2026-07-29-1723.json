@@ -1,0 +1,68 @@
+{
+  "action_accuracy": 0.8983050847457628,
+  "fails": [
+    {
+      "Name": "repo-fact-inspect",
+      "PolicyClass": "repo_fact",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": []
+    },
+    {
+      "Name": "git-status-inspect",
+      "PolicyClass": "git_inspect",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": []
+    },
+    {
+      "Name": "edit-frontend-component",
+      "PolicyClass": "edit",
+      "GotAction": "answer",
+      "WantAction": "edit",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": []
+    },
+    {
+      "Name": "run-tests",
+      "PolicyClass": "run",
+      "GotAction": "answer",
+      "WantAction": "run",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": []
+    },
+    {
+      "Name": "music-gen",
+      "PolicyClass": "music",
+      "GotAction": "answer",
+      "WantAction": "music",
+      "GotMutation": "none",
+      "WantMutation": "external",
+      "Source": "safe_fallback",
+      "Overrides": []
+    },
+    {
+      "Name": "concrete-code-chat",
+      "PolicyClass": "concrete_answer",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    }
+  ],
+  "full_accuracy": 0.8983050847457628,
+  "model": "qwen3.5:9b",
+  "n": 59
+}

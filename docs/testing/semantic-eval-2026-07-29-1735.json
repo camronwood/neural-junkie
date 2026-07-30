@@ -1,0 +1,58 @@
+{
+  "action_accuracy": 0.9152542372881356,
+  "fails": [
+    {
+      "Name": "source-code-canvas",
+      "PolicyClass": "source_canvas_edit",
+      "GotAction": "answer",
+      "WantAction": "edit",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": []
+    },
+    {
+      "Name": "pending-continuation",
+      "PolicyClass": "continuation",
+      "GotAction": "answer",
+      "WantAction": "continue",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": []
+    },
+    {
+      "Name": "image-generation",
+      "PolicyClass": "image_gen",
+      "GotAction": "answer",
+      "WantAction": "image",
+      "GotMutation": "none",
+      "WantMutation": "external",
+      "Source": "safe_fallback",
+      "Overrides": []
+    },
+    {
+      "Name": "repo-fact-inspect",
+      "PolicyClass": "repo_fact",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": []
+    },
+    {
+      "Name": "concrete-code-chat",
+      "PolicyClass": "concrete_answer",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    }
+  ],
+  "full_accuracy": 0.9152542372881356,
+  "model": "qwen3.5:9b",
+  "n": 59
+}

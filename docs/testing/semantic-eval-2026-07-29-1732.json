@@ -1,0 +1,144 @@
+{
+  "action_accuracy": 0.7966101694915254,
+  "fails": [
+    {
+      "Name": "source-code-canvas",
+      "PolicyClass": "source_canvas_edit",
+      "GotAction": "artifact",
+      "WantAction": "edit",
+      "GotMutation": "external",
+      "WantMutation": "workspace",
+      "Source": "local_model",
+      "Overrides": [
+        "canvas_reason_artifact"
+      ]
+    },
+    {
+      "Name": "retraction",
+      "PolicyClass": "correction",
+      "GotAction": "continue",
+      "WantAction": "answer",
+      "GotMutation": "workspace",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "workspace_requires_codebase_retrieval"
+      ]
+    },
+    {
+      "Name": "image-generation",
+      "PolicyClass": "image_gen",
+      "GotAction": "run",
+      "WantAction": "image",
+      "GotMutation": "none",
+      "WantMutation": "external",
+      "Source": "local_model",
+      "Overrides": [
+        "run_mutation_normalize"
+      ]
+    },
+    {
+      "Name": "spurious-canvas-demote-1",
+      "PolicyClass": "spurious_artifact_demote",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "spurious-canvas-demote-2",
+      "PolicyClass": "spurious_artifact_demote",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "spurious-canvas-demote-3",
+      "PolicyClass": "spurious_artifact_demote",
+      "GotAction": "run",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "run_mutation_normalize"
+      ]
+    },
+    {
+      "Name": "spurious-ask-user-canvas",
+      "PolicyClass": "spurious_artifact_demote",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "soft-followup",
+      "PolicyClass": "dialogue_followup",
+      "GotAction": "run",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "run_mutation_normalize"
+      ]
+    },
+    {
+      "Name": "thanks-closure",
+      "PolicyClass": "closure",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "continuation_target_missing"
+      ]
+    },
+    {
+      "Name": "music-gen",
+      "PolicyClass": "music",
+      "GotAction": "run",
+      "WantAction": "music",
+      "GotMutation": "none",
+      "WantMutation": "external",
+      "Source": "local_model",
+      "Overrides": [
+        "run_mutation_normalize"
+      ]
+    },
+    {
+      "Name": "concrete-code-chat",
+      "PolicyClass": "concrete_answer",
+      "GotAction": "inspect",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": []
+    },
+    {
+      "Name": "constraint-no-kubectl",
+      "PolicyClass": "constraint_answer",
+      "GotAction": "run",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "run_mutation_normalize"
+      ]
+    }
+  ],
+  "full_accuracy": 0.7966101694915254,
+  "model": "qwen2.5:3b",
+  "n": 59
+}
