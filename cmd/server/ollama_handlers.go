@@ -33,6 +33,7 @@ func handleOllamaInstallStatus(w http.ResponseWriter, r *http.Request) {
 		"path":                   status.Path,
 		"running":                running,
 		"auto_install_supported": ollamaManager.AutoInstallSupported(),
+		"install_platforms":      []string{"darwin", "linux", "windows"},
 		"recommended_version":    status.RecommendedVersion,
 		"min_version":            status.MinVersion,
 		"update_available":       status.UpdateAvailable,

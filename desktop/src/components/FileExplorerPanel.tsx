@@ -168,10 +168,14 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     y: number;
     path: string;
     isDir: boolean;
+    /** True when opened on empty panel area (workspace root). */
+    isBackground?: boolean;
   } | null>(null);
   const [nameDialog, setNameDialog] = useState<{
     mode: 'rename' | 'create-file' | 'create-folder';
     initial: string;
+    /** Parent dir for create-file / create-folder ('' = workspace root). */
+    createParentPath?: string;
   } | null>(null);
 
   const setTerminalPanelOpen = useTerminalStore((s) => s.setPanelOpen);
@@ -699,6 +703,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
 
   const handleContextMenu = (e: React.MouseEvent, file: FileNode) => {
     e.preventDefault();
+    e.stopPropagation();
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
@@ -707,8 +712,25 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     });
   };
 
+  const handleBackgroundContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!activeWorkspaceId) return;
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      path: '',
+      isDir: true,
+      isBackground: true,
+    });
+  };
+
   const closeContextMenu = () => {
     setContextMenu(null);
+  };
+
+  const openCreateAtRoot = (mode: 'create-file' | 'create-folder') => {
+    if (!activeWorkspaceId) return;
+    setNameDialog({ mode, initial: '', createParentPath: '' });
   };
 
   const contextFileNode = (): FileNode | null => {
@@ -732,16 +754,24 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
 
   const handleCreateFile = () => {
     if (!contextMenu) return;
-    setNameDialog({ mode: 'create-file', initial: '' });
+    setNameDialog({
+      mode: 'create-file',
+      initial: '',
+      createParentPath: newItemParentPath(contextMenu.path, contextMenu.isDir),
+    });
   };
 
   const handleCreateFolder = () => {
     if (!contextMenu) return;
-    setNameDialog({ mode: 'create-folder', initial: '' });
+    setNameDialog({
+      mode: 'create-folder',
+      initial: '',
+      createParentPath: newItemParentPath(contextMenu.path, contextMenu.isDir),
+    });
   };
 
   const handleRename = () => {
-    if (!contextMenu) return;
+    if (!contextMenu || contextMenu.isBackground) return;
     setNameDialog({
       mode: 'rename',
       initial: basenameRelativePath(contextMenu.path),
@@ -749,12 +779,16 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
   };
 
   const handleNameDialogConfirm = async (name: string) => {
-    if (!nameDialog || !contextMenu || !activeWorkspaceId) {
+    if (!nameDialog || !activeWorkspaceId) {
       setNameDialog(null);
       return;
     }
     try {
       if (nameDialog.mode === 'rename') {
+        if (!contextMenu || contextMenu.isBackground) {
+          setNameDialog(null);
+          return;
+        }
         const newPath = replaceBasename(contextMenu.path, name);
         if (newPath === contextMenu.path) {
           setNameDialog(null);
@@ -764,7 +798,9 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
         await renameFile(activeWorkspaceId, contextMenu.path, newPath);
         addToast({ type: 'success', title: 'Renamed', message: newPath });
       } else {
-        const parent = newItemParentPath(contextMenu.path, contextMenu.isDir);
+        const parent =
+          nameDialog.createParentPath ??
+          (contextMenu ? newItemParentPath(contextMenu.path, contextMenu.isDir) : '');
         const newPath = joinRelativePath(parent, name);
         if (nameDialog.mode === 'create-folder') {
           await createFolder(activeWorkspaceId, newPath);
@@ -819,7 +855,10 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     const activeWorkspace = getActiveWorkspace();
     if (!activeWorkspace) return;
     try {
-      const absolutePath = workspaceAbsolutePath(activeWorkspace.path, contextMenu.path);
+      const absolutePath =
+        contextMenu.isBackground || !contextMenu.path
+          ? activeWorkspace.path
+          : workspaceAbsolutePath(activeWorkspace.path, contextMenu.path);
       const { openPath } = await import('@tauri-apps/plugin-opener');
       await openPath(absolutePath);
       closeContextMenu();
@@ -836,9 +875,12 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     if (!contextMenu) return;
     const activeWorkspace = getActiveWorkspace();
     if (!activeWorkspace) return;
-    const absolutePath = contextMenu.isDir
-      ? workspaceAbsolutePath(activeWorkspace.path, contextMenu.path)
-      : workspaceAbsolutePath(activeWorkspace.path, newItemParentPath(contextMenu.path, false) || '.');
+    const absolutePath =
+      contextMenu.isBackground || !contextMenu.path
+        ? activeWorkspace.path
+        : contextMenu.isDir
+          ? workspaceAbsolutePath(activeWorkspace.path, contextMenu.path)
+          : workspaceAbsolutePath(activeWorkspace.path, newItemParentPath(contextMenu.path, false) || '.');
     alignTerminalCwd(absolutePath);
     setTerminalPanelOpen(true);
     closeContextMenu();
@@ -1374,7 +1416,10 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
       </div>
 
       {/* File Tree */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none">
+      <div
+        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none"
+        onContextMenu={handleBackgroundContextMenu}
+      >
         {error ? (
           <div className="px-3 py-2 border-b border-red-900/40 bg-red-950/30 flex items-start gap-2">
             <div className="flex-1 min-w-0">
@@ -1399,10 +1444,31 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
         ) : files.length === 0 ? (
           <div className="p-4 text-center">
             <div className="text-4xl mb-2">📁</div>
-            <div className="text-sm text-slack-textMuted">No files found</div>
+            <div className="text-sm text-slack-textMuted mb-3">No files yet</div>
+            <div className="text-xs text-slack-textMuted mb-4">
+              Right-click here, or create something to get started.
+            </div>
+            {activeWorkspaceId ? (
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openCreateAtRoot('create-file')}
+                  className="px-3 py-1.5 text-xs font-medium rounded bg-slack-accent text-white hover:opacity-90 transition-opacity"
+                >
+                  New file…
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openCreateAtRoot('create-folder')}
+                  className="px-3 py-1.5 text-xs font-medium rounded border border-slack-border text-slack-text hover:bg-slack-bgHover transition-colors"
+                >
+                  New folder…
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : (
-          <div className="py-2">
+          <div className="py-2 min-h-full">
             {renderFileTree(files)}
           </div>
         )}
@@ -1726,6 +1792,40 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           y={contextMenu.y}
           onClose={closeContextMenu}
         >
+          {contextMenu.isBackground ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleRevealInFinder()}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                Reveal in Finder
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenInTerminal}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                Open in terminal
+              </button>
+              <div className="border-t border-slack-border my-1" />
+              <button
+                type="button"
+                onClick={handleCreateFile}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                New file…
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateFolder}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                New folder…
+              </button>
+            </>
+          ) : (
+            <>
           {!contextMenu.isDir && (
             <button
               type="button"
@@ -1909,6 +2009,8 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
             >
               Preview Markdown
             </button>
+          )}
+            </>
           )}
         </ViewportContextMenu>
       )}

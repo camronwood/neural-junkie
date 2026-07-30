@@ -362,8 +362,8 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
                 {ollamaStatus.autoInstallSupported ? (
                   <>
                     <p className="text-gray-400 text-xs">
-                      Neural Junkie can install Ollama for you (internet required; Linux may ask for your password).
-                      Windows runs a silent installer. Or install manually from{' '}
+                      Neural Junkie can install Ollama for you on Windows, macOS, and Linux (internet required).
+                      Approve the system password / UAC dialog when it appears. Or install manually from{' '}
                       <a href="https://ollama.com" className="text-blue-400 underline">ollama.com</a>.
                     </p>
                     <button

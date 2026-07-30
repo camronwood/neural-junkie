@@ -354,10 +354,18 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		semanticDecision, hasSemanticDecision := protocol.ExtractTurnDecision(msg)
 		if hasSemanticDecision {
 			state.FixLikeIntent = semanticDecision.Action == semantic.ActionDebug
-			state.BootFixIntent = semanticDecisionHasReason(semanticDecision, "startup_failure", "boot_failure")
+			state.BootFixIntent = semanticDecisionHasReason(semanticDecision,
+				"startup_failure", "boot_failure", "build_failure")
 			// Classifiers often stamp ActionEdit for boot-fix paste without
 			// startup_failure reason codes — still treat clear boot/build errors as boot-fix.
 			if !state.BootFixIntent && (messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content)) {
+				state.BootFixIntent = true
+				state.FixLikeIntent = true
+			}
+			// Phrase stubs are no-ops after semantic cutover; Debug/Edit + entry
+			// conflict is enough to unlock deterministic App.js cleanup.
+			if !state.BootFixIntent && DetectEntryConflicts(wsPath, state.StackManifest) != "" &&
+				(semanticDecision.Action == semantic.ActionDebug || semanticDecision.Action == semantic.ActionEdit) {
 				state.BootFixIntent = true
 				state.FixLikeIntent = true
 			}
@@ -370,8 +378,12 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 		// Deterministic entry-conflict cleanup must run even when semantic
 		// stamped Edit without boot reasons (vite-boot-fix-corrupt-appjs).
+		// ImplementationSession is the structural gate — do not require deprecated
+		// phrase helpers (messageHasBootOrBuildError always returns false).
 		if !state.BootFixIntent && DetectEntryConflicts(wsPath, state.StackManifest) != "" &&
-			(messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content)) {
+			(msg.ImplementationSession() ||
+				messageImpliesBootFix(msg.Content, history) ||
+				messageHasBootOrBuildError(msg.Content)) {
 			state.BootFixIntent = true
 			state.FixLikeIntent = true
 		}

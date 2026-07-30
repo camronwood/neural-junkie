@@ -6,6 +6,19 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.20] - 2026-07-30
+
+Cross-platform in-app Ollama install with GUI elevation on Windows, macOS, and Linux.
+
+### Fixed
+- **Linux Ollama install** — runs the official installer via `pkexec` so a system password dialog appears (GUI apps cannot use a sudo TTY).
+- **macOS Ollama install** — non-bundled installs use `osascript` administrator privileges for a password dialog.
+- **Windows Ollama install** — winget or `OllamaSetup.exe`, with UAC `RunAs` elevation when silent install fails.
+- **Post-install detection** — waits for the Ollama binary (including `/usr/bin/ollama` on Linux) before reporting success.
+
+### Changed
+- **Install UX copy** — wizard, OLL chip, and model library describe one-click install on all three platforms.
+
 ## [1.2.0-beta.19] - 2026-07-29
 
 Linux/Windows Ollama install-and-go, first-run wizard gate fix, chat routing/continuity hardening, model library polish, web search settings, and SUT/release-prep tooling.

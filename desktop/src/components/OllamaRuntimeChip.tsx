@@ -284,7 +284,7 @@ export function OllamaRuntimeChip({
             {notInstalled && (
               <p className="text-[11px] text-slack-textMuted">
                 {canAutoInstall
-                  ? 'One-click install (internet required; Linux may ask for your password).'
+                  ? 'One-click install on Windows, macOS, and Linux. Approve the password / UAC dialog when it appears.'
                   : 'Install from ollama.com, then Refresh.'}
               </p>
             )}

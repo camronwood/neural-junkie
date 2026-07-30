@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	semantic "github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -1154,11 +1155,26 @@ func (a *Agent) shouldRepairCorruptAppJSEntry(msg *protocol.Message, wsPath, use
 	if wsPath == "" || manifest == nil || !corruptAppJSEntryConflict(wsPath, manifest) {
 		return false
 	}
+	// Prefer structural gates after phrase-heuristic cutover: impl session or
+	// stamped Debug/Edit. Deprecated messageHasBootOrBuildError always returns false.
+	if msg != nil && msg.ImplementationSession() {
+		return true
+	}
+	if msg != nil {
+		if d, ok := protocol.ExtractTurnDecision(msg); ok &&
+			(d.Action == semantic.ActionDebug || d.Action == semantic.ActionEdit) {
+			return true
+		}
+	}
 	content := userContent
 	if msg != nil {
 		content = msg.Content + "\n" + userContent
 	}
-	return messageHasBootOrBuildError(content) || messageImpliesBootFix(content, a.channelHistory(msg.Channel))
+	var history []*protocol.Message
+	if a != nil && msg != nil {
+		history = a.channelHistory(msg.Channel)
+	}
+	return messageHasBootOrBuildError(content) || messageImpliesBootFix(content, history)
 }
 
 func (a *Agent) attemptCorruptAppJSBootFix(ctx context.Context, msg *protocol.Message, wsPath, channel, userContent string, state *ImplementationSessionState) bool {

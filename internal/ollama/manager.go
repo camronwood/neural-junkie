@@ -127,6 +127,7 @@ func (m *Manager) DetectInstallation() InstallStatus {
 	default:
 		candidates = []string{
 			"/usr/local/bin/ollama",
+			"/usr/bin/ollama",
 			"/opt/homebrew/bin/ollama",
 		}
 		if home, err := os.UserHomeDir(); err == nil {
@@ -547,7 +548,9 @@ func (m *Manager) DeleteModel(ctx context.Context, model string) error {
 }
 
 // InstallOllama downloads and installs Ollama using the platform installer.
-// macOS/Linux use the official install script; Windows uses winget or OllamaSetup.exe.
+// macOS: official install.sh via osascript admin dialog (when not bundled).
+// Linux: official install.sh via pkexec password dialog.
+// Windows: winget or OllamaSetup.exe (UAC elevation when needed).
 func (m *Manager) InstallOllama(ctx context.Context, onProgress func(string)) error {
 	if BundledBinaryPath() != "" {
 		if onProgress != nil {

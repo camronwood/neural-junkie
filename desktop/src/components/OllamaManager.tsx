@@ -138,7 +138,7 @@ export function OllamaManager({ serverAddr, showLibraryHint = true }: OllamaMana
               </button>
               {canAutoInstall && (
                 <p className="text-xs text-gray-500 w-full">
-                  One-click install (internet required; Linux may ask for your password).
+                  One-click install on Windows, macOS, and Linux. Approve the password / UAC dialog when it appears.
                 </p>
               )}
             </div>

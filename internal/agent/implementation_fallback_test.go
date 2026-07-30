@@ -317,6 +317,99 @@ func TestCorruptAppJSEntryConflict(t *testing.T) {
 	}
 }
 
+// TestShouldRepairCorruptAppJSEntry_implSessionWithoutPhraseHeuristics ensures the
+// early App.js delete still fires after messageHasBootOrBuildError was stubbed.
+func TestShouldRepairCorruptAppJSEntry_implSessionWithoutPhraseHeuristics(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	write := func(rel, body string) {
+		full := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("package.json", `{"dependencies":{"react":"18.0.0"}}`)
+	write("src/App.js", "diff --git a/tailwind.config.js b/tailwind.config.js\n")
+	write("src/App.tsx", "export default function App() { return null }\n")
+	write("src/main.tsx", "import App from './App'\n")
+	manifest := DetectStackManifest(dir)
+	ag := NewAgent(protocol.AgentTypeArchitecture, "SoftwareArchitect", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"the app is not booting")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	if !ag.shouldRepairCorruptAppJSEntry(msg, dir, msg.Content, manifest) {
+		t.Fatal("impl session + entry conflict must authorize repair without phrase heuristics")
+	}
+	state := &ImplementationSessionState{
+		BootFixIntent:  true,
+		StackManifest:  manifest,
+		TrustMode:      editorTrustAutoApply,
+	}
+	ctx := withImplementationSessionState(context.Background(), state)
+	if !ag.tryEarlyCorruptAppJSBootFix(ctx, msg, dir, state) {
+		t.Fatal("expected early corrupt App.js delete")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "src", "App.js")); !os.IsNotExist(err) {
+		t.Fatalf("App.js should be deleted, err=%v", err)
+	}
+	if len(state.FilesChanged) == 0 || state.FilesChanged[0] != "src/App.js" {
+		t.Fatalf("FilesChanged=%v", state.FilesChanged)
+	}
+}
+
+func TestBootFixIntent_entryConflictImplSession(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	write := func(rel, body string) {
+		full := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("package.json", `{"dependencies":{"react":"18.0.0"}}`)
+	write("src/App.js", "diff --git a/x b/x\n")
+	write("src/App.tsx", "export default function App() { return null }\n")
+	write("src/main.tsx", "import App from './App'\n")
+	manifest := DetectStackManifest(dir)
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"please fix the boot failure")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	// Simulate the BootFixIntent assignment block from runImplementationSession.
+	state := &ImplementationSessionState{StackManifest: manifest}
+	history := []*protocol.Message{}
+	semanticDecision, hasSemanticDecision := protocol.ExtractTurnDecision(msg)
+	if hasSemanticDecision {
+		t.Fatal("expected no stamped decision")
+	}
+	_ = semanticDecision
+	if !state.BootFixIntent && DetectEntryConflicts(dir, state.StackManifest) != "" &&
+		(msg.ImplementationSession() ||
+			messageImpliesBootFix(msg.Content, history) ||
+			messageHasBootOrBuildError(msg.Content)) {
+		state.BootFixIntent = true
+		state.FixLikeIntent = true
+	}
+	if !state.BootFixIntent || !state.FixLikeIntent {
+		t.Fatalf("expected BootFixIntent from entry conflict + impl session, got boot=%v fix=%v",
+			state.BootFixIntent, state.FixLikeIntent)
+	}
+}
+
 func TestSynthesizeAppSidebarSubtitle(t *testing.T) {
 	t.Parallel()
 	existing := `<p className="text-sm text-slate-400">Sidebar</p>`

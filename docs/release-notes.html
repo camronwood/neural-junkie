@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.19">v1.2.0-beta.19</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.20">v1.2.0-beta.20</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.20">1.2.0-beta.20</a>
+      ·
       <a href="#v1.2.0-beta.19">1.2.0-beta.19</a>
       ·
       <a href="#v1.2.0-beta.18">1.2.0-beta.18</a>
@@ -258,7 +260,20 @@
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
       </ul>
 
+      <h2 id="v1.2.0-beta.20" class="release-version-heading">1.2.0-beta.20 <span class="release-date">— 2026-07-30</span></h2>
+
+      <p><strong>Ollama one-click install that works on Windows, macOS, and Linux.</strong> Linux uses a Polkit password dialog (<code>pkexec</code>), macOS uses an administrator prompt, and Windows uses winget / silent setup with UAC when needed — so Install Ollama from the app no longer fails silently in the GUI. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.20">GitHub Releases</a>.</p>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Linux</strong> — <code>pkexec</code> elevation for the official install script.</li>
+        <li><strong>macOS</strong> — <code>osascript</code> admin dialog when Ollama is not bundled.</li>
+        <li><strong>Windows</strong> — UAC <code>RunAs</code> fallback after silent installer / winget.</li>
+        <li><strong>Detection</strong> — wait for binary including <code>/usr/bin/ollama</code>.</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.19" class="release-version-heading">1.2.0-beta.19 <span class="release-date">— 2026-07-29</span></h2>
+
 
       <p><strong>Install-and-go Ollama, working first-run wizard, and cleaner chat.</strong> Linux/Windows can one-click install Ollama from the app (OLL chip / model library); the setup wizard no longer skips itself because defaults seed a provider; plus routing/continuity hardening, model-library polish, web search settings, and SUT/release-prep tooling. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.19">GitHub Releases</a>.</p>
 
