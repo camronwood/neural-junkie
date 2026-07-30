@@ -11,6 +11,8 @@ Neural Junkie uses the [Tauri v2 updater](https://v2.tauri.app/plugin/updater/) 
 
 Rolling beta manifests are git-backed under [`updater/beta/`](../updater/beta/). CI uploads immutable versioned manifests while the release is a draft, publishes the release, verifies success, and only then runs `promote-updater-channel.sh` to advance the beta pointer. A failed release therefore leaves clients on the previous beta.
 
+Beta installers (beta.21+) point **only** at the git-backed URL. The legacy `updater-beta` GitHub release endpoint is retired (404) and must not be listed first — a failing primary endpoint previously made in-app checks look broken even when the fallback was healthy.
+
 Beta builds only receive beta updates. Stable builds only receive stable updates.
 
 The first Tauri v2 releases generate `v1Compatible` updater artifacts so installed Tauri v1 clients can migrate without a manual reinstall. Keep this mode for multiple release cycles.

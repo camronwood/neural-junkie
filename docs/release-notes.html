@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.20">v1.2.0-beta.20</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.21">v1.2.0-beta.21</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.21">1.2.0-beta.21</a>
+      ·
       <a href="#v1.2.0-beta.20">1.2.0-beta.20</a>
       ·
       <a href="#v1.2.0-beta.19">1.2.0-beta.19</a>
@@ -229,6 +231,17 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1.2.0-beta.21" class="release-version-heading">1.2.0-beta.21 <span class="release-date">— 2026-07-30</span></h2>
+
+      <p><strong>Setup wizard completion and beta auto-update checks fixed on installed builds.</strong> First-run setup now persists under hub auth, and beta installers check only the git-backed updater channel. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.21">GitHub Releases</a>.</p>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Setup wizard</strong> — mints a hub session and sends <code>X-NJ-Session</code> when saving so <code>setup_completed</code> sticks (no more wizard every launch).</li>
+        <li><strong>Settings PUT auth</strong> — shared settings merge uses the same mutation session headers.</li>
+        <li><strong>Beta auto-update</strong> — drop the dead legacy <code>updater-beta</code> endpoint; check only git-backed <code>updater/beta/</code> manifests.</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.20" class="release-version-heading">1.2.0-beta.20 <span class="release-date">— 2026-07-30</span></h2>
 
       <p><strong>Ollama one-click install that works on Windows, macOS, and Linux.</strong> Linux uses a Polkit password dialog (<code>pkexec</code>), macOS uses an administrator prompt, and Windows uses winget / silent setup with UAC when needed — so Install Ollama from the app no longer fails silently in the GUI. Install from <a href="download.html">Downloads</a>, <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.20">GitHub Releases</a>, or read the <a href="articles/beta-20.html">beta.20 article</a>.</p>

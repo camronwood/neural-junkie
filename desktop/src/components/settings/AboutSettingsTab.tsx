@@ -7,7 +7,10 @@ import { useAppUpdaterStore } from '../../stores/appUpdaterStore';
 import { getHubBaseURL, getHubWebSocketURL } from '../../config/hubUrl';
 import { openExternalLink, type SettingsTabProps } from './settingsShared';
 
-export function AboutSettingsTab({ isActive }: SettingsTabProps) {
+export function AboutSettingsTab({
+  isActive,
+  onRerunSetup,
+}: SettingsTabProps & { onRerunSetup?: () => void }) {
   const [appVersion, setAppVersion] = useState<string>('1.0.0');
   const updaterStatus = useAppUpdaterStore((state) => state.status);
   const update = useAppUpdaterStore((state) => state.update);
@@ -77,6 +80,23 @@ export function AboutSettingsTab({ isActive }: SettingsTabProps) {
         {updateError && <span className="text-sm text-red-400">{updateError}</span>}
       </div>
     </div>
+
+    {onRerunSetup && (
+      <div>
+        <h3 className="text-lg font-semibold text-slack-text mb-2">Setup</h3>
+        <p className="text-sm text-slack-textMuted mb-4">
+          Re-open the first-run wizard to change focus track, AI backend, agents, and domain packs.
+          Existing API keys and unrelated providers are preserved when possible.
+        </p>
+        <button
+          type="button"
+          onClick={onRerunSetup}
+          className="px-3 py-1.5 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+        >
+          Run setup again
+        </button>
+      </div>
+    )}
 
     <div>
       <h3 className="text-lg font-semibold text-slack-text mb-2">Hub connection</h3>

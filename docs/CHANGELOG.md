@@ -6,6 +6,18 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.21] - 2026-07-30
+
+First-run setup completion and beta auto-update checks on macOS/Windows installs.
+
+### Fixed
+- **Setup wizard save under hub auth** — first-run / re-run wizard mints a hub session and sends `X-NJ-Session` on `PUT /api/settings`, so `setup_completed` sticks when `auth_required` is on (or relaxed local is off). Failed saves no longer look successful.
+- **Settings merge PUT auth** — `mergeSettingsPut` uses the same mutation session headers.
+- **Beta updater endpoint** — beta builds check only the git-backed `updater/beta/` manifest URL; the dead legacy `updater-beta` GitHub release URL is no longer tried first.
+
+### Changed
+- **Release docs** — [RELEASE_UPDATES.md](RELEASE_UPDATES.md) documents the single beta endpoint for beta.21+.
+
 ## [1.2.0-beta.20] - 2026-07-30
 
 Cross-platform in-app Ollama install with GUI elevation on Windows, macOS, and Linux.

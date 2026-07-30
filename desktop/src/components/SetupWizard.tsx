@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   agentsForTrack,
   modelsToEnsureForTrack,
   ollamaModelForTrack,
   packsEnabledForTrack,
+  inferWizardTrackFromPacks,
   CAD_OLLAMA_CHAT_MODEL,
   CAD_OLLAMA_CHAT_MODEL_LIGHT,
   DEV_OLLAMA_MODEL,
@@ -19,6 +20,7 @@ import {
   type HardwareSnapshot,
 } from '../utils/hardwareRecommendations';
 import { installOllamaRuntime } from '../utils/ollamaRuntime';
+import { hubMutationPut } from '../utils/hubMutation';
 
 interface ProviderChoice {
   id: string;
@@ -37,12 +39,74 @@ interface AgentChoice {
 
 interface SetupWizardProps {
   onComplete: () => void;
+  onCancel?: () => void;
   serverAddr: string;
+  mode?: 'first-run' | 'rerun';
 }
 
 const BIO_HF_REPO = 'aaditya/Llama3-OpenBioLLM-8B';
 
-export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
+function ollamaProviderName(track: WizardTrack): string {
+  if (track === 'lifeSciences') return 'Local Ollama (Bio 8B)';
+  if (track === 'cad') return 'Local Ollama (CAD)';
+  if (track === 'general') return 'Local Ollama (utility)';
+  return 'Local Ollama (Coder)';
+}
+
+function agentsMatchTrack(agents: AgentChoice[], track: WizardTrack): boolean {
+  const expected = agentsForTrack(track);
+  const types = new Set(agents.map((a) => a.type));
+  return expected.every((e) => types.has(e.type));
+}
+
+function buildWizardProvider(
+  providerType: 'ollama' | 'cloud',
+  wizardTrack: WizardTrack,
+  selectedOllamaModel: string,
+  apiKey: string,
+  hfToken: string,
+  preferExistingHf = false,
+): ProviderChoice {
+  if (providerType === 'ollama') {
+    return {
+      id: 'ollama-local',
+      type: 'ollama',
+      name: ollamaProviderName(wizardTrack),
+      endpoint: 'http://localhost:11434',
+      model: selectedOllamaModel,
+    };
+  }
+  if (wizardTrack === 'lifeSciences' && (hfToken.trim() || preferExistingHf)) {
+    const provider: ProviderChoice = {
+      id: 'hf-bio',
+      type: 'huggingface',
+      name: 'Hugging Face (OpenBioLLM)',
+      model: BIO_HF_REPO,
+    };
+    if (hfToken.trim()) {
+      provider.apiKey = hfToken.trim();
+    }
+    return provider;
+  }
+  const provider: ProviderChoice = {
+    id: 'anthropic',
+    type: 'anthropic',
+    name: 'Claude (Anthropic)',
+    model: 'claude-3-5-sonnet-20241022',
+  };
+  if (apiKey.trim()) {
+    provider.apiKey = apiKey.trim();
+  }
+  return provider;
+}
+
+export function SetupWizard({
+  onComplete,
+  onCancel,
+  serverAddr,
+  mode = 'first-run',
+}: SetupWizardProps) {
+  const isRerun = mode === 'rerun';
   const [step, setStep] = useState(0);
   const [wizardTrack, setWizardTrack] = useState<WizardTrack>('developer');
   const [providerType, setProviderType] = useState<'ollama' | 'cloud'>('ollama');
@@ -62,6 +126,12 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
   const [saving, setSaving] = useState(false);
   const [hardware, setHardware] = useState<HardwareSnapshot | null>(null);
   const [useFullSizeModel, setUseFullSizeModel] = useState(false);
+  const [prefillReady, setPrefillReady] = useState(!isRerun);
+  const [hasExistingAnthropicKey, setHasExistingAnthropicKey] = useState(false);
+  const [hasExistingHfToken, setHasExistingHfToken] = useState(false);
+  const initialTrackRef = useRef<WizardTrack>('developer');
+  const initialDefaultProviderIdRef = useRef<string>('');
+  const initialProviderTypeRef = useRef<'ollama' | 'cloud'>('ollama');
 
   const trackDefaultModel = ollamaModelForTrack(wizardTrack);
   const tierPrimary = recommendedPrimaryForTrack(hardware, wizardTrack, trackDefaultModel);
@@ -76,6 +146,67 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
   useEffect(() => {
     void fetchHardwareSnapshot(serverAddr).then(setHardware);
   }, [serverAddr]);
+
+  useEffect(() => {
+    if (!isRerun) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(`${serverAddr}/api/settings`);
+        if (!resp.ok || cancelled) return;
+        const config = await resp.json();
+        const packsEnabled = (config.packs?.enabled ?? {}) as Record<string, boolean>;
+        const track = inferWizardTrackFromPacks(packsEnabled);
+        const ai = config.ai ?? {};
+        const providers = (ai.providers ?? []) as Array<{
+          id?: string;
+          type?: string;
+          apiKey?: string;
+        }>;
+        const defaultId = String(ai.default_provider_id ?? '');
+        const defaultProvider =
+          providers.find((p) => p.id === defaultId) ?? providers[0];
+        const inferredProviderType: 'ollama' | 'cloud' =
+          defaultProvider?.type === 'ollama' ? 'ollama' : 'cloud';
+        const existingAgents = (config.agents ?? []) as AgentChoice[];
+        const seededAgents =
+          Array.isArray(existingAgents) &&
+          existingAgents.length > 0 &&
+          agentsMatchTrack(existingAgents, track)
+            ? existingAgents.map((a) => ({
+                type: a.type,
+                name: a.name,
+                enabled: Boolean(a.enabled),
+              }))
+            : agentsForTrack(track);
+
+        const hfCfg = config.hf as { token?: string } | undefined;
+        const hasHf =
+          Boolean(hfCfg?.token) ||
+          providers.some((p) => p.type === 'huggingface' && Boolean(p.apiKey));
+        const hasAnthropic = providers.some(
+          (p) => p.type === 'anthropic' && Boolean(p.apiKey),
+        );
+
+        if (cancelled) return;
+        initialTrackRef.current = track;
+        initialDefaultProviderIdRef.current = defaultId;
+        initialProviderTypeRef.current = inferredProviderType;
+        setWizardTrack(track);
+        setProviderType(inferredProviderType);
+        setAgents(seededAgents);
+        setHasExistingHfToken(hasHf);
+        setHasExistingAnthropicKey(hasAnthropic);
+      } catch (e) {
+        console.error('Failed to prefill setup wizard:', e);
+      } finally {
+        if (!cancelled) setPrefillReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isRerun, serverAddr]);
 
   useEffect(() => {
     if (step === 3 && providerType === 'ollama') {
@@ -168,49 +299,85 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
     setStep(2);
   }
 
-  async function saveAndFinish() {
-    setSaving(true);
-    const providers: ProviderChoice[] = [];
+  function cloudNextDisabled(): boolean {
+    if (wizardTrack === 'lifeSciences') {
+      if (hfToken.trim() || apiKey.trim()) return false;
+      if (isRerun && (hasExistingHfToken || hasExistingAnthropicKey)) return false;
+      return true;
+    }
+    if (apiKey.trim()) return false;
+    if (isRerun && hasExistingAnthropicKey) return false;
+    return true;
+  }
 
-    if (providerType === 'ollama') {
-      providers.push({
-        id: 'ollama-local',
-        type: 'ollama',
-        name:
-          wizardTrack === 'lifeSciences'
-            ? 'Local Ollama (Bio 8B)'
-            : wizardTrack === 'cad'
-              ? 'Local Ollama (CAD)'
-              : wizardTrack === 'general'
-                ? 'Local Ollama (utility)'
-                : 'Local Ollama (Coder)',
-        endpoint: 'http://localhost:11434',
-        model: selectedOllamaModel,
-      });
-    } else if (wizardTrack === 'lifeSciences' && hfToken.trim()) {
-      providers.push({
-        id: 'hf-bio',
-        type: 'huggingface',
-        name: 'Hugging Face (OpenBioLLM)',
-        apiKey: hfToken.trim(),
-        model: BIO_HF_REPO,
-      });
-    } else {
-      providers.push({
-        id: 'anthropic',
-        type: 'anthropic',
-        name: 'Claude (Anthropic)',
-        apiKey: apiKey,
-        model: 'claude-3-5-sonnet-20241022',
-      });
+  function chosenProviderId(): string {
+    if (providerType === 'ollama') return 'ollama-local';
+    if (wizardTrack === 'lifeSciences' && (hfToken.trim() || (isRerun && hasExistingHfToken && !apiKey.trim()))) {
+      return 'hf-bio';
+    }
+    return 'anthropic';
+  }
+
+  function shouldConfirmRerun(): boolean {
+    if (!isRerun) return false;
+    const trackChanged = wizardTrack !== initialTrackRef.current;
+    const providerChanged =
+      providerType !== initialProviderTypeRef.current ||
+      chosenProviderId() !== initialDefaultProviderIdRef.current;
+    return trackChanged || providerChanged;
+  }
+
+  async function saveAndFinish() {
+    if (shouldConfirmRerun()) {
+      const ok = window.confirm(
+        'This will update agents and domain packs for the selected focus. Continue?',
+      );
+      if (!ok) return;
     }
 
+    setSaving(true);
+    const preferExistingHf =
+      providerType === 'cloud' &&
+      wizardTrack === 'lifeSciences' &&
+      !hfToken.trim() &&
+      !apiKey.trim() &&
+      hasExistingHfToken;
+    const wizardProvider = buildWizardProvider(
+      providerType,
+      wizardTrack,
+      selectedOllamaModel,
+      apiKey,
+      hfToken,
+      preferExistingHf,
+    );
+
+    try {
+      if (isRerun) {
+        await saveRerunMerge(wizardProvider);
+      } else {
+        await saveFirstRun(wizardProvider);
+      }
+      await fetch(`${serverAddr}/api/agents/restart`, { method: 'POST' });
+      setSaving(false);
+      onComplete();
+    } catch (e) {
+      console.error('Failed to save config:', e);
+      setSaving(false);
+      window.alert(
+        e instanceof Error
+          ? `Could not save setup: ${e.message}`
+          : 'Could not save setup. Check that the hub is running and try again.',
+      );
+    }
+  }
+
+  async function saveFirstRun(wizardProvider: ProviderChoice) {
     const config: Record<string, unknown> = {
       setup_completed: true,
       server: { host: 'localhost', port: 18765 },
       ai: {
-        default_provider_id: providers[0].id,
-        providers,
+        default_provider_id: wizardProvider.id,
+        providers: [wizardProvider],
       },
       agents: agents.map(a => ({ type: a.type, name: a.name, enabled: a.enabled })),
       packs: {
@@ -231,18 +398,87 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
       config.hf = { token: hfToken.trim() };
     }
 
-    try {
-      await fetch(`${serverAddr}/api/settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
-      await fetch(`${serverAddr}/api/agents/restart`, { method: 'POST' });
-    } catch (e) {
-      console.error('Failed to save config:', e);
+    const put = await hubMutationPut(serverAddr, '/api/settings', config);
+    if (!put.ok) {
+      throw new Error(`Failed to save settings: ${put.status} ${await put.text()}`);
     }
-    setSaving(false);
-    onComplete();
+  }
+
+  async function saveRerunMerge(wizardProvider: ProviderChoice) {
+    const resp = await fetch(`${serverAddr}/api/settings`);
+    if (!resp.ok) {
+      throw new Error(`Failed to load settings: ${resp.status}`);
+    }
+    const current = await resp.json();
+    const ai = (current.ai ?? {}) as {
+      providers?: ProviderChoice[];
+      default_provider_id?: string;
+    };
+    const existingProviders = Array.isArray(ai.providers) ? [...ai.providers] : [];
+
+    const upsert: ProviderChoice = { ...wizardProvider };
+    // Avoid blanking stored secrets when the form fields were left empty.
+    if (!apiKey.trim() && upsert.type === 'anthropic') {
+      delete upsert.apiKey;
+    }
+    if (!hfToken.trim() && upsert.type === 'huggingface') {
+      delete upsert.apiKey;
+    }
+
+    const idx = existingProviders.findIndex((p) => p.id === upsert.id);
+    if (idx >= 0) {
+      const prev = existingProviders[idx];
+      existingProviders[idx] = {
+        ...prev,
+        ...upsert,
+        apiKey: upsert.apiKey !== undefined ? upsert.apiKey : prev.apiKey,
+      };
+    } else {
+      existingProviders.push(upsert);
+    }
+
+    const packsEnabled = {
+      ...((current.packs?.enabled ?? {}) as Record<string, boolean>),
+      ...packsEnabledForTrack(wizardTrack),
+    };
+
+    const config: Record<string, unknown> = {
+      setup_completed: true,
+      ai: {
+        default_provider_id: upsert.id,
+        providers: existingProviders,
+      },
+      agents: agents.map(a => ({ type: a.type, name: a.name, enabled: a.enabled })),
+      packs: { enabled: packsEnabled },
+      mcp: {
+        ...(typeof current.mcp === 'object' && current.mcp ? current.mcp : {}),
+        enabled: true,
+      },
+      ollama: {
+        ...(typeof current.ollama === 'object' && current.ollama ? current.ollama : {}),
+        auto_start: providerType === 'ollama',
+        models_to_ensure: providerType === 'ollama'
+          ? modelsToEnsureForTrack(wizardTrack, providerType).map((m) =>
+              m === trackDefaultModel ? selectedOllamaModel : m,
+            )
+          : ((current.ollama as { models_to_ensure?: string[] } | undefined)?.models_to_ensure ?? []),
+      },
+      updates: {
+        ...(typeof current.updates === 'object' && current.updates ? current.updates : {}),
+        auto_check: true,
+      },
+    };
+    if (hfToken.trim()) {
+      config.hf = {
+        ...(typeof current.hf === 'object' && current.hf ? current.hf : {}),
+        token: hfToken.trim(),
+      };
+    }
+
+    const put = await hubMutationPut(serverAddr, '/api/settings', config);
+    if (!put.ok) {
+      throw new Error(`Failed to save settings: ${put.status} ${await put.text()}`);
+    }
   }
 
   const toggleAgent = (type: string) => {
@@ -250,6 +486,14 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
   };
 
   const steps = ['Welcome', 'Focus', 'Provider', 'Setup', 'Agents', 'Done'];
+
+  if (!prefillReady) {
+    return (
+      <div className="flex items-center justify-center w-full h-screen bg-gray-950">
+        <div className="text-gray-400 text-sm">Loading current setup…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center w-full h-screen bg-gray-950">
@@ -260,14 +504,30 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
           ))}
         </div>
 
+        {isRerun && onCancel && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         {step === 0 && (
           <div className="text-center space-y-4">
-            <h1 className="text-3xl font-bold text-white">Welcome to Neural Junkie</h1>
+            <h1 className="text-3xl font-bold text-white">
+              {isRerun ? 'Run setup again' : 'Welcome to Neural Junkie'}
+            </h1>
             <p className="text-gray-400">
-              Let's set up your multi-agent AI collaboration environment.
+              {isRerun
+                ? 'Update your focus track, AI backend, agents, and domain packs.'
+                : "Let's set up your multi-agent AI collaboration environment."}
             </p>
             <button onClick={() => setStep(1)} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors">
-              Get Started
+              {isRerun ? 'Continue' : 'Get Started'}
             </button>
           </div>
         )}
@@ -278,7 +538,9 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
             <div className="grid grid-cols-1 gap-4">
               <button
                 onClick={() => selectTrack('developer')}
-                className="p-4 rounded-lg border border-gray-700 hover:border-blue-500 text-left space-y-2 transition-colors"
+                className={`p-4 rounded-lg border text-left space-y-2 transition-colors ${
+                  wizardTrack === 'developer' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-700 hover:border-blue-500'
+                }`}
               >
                 <div className="font-medium text-white">Software development</div>
                 <div className="text-xs text-gray-400">
@@ -287,7 +549,9 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               </button>
               <button
                 onClick={() => selectTrack('lifeSciences')}
-                className="p-4 rounded-lg border border-gray-700 hover:border-teal-500 text-left space-y-2 transition-colors"
+                className={`p-4 rounded-lg border text-left space-y-2 transition-colors ${
+                  wizardTrack === 'lifeSciences' ? 'border-teal-500 bg-teal-500/10' : 'border-gray-700 hover:border-teal-500'
+                }`}
               >
                 <div className="font-medium text-white">Life sciences &amp; lab work</div>
                 <div className="text-xs text-gray-400">
@@ -296,7 +560,9 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               </button>
               <button
                 onClick={() => selectTrack('cad')}
-                className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 text-left space-y-2 transition-colors"
+                className={`p-4 rounded-lg border text-left space-y-2 transition-colors ${
+                  wizardTrack === 'cad' ? 'border-indigo-500 bg-indigo-500/10' : 'border-gray-700 hover:border-indigo-500'
+                }`}
               >
                 <div className="font-medium text-white">CAD &amp; mechanical design</div>
                 <div className="text-xs text-gray-400">
@@ -305,7 +571,9 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               </button>
               <button
                 onClick={() => selectTrack('general')}
-                className="p-4 rounded-lg border border-gray-700 hover:border-violet-500 text-left space-y-2 transition-colors"
+                className={`p-4 rounded-lg border text-left space-y-2 transition-colors ${
+                  wizardTrack === 'general' ? 'border-violet-500 bg-violet-500/10' : 'border-gray-700 hover:border-violet-500'
+                }`}
               >
                 <div className="font-medium text-white">Team chat &amp; productivity</div>
                 <div className="text-xs text-gray-400">
@@ -480,6 +748,11 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
             <h2 className="text-xl font-semibold text-white text-center">
               {wizardTrack === 'lifeSciences' ? 'Cloud API Keys' : 'Anthropic API Key'}
             </h2>
+            {isRerun && (hasExistingHfToken || hasExistingAnthropicKey) && (
+              <p className="text-xs text-gray-500">
+                Existing keys are kept if you leave these fields blank.
+              </p>
+            )}
             {wizardTrack === 'lifeSciences' && (
               <>
                 <label className="block text-xs text-gray-400">Hugging Face token (recommended for Bio 8B hosted)</label>
@@ -487,25 +760,27 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
                   type="password"
                   value={hfToken}
                   onChange={(e) => setHfToken(e.target.value)}
-                  placeholder="hf_..."
+                  placeholder={isRerun && hasExistingHfToken ? 'Leave blank to keep existing' : 'hf_...'}
                   className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-teal-500 focus:outline-none"
                 />
                 <p className="text-xs text-gray-500">Also used for ESMFold structure prediction (saved in Settings).</p>
               </>
             )}
             <label className="block text-xs text-gray-400">
-              {wizardTrack === 'lifeSciences' && hfToken.trim() ? 'Anthropic key (optional fallback)' : 'Anthropic API key'}
+              {wizardTrack === 'lifeSciences' && (hfToken.trim() || (isRerun && hasExistingHfToken))
+                ? 'Anthropic key (optional fallback)'
+                : 'Anthropic API key'}
             </label>
             <input
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-..."
+              placeholder={isRerun && hasExistingAnthropicKey ? 'Leave blank to keep existing' : 'sk-ant-...'}
               className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
             />
             <button
               onClick={() => setStep(4)}
-              disabled={wizardTrack === 'lifeSciences' ? !hfToken.trim() && !apiKey.trim() : !apiKey}
+              disabled={cloudNextDisabled()}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50"
             >
               Next
@@ -558,13 +833,13 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
         {step === 5 && (
           <div className="space-y-4">
             <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold text-white">All Set!</h2>
+              <h2 className="text-2xl font-bold text-white">{isRerun ? 'Ready to apply' : 'All Set!'}</h2>
               <p className="text-gray-400 text-sm">
                 {providerType === 'ollama'
                   ? wizardTrack === 'lifeSciences'
                     ? 'BiologyExpert will use Neural Junkie Bio 8B locally.'
                     : 'Your agents will use local Ollama models.'
-                  : wizardTrack === 'lifeSciences' && hfToken.trim()
+                  : wizardTrack === 'lifeSciences' && (hfToken.trim() || (isRerun && hasExistingHfToken && !apiKey.trim()))
                     ? 'BiologyExpert will use hosted OpenBioLLM via Hugging Face.'
                     : 'Your agents will use the Anthropic Claude API.'}
               </p>
@@ -580,11 +855,11 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
 
             <div className="text-center">
               <button
-                onClick={saveAndFinish}
+                onClick={() => void saveAndFinish()}
                 disabled={saving}
                 className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 font-medium"
               >
-                {saving ? 'Saving...' : 'Launch Neural Junkie'}
+                {saving ? 'Saving...' : isRerun ? 'Apply setup' : 'Launch Neural Junkie'}
               </button>
             </div>
           </div>

@@ -22,12 +22,9 @@ case "${CHANNEL}" in
     ;;
   beta)
     # Rolling beta manifests live in git (updater/beta/) — immutable GitHub releases
-    # cannot replace assets, and legacy rolling tags (updater-beta) are burned.
-    # Legacy release URL first so old single-endpoint builds 404 then fall through.
-    endpoints_json='[
-      "https://github.com/'"${REPO}"'/releases/download/updater-beta/update-{{target}}-{{arch}}.json",
-      "'"${BETA_MANIFEST_BASE}"'/update-{{target}}-{{arch}}.json"
-    ]'
+    # cannot replace assets, and the legacy updater-beta release tag is gone (404).
+    # Use only the git-backed URL so checks do not depend on a dead first endpoint.
+    endpoints_json='["'"${BETA_MANIFEST_BASE}"'/update-{{target}}-{{arch}}.json"]'
     ;;
   *)
     echo "Unknown channel: ${CHANNEL} (expected beta or stable)" >&2

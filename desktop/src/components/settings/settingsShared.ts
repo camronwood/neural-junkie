@@ -2,6 +2,7 @@ import {
   openExternalLink as openExternalLinkImpl,
   openExternalLinkAsync as openExternalLinkAsyncImpl,
 } from '../../utils/openExternalLink';
+import { hubMutationPut } from '../../utils/hubMutation';
 
 export async function mergeSettingsPut(
   hubHttp: string,
@@ -12,11 +13,7 @@ export async function mergeSettingsPut(
     throw new Error(await r.text());
   }
   const cfg = (await r.json()) as Record<string, unknown>;
-  const put = await fetch(`${hubHttp}/api/settings`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch(cfg)),
-  });
+  const put = await hubMutationPut(hubHttp, '/api/settings', patch(cfg));
   if (!put.ok) {
     throw new Error(await put.text());
   }

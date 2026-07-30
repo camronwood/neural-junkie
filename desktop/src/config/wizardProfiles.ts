@@ -62,3 +62,14 @@ export function packsEnabledForTrack(track: WizardTrack): Record<string, boolean
     cad: track === 'cad',
   };
 }
+
+/** Infer focus track from hub packs.enabled (re-run setup prefill). */
+export function inferWizardTrackFromPacks(
+  enabled: Record<string, boolean> | null | undefined,
+): WizardTrack {
+  if (!enabled) return 'general';
+  if (enabled['life-sciences']) return 'lifeSciences';
+  if (enabled.cad) return 'cad';
+  if (enabled.ide || enabled['software-development']) return 'developer';
+  return 'general';
+}

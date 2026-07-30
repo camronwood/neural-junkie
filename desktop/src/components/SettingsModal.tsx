@@ -36,9 +36,10 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTab?: SettingsTab | string;
+  onRerunSetup?: () => void;
 }
 
-export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: SettingsModalProps) {
   const { loadSettings, loadLayoutSettings } = useSettingsStore();
   const chatServerAddr = useChatStore((s) => s.serverAddr);
   const hubHttp =
@@ -138,7 +139,11 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <ServerNetworkSettingsTab hubHttp={hubHttp} isActive={activeTab === 'server-network'} />
             <AutomationSettingsTab hubHttp={hubHttp} isActive={activeTab === 'automation'} />
             <ActivitySettingsTab hubHttp={hubHttp} isActive={activeTab === 'activity'} />
-            <AboutSettingsTab hubHttp={hubHttp} isActive={activeTab === 'about'} />
+            <AboutSettingsTab
+              hubHttp={hubHttp}
+              isActive={activeTab === 'about'}
+              onRerunSetup={onRerunSetup}
+            />
           </div>
         </div>
       </div>

@@ -20,6 +20,7 @@ import { DesktopOnlyGate } from './components/DesktopOnlyGate';
 import { installExternalLinkClickInterceptor } from './utils/openExternalLink';
 
 type AppPhase = 'loading' | 'setup' | 'login' | 'chat';
+type SetupMode = 'first-run' | 'rerun';
 
 function isMarkdownPreviewFromUrl(): boolean {
   const params = new URLSearchParams(window.location.search);
@@ -32,6 +33,7 @@ function isMarkdownPreviewFromUrl(): boolean {
 
 function App() {
   const [phase, setPhase] = useState<AppPhase>('loading');
+  const [setupMode, setSetupMode] = useState<SetupMode>('first-run');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab | undefined>();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -100,6 +102,7 @@ function App() {
       if (resp.ok) {
         const config = await resp.json();
         if (config.setup_needed === true || config.setup_completed === false) {
+          setSetupMode('first-run');
           setPhase('setup');
           return;
         }
@@ -142,7 +145,17 @@ function App() {
   }
 
   function onSetupComplete() {
-    attemptAutoLogin();
+    if (setupMode === 'rerun') {
+      setSetupMode('first-run');
+      setPhase('chat');
+      return;
+    }
+    void attemptAutoLogin();
+  }
+
+  function onSetupCancel() {
+    setSetupMode('first-run');
+    setPhase('chat');
   }
 
   const handleConnect = () => setPhase('chat');
@@ -153,6 +166,12 @@ function App() {
   const handleCloseSettings = () => {
     setIsSettingsOpen(false);
     setSettingsInitialTab(undefined);
+  };
+  const handleRerunSetup = () => {
+    setIsSettingsOpen(false);
+    setSettingsInitialTab(undefined);
+    setSetupMode('rerun');
+    setPhase('setup');
   };
   const handleLogout = () => setPhase('login');
 
@@ -180,7 +199,14 @@ function App() {
   }
 
   if (phase === 'setup') {
-    return <SetupWizard onComplete={onSetupComplete} serverAddr={serverAddr} />;
+    return (
+      <SetupWizard
+        mode={setupMode}
+        onComplete={onSetupComplete}
+        onCancel={setupMode === 'rerun' ? onSetupCancel : undefined}
+        serverAddr={serverAddr}
+      />
+    );
   }
 
   return (
@@ -201,6 +227,7 @@ function App() {
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}
         initialTab={settingsInitialTab}
+        onRerunSetup={handleRerunSetup}
       />
     </div>
   );
