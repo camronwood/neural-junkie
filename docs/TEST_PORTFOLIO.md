@@ -82,9 +82,11 @@ Keep one representative; demote twins with `"optional": true` and/or tag `soak` 
 | `test-growth-loop` | Defaults to `SKIP_LIVE=1` (Layer A / unit companions); do not auto-strengthen flaky live scenarios |
 | `model-benchmark` | Arena track: if Model Arena pack is missing, **skip** (do not fail release-prep) |
 | `layer-fix-loop` | Isolate one failing layer first; do not run on full release-prep thrash |
-| `semantic-eval` | Live classify+policy on `scenarios/routing/semantic-intents.json`; needle = action accuracy |
-| `semantic-eval-compare` | Baseline vs candidate (default now `qwen3.5:9b`); promote a *new* candidate only if ≥0.90 and wins |
-| Scoreboard | Latest JSON under `docs/testing/semantic-eval-*.json`; see [CONTEXT_MODEL.md](CONTEXT_MODEL.md) live scoreboard |
+| `semantic-eval` | Live classify+policy on `scenarios/routing/semantic-intents.json`; dual gate = action accuracy ≥0.90 and misstamp_rate ≤0.05 |
+| `semantic-eval-compare` | Baseline vs candidate (default now `qwen3.5:9b`); promote a *new* candidate only if dual-gate holds and wins |
+| `memory-retrieval-corpus` | CI gold gate for conversation memory `Search` (`scenarios/memory/retrieval-corpus.json`) |
+| `memory-eval` | Live embed retrieval dual gate (`hit_rate ≥ 0.90`, `forbidden_hit_rate ≤ 0.05`; needs Ollama `nomic-embed-text`) |
+| Scoreboard | Latest JSON under `docs/testing/semantic-eval-*.json` and `docs/testing/memory-eval-*.json`; see [CONTEXT_MODEL.md](CONTEXT_MODEL.md) |
 
 ## Related
 

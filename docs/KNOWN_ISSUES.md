@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-07-20 · **Current beta:** [v1.2.0-beta.7](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.7) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
+**Last updated:** 2026-07-31 · **Current beta:** [v1.2.0-beta.22](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.22) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -16,14 +16,14 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | GitHub | Summary |
 |----|--------|--------|---------|
-| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off (macOS arm64 + Windows or Linux). Deferred 2026-07-20 (Mac-only soak day). Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md). |
+| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off (macOS arm64 + Windows or Linux) on a current beta installer (beta.22+). Deferred 2026-07-20 (Mac-only soak day). Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md). |
 
 ### Cleared for cut (tracker hygiene 2026-07-20)
 
 | ID | Status | GitHub | Summary |
 |----|--------|--------|---------|
-| `blocker-collab-soak` | **Cleared** | [#16](https://github.com/camronwood/neural-junkie/issues/16) | `LAYER=collab-full` **PASS** on 2026-07-16 and again in [layer-climb-2026-07-19-1809](testing/layer-climb-2026-07-19-1809.md) (8/8 including collab-full). Residual edge flakes tracked under #20/#21, not as a cut blocker. |
-| `blocker-parity-soak` | **Cleared** | [#17](https://github.com/camronwood/neural-junkie/issues/17) | `test-parity-stable-restart` **PASS** on climb 2026-07-19 and [parity-stable-restart-2026-07-20-0255.log](testing/parity-stable-restart-2026-07-20-0255.log); seven consecutive PASSes since Jul 18 after earlier `selection-scoped-edit` flakes. |
+| `blocker-collab-soak` | **Cleared** | [#16](https://github.com/camronwood/neural-junkie/issues/16) | `LAYER=collab-full` **PASS** on 2026-07-16, [layer-climb-2026-07-19-1809](testing/layer-climb-2026-07-19-1809.md), and `collab-scenarios-all` in [test-everything-2026-07-31-0244.md](testing/test-everything-2026-07-31-0244.md) (Ollama regression roster). Residual edge flakes tracked under #20/#21, not as a cut blocker. |
+| `blocker-parity-soak` | **Cleared** | [#17](https://github.com/camronwood/neural-junkie/issues/17) | `test-parity-stable-restart` **PASS** on climb 2026-07-19, [parity-stable-restart-2026-07-20-0255.log](testing/parity-stable-restart-2026-07-20-0255.log), and again in [release-prep-2026-07-31-0244.md](testing/release-prep-2026-07-31-0244.md) (3× restart, min 14/sweep). |
 | `blocker-d5-deferred` | **Deferred (post-cut)** | [#19](https://github.com/camronwood/neural-junkie/issues/19) | D5 specialist simplification is Phase D backlog — **not** a v1.2.0 stable cut gate ([PHASE_D_BACKLOG.md](PHASE_D_BACKLOG.md)). |
 
 ---

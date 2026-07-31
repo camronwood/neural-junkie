@@ -216,7 +216,7 @@ Response includes: `session_summary`, `conversation_mode`, resolved intent (when
 
 ### Semantic stamp graduation
 
-The binding constraint is **untrusted stamps patched by `LooksLike*` policy**. Workflow:
+The primary policy signal is **reason_codes** (+ gold `stamp_*`); **`LooksLike*` remains a live fallback** until a class holds ≥0.90 without text gates. Workflow:
 
 1. Expand `scenarios/routing/semantic-intents.json` (policy classes: workspace_fix, project_overview, canvas_*, open_canvas_*, …)
 2. CI: `go test ./internal/intent/ -run TestResolvePolicyAgainstCorpus` (gold stamps + structural features)

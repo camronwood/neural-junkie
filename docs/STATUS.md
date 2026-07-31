@@ -4,7 +4,7 @@
 
 ## Current State: Open Beta (v1.2.x)
 
-Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.2.0-beta.20](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.20) (GUI Ollama install on Windows/macOS/Linux (pkexec, osascript, UAC)). **Stable cut:** follow [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and [STABLE_SCOPE.md](STABLE_SCOPE.md).
+Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.2.0-beta.22](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.22) (semantic stamp dual-gate graduation, continuity dialogue, conversation-memory retrieval gates). **Stable cut:** follow [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and [STABLE_SCOPE.md](STABLE_SCOPE.md).
 
 **Marketing site:** [camronwood.github.io/neural-junkie](https://camronwood.github.io/neural-junkie/)
 
@@ -20,6 +20,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - File change proposal and approval workflow
 - Workspace management with quick switcher (beta.17+)
 - Context model v2 — Chat/Code composer, turn intent, thread-scoped history (beta.21+)
+- Semantic turn stamps + dual-gate live eval; conversation memory retrieval corpus/eval (beta.22)
 - In-channel message find bar (beta.21+)
 - User rules API (`GET`/`PUT` `/api/user-rules`)
 
@@ -34,7 +35,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - **CLI agents** — 12 auto-detected types (Cursor, Claude, Gemini, Copilot, Codex, Aider, …)
 
 ### AI Providers
-- **Bundled Ollama (beta.22)** — Runtime shipped in installers; auto-start on launch
+- **Bundled Ollama (macOS)** — Runtime shipped in macOS installers; auto-start on launch; Windows/Linux wizard one-click install (beta.20+)
 - **Model library** — Curated Ollama + Hugging Face catalog in desktop toolbar
 - **Claude** — Anthropic API direct or via AI Hub proxy
 - **LM Studio** — Local OpenAI-compatible server
@@ -81,6 +82,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - Unit tests across core packages
 - Integration tests for message flow, commands, deduplication
 - Live scenario harnesses: `make chat-scenarios-regression`, `make collab-smoke`, collab matrix
+- Semantic / memory gates: `make semantic-eval`, `make memory-retrieval-corpus`, `make memory-eval`
 - Agent-specific tests (repo, expert, assistant, moderator, hub, review)
 
 ## Known Limitations
@@ -93,7 +95,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - **Domain packs** — Multiple packs can be enabled; first enabled pack owns UI layout
 - **Collaboration variance** — Local models vary in plan quality; see known issues for active scenario gaps
 - **IDE v3/v4** — Cursor-like Ask/Agent routing; v4 adds full LSP, remote SSH, dev containers. See [IDE_V3.md](IDE_V3.md), [IDE_V4.md](IDE_V4.md)
-- **macOS releases** — Ad-hoc signed CI builds at v1.0.0 (Right-click → Open if Gatekeeper warns); Developer ID + notarized in v1.0.1 when Apple creds available; local dev builds remain ad-hoc
+- **macOS releases** — GitHub Release builds are still **ad-hoc signed** when Apple Developer CI secrets are unset (beta.22 confirmed); Right-click → Open if Gatekeeper warns. Developer ID + notarization when Apple creds are configured; local dev builds remain ad-hoc
 
 ## Documentation
 
