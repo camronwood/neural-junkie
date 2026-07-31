@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/chatcontext"
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	sqlitestore "github.com/camronwood/neural-junkie/internal/store/sqlite"
 	_ "modernc.org/sqlite"
@@ -106,49 +107,26 @@ func scanBackfillMessage(rows rowScanner) (*protocol.Message, error) {
 	return msg, nil
 }
 
-// BackfillCollabDirs indexes markdown under ~/.neural-junkie collaboration review dirs.
+// BackfillCollabDirs indexes markdown under collaboration asset dirs:
+//   - <assetsBase>/reviews/<id>/*.md  (legacy review layout)
+//   - <assetsBase>/collabs/<id>/*.md  (assets-root collab layout, when present)
 func BackfillCollabDirs(ctx context.Context, assetsBase string) error {
-	if !memoryEnabled() || assetsBase == "" {
+	if !memoryEnabled() || strings.TrimSpace(assetsBase) == "" {
 		return nil
 	}
-	reviews := filepath.Join(assetsBase, "reviews")
-	entries, err := os.ReadDir(reviews)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
+	if err := backfillCollabTree(ctx, filepath.Join(assetsBase, "reviews"), "reviews"); err != nil {
 		return err
 	}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		collabID := e.Name()
-		dir := filepath.Join(reviews, collabID)
-		_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return nil
-			}
-			if !strings.HasSuffix(strings.ToLower(d.Name()), ".md") {
-				return nil
-			}
-			rel, _ := filepath.Rel(dir, path)
-			rel = filepath.ToSlash(rel)
-			has, _ := globalStore.HasSource(path)
-			if has {
-				return nil
-			}
-			return indexCollabFile(ctx, path, rel, collabID, "")
-		})
-	}
-	return nil
+	return backfillCollabTree(ctx, filepath.Join(assetsBase, collaboration.ProjectCollabsDirName), "collabs")
 }
 
 // ScheduleBackfill runs message and collab backfill in the background.
-func ScheduleBackfill(assetsBase string) {
+// Optional workspaceRoots also index <root>/collabs/<id>/*.md (findings.md etc.).
+func ScheduleBackfill(assetsBase string, workspaceRoots ...string) {
 	if !memoryEnabled() {
 		return
 	}
+	roots := uniqueNonEmpty(workspaceRoots)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
@@ -158,5 +136,24 @@ func ScheduleBackfill(assetsBase string) {
 		if err := BackfillCollabDirs(ctx, assetsBase); err != nil {
 			log.Printf("[memory] backfill collab dirs: %v", err)
 		}
+		for _, root := range roots {
+			if err := BackfillWorkspaceCollabs(ctx, root); err != nil {
+				log.Printf("[memory] backfill workspace %s: %v", root, err)
+			}
+		}
 	}()
+}
+
+func uniqueNonEmpty(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		v = strings.TrimSpace(v)
+		if v == "" || seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out
 }

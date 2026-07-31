@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "description": "Gold retrieval corpus for conversation memory Search (CI, no Ollama). Seed chunks into an isolated memory.db and assert must_include / must_exclude by chunk id.",
+  "cases": [
+    {
+      "name": "multi-chunk-findings-keeps-two",
+      "query": "auth middleware decision JWT OAuth",
+      "channel": "ch-collab",
+      "source_types": [
+        "collab_artifact"
+      ],
+      "limit": 5,
+      "seed_chunks": [
+        {
+          "id": "findings:0",
+          "source_type": "collab_artifact",
+          "source_id": "findings",
+          "channel": "ch-collab",
+          "rel_path": "collabs/c1/findings.md",
+          "content": "Decision: use JWT auth middleware for the hub API. Reject session cookies for agent DMs."
+        },
+        {
+          "id": "findings:1",
+          "source_type": "collab_artifact",
+          "source_id": "findings",
+          "channel": "ch-collab",
+          "rel_path": "collabs/c1/findings.md",
+          "content": "Follow-up: OAuth client credentials remain for pack marketplace only. Do not mix with JWT DM auth."
+        },
+        {
+          "id": "noise:chat",
+          "source_type": "message",
+          "source_id": "noise",
+          "channel": "ch-collab",
+          "content": "auth middleware lunch notes unrelated"
+        }
+      ],
+      "must_include_ids": [
+        "findings:0",
+        "findings:1"
+      ],
+      "must_exclude_ids": [
+        "noise:chat"
+      ]
+    },
+    {
+      "name": "findings-outranks-chat-noise",
+      "query": "what did we decide about terraform aws provider",
+      "channel": "ch-collab",
+      "limit": 3,
+      "seed_chunks": [
+        {
+          "id": "findings:tf",
+          "source_type": "collab_artifact",
+          "source_id": "findings",
+          "channel": "ch-collab",
+          "rel_path": "collabs/c1/findings.md",
+          "content": "Decision: use the configured terraform aws provider version pinned in versions.tf."
+        },
+        {
+          "id": "chat:noise",
+          "source_type": "message",
+          "source_id": "chat-noise",
+          "channel": "ch-collab",
+          "content": "terraform aws provider sounds fine whatever"
+        },
+        {
+          "id": "plan:tf",
+          "source_type": "collab_artifact",
+          "source_id": "plan",
+          "channel": "ch-collab",
+          "rel_path": "collabs/c1/plan.md",
+          "content": "Plan step: review terraform aws provider pin before apply."
+        }
+      ],
+      "must_include_ids": [
+        "findings:tf"
+      ],
+      "must_exclude_ids": []
+    },
+    {
+      "name": "superseded-message-excluded",
+      "query": "aws provider choice",
+      "channel": "ch1",
+      "goal_id": "goal-1",
+      "superseded_message_ids": [
+        "old"
+      ],
+      "limit": 5,
+      "seed_chunks": [
+        {
+          "id": "msg:old",
+          "source_type": "message",
+          "source_id": "old",
+          "channel": "ch1",
+          "goal_id": "goal-1",
+          "content": "use terraform provider aws v4"
+        },
+        {
+          "id": "msg:correction",
+          "source_type": "message",
+          "source_id": "correction",
+          "channel": "ch1",
+          "goal_id": "goal-1",
+          "is_correction": true,
+          "content": "use configured aws provider from versions.tf"
+        }
+      ],
+      "must_include_ids": [
+        "msg:correction"
+      ],
+      "must_exclude_ids": [
+        "msg:old"
+      ]
+    },
+    {
+      "name": "foreign-goal-correction-excluded",
+      "query": "aws provider",
+      "channel": "ch1",
+      "goal_id": "goal-1",
+      "limit": 5,
+      "seed_chunks": [
+        {
+          "id": "msg:current",
+          "source_type": "message",
+          "source_id": "current",
+          "channel": "ch1",
+          "goal_id": "goal-1",
+          "is_correction": true,
+          "content": "use configured aws provider"
+        },
+        {
+          "id": "msg:foreign",
+          "source_type": "message",
+          "source_id": "foreign",
+          "channel": "ch1",
+          "goal_id": "goal-2",
+          "is_correction": true,
+          "content": "use legacy aws provider"
+        }
+      ],
+      "must_include_ids": [
+        "msg:current"
+      ],
+      "must_exclude_ids": [
+        "msg:foreign"
+      ]
+    },
+    {
+      "name": "channel-scope",
+      "query": "auth middleware JWT",
+      "channel": "ch1",
+      "limit": 5,
+      "seed_chunks": [
+        {
+          "id": "msg:ch1",
+          "source_type": "message",
+          "source_id": "ch1-msg",
+          "channel": "ch1",
+          "content": "auth middleware JWT for hub"
+        },
+        {
+          "id": "msg:ch2",
+          "source_type": "message",
+          "source_id": "ch2-msg",
+          "channel": "ch2",
+          "content": "auth middleware JWT for hub"
+        }
+      ],
+      "must_include_ids": [
+        "msg:ch1"
+      ],
+      "must_exclude_ids": [
+        "msg:ch2"
+      ]
+    },
+    {
+      "name": "exclude-tail-history",
+      "query": "auth middleware",
+      "channel": "ch1",
+      "exclude_message_ids": [
+        "new"
+      ],
+      "limit": 5,
+      "seed_chunks": [
+        {
+          "id": "msg:old",
+          "source_type": "message",
+          "source_id": "old",
+          "channel": "ch1",
+          "content": "auth middleware JWT"
+        },
+        {
+          "id": "msg:new",
+          "source_type": "message",
+          "source_id": "new",
+          "channel": "ch1",
+          "content": "auth middleware JWT thanks"
+        }
+      ],
+      "must_include_ids": [
+        "msg:old"
+      ],
+      "must_exclude_ids": [
+        "msg:new"
+      ]
+    },
+    {
+      "name": "correction-without-goal-still-ranks",
+      "query": "which aws provider should we use",
+      "channel": "ch1",
+      "limit": 5,
+      "seed_chunks": [
+        {
+          "id": "msg:old",
+          "source_type": "message",
+          "source_id": "old",
+          "channel": "ch1",
+          "content": "use terraform provider aws v3"
+        },
+        {
+          "id": "msg:correction",
+          "source_type": "message",
+          "source_id": "correction",
+          "channel": "ch1",
+          "is_correction": true,
+          "content": "correction: use configured aws provider from versions.tf"
+        }
+      ],
+      "must_include_ids": [
+        "msg:correction"
+      ],
+      "must_exclude_ids": []
+    },
+    {
+      "name": "long-plan-multi-chunk",
+      "query": "deployment canary lambda rollout steps",
+      "channel": "ch-collab",
+      "source_types": [
+        "collab_artifact"
+      ],
+      "limit": 5,
+      "seed_chunks": [
+        {
+          "id": "plan:0",
+          "source_type": "collab_artifact",
+          "source_id": "plan",
+          "channel": "ch-collab",
+          "rel_path": "collabs/c1/plan.md",
+          "content": "Step 1: prepare deployment canary for the lambda service with traffic split."
+        },
+        {
+          "id": "plan:1",
+          "source_type": "collab_artifact",
+          "source_id": "plan",
+          "channel": "ch-collab",
+          "rel_path": "collabs/c1/plan.md",
+          "content": "Step 2: monitor rollout metrics then promote the canary lambda to full traffic."
+        },
+        {
+          "id": "plan:2",
+          "source_type": "collab_artifact",
+          "source_id": "plan",
+          "channel": "ch-collab",
+          "rel_path": "collabs/c1/plan.md",
+          "content": "Step 3: document the lambda canary rollout outcome in session-summary."
+        }
+      ],
+      "must_include_ids": [
+        "plan:0",
+        "plan:1"
+      ],
+      "must_exclude_ids": []
+    },
+    {
+      "name": "session-summary-boost",
+      "query": "what was the final auth decision",
+      "channel": "ch-collab",
+      "limit": 3,
+      "seed_chunks": [
+        {
+          "id": "summary:auth",
+          "source_type": "collab_artifact",
+          "source_id": "summary",
+          "channel": "ch-collab",
+          "rel_path": "collabs/c1/session-summary.md",
+          "content": "Final auth decision: JWT for hub DMs; OAuth only for marketplace."
+        },
+        {
+          "id": "chat:auth",
+          "source_type": "message",
+          "source_id": "chat",
+          "channel": "ch-collab",
+          "content": "final auth decision JWT hub DMs sounds ok"
+        }
+      ],
+      "must_include_ids": [
+        "summary:auth"
+      ],
+      "must_exclude_ids": []
+    },
+    {
+      "name": "channel-isolation-noise",
+      "query": "quasarneedle deployment",
+      "channel": "ch-a",
+      "limit": 5,
+      "seed_chunks": [
+        {
+          "id": "a:hit",
+          "source_type": "message",
+          "source_id": "a",
+          "channel": "ch-a",
+          "content": "quasarneedle deployment approved for staging"
+        },
+        {
+          "id": "b:noise",
+          "source_type": "message",
+          "source_id": "b",
+          "channel": "ch-b",
+          "content": "quasarneedle deployment approved for staging"
+        }
+      ],
+      "must_include_ids": [
+        "a:hit"
+      ],
+      "must_exclude_ids": [
+        "b:noise"
+      ]
+    }
+  ]
+}

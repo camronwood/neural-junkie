@@ -256,6 +256,32 @@ Pack domain/recipient vocabulary is now an **OntologyRegistry** rebuilt from ena
 
 **Promotion decision (2026-07-29):** default bumped to `qwen3.5:9b` — candidate ≥0.90 and beats prior 3b baseline on the same corpus.
 
+### Conversation memory retrieval graduation
+
+Stamp graduation hardened *when* to retrieve; this loop hardens *what* comes back in `=== RELEVANT PAST CONTEXT ===` on the existing SQLite + Ollama stack (**no new vector DB**).
+
+1. Expand `scenarios/memory/retrieval-corpus.json` (must_include / must_exclude by chunk id)
+2. CI: `go test ./internal/memory/ -run TestRetrievalAgainstCorpus` / `make memory-retrieval-corpus` (deterministic; no Ollama)
+3. Fix ranking/indexing until corpus is green; keep smoke via `scripts/test-conversation-memory.sh`
+4. Live embeds: `make memory-eval` (`hit_rate ≥ 0.90`, `forbidden_hit_rate ≤ 0.05`; needs `nomic-embed-text`)
+
+**2026-07-30 retrieval progress**
+
+| Change | Status |
+|--------|--------|
+| Retrieval gold corpus + CI gate | Shipped (`scenarios/memory/retrieval-corpus.json`, 10 cases) |
+| Multi-chunk per source | Up to `MaxChunksPerSource` (3) fragments per message/artifact |
+| Collab artifact ranking | Boost `findings.md` / `plan.md` / summary paths |
+| Findings / collab backfill | Workspace `collabs/<id>/*.md` + assets `reviews/`/`collabs/`; `IndexReviewAssetPaths` picks up sibling `*.md` |
+| Chunk / inject polish | Sentence/paragraph soft boundaries; inject full scored chunk (budget truncates) |
+| Live embed eval | `make memory-eval` — `hit_rate ≥ 0.90`, `forbidden_hit_rate ≤ 0.05` |
+
+**Live scoreboard (memory retrieval)**
+
+| Model | hit_rate | forbidden_hit_rate | n | Artifact |
+|-------|----------|--------------------|---|----------|
+| `nomic-embed-text` | 1.000 | 0.000 | 10 | `docs/testing/memory-eval-2026-07-31-0009.json` |
+
 ## Preconditions
 
 - Ollama running with `qwen3.5:9b` for semantic classify (`ollama pull qwen3.5:9b`) and `qwen2.5:3b` for session summaries

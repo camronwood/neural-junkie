@@ -17,6 +17,9 @@ const (
 	DefaultChunkOverlap    = 80
 	DefaultSearchPrefilter = 200
 	DefaultRelevanceFloor  = 0.16
+	// MaxChunksPerSource caps how many fragments from one message/artifact can
+	// appear in a single retrieval result set (long findings/plan.md need >1).
+	MaxChunksPerSource = 3
 )
 
 // Chunk is a searchable unit stored in memory.db.

@@ -48,5 +48,21 @@ func initConversationMemory() {
 		return c.ID
 	})
 
-	memory.ScheduleBackfill(config.CollabAssetsRoot(appConfig))
+	var workspaceRoots []string
+	if chatHub != nil {
+		for _, c := range chatHub.GetCollaborationManager().Snapshot() {
+			if c == nil {
+				continue
+			}
+			if root := strings.TrimSpace(c.SourceRepoPath); root != "" {
+				workspaceRoots = append(workspaceRoots, root)
+			}
+		}
+		if fcm := chatHub.GetFileChangeManager(); fcm != nil {
+			if root := strings.TrimSpace(fcm.GetExecutor().GetWorkspaceRoot()); root != "" {
+				workspaceRoots = append(workspaceRoots, root)
+			}
+		}
+	}
+	memory.ScheduleBackfill(config.CollabAssetsRoot(appConfig), workspaceRoots...)
 }

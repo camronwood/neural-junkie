@@ -1,7 +1,10 @@
 package memory
 
 import (
+	"strings"
 	"testing"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -11,6 +14,23 @@ func TestChunkText_splitsLongContent(t *testing.T) {
 	parts := ChunkText(text, 100, 20)
 	if len(parts) < 2 {
 		t.Fatalf("expected multiple chunks, got %d", len(parts))
+	}
+}
+
+func TestChunkText_prefersSentenceBoundary(t *testing.T) {
+	text := strings.Repeat("alpha beta gamma. ", 40) + "FINAL_SENTENCE_MARKER ends here. " + strings.Repeat("noise word ", 40)
+	parts := ChunkText(text, 200, 40)
+	if len(parts) < 2 {
+		t.Fatalf("expected split, got %d", len(parts))
+	}
+	// First chunk should end near a sentence boundary, not mid-word.
+	first := strings.TrimSpace(parts[0])
+	lastRune, _ := utf8.DecodeLastRuneInString(first)
+	if lastRune != '.' && !unicode.IsSpace(lastRune) {
+		// softChunkEnd returns index after '.', so trimmed content should end with '.'
+		if !strings.HasSuffix(first, ".") {
+			t.Fatalf("expected sentence-boundary end, got %q", first[len(first)-20:])
+		}
 	}
 }
 

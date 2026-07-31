@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/camronwood/neural-junkie/internal/chatcontext"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -17,7 +19,8 @@ func ContentHash(content string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// ChunkText splits long text into overlapping chunks.
+// ChunkText splits long text into overlapping chunks, preferring paragraph and
+// sentence boundaries so mid-word / mid-sentence cuts are rare.
 func ChunkText(text string, chunkSize, overlap int) []string {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -38,6 +41,8 @@ func ChunkText(text string, chunkSize, overlap int) []string {
 		end := start + chunkSize
 		if end > len(text) {
 			end = len(text)
+		} else {
+			end = softChunkEnd(text, start, end)
 		}
 		part := strings.TrimSpace(text[start:end])
 		if part != "" {
@@ -50,9 +55,75 @@ func ChunkText(text string, chunkSize, overlap int) []string {
 		if next <= start {
 			next = end
 		}
+		// Prefer resuming at a boundary after the overlap rewind.
+		if next < len(text) {
+			next = softChunkStart(text, next, end)
+		}
 		start = next
 	}
 	return out
+}
+
+// softChunkEnd walks back from hardEnd within a window to a paragraph, sentence,
+// or whitespace boundary so chunks don't cut mid-sentence when possible.
+func softChunkEnd(text string, start, hardEnd int) int {
+	if hardEnd >= len(text) {
+		return len(text)
+	}
+	window := hardEnd - start
+	if window < 40 {
+		return hardEnd
+	}
+	minKeep := start + window*2/3
+	// Prefer paragraph break.
+	if i := strings.LastIndex(text[start:hardEnd], "\n\n"); i >= 0 && start+i+2 > minKeep {
+		return start + i + 2
+	}
+	// Prefer sentence end (.!?) followed by space/newline.
+	for i := hardEnd - 1; i > minKeep; i-- {
+		r, _ := utf8.DecodeRuneInString(text[i:])
+		if r != '.' && r != '!' && r != '?' {
+			continue
+		}
+		if i+1 >= hardEnd {
+			return hardEnd
+		}
+		next, _ := utf8.DecodeRuneInString(text[i+1:])
+		if unicode.IsSpace(next) {
+			return i + 1
+		}
+	}
+	// Prefer last whitespace.
+	for i := hardEnd - 1; i > minKeep; i-- {
+		r, size := utf8.DecodeLastRuneInString(text[:i+1])
+		if size <= 0 {
+			break
+		}
+		if unicode.IsSpace(r) {
+			return i + 1
+		}
+		i -= size - 1
+	}
+	return hardEnd
+}
+
+// softChunkStart advances from rewind toward hardEnd to the next line/sentence start.
+func softChunkStart(text string, rewind, hardEnd int) int {
+	if rewind <= 0 || rewind >= hardEnd {
+		return rewind
+	}
+	for i := rewind; i < hardEnd && i < len(text); i++ {
+		if text[i] == '\n' {
+			return i + 1
+		}
+	}
+	for i := rewind; i < hardEnd && i < len(text); i++ {
+		r, size := utf8.DecodeRuneInString(text[i:])
+		if unicode.IsSpace(r) {
+			return i + size
+		}
+	}
+	return rewind
 }
 
 // MessageChunks builds indexable chunks from a chat message.

@@ -99,9 +99,8 @@ func formatChunkLine(ch Chunk) string {
 			prefix = fmt.Sprintf("[%s] ", ch.SenderName)
 		}
 	}
+	// Inject the scored chunk body as-is; overall section budget is enforced by
+	// truncateEntryToBudget so we do not silently thin content below what ranked.
 	content := strings.TrimSpace(ch.Content)
-	if len(content) > 400 {
-		content = content[:400] + "…"
-	}
 	return prefix + content + "\n"
 }

@@ -1,4 +1,4 @@
-.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-transcript-metrics test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-preflight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads sync-sd-pack user-flow-scenario user-flow-scenarios user-flow-scenarios-list sut-loop sut-loop-once sut-loop-list sut-overnight semantic-eval semantic-eval-compare
+.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-transcript-metrics test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-preflight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy test-growth-loop test-growth-once test-growth-list check-catalog-downloads sync-sd-pack user-flow-scenario user-flow-scenarios user-flow-scenarios-list sut-loop sut-loop-once sut-loop-list sut-overnight semantic-eval semantic-eval-compare memory-retrieval-corpus memory-eval
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -75,6 +75,8 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  make gen-pack-capabilities             # regenerate TS capability tokens from JSON"
 	@echo "  make semantic-eval                     # live classify+policy corpus (needs Ollama)"
 	@echo "  make semantic-eval-compare             # 3b vs candidate model on same corpus"
+	@echo "  make memory-retrieval-corpus           # CI gold gate for conversation memory Search"
+	@echo "  make memory-eval                       # live embed retrieval corpus (needs Ollama)"
 
 test-regression-live: release-help
 
@@ -762,6 +764,21 @@ semantic-eval-compare: ## Compare BASE_MODEL (default prior 3b) vs MODEL (defaul
 	@echo "=== candidate $(or $(MODEL),qwen3.5:9b) ==="
 	@$(MAKE) semantic-eval MODEL=$(or $(MODEL),qwen3.5:9b) MIN_ACC=$(or $(MIN_ACC),0.0) MAX_MISSTAMP=$(or $(MAX_MISSTAMP),1.0)
 	@echo "Compare latest docs/testing/semantic-eval-*.json — promote only if candidate action_accuracy >= 0.90, misstamp_rate <= 0.05, and beats baseline on action_accuracy."
+
+memory-retrieval-corpus: ## CI gold gate for conversation memory Search (no Ollama)
+	@go test ./internal/memory/ -count=1 -run 'TestRetrievalAgainstCorpus$$' -timeout 2m -v
+
+memory-eval: ## Live embed retrieval corpus (Ollama). MIN_HIT=0.90 MAX_FORBIDDEN=0.05
+	@mkdir -p docs/testing
+	@stamp=$$(date -u +%Y-%m-%d-%H%M); \
+	out="docs/testing/memory-eval-$${stamp}.json"; \
+	echo "memory-eval → $$out (model=$${MODEL:-nomic-embed-text})"; \
+	NJ_RUN_LOCAL_MEMORY_EVAL=1 \
+	NJ_MEMORY_EVAL_OUT="$$out" \
+	$(if $(MODEL),NJ_MEMORY_EMBED_MODEL="$(MODEL)",) \
+	$(if $(MIN_HIT),NJ_MEMORY_EVAL_MIN_HIT="$(MIN_HIT)",) \
+	$(if $(MAX_FORBIDDEN),NJ_MEMORY_EVAL_MAX_FORBIDDEN="$(MAX_FORBIDDEN)",) \
+	go test ./internal/memory/ -count=1 -run 'TestLiveMemoryRetrievalEvaluation$$' -timeout 15m -v
 
 test-all: ## Run go vet, Go tests, desktop tsc, and Vitest (full CI-style)
 	@echo "🔍 go vet..."

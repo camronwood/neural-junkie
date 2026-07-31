@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"math"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -94,6 +95,9 @@ func Search(ctx context.Context, pctx PromptContext, limit int) ([]SearchResult,
 		if ch.IsCorrection {
 			score += 0.04
 		}
+		if boost := collabArtifactBoost(ch, pctx); boost > 0 {
+			score += boost
+		}
 		if score < DefaultRelevanceFloor {
 			continue
 		}
@@ -120,20 +124,42 @@ func Search(ctx context.Context, pctx PromptContext, limit int) ([]SearchResult,
 		return scored[i].Score > scored[j].Score
 	})
 	out := make([]SearchResult, 0, limit)
-	seenSources := make(map[string]bool)
+	sourceCounts := make(map[string]int)
 	for _, candidate := range scored {
 		ch := candidate.Item.Chunk
 		sourceKey := string(ch.SourceType) + "\x00" + ch.SourceID
-		if seenSources[sourceKey] || tooSimilarToSelected(ch.Content, out) {
+		if sourceCounts[sourceKey] >= MaxChunksPerSource || tooSimilarToSelected(ch.Content, out) {
 			continue
 		}
-		seenSources[sourceKey] = true
+		sourceCounts[sourceKey]++
 		out = append(out, candidate.Item)
 		if len(out) == limit {
 			break
 		}
 	}
 	return out, nil
+}
+
+// collabArtifactBoost lifts high-signal collab markdown (findings/plan/summaries)
+// when the knowledge plan asked for collab_artifact retrieval.
+func collabArtifactBoost(ch Chunk, pctx PromptContext) float64 {
+	if ch.SourceType != SourceCollabArtifact {
+		return 0
+	}
+	if len(pctx.SourceTypes) > 0 && !sourceTypeAllowSet(pctx.SourceTypes)[SourceCollabArtifact] {
+		return 0
+	}
+	base := strings.ToLower(filepath.Base(strings.TrimSpace(ch.RelPath)))
+	switch base {
+	case "findings.md":
+		return 0.14
+	case "plan.md", "planning-summary.md", "session-summary.md":
+		return 0.10
+	}
+	if strings.HasSuffix(base, "-summary.md") || strings.HasSuffix(base, "_summary.md") {
+		return 0.08
+	}
+	return 0
 }
 
 func recencyScore(now, created time.Time) float64 {

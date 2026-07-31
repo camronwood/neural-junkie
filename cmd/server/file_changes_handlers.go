@@ -12,6 +12,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/fileedit"
+	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -135,6 +136,7 @@ func handleProposeFileChangeFromMessage(w http.ResponseWriter, r *http.Request) 
 
 	fileChangeManager := chatHub.GetFileChangeManager()
 	fileChangeManager.GetExecutor().SetWorkspaceRoot(workspace.Path)
+	memory.ScheduleWorkspaceBackfill(workspace.Path)
 	change, err := fileChangeManager.ProposeFileChange(
 		filechange.FileOperationEdit,
 		targetPath,
