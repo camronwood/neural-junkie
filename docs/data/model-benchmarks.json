@@ -46,6 +46,7 @@
         "go-build-error-fix",
         "go-handler",
         "go-test-failure-repair",
+        "long-horizon-mid-session-correction",
         "plan-mode-no-write",
         "react-theme-multi-file",
         "react-theme-toggle",
@@ -66,23 +67,29 @@
       "chat_scenarios": [
         "already-said-closure",
         "cross-repo-ambient-scope",
-        "dm-architect-workspace",
         "dm-assistant-continue-after-closure",
+        "dm-assistant-trip-followup",
         "dm-backend-codebase-semantic",
         "dm-backend-deep-continuation",
         "dm-backend-echo-followup",
         "dm-backend-interject-resume",
         "dm-backend-workspace",
-        "dm-code-reviewer-workspace",
-        "dm-database-workspace",
+        "dm-bookwriter-conversation-metrics",
+        "dm-chat-mode-soft-followups",
+        "dm-correction-soft-followup",
+        "dm-durable-state-chat-isolation",
+        "dm-entity-second-option-followup",
+        "dm-frontend-conversation-metrics",
+        "dm-frontend-long-horizon-correction",
         "dm-frontend-workspace",
         "dm-ide-route-backend",
-        "dm-platform-workspace",
         "dm-safe-readonly-command",
-        "dm-security-workspace",
+        "dm-summary-continuity-long-horizon",
+        "dm-topic-continuity-same-thread",
         "dm-topic-switch",
         "public-backend-theme-workspace",
         "public-frontend-theme-continuation",
+        "public-multi-agent-long-horizon-entity",
         "thanks-closure"
       ]
     },
@@ -105,23 +112,29 @@
       "chat_scenarios": [
         "already-said-closure",
         "cross-repo-ambient-scope",
-        "dm-architect-workspace",
         "dm-assistant-continue-after-closure",
+        "dm-assistant-trip-followup",
         "dm-backend-codebase-semantic",
         "dm-backend-deep-continuation",
         "dm-backend-echo-followup",
         "dm-backend-interject-resume",
         "dm-backend-workspace",
-        "dm-code-reviewer-workspace",
-        "dm-database-workspace",
+        "dm-bookwriter-conversation-metrics",
+        "dm-chat-mode-soft-followups",
+        "dm-correction-soft-followup",
+        "dm-durable-state-chat-isolation",
+        "dm-entity-second-option-followup",
+        "dm-frontend-conversation-metrics",
+        "dm-frontend-long-horizon-correction",
         "dm-frontend-workspace",
         "dm-ide-route-backend",
-        "dm-platform-workspace",
         "dm-safe-readonly-command",
-        "dm-security-workspace",
+        "dm-summary-continuity-long-horizon",
+        "dm-topic-continuity-same-thread",
         "dm-topic-switch",
         "public-backend-theme-workspace",
         "public-frontend-theme-continuation",
+        "public-multi-agent-long-horizon-entity",
         "thanks-closure"
       ],
       "arena_scenarios": [
@@ -170,9 +183,889 @@
       "external_scenarios": [
         "humaneval-25"
       ]
+    },
+    "user-flows": {
+      "description": "Real-world product journeys (trip research, games, APIs, websites, boot fix) \u2014 full layer (~7 scenarios).",
+      "implement_scenarios": [],
+      "chat_scenarios": []
+    },
+    "user-flows-quick": {
+      "description": "Faster user-flow sample \u2014 trip research, Rust blackjack, Node CRUD, boot fix (no heavy website collabs).",
+      "implement_scenarios": [],
+      "chat_scenarios": []
     }
   },
   "runs": [
+    {
+      "id": "release-2026-07-31-0704",
+      "suite": "release",
+      "description": "Release gate \u2014 benchmark winners only (~10\u201320 min).",
+      "generated_at": "2026-07-31T07:04:32.206932+00:00",
+      "hub": "http://127.0.0.1:18765",
+      "hardware": {
+        "total_memory_gb": 24,
+        "total_memory_bytes": 25769803776,
+        "tier": "recommended"
+      },
+      "hardware_note": "24 GB RAM (recommended tier)",
+      "judge_provider": "ollama/qwen3.5:9b",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable. Optional soak twin \u2014 excluded from default implement --all.",
+          "tags": [
+            "implement",
+            "frontend",
+            "soak",
+            "optional"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "description": "Fix failing Go unit test in core/sample/math.go (verify loop). Optional soak twin \u2014 excluded from default implement --all.",
+          "tags": [
+            "implement",
+            "cursor-parity",
+            "go",
+            "verify",
+            "soak",
+            "optional"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "rules-constrained-implement",
+          "kind": "implement",
+          "description": "Implement theme toggle respecting .neural-junkie/rules.md constraints.",
+          "tags": [
+            "implement",
+            "cursor-parity",
+            "react",
+            "rules"
+          ],
+          "llm_judge": false,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "plan-mode-no-write",
+          "kind": "implement",
+          "description": "Plan composer mode produces structured plan without file edits.",
+          "tags": [
+            "implement",
+            "cursor-parity",
+            "plan"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug",
+            "canary"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression",
+            "canary"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "logic-set",
+          "kind": "arena",
+          "description": "Arena track scenario logic-set",
+          "llm_judge": false,
+          "tags": [
+            "arena"
+          ],
+          "target_agent": ""
+        }
+      ],
+      "implement_scenarios": [
+        "go-handler",
+        "theme-toggle",
+        "ask-mode-no-write",
+        "go-test-failure-repair",
+        "rules-constrained-implement",
+        "plan-mode-no-write"
+      ],
+      "chat_scenarios": [
+        "dm-backend-workspace",
+        "dm-backend-echo-followup"
+      ],
+      "collab_scenarios": [],
+      "arena_scenarios": [
+        "logic-set"
+      ],
+      "cad_scenarios": [],
+      "external_scenarios": [],
+      "results": [
+        {
+          "model_id": "qwen2.5-coder-14b",
+          "model_tag": "qwen2.5-coder:14b",
+          "title": "Qwen 2.5 Coder 14B",
+          "size_hint_gb": 9,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 23.814641792094335,
+              "detail": "=== PASS: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": 5,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "qwen2.5-coder:14b",
+                "actual_model": "qwen2.5-coder:14b",
+                "validation_failures": [
+                  "quality_gate_failure"
+                ],
+                "escalation_count": 1,
+                "escalation_reasons": [
+                  "quality_gate_failure"
+                ]
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "theme-toggle",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 15.911523208022118,
+              "detail": "=== PASS: theme-toggle ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": 5,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "qwen2.5-coder:14b",
+                "actual_model": "qwen2.5-coder:14b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "ask-mode-no-write",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 108.53889454202726,
+              "detail": "=== PASS: ask-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "qwen2.5-coder:14b",
+                "actual_model": "qwen2.5-coder:14b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "go-test-failure-repair",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 29.640162874944508,
+              "detail": "=== PASS: go-test-failure-repair ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": 5,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "qwen2.5-coder:14b",
+                "actual_model": "qwen2.5-coder:14b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "rules-constrained-implement",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 14.032828707946464,
+              "detail": "=== PASS: rules-constrained-implement ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": 5,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "qwen2.5-coder:14b",
+                "actual_model": "qwen2.5-coder:14b",
+                "validation_failures": [
+                  "implementation verification failed"
+                ],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "plan-mode-no-write",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 42.31372666708194,
+              "detail": "=== PASS: plan-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "qwen2.5-coder:14b",
+                "actual_model": "qwen2.5-coder:14b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "dm-backend-workspace",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 155.7000033748336,
+              "detail": "=== PASS: dm-backend-workspace ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "qwen2.5-coder:14b",
+                "actual_model": "qwen2.5-coder:14b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "dm-backend-echo-followup",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 120.37646029214375,
+              "detail": "=== PASS: dm-backend-echo-followup ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "qwen2.5-coder:14b",
+                "actual_model": "qwen2.5-coder:14b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "logic-set",
+              "kind": "arena",
+              "passed": true,
+              "duration_s": 42.4218213330023,
+              "detail": "PASS: kk-001 correct",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": null,
+                "eventual_pass": null,
+                "attempts": null,
+                "retry_count": null,
+                "retry_reasons": [],
+                "nudge_count": null,
+                "nudge_reasons": [],
+                "actual_provider": null,
+                "actual_model": null,
+                "validation_failures": [],
+                "escalation_count": null,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": true,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            }
+          ],
+          "switch_duration_s": 0.006144791841506958,
+          "total_duration_s": 573.2130867079832,
+          "passed_count": 9,
+          "total_count": 9,
+          "pass_rate": 1.0,
+          "pass_at_1_rate": 1.0,
+          "eventual_pass_rate": 1.0,
+          "structural_pass_rate": 1.0,
+          "quality_pass_rate": 0.0,
+          "composite_pass_rate": 1.0
+        },
+        {
+          "model_id": "gemma3-12b",
+          "model_tag": "gemma3:12b",
+          "title": "Gemma 3 12B",
+          "size_hint_gb": 8.1,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 26.101515917107463,
+              "detail": "=== PASS: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": 5,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "gemma3:12b",
+                "actual_model": "gemma3:12b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "theme-toggle",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 26.654373292112723,
+              "detail": "=== PASS: theme-toggle ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": 5,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "gemma3:12b",
+                "actual_model": "gemma3:12b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "ask-mode-no-write",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 107.64498641598038,
+              "detail": "=== PASS: ask-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "gemma3:12b",
+                "actual_model": "gemma3:12b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "go-test-failure-repair",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 28.105540459044278,
+              "detail": "=== PASS: go-test-failure-repair ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": 5,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "gemma3:12b",
+                "actual_model": "gemma3:12b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "rules-constrained-implement",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 13.666328541003168,
+              "detail": "=== PASS: rules-constrained-implement ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": 5,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "gemma3:12b",
+                "actual_model": "gemma3:12b",
+                "validation_failures": [
+                  "implementation verification failed"
+                ],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "plan-mode-no-write",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 33.3996921251528,
+              "detail": "=== PASS: plan-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "gemma3:12b",
+                "actual_model": "gemma3:12b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "dm-backend-workspace",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 104.27216749987565,
+              "detail": "=== PASS: dm-backend-workspace ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "gemma3:12b",
+                "actual_model": "gemma3:12b",
+                "validation_failures": [],
+                "escalation_count": 0,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "dm-backend-echo-followup",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 160.1664047499653,
+              "detail": "=== PASS: dm-backend-echo-followup ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": true,
+                "eventual_pass": true,
+                "attempts": 1,
+                "retry_count": 0,
+                "retry_reasons": [],
+                "nudge_count": 0,
+                "nudge_reasons": [],
+                "actual_provider": "gemma3:12b",
+                "actual_model": "gemma3:12b",
+                "validation_failures": [
+                  "quality_gate_failure"
+                ],
+                "escalation_count": 1,
+                "escalation_reasons": [
+                  "quality_gate_failure"
+                ]
+              },
+              "structural_passed": true,
+              "capability_passed": null,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            },
+            {
+              "name": "logic-set",
+              "kind": "arena",
+              "passed": true,
+              "duration_s": 30.612555084051564,
+              "detail": "PASS: kk-001 correct",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false,
+              "metrics": {
+                "prompt_tokens": null,
+                "completion_tokens": null,
+                "ttft_ms": null,
+                "tok_per_s": null,
+                "tool_calls": null,
+                "repair_attempts": null,
+                "wall_duration_s": null,
+                "cost_usd": null,
+                "passed_at_1": null,
+                "eventual_pass": null,
+                "attempts": null,
+                "retry_count": null,
+                "retry_reasons": [],
+                "nudge_count": null,
+                "nudge_reasons": [],
+                "actual_provider": null,
+                "actual_model": null,
+                "validation_failures": [],
+                "escalation_count": null,
+                "escalation_reasons": []
+              },
+              "structural_passed": true,
+              "capability_passed": true,
+              "quality_score": null,
+              "quality_passed": null,
+              "agent_efficiency": null
+            }
+          ],
+          "switch_duration_s": 0.00720604183152318,
+          "total_duration_s": 553.258560874965,
+          "passed_count": 9,
+          "total_count": 9,
+          "pass_rate": 1.0,
+          "pass_at_1_rate": 1.0,
+          "eventual_pass_rate": 1.0,
+          "structural_pass_rate": 1.0,
+          "quality_pass_rate": 0.0,
+          "composite_pass_rate": 1.0
+        }
+      ],
+      "source_file": "testing/model-benchmark-release-2026-07-31-0704.json"
+    },
     {
       "id": "release-2026-07-20-0336",
       "suite": "release",
@@ -15286,17 +16179,19 @@
       "judge_provider": "gemini"
     }
   ],
-  "updated_at": "2026-07-20T03:36:49.758680+00:00",
+  "updated_at": "2026-07-31T07:04:32.472933+00:00",
   "scenario_index": {
     "implement/app-wont-boot-fix-like": {
       "name": "app-wont-boot-fix-like",
       "kind": "implement",
-      "description": "Fix-like flow: vague boot failure triggers repro-first bootstrap and Makefile repair.",
+      "description": "Fix-like flow: vague boot failure triggers repro-first bootstrap and Makefile repair. Optional soak twin \u2014 excluded from default implement --all.",
       "tags": [
         "implement",
         "fix-like",
         "boot-fix",
-        "tauri"
+        "tauri",
+        "soak",
+        "optional"
       ],
       "llm_judge": false,
       "target_agent": "FrontendEngineer"
@@ -15364,11 +16259,13 @@
     "implement/go-build-error-fix": {
       "name": "go-build-error-fix",
       "kind": "implement",
-      "description": "Fix-like flow: Go test failure fixed via repro-first session (Multiply bug in math.go).",
+      "description": "Fix-like flow: Go test failure fixed via repro-first session (Multiply bug in math.go). Optional soak twin \u2014 excluded from default implement --all.",
       "tags": [
         "implement",
         "fix-like",
-        "go"
+        "go",
+        "soak",
+        "optional"
       ],
       "llm_judge": false,
       "target_agent": "BackendEngineer"
@@ -15388,14 +16285,29 @@
     "implement/go-test-failure-repair": {
       "name": "go-test-failure-repair",
       "kind": "implement",
-      "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+      "description": "Fix failing Go unit test in core/sample/math.go (verify loop). Optional soak twin \u2014 excluded from default implement --all.",
       "tags": [
         "implement",
         "cursor-parity",
         "go",
-        "verify"
+        "verify",
+        "soak",
+        "optional"
       ],
       "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "implement/long-horizon-mid-session-correction": {
+      "name": "long-horizon-mid-session-correction",
+      "kind": "implement",
+      "description": "Carry an implementation through a corrected target, prior-turn reference, and final verification request.",
+      "tags": [
+        "implement",
+        "long-horizon",
+        "correction",
+        "regression"
+      ],
+      "llm_judge": true,
       "target_agent": "BackendEngineer"
     },
     "implement/plan-mode-no-write": {
@@ -15413,11 +16325,13 @@
     "implement/react-theme-multi-file": {
       "name": "react-theme-multi-file",
       "kind": "implement",
-      "description": "Single prompt lands tailwind darkMode and App.tsx theme wiring without a go-ahead turn.",
+      "description": "Single prompt lands tailwind darkMode and App.tsx theme wiring without a go-ahead turn. Optional soak twin \u2014 excluded from default implement --all.",
       "tags": [
         "implement",
         "frontend",
-        "multi-file"
+        "multi-file",
+        "soak",
+        "optional"
       ],
       "llm_judge": false,
       "target_agent": "FrontendEngineer"
@@ -15425,11 +16339,13 @@
     "implement/react-theme-toggle": {
       "name": "react-theme-toggle",
       "kind": "implement",
-      "description": "Frontend implementation session adds darkMode to Tailwind on React fixture; rejects Vue paths.",
+      "description": "Frontend implementation session adds darkMode to Tailwind on React fixture; rejects Vue paths. Optional soak twin \u2014 excluded from default implement --all.",
       "tags": [
         "implement",
         "frontend",
-        "react"
+        "react",
+        "soak",
+        "optional"
       ],
       "llm_judge": true,
       "target_agent": "FrontendEngineer"
@@ -15463,13 +16379,15 @@
     "implement/tauri-make-start-all-best-of-k": {
       "name": "tauri-make-start-all-best-of-k",
       "kind": "implement",
-      "description": "Boot-fix with best-of-K exploration (ComPilot-style multi-run) for Makefile start-all repair.",
+      "description": "Boot-fix with best-of-K exploration (ComPilot-style multi-run) for Makefile start-all repair. Optional soak twin \u2014 excluded from default implement --all.",
       "tags": [
         "implement",
         "boot-fix",
         "tauri",
         "fix-loop",
-        "best-of-k"
+        "best-of-k",
+        "soak",
+        "optional"
       ],
       "llm_judge": false,
       "target_agent": "FrontendEngineer"
@@ -15490,10 +16408,12 @@
     "implement/theme-toggle": {
       "name": "theme-toggle",
       "kind": "implement",
-      "description": "Frontend implementation session asks for theme-related deliverable.",
+      "description": "Frontend implementation session asks for theme-related deliverable. Optional soak twin \u2014 excluded from default implement --all.",
       "tags": [
         "implement",
-        "frontend"
+        "frontend",
+        "soak",
+        "optional"
       ],
       "llm_judge": true,
       "target_agent": "FrontendEngineer"
@@ -15596,7 +16516,7 @@
         "dm",
         "architecture",
         "workspace",
-        "regression"
+        "soak"
       ],
       "llm_judge": false,
       "target_agent": "SoftwareArchitect"
@@ -15610,6 +16530,19 @@
         "assistant",
         "closure",
         "continuation",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "Assistant"
+    },
+    "chat/dm-assistant-trip-followup": {
+      "name": "dm-assistant-trip-followup",
+      "kind": "chat",
+      "description": "Assistant DM: trip plan \u2192 enable websearch \u2192 follow-up must stay on trip topic and never emit wrong_route / FrontendEngineer boot-fix.",
+      "tags": [
+        "dm",
+        "assistant",
+        "dialogue",
         "regression"
       ],
       "llm_judge": false,
@@ -15649,7 +16582,8 @@
         "dm",
         "backend",
         "echo",
-        "regression"
+        "regression",
+        "canary"
       ],
       "llm_judge": false,
       "target_agent": "BackendEngineer"
@@ -15662,7 +16596,8 @@
         "dm",
         "backend",
         "interject",
-        "regression"
+        "regression",
+        "canary"
       ],
       "llm_judge": false,
       "target_agent": "BackendEngineer"
@@ -15676,7 +16611,8 @@
         "backend",
         "workspace",
         "regression",
-        "debug"
+        "debug",
+        "canary"
       ],
       "llm_judge": false,
       "target_agent": "BackendEngineer"
@@ -15694,6 +16630,19 @@
       "llm_judge": false,
       "target_agent": "BiologyExpert"
     },
+    "chat/dm-bookwriter-conversation-metrics": {
+      "name": "dm-bookwriter-conversation-metrics",
+      "kind": "chat",
+      "description": "BookWriter recovers from code grounding and follows a cover request through to durable generated-image evidence.",
+      "tags": [
+        "dm",
+        "bookwriter",
+        "metrics",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "Books-Stories-BookWriter"
+    },
     "chat/dm-cad-greeting": {
       "name": "dm-cad-greeting",
       "kind": "chat",
@@ -15705,6 +16654,20 @@
       ],
       "llm_judge": false,
       "target_agent": "CADExpert"
+    },
+    "chat/dm-chat-mode-soft-followups": {
+      "name": "dm-chat-mode-soft-followups",
+      "kind": "chat",
+      "description": "Backend DM chat-mode opinion thread with soft follow-ups must not dump tools or promote to implement.",
+      "tags": [
+        "dm",
+        "backend",
+        "dialogue",
+        "regression",
+        "canary"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
     },
     "chat/dm-code-reviewer-task": {
       "name": "dm-code-reviewer-task",
@@ -15727,10 +16690,24 @@
         "dm",
         "code-review",
         "workspace",
-        "regression"
+        "soak"
       ],
       "llm_judge": false,
       "target_agent": "CodeReviewer"
+    },
+    "chat/dm-correction-soft-followup": {
+      "name": "dm-correction-soft-followup",
+      "kind": "chat",
+      "description": "Assistant DM: name two cities, correct the choice, then soft follow-up stays conversational answer.",
+      "tags": [
+        "dm",
+        "assistant",
+        "dialogue",
+        "continuity",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "Assistant"
     },
     "chat/dm-database-greeting": {
       "name": "dm-database-greeting",
@@ -15752,10 +16729,38 @@
         "dm",
         "database",
         "workspace",
-        "regression"
+        "soak"
       ],
       "llm_judge": false,
       "target_agent": "DatabaseSpecialist"
+    },
+    "chat/dm-durable-state-chat-isolation": {
+      "name": "dm-durable-state-chat-isolation",
+      "kind": "chat",
+      "description": "Code turn then casual chat opinion must not dump workspace/implement artifacts.",
+      "tags": [
+        "dm",
+        "backend",
+        "dialogue",
+        "regression",
+        "canary"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/dm-entity-second-option-followup": {
+      "name": "dm-entity-second-option-followup",
+      "kind": "chat",
+      "description": "Frontend DM: offer two UI options then soft 'second option' follow-up must retain the thread without ask_user/tools.",
+      "tags": [
+        "dm",
+        "frontend",
+        "dialogue",
+        "continuity",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
     },
     "chat/dm-frontend-code-task": {
       "name": "dm-frontend-code-task",
@@ -15766,6 +16771,19 @@
         "frontend",
         "task",
         "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "chat/dm-frontend-conversation-metrics": {
+      "name": "dm-frontend-conversation-metrics",
+      "kind": "chat",
+      "description": "FrontendEngineer answers a placement question and incorporates a corrected component name.",
+      "tags": [
+        "dm",
+        "frontend",
+        "metrics",
+        "regression"
       ],
       "llm_judge": false,
       "target_agent": "FrontendEngineer"
@@ -15782,6 +16800,20 @@
       "llm_judge": false,
       "target_agent": "FrontendEngineer"
     },
+    "chat/dm-frontend-long-horizon-correction": {
+      "name": "dm-frontend-long-horizon-correction",
+      "kind": "chat",
+      "description": "Retain an early UI constraint across correction, interruption, and prior-assistant reference turns.",
+      "tags": [
+        "dm",
+        "frontend",
+        "metrics",
+        "long-horizon",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
     "chat/dm-frontend-workspace": {
       "name": "dm-frontend-workspace",
       "kind": "chat",
@@ -15790,7 +16822,8 @@
         "dm",
         "frontend",
         "workspace",
-        "regression"
+        "regression",
+        "canary"
       ],
       "llm_judge": false,
       "target_agent": "FrontendEngineer"
@@ -15840,10 +16873,23 @@
         "dm",
         "devops",
         "workspace",
-        "regression"
+        "soak"
       ],
       "llm_judge": false,
       "target_agent": "PlatformEngineer"
+    },
+    "chat/dm-pronoun-followup-3turn": {
+      "name": "dm-pronoun-followup-3turn",
+      "kind": "chat",
+      "description": "Frontend DM: name ThemeSettings then anaphoric follow-up must retain the entity.",
+      "tags": [
+        "dm",
+        "frontend",
+        "dialogue",
+        "soak"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
     },
     "chat/dm-safe-readonly-command": {
       "name": "dm-safe-readonly-command",
@@ -15880,10 +16926,38 @@
         "dm",
         "security",
         "workspace",
-        "regression"
+        "soak"
       ],
       "llm_judge": false,
       "target_agent": "SecurityReviewer"
+    },
+    "chat/dm-summary-continuity-long-horizon": {
+      "name": "dm-summary-continuity-long-horizon",
+      "kind": "chat",
+      "description": "5+ turn Assistant chat: early constraint retained after enough turns for session summary.",
+      "tags": [
+        "dm",
+        "assistant",
+        "dialogue",
+        "long-horizon",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "Assistant"
+    },
+    "chat/dm-topic-continuity-same-thread": {
+      "name": "dm-topic-continuity-same-thread",
+      "kind": "chat",
+      "description": "Same-theme 4-turn chat without mode flips; must retain topic and not re-ask the opening question.",
+      "tags": [
+        "dm",
+        "assistant",
+        "dialogue",
+        "regression",
+        "canary"
+      ],
+      "llm_judge": false,
+      "target_agent": "Assistant"
     },
     "chat/dm-topic-switch": {
       "name": "dm-topic-switch",
@@ -15893,7 +16967,8 @@
         "dm",
         "backend",
         "topic-switch",
-        "regression"
+        "regression",
+        "canary"
       ],
       "llm_judge": false,
       "target_agent": "BackendEngineer"
@@ -15918,7 +16993,8 @@
         "public",
         "backend",
         "workspace",
-        "regression"
+        "regression",
+        "canary"
       ],
       "llm_judge": false,
       "target_agent": "BackendEngineer"
@@ -15932,6 +17008,33 @@
         "frontend",
         "workspace",
         "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "chat/public-multi-agent-long-horizon-entity": {
+      "name": "public-multi-agent-long-horizon-entity",
+      "kind": "chat",
+      "description": "Public multi-agent thread: Frontend then Backend retain ProjectOrion / DisplayPreferences across turns.",
+      "tags": [
+        "public",
+        "multi-agent",
+        "long-horizon",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "chat/semantic-turn-decision-cutover": {
+      "name": "semantic-turn-decision-cutover",
+      "kind": "chat",
+      "description": "Documents heuristic retirement: when hub stamps semantic_turn_decision, action/mutation/recipient come from the decision (optional assert if router is enabled).",
+      "tags": [
+        "dm",
+        "routing",
+        "semantic",
+        "cutover",
+        "optional"
       ],
       "llm_judge": false,
       "target_agent": "FrontendEngineer"
@@ -15957,7 +17060,8 @@
         "public",
         "assistant",
         "closure",
-        "regression"
+        "regression",
+        "canary"
       ],
       "llm_judge": false,
       "target_agent": ""
@@ -16058,7 +17162,9 @@
         "collab",
         "execution",
         "regression",
-        "website"
+        "website",
+        "soak",
+        "optional"
       ],
       "llm_judge": true,
       "target_agent": ""
@@ -16096,7 +17202,10 @@
       "name": "execute-deliverable",
       "kind": "collab",
       "description": "Approve plan, ack workspace on fixture repo; auto-approve writes findings.md grounded in minimal-repo; collab may auto-complete when work finishes, and /complete-collab verifies idempotent close to completed phase.",
-      "tags": [],
+      "tags": [
+        "soak",
+        "optional"
+      ],
       "llm_judge": true,
       "target_agent": ""
     },
@@ -16104,7 +17213,10 @@
       "name": "execution-no-stack-commands",
       "kind": "collab",
       "description": "Markdown deliverable execution must not surface docker-compose/npm/kubectl Run suggestions despite decoy stack files in the tree (f7518f88 + stack decoy regression).",
-      "tags": [],
+      "tags": [
+        "soak",
+        "optional"
+      ],
       "llm_judge": true,
       "target_agent": ""
     },
@@ -16116,7 +17228,9 @@
         "collab",
         "execution",
         "regression",
-        "website"
+        "website",
+        "soak",
+        "optional"
       ],
       "llm_judge": true,
       "target_agent": ""

@@ -6,6 +6,23 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.22] - 2026-07-31
+
+Semantic turn stamps graduated under dual-gate eval, continuity dialogue coverage grown, and conversation-memory retrieval tightened (findings/collab backfill + live embed gate).
+
+### Added
+- **Memory retrieval corpus + live eval** — `make memory-retrieval-corpus` and `make memory-eval` dual-gate retrieval quality (hit rate / forbidden hits) on SQLite + Ollama embeds.
+- **Findings/collab memory backfill** — index review and collab markdown into conversation memory so past findings surface in `=== RELEVANT PAST CONTEXT ===`.
+- **Continuity chat scenarios** — correction and entity “second option” soft-followup coverage (`continuity` tag).
+
+### Changed
+- **Semantic stamp policy** — reason-code / ontology graduation with hybrid policy; fewer brittle `LooksLike*` demotions when live dual-gate holds.
+- **Routing corpus** — expanded semantic intents for dialogue continuity and repo-fact / inspect edge cases.
+- **Chunk + inject polish** — softer sentence/paragraph chunk ends and fuller scored-chunk injection under budget.
+
+### Fixed
+- **Misstamp demotions** — continue-without-pending, empty-ambiguity ask_user, inspect-without-workspace, and related dialogue misroutes hardened in policy.
+
 ## [1.2.0-beta.21] - 2026-07-30
 
 First-run setup completion and beta auto-update checks on macOS/Windows installs.

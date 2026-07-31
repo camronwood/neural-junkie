@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.21">v1.2.0-beta.21</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.22">v1.2.0-beta.22</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.22">1.2.0-beta.22</a>
+      ·
       <a href="#v1.2.0-beta.21">1.2.0-beta.21</a>
       ·
       <a href="#v1.2.0-beta.20">1.2.0-beta.20</a>
@@ -231,6 +233,23 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1.2.0-beta.22" class="release-version-heading">1.2.0-beta.22 <span class="release-date">— 2026-07-31</span></h2>
+
+      <p><strong>Smarter turn stamps and better conversation memory.</strong> Semantic routing stamps graduate under dual-gate eval, continuity follow-ups hold corrections and “second option” threads, and past findings/collabs retrieve into relevant context without a new vector store. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.22">GitHub Releases</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Memory retrieval gates</strong> — corpus + live embed eval (<code>make memory-retrieval-corpus</code> / <code>make memory-eval</code>).</li>
+        <li><strong>Findings/collab backfill</strong> — review and collab markdown indexed for past-context retrieval.</li>
+        <li><strong>Continuity scenarios</strong> — correction and entity soft-followup coverage.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Stamp policy</strong> — reason-code / ontology graduation; fewer brittle text demotions when live dual-gate holds.</li>
+        <li><strong>Chunk/inject</strong> — softer boundaries and fuller scored-chunk injection under budget.</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.21" class="release-version-heading">1.2.0-beta.21 <span class="release-date">— 2026-07-30</span></h2>
 
       <p><strong>Setup wizard completion and beta auto-update checks fixed on installed builds.</strong> First-run setup now persists under hub auth, and beta installers check only the git-backed updater channel. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.21">GitHub Releases</a>.</p>
