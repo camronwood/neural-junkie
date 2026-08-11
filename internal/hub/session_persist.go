@@ -59,6 +59,7 @@ func slimMessageMetadataForPersist(md map[string]interface{}) {
 	slimWorkspaceContextMetadata(md)
 	slimLinkedWorkspacesMetadata(md)
 	slimGrantedHubDataAccessMetadata(md)
+	slimGrantedDeviceLocationMetadata(md)
 	delete(md, agent.MetadataAmbientState)
 	delete(md, "prompt_attachments")
 	delete(md, "user_images")
@@ -142,6 +143,28 @@ func slimLinkedWorkspacesMetadata(md map[string]interface{}) {
 		return
 	}
 	md[agent.MetadataLinkedWorkspaces] = trimmed
+}
+
+func slimGrantedDeviceLocationMetadata(md map[string]interface{}) {
+	raw, ok := md[agent.MetadataGrantedDeviceLocation]
+	if !ok || raw == nil {
+		return
+	}
+	root, ok := raw.(map[string]interface{})
+	if !ok {
+		delete(md, agent.MetadataGrantedDeviceLocation)
+		return
+	}
+	display, _ := root["display_name"].(string)
+	display = strings.TrimSpace(display)
+	if display == "" {
+		delete(md, agent.MetadataGrantedDeviceLocation)
+		return
+	}
+	md[agent.MetadataGrantedDeviceLocation] = map[string]interface{}{
+		"display_name": display,
+		"shared":       true,
+	}
 }
 
 func slimGrantedHubDataAccessMetadata(md map[string]interface{}) {

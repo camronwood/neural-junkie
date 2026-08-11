@@ -552,6 +552,10 @@ func attachPackToolGrantsToServer(mcpServer *server.MCPServer, agentName string)
 		mapsmcp.AttachGeocodeRouteTools(mcpServer)
 		attached = true
 	}
+	if packToolGrantedToAgent(agentName, "maps-location") {
+		mapsmcp.AttachLocateTool(mcpServer)
+		attached = true
+	}
 	if packToolGrantedToAgent(agentName, "web-browser") {
 		browser.AttachAutomationTools(mcpServer)
 		attached = true

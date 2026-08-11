@@ -151,6 +151,13 @@ func TestPrepareSessionSnapshotStripsWorkspaceContextBodies(t *testing.T) {
 				map[string]interface{}{"path": "last-session.json", "content": bigContent},
 			},
 		},
+		agent.MetadataGrantedDeviceLocation: map[string]interface{}{
+			"lat":          30.2672,
+			"lon":          -97.7431,
+			"accuracy_m":   12.0,
+			"display_name": "Austin, TX",
+			"shared":       true,
+		},
 	}
 	h.mu.Lock()
 	h.appendChannelMessageLocked(ch, msg)
@@ -191,6 +198,16 @@ func TestPrepareSessionSnapshotStripsWorkspaceContextBodies(t *testing.T) {
 	entry, _ := entries[0].(map[string]interface{})
 	if _, ok := entry["content"]; ok {
 		t.Fatal("granted hub data content should be stripped on persist")
+	}
+	loc, ok := md[agent.MetadataGrantedDeviceLocation].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected slim granted_device_location")
+	}
+	if _, ok := loc["lat"]; ok {
+		t.Fatal("precise lat must be stripped from persisted device location")
+	}
+	if loc["display_name"] != "Austin, TX" {
+		t.Fatalf("expected coarse place label, got %v", loc["display_name"])
 	}
 }
 

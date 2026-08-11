@@ -181,14 +181,17 @@ func messagesFromExchanges(exchanges []protocol.TurnContextExchange) []*protocol
 }
 
 func appendDurableConversationContext(prompt string, envelope protocol.TurnContextEnvelope, msg *protocol.Message) string {
-	if envelope.Goal == nil && len(envelope.Decisions) == 0 && len(envelope.UnresolvedActions) == 0 && len(envelope.Corrections) == 0 {
+	if envelope.Goal == nil && len(envelope.Decisions) == 0 && len(envelope.UnresolvedActions) == 0 &&
+		len(envelope.Corrections) == 0 && len(envelope.OpenQuestions) == 0 && len(envelope.NamedEntities) == 0 {
 		return prompt
 	}
 	chatMode := msg != nil && ConversationModeFromMessage(msg) == ConversationModeChat
 	includeWorkState := !chatMode ||
 		(msg != nil && (msg.ImplementationSession() || msg.IdeEditorModeIsExport()))
 	hasPinned := envelope.Goal != nil && strings.TrimSpace(envelope.Goal.PinnedText) != ""
-	if !includeWorkState && !hasPinned && len(envelope.Corrections) == 0 && len(envelope.SupersededMessageIDs) == 0 {
+	if !includeWorkState && !hasPinned && len(envelope.Corrections) == 0 &&
+		len(envelope.SupersededMessageIDs) == 0 && len(envelope.OpenQuestions) == 0 &&
+		len(envelope.NamedEntities) == 0 {
 		return prompt
 	}
 	var b strings.Builder
@@ -217,6 +220,20 @@ func appendDurableConversationContext(prompt string, envelope protocol.TurnConte
 			if superseded := supersededComponentName(envelope, target); superseded != "" {
 				fmt.Fprintf(&b, "Superseded name (do not use): %s\n", superseded)
 			}
+		}
+	}
+	if chatMode || includeWorkState {
+		for i, q := range envelope.OpenQuestions {
+			if i >= 4 {
+				break
+			}
+			fmt.Fprintf(&b, "Open question: %s\n", strings.TrimSpace(q.Text))
+		}
+		for i, e := range envelope.NamedEntities {
+			if i >= 8 {
+				break
+			}
+			fmt.Fprintf(&b, "Named entity: %s\n", strings.TrimSpace(e.Name))
 		}
 	}
 	if len(envelope.SupersededMessageIDs) > 0 {

@@ -77,6 +77,7 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  make semantic-eval-compare             # 3b vs candidate model on same corpus"
 	@echo "  make memory-retrieval-corpus           # CI gold gate for conversation memory Search"
 	@echo "  make memory-eval                       # live embed retrieval corpus (needs Ollama)"
+	@echo "  make surface-reliability               # stamp + memory + work-surface session scoreboard"
 
 test-regression-live: release-help
 
@@ -779,6 +780,11 @@ memory-eval: ## Live embed retrieval corpus (Ollama). MIN_HIT=0.90 MAX_FORBIDDEN
 	$(if $(MIN_HIT),NJ_MEMORY_EVAL_MIN_HIT="$(MIN_HIT)",) \
 	$(if $(MAX_FORBIDDEN),NJ_MEMORY_EVAL_MAX_FORBIDDEN="$(MAX_FORBIDDEN)",) \
 	go test ./internal/memory/ -count=1 -run 'TestLiveMemoryRetrievalEvaluation$$' -timeout 15m -v
+
+.PHONY: surface-reliability
+surface-reliability: ## Stamp + memory + work-surface chat gates → docs/testing/surface-reliability-*.md
+	@chmod +x scripts/surface-reliability-scoreboard.py
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/surface-reliability-scoreboard.py --hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"'
 
 test-all: ## Run go vet, Go tests, desktop tsc, and Vitest (full CI-style)
 	@echo "🔍 go vet..."

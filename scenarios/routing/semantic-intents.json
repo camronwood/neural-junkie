@@ -12,6 +12,12 @@
         "codebase"
       ],
       "policy_class": "workspace_fix",
+      "stamp_action": "debug",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "stamp_reason_codes": [
+        "startup_failure"
+      ],
       "want_actions": [
         "debug",
         "edit"
@@ -28,6 +34,12 @@
         "codebase"
       ],
       "policy_class": "workspace_fix",
+      "stamp_action": "debug",
+      "stamp_mutation": "workspace",
+      "stamp_interaction": "task",
+      "stamp_reason_codes": [
+        "startup_failure"
+      ],
       "want_actions": [
         "debug",
         "edit"
@@ -1053,6 +1065,61 @@
       "stamp_mutation": "none",
       "stamp_interaction": "task",
       "want_override_any": "implementation_plan_promote"
+    },
+    {
+      "name": "project-overview-answer-misstamp",
+      "text": "give me an overview of this repository",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ],
+      "want_override_any": "project_overview_inspect"
+    },
+    {
+      "name": "workspace-fix-answer-misstamp",
+      "text": "The app crashes on launch. Diagnose and repair it.",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "debug",
+      "want_mutation": "workspace",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "workspace_fix",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "startup_failure"
+      ],
+      "want_override_any": "workspace_fix_promote"
+    },
+    {
+      "name": "open-canvas-meta-artifact-misstamp",
+      "text": "is this canvas up to date?",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-3",
+      "open_artifact_renderer": "markdown",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "open_canvas_meta",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "task",
+      "stamp_reason_codes": [
+        "canvas_meta_question"
+      ],
+      "want_override_any": "open_canvas_meta_demote"
     }
   ]
 }

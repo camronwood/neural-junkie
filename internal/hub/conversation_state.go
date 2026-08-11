@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/turnledger"
 )
 
 // ChannelConversationState is durable, structured state for one channel.
@@ -16,6 +17,8 @@ type ChannelConversationState struct {
 	Actions                map[string]ConversationAction    `json:"actions,omitempty"`
 	Corrections            []ConversationCorrection         `json:"corrections,omitempty"`
 	SupersededInstructions map[string]SupersededInstruction `json:"superseded_instructions,omitempty"`
+	OpenQuestions          []ConversationOpenQuestion       `json:"open_questions,omitempty"`
+	NamedEntities          []ConversationNamedEntity        `json:"named_entities,omitempty"`
 	UpdatedAt              time.Time                        `json:"updated_at,omitempty"`
 }
 
@@ -63,6 +66,24 @@ type SupersededInstruction struct {
 	GoalID                string    `json:"goal_id,omitempty"`
 	SupersededAt          time.Time `json:"superseded_at"`
 }
+
+type ConversationOpenQuestion struct {
+	ID        string `json:"id"`
+	Text      string `json:"text,omitempty"`
+	GoalID    string `json:"goal_id,omitempty"`
+	MessageID string `json:"message_id,omitempty"`
+}
+
+type ConversationNamedEntity struct {
+	Name              string `json:"name"`
+	Kind              string `json:"kind,omitempty"`
+	LastSeenMessageID string `json:"last_seen_message_id,omitempty"`
+}
+
+const (
+	maxNamedEntities = 8
+	maxOpenQuestions = 4
+)
 
 func newChannelConversationState() *ChannelConversationState {
 	return &ChannelConversationState{
@@ -135,6 +156,8 @@ func (h *Hub) SetCurrentGoal(channel, goalID, messageID, text string) {
 			Text: text, PinnedText: pinnedText, UpdatedAt: now,
 		}
 	}
+	rememberEntitiesLocked(state, messageID, text)
+	rememberOpenQuestionLocked(state, goalID, messageID, text)
 	state.UpdatedAt = now
 	h.mu.Unlock()
 }
@@ -232,7 +255,22 @@ func (h *Hub) RecordConversationCorrection(channel, goalID, messageID, instructi
 		}
 	}
 	state.Corrections = append(state.Corrections, correction)
+	rememberEntitiesLocked(state, correction.MessageID, correction.Instruction)
 	state.UpdatedAt = now
+	h.mu.Unlock()
+}
+
+// RememberConversationSurface seeds named entities and open questions from a
+// user turn without requiring a new goal. Safe to call from the turn ledger path.
+func (h *Hub) RememberConversationSurface(channel, goalID, messageID, text string) {
+	if h == nil || strings.TrimSpace(channel) == "" || strings.TrimSpace(text) == "" {
+		return
+	}
+	h.mu.Lock()
+	state := h.conversationStateLocked(channel)
+	rememberEntitiesLocked(state, messageID, text)
+	rememberOpenQuestionLocked(state, goalID, messageID, text)
+	state.UpdatedAt = time.Now()
 	h.mu.Unlock()
 }
 
@@ -370,6 +408,16 @@ func (h *Hub) GetTurnConversationContext(channel string) protocol.TurnContextEnv
 		out.SupersededMessageIDs = append(out.SupersededMessageIDs, id)
 	}
 	sort.Strings(out.SupersededMessageIDs)
+	for _, q := range state.OpenQuestions {
+		out.OpenQuestions = append(out.OpenQuestions, protocol.TurnContextOpenQuestion{
+			ID: q.ID, Text: q.Text, GoalID: q.GoalID, MessageID: q.MessageID,
+		})
+	}
+	for _, e := range state.NamedEntities {
+		out.NamedEntities = append(out.NamedEntities, protocol.TurnContextNamedEntity{
+			Name: e.Name, Kind: e.Kind, LastSeenMessageID: e.LastSeenMessageID,
+		})
+	}
 	return out
 }
 
@@ -403,5 +451,77 @@ func cloneConversationState(state *ChannelConversationState) *ChannelConversatio
 	for key, value := range state.SupersededInstructions {
 		out.SupersededInstructions[key] = value
 	}
+	out.OpenQuestions = append([]ConversationOpenQuestion(nil), state.OpenQuestions...)
+	out.NamedEntities = append([]ConversationNamedEntity(nil), state.NamedEntities...)
 	return &out
+}
+
+func rememberEntitiesLocked(state *ChannelConversationState, messageID, text string) {
+	if state == nil {
+		return
+	}
+	for _, name := range turnledger.ExtractEntities(text) {
+		upsertNamedEntityLocked(state, name, "mention", messageID)
+	}
+}
+
+func upsertNamedEntityLocked(state *ChannelConversationState, name, kind, messageID string) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return
+	}
+	for i := range state.NamedEntities {
+		if strings.EqualFold(state.NamedEntities[i].Name, name) {
+			state.NamedEntities[i].LastSeenMessageID = strings.TrimSpace(messageID)
+			if kind != "" {
+				state.NamedEntities[i].Kind = kind
+			}
+			return
+		}
+	}
+	state.NamedEntities = append(state.NamedEntities, ConversationNamedEntity{
+		Name: name, Kind: kind, LastSeenMessageID: strings.TrimSpace(messageID),
+	})
+	if len(state.NamedEntities) > maxNamedEntities {
+		state.NamedEntities = state.NamedEntities[len(state.NamedEntities)-maxNamedEntities:]
+	}
+}
+
+func rememberOpenQuestionLocked(state *ChannelConversationState, goalID, messageID, text string) {
+	if state == nil || !looksLikeOpenQuestion(text) {
+		return
+	}
+	text = strings.TrimSpace(text)
+	for _, existing := range state.OpenQuestions {
+		if strings.EqualFold(existing.Text, text) || existing.MessageID == messageID {
+			return
+		}
+	}
+	id := strings.TrimSpace(messageID)
+	if id == "" {
+		id = "q-" + strings.ReplaceAll(strings.ToLower(text[:min(12, len(text))]), " ", "-")
+	}
+	state.OpenQuestions = append(state.OpenQuestions, ConversationOpenQuestion{
+		ID: id, Text: text, GoalID: strings.TrimSpace(goalID), MessageID: strings.TrimSpace(messageID),
+	})
+	if len(state.OpenQuestions) > maxOpenQuestions {
+		state.OpenQuestions = state.OpenQuestions[len(state.OpenQuestions)-maxOpenQuestions:]
+	}
+}
+
+func looksLikeOpenQuestion(text string) bool {
+	text = strings.TrimSpace(text)
+	if len(text) < 8 {
+		return false
+	}
+	lower := strings.ToLower(text)
+	if strings.Contains(text, "?") {
+		return true
+	}
+	for _, prefix := range []string{"should we ", "which ", "what about ", "do we still "} {
+		if strings.HasPrefix(lower, prefix) {
+			return true
+		}
+	}
+	return false
 }

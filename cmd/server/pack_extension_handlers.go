@@ -254,6 +254,10 @@ func handleCADRoute(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleMapsRoute(w http.ResponseWriter, r *http.Request) {
+	if isMapsLocationAPIPath(r.URL.Path) {
+		handleMapsLocationAPI(w, r)
+		return
+	}
 	if appConfig != nil && appConfig.RouteOwnerPackID("/api/maps") != "" {
 		handlePackExtensionRoute(w, r)
 		return

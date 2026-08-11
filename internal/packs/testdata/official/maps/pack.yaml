@@ -1,10 +1,11 @@
 id: maps
-version: "1.1.0"
+version: "1.2.0"
 title: Maps
-description: Geocode and walking/driving routes via OpenStreetMap (Nominatim + OSRM), interactive Neural Canvas maps — tools on Assistant when enabled.
+description: Geocode and walking/driving routes via OpenStreetMap (Nominatim + OSRM), interactive Neural Canvas maps, optional device location — tools on Assistant when enabled.
 layout_profile: team
 capabilities:
   - maps-tools
+  - maps-location
   - maps-sidecar
   - maps-canvas
 capability_defs:
@@ -20,6 +21,15 @@ capability_defs:
       - maps_route
       - maps_create
       - maps_update
+  maps-location:
+    kind: mcp-tools
+    label: Device location
+    description: Share this device's current location with the agent.
+    exposure: sensitive
+    mcp_agents:
+      - assistant
+    mcp_tools:
+      - maps_locate
   maps-sidecar:
     kind: hub-sidecar
     routes:

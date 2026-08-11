@@ -16,8 +16,9 @@ const (
 	// MetadataHubSessionUsername is the authenticated hub session display name (may differ from msg.From.Name).
 	MetadataHubSessionUsername   = "hub_session_username"
 	MetadataPromptAttachments    = "prompt_attachments"
-	MetadataGrantedHubDataAccess = "granted_hub_data_access"
-	MetadataContextScope         = "context_scope"
+	MetadataGrantedHubDataAccess  = "granted_hub_data_access"
+	MetadataGrantedDeviceLocation = "granted_device_location"
+	MetadataContextScope          = "context_scope"
 	MetadataContextScopeReason   = "context_scope_reason"
 	// MetadataLinkedWorkspaces is additional repo roots in scope (see workspace_scope.go).
 	MetadataLinkedWorkspaces = "linked_workspaces"
@@ -292,4 +293,69 @@ func AppendGrantedHubDataAccess(prompt *strings.Builder, msg *protocol.Message) 
 	}
 	prompt.WriteString("=== END GRANTED HUB DATA ACCESS ===\n\n")
 	return loaded
+}
+
+// AppendGrantedDeviceLocation injects a user-shared device location for this turn.
+func AppendGrantedDeviceLocation(prompt *strings.Builder, msg *protocol.Message) int {
+	if msg == nil || msg.Metadata == nil {
+		return 0
+	}
+	raw, ok := msg.Metadata[MetadataGrantedDeviceLocation]
+	if !ok || raw == nil {
+		return 0
+	}
+	root, _ := raw.(map[string]interface{})
+	if root == nil {
+		return 0
+	}
+	lat, hasLat := asPromptFloat(root["lat"])
+	lon, hasLon := asPromptFloat(root["lon"])
+	if !hasLat || !hasLon {
+		return 0
+	}
+	display, _ := root["display_name"].(string)
+	display = strings.TrimSpace(display)
+	accuracy, _ := asPromptFloat(root["accuracy_m"])
+	age, _ := asPromptFloat(root["age_s"])
+	source, _ := root["source"].(string)
+
+	prompt.WriteString("\n=== GRANTED DEVICE LOCATION ===\n")
+	prompt.WriteString("The user explicitly shared this device's current location for this session.\n")
+	prompt.WriteString("Treat it as authoritative for \"near me\", \"from here\", and local results.\n")
+	prompt.WriteString("Rewrite web_search queries with the place name (do not search only \"near me\").\n")
+	prompt.WriteString("Use these coordinates for maps_route / maps_geocode near-bias. Call maps_locate only if you need a fresher reading.\n")
+	prompt.WriteString("Never invent coordinates. Do not store this location in artifacts unless the user asked for a map of here.\n")
+	if display != "" {
+		prompt.WriteString(fmt.Sprintf("Place: %s\n", display))
+	}
+	prompt.WriteString(fmt.Sprintf("Coordinates: %.6f, %.6f\n", lat, lon))
+	if accuracy > 0 {
+		prompt.WriteString(fmt.Sprintf("Accuracy: %.0f m\n", accuracy))
+	}
+	if age > 0 {
+		prompt.WriteString(fmt.Sprintf("Age: %.0f s\n", age))
+	}
+	if strings.TrimSpace(source) != "" {
+		prompt.WriteString(fmt.Sprintf("Source: %s\n", strings.TrimSpace(source)))
+	}
+	prompt.WriteString("=== END GRANTED DEVICE LOCATION ===\n\n")
+	return 1
+}
+
+func asPromptFloat(v interface{}) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case json.Number:
+		f, err := n.Float64()
+		return f, err == nil
+	default:
+		return 0, false
+	}
 }

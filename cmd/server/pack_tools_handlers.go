@@ -13,6 +13,7 @@ import (
 
 var assignablePackToolCapabilityIDs = []string{
 	"maps-tools",
+	"maps-location",
 	"web-browser",
 	"music-generation",
 }
@@ -148,6 +149,8 @@ func packCapabilityGrantAvailable(cfg *config.Config, id string) bool {
 	switch strings.ToLower(strings.TrimSpace(id)) {
 	case "maps-tools":
 		return cfg.IsPackEnabled(config.PackMaps) || cfg.HasPackCapability("maps-tools")
+	case "maps-location":
+		return cfg.IsPackEnabled(config.PackMaps) || cfg.HasPackCapability("maps-location")
 	case "web-browser":
 		return cfg.IsPackEnabled(config.PackWebBrowser) || cfg.HasPackCapability("web-browser")
 	case "music-generation":
@@ -161,6 +164,8 @@ func packToolCapabilityLabel(id string) string {
 	switch id {
 	case "maps-tools":
 		return "Maps tools"
+	case "maps-location":
+		return "Device location"
 	case "web-browser":
 		return "Web browser automation"
 	case "music-generation":

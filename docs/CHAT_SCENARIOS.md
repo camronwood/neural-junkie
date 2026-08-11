@@ -67,6 +67,9 @@ Environment: `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
 | `dm-entity-second-option-followup` | DM | FrontendEngineer | dm, frontend, dialogue, continuity, regression |
 | `dm-topic-continuity-same-thread` | DM | Assistant | dm, assistant, dialogue, regression |
 | `dm-summary-continuity-long-horizon` | DM | Assistant | dm, assistant, dialogue, long-horizon, regression |
+| `dm-work-surface-mid-session-correction` | DM | Assistant | dm, assistant, long-horizon, work-surface, regression |
+| `dm-work-surface-plan-stickiness` | DM | FrontendEngineer | dm, frontend, long-horizon, work-surface, regression |
+| `dm-work-surface-entity-topic-switch` | DM | FrontendEngineer | dm, frontend, long-horizon, work-surface, regression |
 | `dm-durable-state-chat-isolation` | DM | BackendEngineer | dm, backend, dialogue, regression |
 | `dm-backend-interject-resume` | DM | BackendEngineer | dm, backend, interject, regression |
 | `dm-frontend-greeting` | DM | FrontendEngineer | dm, frontend, greeting |
@@ -100,6 +103,10 @@ These cover the conversation bugs we hit in production chat:
   - **`dm-topic-continuity-same-thread`** — 4-turn same theme retention
   - **`dm-summary-continuity-long-horizon`** — early constraint survives past summary refresh
   - **`dm-durable-state-chat-isolation`** — code turn then chat opinion without implement dumps
+- **Work surface** (`tags: work-surface`) — long-horizon retain/correct/stick pack for `make surface-reliability`:
+  - **`dm-work-surface-mid-session-correction`** — page-count constraint survives a genre correction
+  - **`dm-work-surface-plan-stickiness`** — AppearanceToggle plan does not revive a rejected segmented control
+  - **`dm-work-surface-entity-topic-switch`** — DisplayPreferences survives a topic switch
 
 ```bash
 make chat-scenarios-regression

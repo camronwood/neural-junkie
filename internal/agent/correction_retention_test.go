@@ -60,6 +60,23 @@ func TestValidateActiveCorrectionsHonored(t *testing.T) {
 	}
 }
 
+func TestValidateActiveCorrectionsHonored_pinnedGoalToken(t *testing.T) {
+	envelope := protocol.TurnContextEnvelope{
+		Goal: &protocol.TurnContextGoal{
+			PinnedText: "Ship ThemeSettings under Appearance.",
+			Text:       "Ship ThemeSettings under Appearance.",
+		},
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{Name: "u"},
+		"summarize the final design after the correction.")
+	if issues := validateActiveCorrectionsHonored(envelope, msg, "Final design keeps ThemeSettings."); len(issues) != 0 {
+		t.Fatalf("expected pass when pinned token present, got %v", issues)
+	}
+	if issues := validateActiveCorrectionsHonored(envelope, msg, "Final design is a generic settings page."); len(issues) == 0 {
+		t.Fatal("expected correction_ignored when pinned ThemeSettings dropped")
+	}
+}
+
 func TestAppendDurableConversationContext_renameBanner(t *testing.T) {
 	envelope := protocol.TurnContextEnvelope{
 		Goal: &protocol.TurnContextGoal{Text: "call the component ThemeSettings"},

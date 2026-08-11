@@ -1,0 +1,9 @@
+{
+  "fails": null,
+  "forbidden_hit_count": 0,
+  "forbidden_hit_rate": 0,
+  "hit_cases": 13,
+  "hit_rate": 1,
+  "model": "nomic-embed-text",
+  "n": 13
+}

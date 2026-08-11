@@ -60,7 +60,7 @@ When these domain packs are enabled, Assistant gains their tools directly (no se
 
 | Pack | Tools |
 |------|--------|
-| **Maps** | `maps_geocode`, `maps_route`, `maps_create`, `maps_update` + Neural Canvas maps |
+| **Maps** | `maps_geocode`, `maps_route`, `maps_create`, `maps_update` + Neural Canvas maps. Device location (`maps_locate`, session share) is a separate sensitive grant. |
 | **Music creation** | `generate_music`, stems (hub-native) |
 | **Web browser** | Playwright `browser_*` automation (web_search / fetch_url are always available when web search is configured) |
 

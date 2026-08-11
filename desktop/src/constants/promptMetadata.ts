@@ -3,6 +3,8 @@ export const USER_RULES_METADATA_KEY = 'user_rules_markdown';
 export const PROMPT_ATTACHMENTS_METADATA_KEY = 'prompt_attachments';
 /** User-approved read of ~/.neural-junkie files/directories for this message only */
 export const GRANTED_HUB_DATA_ACCESS_KEY = 'granted_hub_data_access';
+/** User-shared device location for this session (precise coords; slimmed on persist) */
+export const GRANTED_DEVICE_LOCATION_KEY = 'granted_device_location';
 /** Canonical multimodal image array on outbound messages */
 export const USER_IMAGES_METADATA_KEY = 'user_images';
 /** Tiered workspace attachment: none | hint | outline | focus | full */

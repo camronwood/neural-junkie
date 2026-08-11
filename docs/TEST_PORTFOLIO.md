@@ -87,6 +87,7 @@ Keep one representative; demote twins with `"optional": true` and/or tag `soak` 
 | `memory-retrieval-corpus` | CI gold gate for conversation memory `Search` (`scenarios/memory/retrieval-corpus.json`) |
 | `memory-eval` | Live embed retrieval dual gate (`hit_rate ≥ 0.90`, `forbidden_hit_rate ≤ 0.05`; needs Ollama `nomic-embed-text`) |
 | Scoreboard | Latest JSON under `docs/testing/semantic-eval-*.json` and `docs/testing/memory-eval-*.json`; see [CONTEXT_MODEL.md](CONTEXT_MODEL.md) |
+| `surface-reliability` | Combined ship bar: semantic-eval + memory-eval + `--tag work-surface` chat; writes `docs/testing/surface-reliability-*.json` |
 
 ## Related
 

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "kind": "surface_reliability",
+  "stamp": "2026-08-11-1544",
+  "overall": "FAIL",
+  "gates": [
+    {
+      "name": "stamp",
+      "ok": true,
+      "action_accuracy": 0.958904109589041,
+      "misstamp_rate": 0.0273972602739726,
+      "bar": "action>=0.9 misstamp<=0.05"
+    },
+    {
+      "name": "memory",
+      "ok": true,
+      "hit_rate": 1.0,
+      "forbidden_hit_rate": 0.0,
+      "bar": "hit>=0.9 forbidden<=0.05"
+    },
+    {
+      "name": "session",
+      "ok": false,
+      "passed": [
+        "dm-work-surface-entity-topic-switch",
+        "dm-work-surface-mid-session-correction",
+        "dm-work-surface-plan-stickiness"
+      ],
+      "failed": [
+        "dm-work-surface-plan-stickiness"
+      ],
+      "exit_code": 0,
+      "bar": "all work-surface scenarios PASS @1"
+    }
+  ],
+  "artifacts": {
+    "semantic_eval": "docs/testing/semantic-eval-2026-08-11-1544.json",
+    "memory_eval": "docs/testing/memory-eval-2026-08-11-1544.json",
+    "session_log": "docs/testing/work-surface-2026-08-11-1544.log"
+  }
+}

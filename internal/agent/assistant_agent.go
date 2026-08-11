@@ -366,6 +366,7 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 
 	AppendPromptAttachments(&prompt, msg)
 	AppendGrantedHubDataAccess(&prompt, msg)
+	AppendGrantedDeviceLocation(&prompt, msg)
 
 	if userAsksAboutPromptContext(msg.Content) {
 		prompt.WriteString("\nThe user is asking what context or metadata you received for this turn. ")
@@ -1499,6 +1500,7 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 
 	AppendPromptAttachments(&prompt, msg)
 	AppendGrantedHubDataAccess(&prompt, msg)
+	AppendGrantedDeviceLocation(&prompt, msg)
 
 	prompt.WriteString(fmt.Sprintf("User message from %s:\n%s\n\n", msg.From.Name, msg.Content))
 	prompt.WriteString("Provide a helpful response based on the meeting information:")

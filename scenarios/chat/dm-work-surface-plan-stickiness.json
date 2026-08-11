@@ -1,0 +1,63 @@
+{
+  "name": "dm-work-surface-plan-stickiness",
+  "description": "Work-surface: plan a small UI change then stick to it without reviving a rejected approach.",
+  "tags": ["dm", "frontend", "long-horizon", "work-surface", "regression"],
+  "evaluation": {"long_horizon": true, "min_user_turns": 4},
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "We need a dark-mode control. Plan it first: prefer a single toggle in Appearance, not a three-way segmented control.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s"},
+    {
+      "action": "send",
+      "content": "Good. Sketch that plan in the reply as a concrete component named AppearanceToggle — describe the single toggle only, no files and no repo edits.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s"},
+    {
+      "action": "send",
+      "content": "Correction: keep AppearanceToggle and the single toggle. Do not switch back to a segmented control.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s"},
+    {
+      "action": "send",
+      "content": "Continue from that and summarize the final approach after the correction. Keep the component name AppearanceToggle and the single toggle in Appearance.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s"},
+    {
+      "action": "assert_transcript_metrics",
+      "cases": [
+        {
+          "metric": "instruction_retention",
+          "user_match": "AppearanceToggle",
+          "after_user_match": "Continue from that",
+          "assistant_match": "AppearanceToggle"
+        },
+        {
+          "metric": "correction_recovery",
+          "user_match": "Correction",
+          "assistant_match": "(?i)toggle"
+        },
+        {
+          "metric": "stale_plan",
+          "user_match": "Correction",
+          "stale_match": "(?i)(switch(?:ing)? back to|revert(?:ing)? to|use a three-way|using a three-way) segmented"
+        }
+      ],
+      "thresholds": {
+        "instruction_retention_rate": 1.0,
+        "correction_recovery_rate": 1.0,
+        "stale_plan_rate": 0.0
+      }
+    }
+  ],
+  "cleanup": "clear"
+}

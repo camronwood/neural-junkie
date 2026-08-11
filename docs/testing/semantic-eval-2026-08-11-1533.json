@@ -1,0 +1,72 @@
+{
+  "abstention_count": 1,
+  "abstention_rate": 0.0136986301369863,
+  "action_accuracy": 0.9452054794520548,
+  "committed_action_accuracy": 0.9583333333333334,
+  "committed_full_accuracy": 0.9583333333333334,
+  "fails": [
+    {
+      "Name": "startup-failure-repair",
+      "PolicyClass": "workspace_fix",
+      "GotAction": "answer",
+      "WantAction": "debug",
+      "GotMutation": "none",
+      "WantMutation": "workspace",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "context deadline exceeded"
+    },
+    {
+      "Name": "open-canvas-status-q",
+      "PolicyClass": "open_canvas_meta",
+      "GotAction": "artifact",
+      "WantAction": "answer",
+      "GotMutation": "external",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "open_canvas_artifact"
+      ],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "open-canvas-title-q",
+      "PolicyClass": "open_canvas_meta",
+      "GotAction": "artifact",
+      "WantAction": "answer",
+      "GotMutation": "external",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "open_canvas_artifact"
+      ],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "topic-switch",
+      "PolicyClass": "dialogue_followup",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    }
+  ],
+  "full_accuracy": 0.9452054794520548,
+  "misstamp_count": 3,
+  "misstamp_rate": 0.0410958904109589,
+  "model": "qwen3.5:9b",
+  "n": 73,
+  "n_committed": 72,
+  "source_counts": {
+    "local_model": 72,
+    "safe_fallback": 1
+  },
+  "structural_miss_count": 0
+}

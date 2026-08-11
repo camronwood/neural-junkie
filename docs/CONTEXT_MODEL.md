@@ -230,7 +230,7 @@ The primary policy signal is **reason_codes** (+ gold `stamp_*`); **`LooksLike*`
 | Class | Status |
 |-------|--------|
 | open-canvas revise/fill | Graduated to `open_artifact_*` (unchanged) |
-| workspace_fix / project_overview / git_inspect / open_canvas_meta | Reason codes + gold stamps in corpus; `LooksLike*` retained as fallback |
+| workspace_fix / project_overview / git_inspect / open_canvas_meta | Graduated: reason codes only; positive `LooksLike*` promote removed |
 | canvas create | Gold `stamp_action=artifact` + deliverable reason codes; text corroboration still used for spray demote |
 | spurious canvas demote | Kept text negative gates (spray safety) |
 | dialogue soft-followup / closure ask_user spray | Policy demotes `continue` without pending → answer; empty-ambiguity `ask_user` → answer (incl. correction) |
@@ -251,6 +251,8 @@ Pack domain/recipient vocabulary is now an **OntologyRegistry** rebuilt from ena
 | `qwen3.5:9b` (low misstamp / timeout-heavy) | 0.887 | 0.887 | 0.113 | 0.000 | 62 | `docs/testing/semantic-eval-2026-07-30-1900.json` |
 | `qwen3.5:9b` (dialogue + repo_fact harden) | 0.984 | 0.984 | 0.000 | 0.016 | 62 | `docs/testing/semantic-eval-2026-07-30-2328.json` |
 | `qwen3.5:9b` (dual-gate pass / load abstentions) | 0.903 | 0.903 | 0.097 | 0.000 | 62 | `docs/testing/semantic-eval-2026-07-30-2337.json` |
+| `qwen3.5:9b` (LooksLike graduate 4 classes) | 0.945 | 0.945 | 0.014 | 0.041 | 73 | `docs/testing/semantic-eval-2026-08-11-1533.json` |
+| `qwen3.5:9b` (scoreboard stamp gate) | 0.959 | 0.959 | 0.014 | 0.027 | 73 | `docs/testing/semantic-eval-2026-08-11-1544.json` |
 
 **Metric split:** `misstamp` = confident wrong `local_model` end decision (dangerous). `abstention` = `safe_fallback` (often classifier timeout). Promote when `action_accuracy ≥ 0.90` **and** `misstamp_rate ≤ 0.05`. Per-case misses are logged as diagnostics; the dual gate is the hard ship bar. Under Ollama load, abstentions can dominate `action_accuracy` even when `committed_action_accuracy` is near 1.0 — use both rates when comparing.
 
@@ -269,7 +271,7 @@ Stamp graduation hardened *when* to retrieve; this loop hardens *what* comes bac
 
 | Change | Status |
 |--------|--------|
-| Retrieval gold corpus + CI gate | Shipped (`scenarios/memory/retrieval-corpus.json`, 10 cases) |
+| Retrieval gold corpus + CI gate | Shipped (`scenarios/memory/retrieval-corpus.json`, 13 cases incl. work-session must_exclude) |
 | Multi-chunk per source | Up to `MaxChunksPerSource` (3) fragments per message/artifact |
 | Collab artifact ranking | Boost `findings.md` / `plan.md` / summary paths |
 | Findings / collab backfill | Workspace `collabs/<id>/*.md` + assets `reviews/`/`collabs/`; `IndexReviewAssetPaths` picks up sibling `*.md` |
@@ -281,6 +283,19 @@ Stamp graduation hardened *when* to retrieve; this loop hardens *what* comes bac
 | Model | hit_rate | forbidden_hit_rate | n | Artifact |
 |-------|----------|--------------------|---|----------|
 | `nomic-embed-text` | 1.000 | 0.000 | 10 | `docs/testing/memory-eval-2026-07-31-0009.json` |
+| `nomic-embed-text` (work-session cases) | 1.000 | 0.000 | 13 | `docs/testing/memory-eval-2026-08-11-1544.json` |
+
+### Surface reliability scoreboard
+
+`make surface-reliability` runs the three live gates and writes `docs/testing/surface-reliability-YYYY-MM-DD-HHMM.json` (+ `.md`):
+
+| Gate | Source | Pass bar |
+|------|--------|----------|
+| Stamp | `make semantic-eval` | action ≥ 0.90, misstamp ≤ 0.05 |
+| Memory | `make memory-eval` | hit ≥ 0.90, forbidden ≤ 0.05 |
+| Session | `chat-scenarios.py --all --tag work-surface` | all PASS @1 |
+
+Overall PASS only when every gate passes. Latest: `docs/testing/surface-reliability-2026-08-11-1625.json` (stamp 0.959/0.027, memory 1.000/0.000, work-surface 3/3 @1). Durable conversation state injects open questions and named entities under `=== DURABLE CONVERSATION STATE ===` (chat mode keeps those overlays while still omitting stale implement goals/actions).
 
 ## Preconditions
 

@@ -60,7 +60,8 @@
       "ollama/**/*"
     ],
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": "-",
+      "infoPlist": "Info.plist"
     }
   },
   "plugins": {

@@ -218,16 +218,14 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	}
 
 	// Open Neural Canvas in-channel: revisions stay artifact (external), not workspace edit.
-	// Structural — driven by open_artifact_* features. Meta questions prefer classifier
-	// reason codes; LooksLike* remains a live fallback until meta stamps are reliable.
+	// Structural — driven by open_artifact_* features. Meta questions graduate on
+	// classifier reason codes (LooksLike* status/title promote removed).
 	hasOpenCanvas := strings.TrimSpace(features.OpenArtifactID) != "" ||
 		strings.TrimSpace(features.OpenArtifactRenderer) != ""
 	metaCanvasQ := hasOpenCanvas &&
 		!LooksLikeCanvasRenameAsk(features.Text) &&
 		!LooksLikeOpenCanvasFillAsk(features.Text) &&
-		(hasMetaCanvasReasonCode(decision.ReasonCodes) ||
-			LooksLikeCanvasStatusQuestion(features.Text) ||
-			LooksLikeCanvasTitleQuestion(features.Text))
+		hasMetaCanvasReasonCode(decision.ReasonCodes)
 	if hasOpenCanvas && features.ExplicitAction == "" &&
 		strings.ToLower(strings.TrimSpace(features.ComposerMode)) != "export" &&
 		!pendingActionBlocksCanvasPromote(features) {
@@ -342,11 +340,11 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		decision.PolicyOverrides = append(decision.PolicyOverrides, "spurious_canvas_ask_user_demote")
 	}
 
-	// Project overview / workspace fix / git inspect: reason_codes are primary;
-	// LooksLike* remains fallback until live per-class accuracy holds without text gates.
+	// Project overview / workspace fix / git inspect: reason_codes only (LooksLike
+	// positive promote graduated). Canvas/maps text helpers remain demote-only.
 	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))
 	if features.ExplicitAction == "" &&
-		(hasReasonCode(decision.ReasonCodes, "project_overview") || LooksLikeProjectOverviewAsk(features.Text)) &&
+		hasReasonCode(decision.ReasonCodes, "project_overview") &&
 		!LooksLikeCanvasDeliverableAsk(features.Text) &&
 		!LooksLikeMapsRouteAsk(features.Text) &&
 		!looksLikeExplicitCommandRunAsk(features.Text) {
@@ -366,7 +364,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	if features.ExplicitAction == "" &&
 		mode != "ask" && mode != "plan" &&
 		features.HasWorkspace &&
-		(hasFailureFixReasonCodes(decision.ReasonCodes) || LooksLikeWorkspaceFixAsk(features.Text)) &&
+		hasFailureFixReasonCodes(decision.ReasonCodes) &&
 		!LooksLikeCanvasDeliverableAsk(features.Text) &&
 		!LooksLikeMapsRouteAsk(features.Text) &&
 		!hasReasonCode(decision.ReasonCodes, "project_overview") &&
@@ -400,10 +398,10 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		}
 	}
 
-	// git_inspect reason code preferred; LooksLikeGitInspectRequest is fallback.
+	// git_inspect: reason code only (LooksLikeGitInspectRequest promote removed).
 	if features.ExplicitAction == "" &&
 		mode != "ask" && mode != "plan" &&
-		(hasReasonCode(decision.ReasonCodes, "git_inspect") || LooksLikeGitInspectRequest(features.Text)) {
+		hasReasonCode(decision.ReasonCodes, "git_inspect") {
 		switch decision.Action {
 		case ActionRun, ActionEdit, ActionDebug, ActionAnswer, ActionAskUser, ActionContinue, ActionPlan:
 			decision.Action = ActionInspect

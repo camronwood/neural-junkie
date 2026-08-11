@@ -147,15 +147,15 @@ var (
 type responseValidationIssue string
 
 const (
-	issueUnsupportedArtifact responseValidationIssue = "unsupported_artifact_claim"
-	issueUnsupportedImage    responseValidationIssue = "unsupported_image_claim"
-	issueUnsupportedRun      responseValidationIssue = "unsupported_run_claim"
-	issueUnsupportedPass     responseValidationIssue = "unsupported_pass_claim"
-	issueUnsupportedEdit     responseValidationIssue = "unsupported_edit_claim"
-	issueActionDeflection    responseValidationIssue = "action_deflection"
+	issueUnsupportedArtifact     responseValidationIssue = "unsupported_artifact_claim"
+	issueUnsupportedImage        responseValidationIssue = "unsupported_image_claim"
+	issueUnsupportedRun          responseValidationIssue = "unsupported_run_claim"
+	issueUnsupportedPass         responseValidationIssue = "unsupported_pass_claim"
+	issueUnsupportedEdit         responseValidationIssue = "unsupported_edit_claim"
+	issueActionDeflection        responseValidationIssue = "action_deflection"
 	issueMissingRequiredEvidence responseValidationIssue = "missing_required_evidence"
-	issueDirectness          responseValidationIssue = "direct_answer_failure"
-	issueCorrectionIgnored   responseValidationIssue = "correction_ignored"
+	issueDirectness              responseValidationIssue = "direct_answer_failure"
+	issueCorrectionIgnored       responseValidationIssue = "correction_ignored"
 )
 
 func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger, msg *protocol.Message, response string, history []*protocol.Message) []responseValidationIssue {
@@ -212,7 +212,10 @@ func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger
 
 // validateActiveCorrectionsHonored flags continue/summary replies that drop or revive renamed labels.
 func validateActiveCorrectionsHonored(envelope protocol.TurnContextEnvelope, msg *protocol.Message, response string) []responseValidationIssue {
-	if msg == nil || strings.TrimSpace(response) == "" || len(envelope.Corrections) == 0 {
+	if msg == nil || strings.TrimSpace(response) == "" {
+		return nil
+	}
+	if len(envelope.Corrections) == 0 && pinnedGoalToken(envelope) == "" {
 		return nil
 	}
 	lowerAsk := strings.ToLower(msg.Content)
@@ -235,7 +238,36 @@ func validateActiveCorrectionsHonored(envelope protocol.TurnContextEnvelope, msg
 			}
 		}
 	}
+	if pinned := pinnedGoalToken(envelope); pinned != "" {
+		correctionTarget := ""
+		for _, correction := range envelope.Corrections {
+			if t := correctionRenameTarget(correction.Instruction); t != "" {
+				correctionTarget = t
+				break
+			}
+		}
+		if !strings.Contains(response, pinned) && (correctionTarget == "" || !strings.Contains(response, correctionTarget)) {
+			return []responseValidationIssue{issueCorrectionIgnored}
+		}
+	}
 	return nil
+}
+
+var pinnedCamelRE = regexp.MustCompile(`\b([A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+)\b`)
+
+func pinnedGoalToken(envelope protocol.TurnContextEnvelope) string {
+	if envelope.Goal == nil {
+		return ""
+	}
+	for _, text := range []string{envelope.Goal.PinnedText, envelope.Goal.Text} {
+		if tok := componentNameFromText(text); tok != "" {
+			return tok
+		}
+		if m := pinnedCamelRE.FindStringSubmatch(text); len(m) > 1 {
+			return m[1]
+		}
+	}
+	return ""
 }
 
 // shouldRewriteAsSafeFailure reports whether validation issues should replace the

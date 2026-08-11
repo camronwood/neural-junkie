@@ -106,13 +106,13 @@
     },
     {
       "id": "maps",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "title": "Maps",
-      "description": "Geocode and walking/driving routes via OpenStreetMap, interactive Neural Canvas maps — tools on Assistant when enabled.",
+      "description": "Geocode and walking/driving routes via OpenStreetMap, interactive Neural Canvas maps, optional device location — tools on Assistant when enabled.",
       "icon_key": "code",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-maps/releases/download/v1.1.0/maps-1.1.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-maps/releases/download/v1.2.0/maps-1.2.0.zip"
     },
     {
       "id": "room-chat",

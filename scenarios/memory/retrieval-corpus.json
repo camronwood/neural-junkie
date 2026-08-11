@@ -326,6 +326,112 @@
       "must_exclude_ids": [
         "b:noise"
       ]
+    },
+    {
+      "name": "work-session-findings-over-stale-goal",
+      "query": "what did we decide about ThemeSettings persistence",
+      "channel": "ch-work",
+      "goal_id": "goal-work",
+      "superseded_message_ids": [
+        "stale-goal"
+      ],
+      "limit": 4,
+      "seed_chunks": [
+        {
+          "id": "findings:theme",
+          "source_type": "collab_artifact",
+          "source_id": "findings",
+          "channel": "ch-work",
+          "rel_path": "collabs/c1/findings.md",
+          "content": "Decision: persist ThemeSettings in localStorage under Appearance. Do not use cookies."
+        },
+        {
+          "id": "plan:theme",
+          "source_type": "collab_artifact",
+          "source_id": "plan",
+          "channel": "ch-work",
+          "rel_path": "collabs/c1/plan.md",
+          "content": "Plan: implement ThemeSettings persistence after the Appearance toggle ships."
+        },
+        {
+          "id": "msg:stale-goal",
+          "source_type": "message",
+          "source_id": "stale-goal",
+          "channel": "ch-work",
+          "goal_id": "goal-work",
+          "content": "Goal: persist ThemeSettings with session cookies only."
+        }
+      ],
+      "must_include_ids": [
+        "findings:theme",
+        "plan:theme"
+      ],
+      "must_exclude_ids": [
+        "msg:stale-goal"
+      ]
+    },
+    {
+      "name": "work-session-correction-replaces-decision",
+      "query": "which component name should we use for theme settings",
+      "channel": "ch-work",
+      "goal_id": "goal-work",
+      "superseded_message_ids": [
+        "old-name"
+      ],
+      "limit": 4,
+      "seed_chunks": [
+        {
+          "id": "msg:old-name",
+          "source_type": "message",
+          "source_id": "old-name",
+          "channel": "ch-work",
+          "goal_id": "goal-work",
+          "content": "call the component ThemeSettings"
+        },
+        {
+          "id": "msg:rename",
+          "source_type": "message",
+          "source_id": "rename",
+          "channel": "ch-work",
+          "goal_id": "goal-work",
+          "is_correction": true,
+          "content": "correction: rename the component to DisplayPreferences"
+        }
+      ],
+      "must_include_ids": [
+        "msg:rename"
+      ],
+      "must_exclude_ids": [
+        "msg:old-name"
+      ]
+    },
+    {
+      "name": "work-session-foreign-channel-noise",
+      "query": "open question about segmented control for DisplayPreferences",
+      "channel": "ch-work",
+      "limit": 4,
+      "seed_chunks": [
+        {
+          "id": "work:q",
+          "source_type": "message",
+          "source_id": "work-q",
+          "channel": "ch-work",
+          "content": "Open question: should DisplayPreferences use a segmented control?"
+        },
+        {
+          "id": "other:q",
+          "source_type": "message",
+          "source_id": "other-q",
+          "channel": "ch-other",
+          "content": "Open question: should DisplayPreferences use a segmented control?"
+        }
+      ],
+      "must_include_ids": [
+        "work:q"
+      ],
+      "must_exclude_ids": [
+        "other:q"
+      ]
     }
   ]
 }

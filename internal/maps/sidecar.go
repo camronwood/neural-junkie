@@ -108,8 +108,14 @@ func (c *Client) do(ctx context.Context, method, path string, body any) (map[str
 }
 
 // Geocode resolves a place query via Nominatim through the maps sidecar.
+// Optional keys: limit, near {lat,lon}, viewbox.
 func (c *Client) Geocode(ctx context.Context, req map[string]any) (map[string]any, error) {
 	return c.do(ctx, http.MethodPost, "/api/maps/geocode", req)
+}
+
+// Reverse resolves lat/lon to a display name via Nominatim through the maps sidecar.
+func (c *Client) Reverse(ctx context.Context, req map[string]any) (map[string]any, error) {
+	return c.do(ctx, http.MethodPost, "/api/maps/reverse", req)
 }
 
 // Route computes a walking/driving route via OSRM through the maps sidecar.

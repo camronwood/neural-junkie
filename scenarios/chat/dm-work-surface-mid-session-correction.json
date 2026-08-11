@@ -1,0 +1,63 @@
+{
+  "name": "dm-work-surface-mid-session-correction",
+  "description": "Work-surface: retain a page-count constraint after a mid-session correction.",
+  "tags": ["dm", "assistant", "long-horizon", "work-surface", "regression"],
+  "evaluation": {"long_horizon": true, "min_user_turns": 4},
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "Assistant",
+  "required_agents": ["Assistant"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "Plan a four-week reading club. Constraint: every book must be under 250 pages.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "Assistant", "timeout": "180s"},
+    {
+      "action": "send",
+      "content": "Suggest a fiction pick for week one.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "Assistant", "timeout": "180s"},
+    {
+      "action": "send",
+      "content": "Correction: keep the 250-page cap, but week one must be nonfiction instead.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "Assistant", "timeout": "180s"},
+    {
+      "action": "send",
+      "content": "Remind me of the page-count constraint and the corrected week-one genre.",
+      "metadata": {"conversation_mode": "chat", "context_scope": "none"}
+    },
+    {"action": "wait_reply", "from": "Assistant", "timeout": "180s"},
+    {
+      "action": "assert_transcript_metrics",
+      "cases": [
+        {
+          "metric": "instruction_retention",
+          "user_match": "under 250 pages",
+          "after_user_match": "Remind me of the page-count",
+          "assistant_match": "(?i)250"
+        },
+        {
+          "metric": "correction_recovery",
+          "user_match": "Correction",
+          "assistant_match": "(?i)nonfiction|non-fiction"
+        },
+        {
+          "metric": "stale_plan",
+          "user_match": "Correction",
+          "stale_match": "(?i)week one.{0,40}fiction(?!\\s*non)"
+        }
+      ],
+      "thresholds": {
+        "instruction_retention_rate": 1.0,
+        "correction_recovery_rate": 1.0,
+        "stale_plan_rate": 0.0
+      }
+    }
+  ],
+  "cleanup": "clear"
+}

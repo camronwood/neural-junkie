@@ -24,6 +24,10 @@ func attachEnabledPackToolsToAssistant(mcpServer *server.MCPServer) {
 		mapsmcp.AttachGeocodeRouteTools(mcpServer)
 		log.Printf("Assistant: attached maps geocode/route tools (maps pack enabled)")
 	}
+	if cfg.IsPackEnabled(config.PackMaps) || cfg.HasPackCapability("maps-location") {
+		mapsmcp.AttachLocateTool(mcpServer)
+		log.Printf("Assistant: attached maps_locate (maps-location capability; sensitive grant required)")
+	}
 	if cfg.IsPackEnabled(config.PackWebBrowser) || cfg.HasPackCapability("web-browser") {
 		browser.AttachAutomationTools(mcpServer)
 		log.Printf("Assistant: attached browser automation tools (web-browser pack enabled)")

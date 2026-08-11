@@ -14,6 +14,7 @@ import (
 const (
 	maxBudgetSessionSummary   = 2 * 1024
 	maxBudgetTurnLedger       = 1536
+	maxBudgetDurableState     = 1536
 	maxBudgetRelevantMemory   = 1536
 	maxBudgetHistoryBody      = 12 * 1024
 	maxBudgetWorkspaceOutline = 4 * 1024
@@ -106,6 +107,7 @@ func cacheStableSystemOrder(prompt string) string {
 
 func reorderSystemSections(system string) string {
 	markers := []string{
+		"=== DURABLE CONVERSATION STATE ===",
 		"=== TURN LEDGER (recent) ===",
 		"=== SESSION SUMMARY ===",
 		"=== RELEVANT PAST CONTEXT ===",
@@ -161,7 +163,12 @@ func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int, 
 	if hasSep {
 		callID := uuid.NewString()
 		systemPart, rulesBlock := peelProtectedRulesSection(systemPart)
-		systemPart, label := compressMarkedSection(systemPart, "=== TURN LEDGER (recent) ===", channelID, callID+"-ledger", maxBudgetTurnLedger, canRetrieve)
+		systemPart, label := compressMarkedSection(systemPart, "=== DURABLE CONVERSATION STATE ===", channelID, callID+"-durable", maxBudgetDurableState, canRetrieve)
+		if label != "" {
+			stats.CompressedSections = append(stats.CompressedSections, label)
+			stats.Truncated = true
+		}
+		systemPart, label = compressMarkedSection(systemPart, "=== TURN LEDGER (recent) ===", channelID, callID+"-ledger", maxBudgetTurnLedger, canRetrieve)
 		if label != "" {
 			stats.CompressedSections = append(stats.CompressedSections, label)
 			stats.Truncated = true

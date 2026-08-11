@@ -47,6 +47,14 @@ func (t *geocodeRouteTools) register(mcpServer *server.MCPServer) {
 		mcp.CreateObjectInputSchema(map[string]interface{}{
 			"query": map[string]interface{}{"type": "string", "description": "Place name or address to geocode"},
 			"limit": map[string]interface{}{"type": "integer", "description": "Max results (default 5, max 10)"},
+			"near": map[string]interface{}{
+				"type":        "object",
+				"description": "Optional {lat, lon} bias (device location or a known point)",
+			},
+			"viewbox": map[string]interface{}{
+				"type":        "string",
+				"description": "Optional Nominatim viewbox min_lon,max_lat,max_lon,min_lat",
+			},
 		}, []string{"query"}),
 		nil,
 	), t.handleGeocode)

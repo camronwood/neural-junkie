@@ -55,6 +55,30 @@ func TestAppendDurableConversationContext_omitsWorkStateInChat(t *testing.T) {
 	}
 }
 
+func TestAppendDurableConversationContext_chatKeepsEntitiesAndQuestions(t *testing.T) {
+	envelope := protocol.TurnContextEnvelope{
+		Goal: &protocol.TurnContextGoal{ID: "g1", Text: "Implement ThemeSettings"},
+		OpenQuestions: []protocol.TurnContextOpenQuestion{
+			{ID: "q1", Text: "should we use a segmented control?"},
+		},
+		NamedEntities: []protocol.TurnContextNamedEntity{
+			{Name: "ThemeSettings"},
+		},
+	}
+	chatMsg := protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{Name: "u"}, "and the second option?")
+	chatMsg.Metadata = map[string]interface{}{MetadataConversationMode: ConversationModeChat}
+	out := appendDurableConversationContext("BASE", envelope, chatMsg)
+	if strings.Contains(out, "Implement ThemeSettings") && strings.Contains(out, "Current goal") {
+		t.Fatalf("chat mode must still omit implement goal body: %q", out)
+	}
+	if !strings.Contains(out, "Named entity: ThemeSettings") {
+		t.Fatalf("chat mode must inject named entities: %q", out)
+	}
+	if !strings.Contains(out, "Open question: should we use a segmented control?") {
+		t.Fatalf("chat mode must inject open questions: %q", out)
+	}
+}
+
 func TestBuildDialogueAssistantPrompt_isSlim(t *testing.T) {
 	a := &Agent{Info: protocol.AgentInfo{
 		Name: "Assistant", Type: protocol.AgentTypeAssistant, AIModel: "llama3.1", AIProvider: "ollama",

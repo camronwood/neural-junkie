@@ -16,6 +16,8 @@ import { useToastStore } from '../stores/toastStore';
 import { useApprovalStore } from '../stores/approvalStore';
 import { formatToolApprovalSummary } from '../utils/approvalDisplay';
 import { PendingApprovalsBar } from './PendingApprovalsBar';
+import { LocationRequestModal } from './LocationRequestModal';
+import { useLocationShareStore } from '../stores/locationShareStore';
 import { useComposerPrefillStore } from '../stores/composerPrefillStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
@@ -2190,6 +2192,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
 
     void useApprovalStore.getState().syncPendingFromHub(api);
+    void useLocationShareStore.getState().syncPending(api);
 
     const { channel: joinCh, username: joinUser } = useChatStore.getState();
     const joinName = joinUser?.trim() || 'User';
@@ -3129,6 +3132,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         approveFirstPendingRef={approveFirstPendingRef}
         rejectFirstPendingRef={rejectFirstPendingRef}
       />
+      <LocationRequestModal api={api} />
 
       {/* Main Content Area */}
       <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden" data-testid="chat-main-content-row">
@@ -3301,6 +3305,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           contextIndicatorLabel={contextIndicatorLabel}
           contextScopeReason={contextScopePreview.reason}
           ideRoutingLabel={ideRoutingLabel}
+          api={api}
         />
         </div>
         </div>

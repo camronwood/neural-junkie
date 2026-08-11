@@ -1,6 +1,6 @@
 # Maps pack
 
-Geocode places and build walking or driving routes with the public OpenStreetMap stack (Nominatim + OSRM), then publish interactive maps to Neural Canvas (`nj.map`). Tools attach to **Assistant** when this pack is enabled (Composition Model can also grant them to custom experts).
+Geocode places and build walking or driving routes with the public OpenStreetMap stack (Nominatim + OSRM), then publish interactive maps to Neural Canvas (`nj.map`). Tools attach to **Assistant** when this pack is enabled (Composition Model can also grant them to custom experts). Device location is a separate **sensitive** capability (`maps-location`).
 
 ## Install
 
@@ -13,10 +13,11 @@ Geocode places and build walking or driving routes with the public OpenStreetMap
 
 | Tool | Purpose |
 |------|---------|
-| `maps_geocode` | Resolve a place name or address to lat/lon |
+| `maps_geocode` | Resolve a place name or address to lat/lon (optional `near` / `viewbox` bias) |
 | `maps_route` | Compute walking or driving route between waypoints |
 | `maps_create` | Publish a Neural Canvas map artifact (markers + routes) |
 | `maps_update` | Update an existing map artifact |
+| `maps_locate` | Read this device's GPS (sensitive grant + user consent). Prefer session-shared location when present. |
 
 ## Settings
 
@@ -29,6 +30,15 @@ Geocode places and build walking or driving routes with the public OpenStreetMap
 | `maps_rate_limit_rps` | `1` | Client-side throttle (Nominatim policy) |
 
 For heavier routing, point `osrm_base_url` at a self-hosted OSRM or Valhalla-compatible gateway.
+
+## Device location
+
+1. Grant **Device location** in Settings → Capabilities (sensitive; not inherited).
+2. Tap **Share location** in the composer to inject the current place into this session (used for “near me” and `web_search` rewrite).
+3. `maps_locate` asks for a fresh reading when session share is off or the cache is older than ~2 minutes.
+4. Precise coordinates are not persisted in chat history (at most a coarse place label).
+
+Never invent coordinates. Do not store location in map artifacts unless the user asked for a map of “here”.
 
 ## OSM usage
 

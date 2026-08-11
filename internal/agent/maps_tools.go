@@ -89,7 +89,9 @@ func appendMapsPrompt(system *strings.Builder) {
 	system.WriteString("Never call generate_image for maps. Call maps_geocode / maps_route / maps_create in this turn.\n")
 	system.WriteString("Prefer maps_create with waypoints + mode (walking|driving) so the sidecar computes route geometry and opens nj.map.\n")
 	system.WriteString("Use maps_update with artifact_id and expected_revision to revise an open map.\n")
-	system.WriteString("Always show distance/duration from the tool result; do not invent coordinates.\n\n")
+	system.WriteString("Always show distance/duration from the tool result; do not invent coordinates.\n")
+	system.WriteString("If GRANTED DEVICE LOCATION is present, treat \"here\" / \"near me\" / \"from here\" as those coordinates. Rewrite web_search with the place name. Pass near={lat,lon} to maps_geocode for local POIs.\n")
+	system.WriteString("Call maps_locate only when you need a fresher reading or no location was granted. Never invent coordinates. Do not persist location in artifacts unless the user asked for a map of here.\n\n")
 }
 
 func rawArgsToMap(input json.RawMessage) (map[string]any, error) {

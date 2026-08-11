@@ -3,6 +3,7 @@ package hub
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -25,6 +26,43 @@ func TestClearChannelHistoryClearsConversationState(t *testing.T) {
 	}
 	if st := h.GetChannelConversationState(ch.Name); st != nil && st.CurrentGoal != nil {
 		t.Fatalf("clear history must drop durable conversation state, got %+v", st.CurrentGoal)
+	}
+}
+
+func TestConversationState_recordsEntitiesAndOpenQuestions(t *testing.T) {
+	h := NewHub()
+	ch := &protocol.Channel{Name: "dm-ent", Type: protocol.ChannelTypeDM}
+	h.channels = map[string]*protocol.Channel{ch.Name: ch}
+	h.messages = map[string][]*protocol.Message{ch.Name: {}}
+	h.SetCurrentGoal("dm-ent", "goal-1", "msg-1", "Build ThemeSettings for the app")
+	h.RememberConversationSurface("dm-ent", "goal-1", "msg-2", "should we use a segmented control?")
+	st := h.GetChannelConversationState("dm-ent")
+	if st == nil {
+		t.Fatal("expected state")
+	}
+	found := false
+	for _, e := range st.NamedEntities {
+		if e.Name == "ThemeSettings" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("named entities=%v, want ThemeSettings", st.NamedEntities)
+	}
+	if len(st.OpenQuestions) == 0 || !strings.Contains(st.OpenQuestions[0].Text, "segmented") {
+		t.Fatalf("open questions=%v", st.OpenQuestions)
+	}
+	env := h.GetTurnConversationContext("dm-ent")
+	if len(env.NamedEntities) == 0 || len(env.OpenQuestions) == 0 {
+		t.Fatalf("turn context missing surface state: %+v", env)
+	}
+	if err := h.ClearChannelHistory("dm-ent"); err != nil {
+		t.Fatal(err)
+	}
+	st = h.GetChannelConversationState("dm-ent")
+	if st != nil && (len(st.NamedEntities) > 0 || len(st.OpenQuestions) > 0) {
+		t.Fatalf("clear must drop entities/questions: %+v", st)
 	}
 }
 

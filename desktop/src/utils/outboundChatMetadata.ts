@@ -18,8 +18,10 @@ import {
   type WorkspaceContextMode,
   USER_RULES_METADATA_KEY,
   LINKED_WORKSPACES_METADATA_KEY,
+  GRANTED_DEVICE_LOCATION_KEY,
   type LinkedWorkspaceContext,
 } from '../constants/promptMetadata';
+import { useLocationShareStore } from '../stores/locationShareStore';
 import { buildFileTreeString } from './workspaceContext';
 import type { ScanSummaryContext, ScanAnalysisContext, CadContext, StructureContext, MusicContext, WorkspaceContext } from './workspaceContext';
 import { concentrationAt, validationAt, isScanAnalysisResultsPath, scanAnalysisDirFromResultsPath, isScanAnalysisSummaryCSVPath } from './scanAnalysis';
@@ -414,6 +416,23 @@ export function buildHumanOutboundMetadata(options: {
   const rules = (useSettingsStore.getState().settings.userRulesMarkdown ?? '').trim();
   if (rules) {
     meta[USER_RULES_METADATA_KEY] = rules;
+  }
+
+  const locationShare = useLocationShareStore.getState();
+  if (locationShare.sharing && locationShare.snapshot && locationShare.granted !== false) {
+    const snap = locationShare.snapshot;
+    const captured = Date.parse(snap.captured_at);
+    const ageS = Number.isFinite(captured) ? Math.max(0, (Date.now() - captured) / 1000) : snap.age_s ?? 0;
+    meta[GRANTED_DEVICE_LOCATION_KEY] = {
+      lat: snap.lat,
+      lon: snap.lon,
+      accuracy_m: snap.accuracy_m,
+      display_name: snap.display_name,
+      captured_at: snap.captured_at,
+      age_s: ageS,
+      source: snap.source ?? 'session',
+      shared: true,
+    };
   }
 
   const activeTab = useEditorStore.getState().tabs.find(

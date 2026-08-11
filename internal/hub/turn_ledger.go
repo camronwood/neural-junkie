@@ -60,6 +60,9 @@ func (h *Hub) noteTurnLedger(msg *protocol.Message) {
 		goalID = st.CurrentGoal.ID
 	}
 	h.mu.RUnlock()
+	if speakerType == "human" {
+		h.RememberConversationSurface(msg.Channel, goalID, msg.ID, msg.Content)
+	}
 
 	ev := turnledger.Entry{
 		Channel:     msg.Channel,

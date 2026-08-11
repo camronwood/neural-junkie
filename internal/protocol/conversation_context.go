@@ -6,19 +6,21 @@ import "time"
 // It deliberately carries message IDs and provenance so stale instructions can
 // be excluded before prompt or provider history assembly.
 type TurnContextEnvelope struct {
-	Version              int                     `json:"version"`
-	Channel              string                  `json:"channel"`
-	Goal                 *TurnContextGoal        `json:"goal,omitempty"`
-	Decisions            []TurnContextDecision   `json:"decisions,omitempty"`
-	UnresolvedActions    []TurnContextAction     `json:"unresolved_actions,omitempty"`
-	Corrections          []TurnContextCorrection `json:"corrections,omitempty"`
-	SupersededMessageIDs []string                `json:"superseded_message_ids,omitempty"`
-	RecentExchanges      []TurnContextExchange   `json:"recent_exchanges,omitempty"`
-	RetrievedMemories    []TurnContextItem       `json:"retrieved_memories,omitempty"`
-	WorkspaceEvidence    []TurnContextItem       `json:"workspace_evidence,omitempty"`
-	Summary              *ConversationSummary    `json:"summary,omitempty"`
-	Provenance           []TurnContextProvenance `json:"provenance,omitempty"`
-	SectionBudgets       map[string]int          `json:"section_budgets,omitempty"`
+	Version              int                       `json:"version"`
+	Channel              string                    `json:"channel"`
+	Goal                 *TurnContextGoal          `json:"goal,omitempty"`
+	Decisions            []TurnContextDecision     `json:"decisions,omitempty"`
+	UnresolvedActions    []TurnContextAction       `json:"unresolved_actions,omitempty"`
+	Corrections          []TurnContextCorrection   `json:"corrections,omitempty"`
+	OpenQuestions        []TurnContextOpenQuestion `json:"open_questions,omitempty"`
+	NamedEntities        []TurnContextNamedEntity  `json:"named_entities,omitempty"`
+	SupersededMessageIDs []string                  `json:"superseded_message_ids,omitempty"`
+	RecentExchanges      []TurnContextExchange     `json:"recent_exchanges,omitempty"`
+	RetrievedMemories    []TurnContextItem         `json:"retrieved_memories,omitempty"`
+	WorkspaceEvidence    []TurnContextItem         `json:"workspace_evidence,omitempty"`
+	Summary              *ConversationSummary      `json:"summary,omitempty"`
+	Provenance           []TurnContextProvenance   `json:"provenance,omitempty"`
+	SectionBudgets       map[string]int            `json:"section_budgets,omitempty"`
 }
 
 type TurnContextGoal struct {
@@ -51,6 +53,19 @@ type TurnContextCorrection struct {
 	MessageID            string   `json:"message_id"`
 	Instruction          string   `json:"instruction"`
 	SupersedesMessageIDs []string `json:"supersedes_message_ids,omitempty"`
+}
+
+type TurnContextOpenQuestion struct {
+	ID        string `json:"id,omitempty"`
+	Text      string `json:"text,omitempty"`
+	GoalID    string `json:"goal_id,omitempty"`
+	MessageID string `json:"message_id,omitempty"`
+}
+
+type TurnContextNamedEntity struct {
+	Name              string `json:"name"`
+	Kind              string `json:"kind,omitempty"`
+	LastSeenMessageID string `json:"last_seen_message_id,omitempty"`
 }
 
 type TurnContextExchange struct {

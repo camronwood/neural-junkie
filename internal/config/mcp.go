@@ -123,6 +123,8 @@ func packCapabilityAvailableForGrant(c *Config, capabilityID string) bool {
 	switch strings.ToLower(strings.TrimSpace(capabilityID)) {
 	case "maps-tools":
 		return c.IsPackEnabled(PackMaps) || c.HasPackCapability("maps-tools")
+	case "maps-location":
+		return c.IsPackEnabled(PackMaps) || c.HasPackCapability("maps-location")
 	case "web-browser":
 		return c.IsPackEnabled(PackWebBrowser) || c.HasPackCapability("web-browser")
 	case "music-generation":

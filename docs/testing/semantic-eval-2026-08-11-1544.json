@@ -1,0 +1,60 @@
+{
+  "abstention_count": 1,
+  "abstention_rate": 0.0136986301369863,
+  "action_accuracy": 0.958904109589041,
+  "committed_action_accuracy": 0.9722222222222222,
+  "committed_full_accuracy": 0.9722222222222222,
+  "fails": [
+    {
+      "Name": "retraction",
+      "PolicyClass": "correction",
+      "GotAction": "continue",
+      "WantAction": "answer",
+      "GotMutation": "workspace",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "workspace_requires_codebase_retrieval"
+      ],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    },
+    {
+      "Name": "git-diff-inspect",
+      "PolicyClass": "git_inspect",
+      "GotAction": "answer",
+      "WantAction": "inspect",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "safe_fallback",
+      "Overrides": [],
+      "FailKind": "abstention",
+      "AbstentionReason": "semantic parse failed: invalid interaction \"inspect\"; repair failed: context deadline exceeded"
+    },
+    {
+      "Name": "correction-stay-answer",
+      "PolicyClass": "correction",
+      "GotAction": "ask_user",
+      "WantAction": "answer",
+      "GotMutation": "none",
+      "WantMutation": "none",
+      "Source": "local_model",
+      "Overrides": [
+        "workspace_required"
+      ],
+      "FailKind": "misstamp",
+      "AbstentionReason": ""
+    }
+  ],
+  "full_accuracy": 0.958904109589041,
+  "misstamp_count": 2,
+  "misstamp_rate": 0.0273972602739726,
+  "model": "qwen3.5:9b",
+  "n": 73,
+  "n_committed": 72,
+  "source_counts": {
+    "local_model": 72,
+    "safe_fallback": 1
+  },
+  "structural_miss_count": 0
+}

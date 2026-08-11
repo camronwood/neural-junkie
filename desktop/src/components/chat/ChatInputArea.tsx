@@ -6,6 +6,8 @@ import { TurnTelemetryDrawer } from '../TurnTelemetryDrawer';
 import { ComposerModeControl } from '../ComposerModeControl';
 import { RichTextInput } from '../RichTextInput';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { LocationShareChip } from '../LocationShareChip';
+import { ChatAPI } from '../../api/chatAPI';
 
 interface ChatInputAreaProps {
   channel: string;
@@ -29,6 +31,7 @@ interface ChatInputAreaProps {
   contextIndicatorLabel: string;
   contextScopeReason?: string;
   ideRoutingLabel?: string | null;
+  api?: ChatAPI;
 }
 
 export function ChatInputArea({
@@ -53,6 +56,7 @@ export function ChatInputArea({
   contextIndicatorLabel,
   contextScopeReason,
   ideRoutingLabel,
+  api,
 }: ChatInputAreaProps) {
   const showTurnTelemetryDrawer = useSettingsStore(
     (s) => s.layoutSettings.showTurnTelemetryDrawer === true,
@@ -85,6 +89,8 @@ export function ChatInputArea({
           Agents paused — send a message to continue.
         </div>
       )}
+
+      {api ? <LocationShareChip api={api} /> : null}
 
       <ComposerModeControl
         mode={composerMode}
