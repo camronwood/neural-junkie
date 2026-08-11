@@ -2,11 +2,12 @@ import type { Collaboration } from '../../types/protocol';
 import { markdownPreviewLine } from '../../utils/markdownPreview';
 import { ChatFindBar } from '../ChatFindBar';
 import { MessageList } from '../MessageList';
+import type { FirstWinCoachActions } from '../FirstWinCoach';
 import { RoutingTracePanel } from '../RoutingTracePanel';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useChatStore } from '../../stores/chatStore';
 
-interface ChatMessageListProps {
+interface ChatMessageListProps extends FirstWinCoachActions {
   channel: string;
   messageSearchQuery: string;
   chatFindOpen: boolean;
@@ -28,6 +29,11 @@ export function ChatMessageList({
   collaborationForChannel,
   channelAwaitingWorkspaceCollab,
   onOpenWorkspaceGate,
+  onOpenFiles,
+  onOpenCommandPalette,
+  onOpenAgentDM,
+  onPrefillComposer,
+  onOpenModelLibrary,
 }: ChatMessageListProps) {
   const showRoutingOnMessages = useSettingsStore(
     (s) => s.layoutSettings.showRoutingOnMessages !== false,
@@ -100,7 +106,15 @@ export function ChatMessageList({
         />
       )}
 
-      <MessageList key={channel} searchQuery={messageSearchQuery} />
+      <MessageList
+        key={channel}
+        searchQuery={messageSearchQuery}
+        onOpenFiles={onOpenFiles}
+        onOpenCommandPalette={onOpenCommandPalette}
+        onOpenAgentDM={onOpenAgentDM}
+        onPrefillComposer={onPrefillComposer}
+        onOpenModelLibrary={onOpenModelLibrary}
+      />
     </>
   );
 }

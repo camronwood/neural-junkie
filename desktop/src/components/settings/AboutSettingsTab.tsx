@@ -6,6 +6,7 @@ import {
 import { useAppUpdaterStore } from '../../stores/appUpdaterStore';
 import { getHubBaseURL, getHubWebSocketURL } from '../../config/hubUrl';
 import { openExternalLink, type SettingsTabProps } from './settingsShared';
+import { setFirstWinCoachDismissed } from '../../utils/firstWinProgress';
 
 export function AboutSettingsTab({
   isActive,
@@ -88,13 +89,22 @@ export function AboutSettingsTab({
           Re-open the first-run wizard to change focus track, AI backend, agents, and domain packs.
           Existing API keys and unrelated providers are preserved when possible.
         </p>
-        <button
-          type="button"
-          onClick={onRerunSetup}
-          className="px-3 py-1.5 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
-        >
-          Run setup again
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onRerunSetup}
+            className="px-3 py-1.5 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+          >
+            Run setup again
+          </button>
+          <button
+            type="button"
+            onClick={() => setFirstWinCoachDismissed(false)}
+            className="px-3 py-1.5 text-sm bg-slack-bgHover text-slack-text rounded hover:bg-slack-border transition-colors"
+          >
+            Show getting started
+          </button>
+        </div>
       </div>
     )}
 

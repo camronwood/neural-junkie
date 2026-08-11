@@ -2714,8 +2714,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   };
 
   // Open command palette from toolbar button or Cmd/Ctrl+Shift+P
-  const openCommandPalette = useCallback(() => {
-    setCommandPaletteFilter('');
+  const openCommandPalette = useCallback((filter = '') => {
+    setCommandPaletteFilter(filter);
     setCommandPaletteOpen(true);
     void ensureCommandDefs(true);
     void loadCollaborations(channel);
@@ -2730,6 +2730,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       console.error('Failed to load pending file changes:', error)
     );
   }, [api, channel, ensureCommandDefs, fetchPendingChanges, loadCollaborations, username]);
+
+  const handleFirstWinOpenFiles = useCallback(() => {
+    setFileExplorerOpen(true);
+  }, []);
+
+  const handleFirstWinPrefill = useCallback((text: string) => {
+    useComposerPrefillStore.getState().requestPrefill(text);
+  }, []);
+
+  const handleFirstWinOpenModelLibrary = useCallback(() => {
+    setModelLibraryOpen(true);
+  }, []);
 
   useShortcutDispatcher(true);
 
@@ -3263,6 +3275,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           collaborationForChannel={collaborationForChannel}
           channelAwaitingWorkspaceCollab={channelAwaitingWorkspaceCollab}
           onOpenWorkspaceGate={openWorkspaceGate}
+          onOpenFiles={handleFirstWinOpenFiles}
+          onOpenCommandPalette={openCommandPalette}
+          onOpenAgentDM={handleCreateDM}
+          onPrefillComposer={handleFirstWinPrefill}
+          onOpenModelLibrary={handleFirstWinOpenModelLibrary}
         />
 
         <ChatInputArea

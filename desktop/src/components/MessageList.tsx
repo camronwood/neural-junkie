@@ -10,6 +10,16 @@ import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import { shallow } from 'zustand/shallow';
+import { FirstWinCoach, type FirstWinCoachActions, useFirstWinDismissed } from './FirstWinCoach';
+import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { usePacksStore } from '../stores/packsStore';
+import { useCollaborationsStore } from '../stores/collaborationsStore';
+import {
+  computeFirstWinProgress,
+  packsEnabledFromRows,
+  shouldShowFirstWinCoach,
+} from '../utils/firstWinProgress';
+import { inferWizardTrackFromPacks } from '../config/wizardProfiles';
 
 type ListRow =
   | { kind: 'message'; message: MessageType }
@@ -49,13 +59,20 @@ function ChatListFooter() {
   return <div className="h-px w-full shrink-0" aria-hidden />;
 }
 
-interface MessageListProps {
+interface MessageListProps extends FirstWinCoachActions {
   searchQuery?: string;
 }
 
-export function MessageList({ searchQuery = '' }: MessageListProps) {
+export function MessageList({
+  searchQuery = '',
+  onOpenFiles,
+  onOpenCommandPalette,
+  onOpenAgentDM,
+  onPrefillComposer,
+  onOpenModelLibrary,
+}: MessageListProps) {
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  const { channel, messages, threadMetadata, streamingMessages, openThread, serverAddr, pendingScrollToMessageId, setPendingScrollToMessageId, setHighlightMessageId } = useChatStore(
+  const { channel, messages, threadMetadata, streamingMessages, openThread, serverAddr, pendingScrollToMessageId, setPendingScrollToMessageId, setHighlightMessageId, agents, myAgents } = useChatStore(
     (s) => ({
       channel: s.channel,
       messages: s.messages,
@@ -66,9 +83,34 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
       pendingScrollToMessageId: s.pendingScrollToMessageId,
       setPendingScrollToMessageId: s.setPendingScrollToMessageId,
       setHighlightMessageId: s.setHighlightMessageId,
+      agents: s.agents,
+      myAgents: s.myAgents,
     }),
     shallow
   );
+  const workspaces = useFileExplorerStore((s) => s.workspaces);
+  const packs = usePacksStore((s) => s.packs);
+  const collaborationsByID = useCollaborationsStore((s) => s.byID);
+  const [coachDismissed, setCoachDismissed] = useFirstWinDismissed();
+  const packsEnabled = useMemo(() => packsEnabledFromRows(packs), [packs]);
+  const firstWinTrack = inferWizardTrackFromPacks(packsEnabled);
+  const firstWinProgress = useMemo(
+    () =>
+      computeFirstWinProgress({
+        packsEnabled,
+        track: firstWinTrack,
+        hasWorkspace: workspaces.length > 0,
+        agents,
+        myAgents,
+        hasCollaboration: Object.keys(collaborationsByID).length > 0,
+      }),
+    [packsEnabled, firstWinTrack, workspaces.length, agents, myAgents, collaborationsByID],
+  );
+  const showFirstWinCoach = shouldShowFirstWinCoach({
+    isSearching: Boolean(normalizedSearchQuery),
+    dismissed: coachDismissed,
+    allPrimaryComplete: firstWinProgress.allPrimaryComplete,
+  });
   const slackMirrorTimeline = showThreadReplyInMainTimeline(channel);
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
@@ -332,12 +374,29 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
     return (
       <div className="relative flex-1 min-h-0 bg-slack-bg">
         <div className="h-full overflow-y-auto overscroll-y-contain flex items-center justify-center text-slack-textMuted p-8">
-          <div className="text-center">
-            <p className="text-lg mb-2">{normalizedSearchQuery ? 'No matches in this chat' : 'No messages yet'}</p>
-            <p className="text-sm">
-              {normalizedSearchQuery ? 'Try a different search.' : 'Start the conversation!'}
-            </p>
-          </div>
+          {showFirstWinCoach ? (
+            <FirstWinCoach
+              track={firstWinTrack}
+              hasWorkspace={workspaces.length > 0}
+              agents={agents}
+              myAgents={myAgents}
+              hasCollaboration={Object.keys(collaborationsByID).length > 0}
+              packsEnabled={packsEnabled}
+              onOpenFiles={onOpenFiles}
+              onOpenCommandPalette={onOpenCommandPalette}
+              onOpenAgentDM={onOpenAgentDM}
+              onPrefillComposer={onPrefillComposer}
+              onOpenModelLibrary={onOpenModelLibrary}
+              onDismissed={() => setCoachDismissed(true)}
+            />
+          ) : (
+            <div className="text-center">
+              <p className="text-lg mb-2">{normalizedSearchQuery ? 'No matches in this chat' : 'No messages yet'}</p>
+              <p className="text-sm">
+                {normalizedSearchQuery ? 'Try a different search.' : 'Start the conversation!'}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
