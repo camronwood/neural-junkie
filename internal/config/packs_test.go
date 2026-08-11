@@ -102,19 +102,101 @@ func TestSyncAgentsFromPacksSoftwareDevelopment(t *testing.T) {
 	cfg.Packs.LayoutOwner = PackSoftwareDevelopment
 	cfg.SyncAgentsFromPacks()
 
+	if !cfg.AgentTypeEnabled("backend") {
+		t.Fatal("expected backend enabled")
+	}
 	for _, typ := range devSpecialistTypes {
-		if !cfg.AgentTypeEnabled(typ) {
-			t.Fatalf("expected %s enabled", typ)
+		if typ == "backend" {
+			continue
+		}
+		if cfg.AgentTypeEnabled(typ) {
+			t.Fatalf("expected %s disabled in slim default room", typ)
 		}
 	}
 	foundCoder := false
 	for _, m := range cfg.Ollama.ModelsToEnsure {
-		if m == DevOllamaCodeModel {
+		if m == UtilityOllamaModel {
 			foundCoder = true
+		}
+		if m == DevOllamaCodeModel {
+			t.Fatalf("did not expect %s in models_to_ensure", DevOllamaCodeModel)
 		}
 	}
 	if !foundCoder {
-		t.Fatalf("expected %s in models_to_ensure", DevOllamaCodeModel)
+		t.Fatalf("expected %s in models_to_ensure", UtilityOllamaModel)
+	}
+}
+
+func TestSyncAgentsFromPacksPreservesDisabledSpecialist(t *testing.T) {
+	cfg := DefaultConfig()
+	installTestPack(t, cfg, PackSoftwareDevelopment)
+	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
+	cfg.Agents = []AgentConfig{
+		{Type: "backend", Name: "BackendEngineer", Enabled: true},
+		{Type: "frontend", Name: "FrontendEngineer", Enabled: false},
+	}
+	cfg.SyncAgentsFromPacks()
+	if !cfg.AgentTypeEnabled("backend") {
+		t.Fatal("expected backend still enabled")
+	}
+	if cfg.AgentTypeEnabled("frontend") {
+		t.Fatal("sync must not force-enable a disabled specialist")
+	}
+}
+
+func TestApplySlimDefaultRoom(t *testing.T) {
+	t.Setenv("NJ_DEFAULT_ROOM", "")
+	cfg := DefaultConfig()
+	cfg.Agents = []AgentConfig{
+		{Type: "assistant", Name: "Assistant", Enabled: true, Model: DevOllamaCodeModel},
+		{Type: "backend", Name: "BackendEngineer", Enabled: true, Model: DevOllamaCodeModel},
+		{Type: "frontend", Name: "FrontendEngineer", Enabled: true},
+		{Type: "architecture", Name: "SoftwareArchitect", Enabled: true},
+	}
+	cfg.AI.Providers[0].Model = DevOllamaCodeModel
+	cfg.Ollama.ModelsToEnsure = []string{DevOllamaCodeModel, UtilityOllamaModel}
+	if !cfg.applySlimDefaultRoom() {
+		t.Fatal("expected persist when default_room was empty")
+	}
+	if cfg.Packs.DefaultRoom != DefaultRoomSlim {
+		t.Fatalf("default_room = %q", cfg.Packs.DefaultRoom)
+	}
+	if !cfg.AgentTypeEnabled("backend") || !cfg.AgentTypeEnabled("assistant") {
+		t.Fatal("expected Assistant + BackendEngineer enabled")
+	}
+	if cfg.AgentTypeEnabled("frontend") || cfg.AgentTypeEnabled("architecture") {
+		t.Fatal("expected extra specialists disabled")
+	}
+	for _, a := range cfg.Agents {
+		if a.Type == "backend" || a.Type == "assistant" {
+			if a.Model != UtilityOllamaModel {
+				t.Fatalf("%s model = %q, want %q", a.Type, a.Model, UtilityOllamaModel)
+			}
+		}
+	}
+	if cfg.AI.Providers[0].Model != UtilityOllamaModel {
+		t.Fatalf("provider model = %q", cfg.AI.Providers[0].Model)
+	}
+	for _, m := range cfg.Ollama.ModelsToEnsure {
+		if m == DevOllamaCodeModel {
+			t.Fatal("27b should not remain in models_to_ensure")
+		}
+	}
+}
+
+func TestApplySlimDefaultRoomSkipsWhenAlreadySet(t *testing.T) {
+	t.Setenv("NJ_DEFAULT_ROOM", "")
+	cfg := DefaultConfig()
+	cfg.Packs.DefaultRoom = DefaultRoomSlim
+	cfg.Agents = []AgentConfig{
+		{Type: "backend", Name: "BackendEngineer", Enabled: true},
+		{Type: "frontend", Name: "FrontendEngineer", Enabled: true},
+	}
+	if cfg.applySlimDefaultRoom() {
+		t.Fatal("must not re-apply slim after default_room is set")
+	}
+	if !cfg.AgentTypeEnabled("frontend") {
+		t.Fatal("user-enabled specialist must stick after the one-shot slim migrate")
 	}
 }
 

@@ -15,7 +15,11 @@ ROOT = SCRIPTS_DIR.parent
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from lib.hub_cleanup import clean_hub_for_regression, wait_for_agent_roster  # noqa: E402
+from lib.hub_cleanup import (  # noqa: E402
+    clean_hub_for_regression,
+    ensure_regression_roster_enabled,
+    wait_for_agent_roster,
+)
 from lib.hub_regression import (  # noqa: E402
     hub_is_healthy,
     restart_regression_hub,
@@ -163,6 +167,12 @@ def start_regression_hub_stack(root: Path, hub_url: str, *, no_restart: bool) ->
 
 
 def wait_for_roster(hub_url: str) -> bool:
+    print(">>> Enabling regression roster (product default is slim)...")
+    ok, detail = ensure_regression_roster_enabled(hub_url.rstrip("/"))
+    if not ok:
+        print(f"FAIL: {detail}", file=sys.stderr)
+        return False
+    print(f"OK: {detail}")
     print(">>> Waiting for agent roster...")
     ok, missing = wait_for_agent_roster(hub_url.rstrip("/"), timeout_s=240.0)
     if not ok:

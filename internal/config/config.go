@@ -335,6 +335,9 @@ func Load() (*Config, error) {
 	cfg.SeedFromEnv()
 	cfg.mergeEnvVars()
 	cfg.SyncAgentsFromPacks()
+	if cfg.applySlimDefaultRoom() {
+		_ = cfg.Save()
+	}
 	SetAppConfig(cfg)
 	return cfg, nil
 }

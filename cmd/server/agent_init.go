@@ -7,6 +7,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -16,19 +17,7 @@ import (
 func initializeAssistantAgent() {
 	log.Println("🤖 Initializing assistant agent...")
 
-	// Create AI provider for assistant - use Ollama since Claude API key is invalid
-	var aiProvider ai.AIProvider
-
-	// Use Ollama for assistant since Claude API key is invalid
-	ollamaProvider, err := ai.NewOllamaProvider()
-	if err != nil {
-		log.Printf("⚠️  Warning: Failed to initialize Ollama provider for assistant: %v", err)
-		log.Println("⚠️  Using mock AI provider for assistant.")
-		aiProvider = ai.NewMockProvider()
-	} else {
-		aiProvider = ollamaProvider
-		log.Printf("✅ Ollama provider initialized for assistant (model: %s, endpoint: %s)", ollamaProvider.GetModel(), ollamaProvider.GetEndpoint())
-	}
+	aiProvider := assistantAIProvider()
 
 	// Create assistant agent
 	assistant := agent.NewAssistantAgent("Assistant", aiProvider, chatHub)
@@ -82,4 +71,34 @@ func initializeAssistantAgent() {
 	}()
 
 	log.Println("✅ Assistant agent started successfully")
+}
+
+func assistantAIProvider() ai.AIProvider {
+	if appConfig != nil && globalProviderCache != nil {
+		acfg := config.AgentConfig{
+			Type:       "assistant",
+			Name:       "Assistant",
+			Enabled:    true,
+			ProviderID: appConfig.AI.DefaultProviderID,
+			Model:      config.UtilityOllamaModel,
+		}
+		for _, a := range appConfig.Agents {
+			if strings.EqualFold(strings.TrimSpace(a.Type), "assistant") {
+				acfg = a
+				break
+			}
+		}
+		if p, err := globalProviderCache.GetForAgent(appConfig, acfg); err == nil && p != nil {
+			log.Printf("✅ Assistant provider from config (model: %s)", p.GetModel())
+			return p
+		}
+	}
+	ollamaProvider, err := ai.NewOllamaProvider()
+	if err != nil {
+		log.Printf("⚠️  Warning: Failed to initialize Ollama provider for assistant: %v", err)
+		log.Println("⚠️  Using mock AI provider for assistant.")
+		return ai.NewMockProvider()
+	}
+	log.Printf("✅ Ollama provider initialized for assistant (model: %s, endpoint: %s)", ollamaProvider.GetModel(), ollamaProvider.GetEndpoint())
+	return ollamaProvider
 }

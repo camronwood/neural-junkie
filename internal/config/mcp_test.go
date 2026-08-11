@@ -24,9 +24,12 @@ func TestMCPEnabledForAgentSoftwareDevelopmentPack(t *testing.T) {
 	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	cfg.SyncAgentsFromPacks()
-	for _, typ := range []string{"backend", "devops", "database", "frontend", "security"} {
-		if !cfg.MCPEnabledForAgent(typ) {
-			t.Fatalf("expected %s MCP when software-development pack on", typ)
+	if !cfg.MCPEnabledForAgent("backend") {
+		t.Fatal("expected backend MCP when default coder is running")
+	}
+	for _, typ := range []string{"devops", "database", "frontend", "security"} {
+		if cfg.MCPEnabledForAgent(typ) {
+			t.Fatalf("expected %s MCP off while specialist is disabled", typ)
 		}
 	}
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = false
@@ -42,12 +45,9 @@ func TestMCPEnabledForAgentUserOverride(t *testing.T) {
 	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	cfg.SyncAgentsFromPacks()
-	cfg.MCP.Agents["frontend"] = false
-	if cfg.MCPEnabledForAgent("frontend") {
-		t.Fatal("expected user override to disable frontend MCP")
-	}
-	if !cfg.MCPEnabledForAgent("backend") {
-		t.Fatal("expected backend MCP still on")
+	cfg.MCP.Agents["backend"] = false
+	if cfg.MCPEnabledForAgent("backend") {
+		t.Fatal("expected user override to disable backend MCP")
 	}
 }
 

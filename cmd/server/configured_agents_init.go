@@ -100,6 +100,9 @@ func initializeConfiguredAgents() {
 	log.Printf("🤖 Starting %d configured specialist agent(s)...", len(enabled))
 
 	for _, acfg := range enabled {
+		if strings.EqualFold(strings.TrimSpace(acfg.Type), "assistant") {
+			continue
+		}
 		pcfg := appConfig.ProviderForAgent(acfg)
 		if pcfg == nil {
 			log.Printf("⚠️  No provider found for agent %s (provider_id=%q, default=%q) — skipping",

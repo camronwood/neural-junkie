@@ -154,7 +154,7 @@ server-debug: setup-env ## Hub with NEURAL_JUNKIE_DEBUG=1 (pprof + /api/debug/hu
 
 server-regression: setup-env ## Hub for live scenario regression (RATE_LIMIT=0 + DEBUG=1); logs to /tmp/nj-hub.log
 	@echo "🔧 Regression hub → /tmp/nj-hub.log  (RATE_LIMIT=0 DEBUG=1 SLACK_DISABLED=1 no last-session persist/restore) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
-	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 NJ_OLLAMA_MAX_CONCURRENCY=2 NJ_OLLAMA_NUM_PREDICT=4096 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1 NEURAL_JUNKIE_DISABLE_SESSION_PERSIST=1 NEURAL_JUNKIE_SKIP_SESSION_RESTORE=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 NJ_OLLAMA_MAX_CONCURRENCY=2 NJ_OLLAMA_NUM_PREDICT=4096 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1 NEURAL_JUNKIE_DISABLE_SESSION_PERSIST=1 NEURAL_JUNKIE_SKIP_SESSION_RESTORE=1 NJ_DEFAULT_ROOM=full go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
 
 server-log: ## Tail collab-related lines from /tmp/nj-hub.log (run server-debug first)
 	@python3 scripts/debug-collab.py watch --log /tmp/nj-hub.log

@@ -17,8 +17,14 @@ func TestWizardProfileLifeSciences(t *testing.T) {
 
 func TestWizardProfileDeveloper(t *testing.T) {
 	p := WizardProfileFor(WizardTrackDeveloper)
-	if p.OllamaModel != DevOllamaCodeModel {
+	if p.OllamaModel != UtilityOllamaModel {
 		t.Fatalf("model = %q", p.OllamaModel)
+	}
+	if len(p.DefaultAgents) != 2 {
+		t.Fatalf("agents = %d", len(p.DefaultAgents))
+	}
+	if p.DefaultAgents[0].Type != "assistant" || p.DefaultAgents[1].Type != "backend" {
+		t.Fatalf("agents = %+v", p.DefaultAgents)
 	}
 }
 
@@ -47,6 +53,12 @@ func TestApplyWizardProfileDeveloperPack(t *testing.T) {
 	}
 	if !cfg.AgentTypeEnabled("backend") {
 		t.Fatal("expected backend from pack sync")
+	}
+	if cfg.AgentTypeEnabled("frontend") {
+		t.Fatal("expected frontend disabled in slim default room")
+	}
+	if cfg.Packs.DefaultRoom != DefaultRoomSlim {
+		t.Fatalf("default_room = %q", cfg.Packs.DefaultRoom)
 	}
 }
 

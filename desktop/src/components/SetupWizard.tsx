@@ -8,6 +8,7 @@ import {
   CAD_OLLAMA_CHAT_MODEL,
   CAD_OLLAMA_CHAT_MODEL_LIGHT,
   DEV_OLLAMA_MODEL,
+  UTILITY_OLLAMA_MODEL,
   type WizardTrack,
 } from '../config/wizardProfiles';
 import { CLIAgentsManager } from './CLIAgentsManager';
@@ -379,9 +380,17 @@ export function SetupWizard({
         default_provider_id: wizardProvider.id,
         providers: [wizardProvider],
       },
-      agents: agents.map(a => ({ type: a.type, name: a.name, enabled: a.enabled })),
+      agents: agents.map(a => ({
+        type: a.type,
+        name: a.name,
+        enabled: a.enabled,
+        ...(wizardTrack === 'developer'
+          ? { provider_id: 'ollama-local', model: UTILITY_OLLAMA_MODEL }
+          : {}),
+      })),
       packs: {
         enabled: packsEnabledForTrack(wizardTrack),
+        ...(wizardTrack === 'developer' ? { default_room: 'slim' } : {}),
       },
       mcp: { enabled: true },
       ollama: {
@@ -799,11 +808,11 @@ export function SetupWizard({
                 <p>
                   <strong className="text-white">CLI agents</strong> auto-join #general when their binaries are on your PATH (see /list-cli-agents).
                 </p>
-                <p>Toggle Assistant below. Coding specialists (BackendEngineer, CodeReviewer, …) are available later via Settings → Domain packs → Software development.</p>
+                <p>Toggle Assistant below. Coding specialists are available later via Domain packs → Tools & MCP → Room specialists.</p>
               </div>
             ) : wizardTrack === 'developer' ? (
               <p className="text-sm text-gray-400 text-center">
-                Assistant is configured here. The IDE pack (editor depth) and Software development pack (engineering specialists) are enabled for this track.
+                Default room is Assistant + BackendEngineer on {UTILITY_OLLAMA_MODEL}. Start more specialists from Domain packs → Tools & MCP → Room specialists.
               </p>
             ) : (
               <p className="text-sm text-gray-400 text-center">Choose which specialist agents to enable.</p>

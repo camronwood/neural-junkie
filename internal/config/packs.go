@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/intent"
@@ -36,6 +37,12 @@ var devSpecialistTypes = []string{
 // legacyDevSpecialistTypes are deprecated; rust and new specialists live in devSpecialistTypes and pack.yaml.
 var legacyDevSpecialistTypes []string
 
+// Default room policies. Slim is the product default (VRAM): Assistant + BackendEngineer.
+const (
+	DefaultRoomSlim = "slim"
+	DefaultRoomFull = "full"
+)
+
 // PacksConfig stores installed packs, enable toggles, and layout ownership.
 type PacksConfig struct {
 	Installed       []string                     `json:"installed,omitempty"`
@@ -44,6 +51,9 @@ type PacksConfig struct {
 	AppliedOverlays map[string]map[string]string `json:"applied_overlays,omitempty"`
 	DevSources      map[string]string            `json:"dev_sources,omitempty"` // pack_id -> absolute dev folder
 	CatalogURL      string                       `json:"catalog_url,omitempty"`
+	// DefaultRoom is "slim" (Assistant + BackendEngineer) or "full" (all pack specialists).
+	// Empty on load is treated as slim. NJ_DEFAULT_ROOM=full skips re-apply (regression hub).
+	DefaultRoom string `json:"default_room,omitempty"`
 }
 
 // DomainPack describes an installed pack merged from its manifest.
@@ -88,7 +98,7 @@ func manifestToDomainPack(m *packs.Manifest) DomainPack {
 		ac := AgentConfig{
 			Type:           agentType,
 			Name:           a.Name,
-			Enabled:        true,
+			Enabled:        packAgentDefaultEnabled(m.ID, a),
 			ProviderID:     "ollama-local",
 			Implementation: strings.TrimSpace(a.Implementation),
 		}
@@ -608,11 +618,8 @@ func (c *Config) SyncAgentsFromPacks() {
 				}
 			}
 			if idx < 0 {
-				acfg := want
-				acfg.Enabled = true
-				c.Agents = append(c.Agents, acfg)
+				c.Agents = append(c.Agents, want)
 			} else {
-				c.Agents[idx].Enabled = true
 				if c.Agents[idx].Name == "" {
 					c.Agents[idx].Name = want.Name
 				}
@@ -799,6 +806,83 @@ func packForAgentType(agentType string) string {
 		}
 	}
 	return ""
+}
+
+func packAgentDefaultEnabled(packID string, spec packs.AgentSpec) bool {
+	if spec.DefaultEnabled != nil {
+		return *spec.DefaultEnabled
+	}
+	if packID == PackSoftwareDevelopment {
+		return strings.EqualFold(strings.TrimSpace(spec.Type), "backend")
+	}
+	return true
+}
+
+func skipSlimDefaultRoom() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("NJ_DEFAULT_ROOM")))
+	return v == DefaultRoomFull || v == "0" || v == "off" || v == "false"
+}
+
+func isDefaultCoderType(agentType string) bool {
+	return strings.EqualFold(strings.TrimSpace(agentType), "backend")
+}
+
+func isAssistantType(agentType string) bool {
+	return strings.EqualFold(strings.TrimSpace(agentType), "assistant")
+}
+
+// applySlimDefaultRoom keeps Assistant + BackendEngineer on UtilityOllamaModel and
+// disables other software-development specialists. Returns true when DefaultRoom
+// was empty and should be persisted.
+func (c *Config) applySlimDefaultRoom() bool {
+	if c == nil || skipSlimDefaultRoom() {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if strings.TrimSpace(c.Packs.DefaultRoom) != "" {
+		return false
+	}
+	c.Packs.DefaultRoom = DefaultRoomSlim
+
+	for i := range c.Agents {
+		t := c.Agents[i].Type
+		if isAssistantType(t) || isDefaultCoderType(t) {
+			c.Agents[i].Enabled = true
+			if strings.TrimSpace(c.Agents[i].Model) == "" || c.Agents[i].Model == DevOllamaCodeModel {
+				c.Agents[i].Model = UtilityOllamaModel
+			}
+			continue
+		}
+		if isDevSpecialistAgentType(t) {
+			c.Agents[i].Enabled = false
+		}
+	}
+
+	for i := range c.AI.Providers {
+		if c.AI.Providers[i].Type == "ollama" && c.AI.Providers[i].Model == DevOllamaCodeModel {
+			c.AI.Providers[i].Model = UtilityOllamaModel
+		}
+	}
+
+	seen9b := false
+	filtered := make([]string, 0, len(c.Ollama.ModelsToEnsure))
+	for _, m := range c.Ollama.ModelsToEnsure {
+		m = strings.TrimSpace(m)
+		if m == "" || m == DevOllamaCodeModel {
+			continue
+		}
+		if m == UtilityOllamaModel {
+			seen9b = true
+		}
+		filtered = append(filtered, m)
+	}
+	if !seen9b {
+		filtered = append(filtered, UtilityOllamaModel)
+	}
+	c.Ollama.ModelsToEnsure = filtered
+	return true
 }
 
 func agentIndexByType(agents []AgentConfig, agentType string) int {

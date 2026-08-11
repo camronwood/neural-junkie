@@ -70,6 +70,11 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
   const [bioSettingsSaving, setBioSettingsSaving] = useState(false);
   const [bioSettingsErr, setBioSettingsErr] = useState<string | null>(null);
   const [bioSettingsOk, setBioSettingsOk] = useState<string | null>(null);
+  const [roomAgents, setRoomAgents] = useState<
+    { type: string; name: string; enabled: boolean }[]
+  >([]);
+  const [roomAgentsBusy, setRoomAgentsBusy] = useState<string | null>(null);
+  const [roomAgentsErr, setRoomAgentsErr] = useState<string | null>(null);
 
   const refreshDomainPacks = async () => {
     setPacksLoading(true);
@@ -123,6 +128,16 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
         setCadRenderTimeout(String(cadCfg.render_timeout_sec || 120));
         setCadChatModel(cadCfg.chat_model || 'qwen2.5-coder:14b');
         setCadToolModel(cadCfg.tool_model || 'qwen2.5:7b');
+        const agents = Array.isArray(cfg.agents) ? cfg.agents : [];
+        setRoomAgents(
+          agents
+            .filter((a: { type?: string; name?: string }) => a && a.type && a.name)
+            .map((a: { type: string; name: string; enabled?: boolean }) => ({
+              type: a.type,
+              name: a.name,
+              enabled: a.enabled !== false,
+            })),
+        );
       } catch (e) {
         if (!cancelled) setPacksErr(e instanceof Error ? e.message : String(e));
       }
@@ -212,6 +227,52 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
     }
   };
 
+  const handleRoomAgentToggle = async (name: string, enabled: boolean) => {
+    setRoomAgentsErr(null);
+    setRoomAgentsBusy(name);
+    setRoomAgents((prev) => prev.map((a) => (a.name === name ? { ...a, enabled } : a)));
+    try {
+      await mergeSettingsPut(hubHttp, (cfg) => {
+        const agents = Array.isArray(cfg.agents) ? [...(cfg.agents as Record<string, unknown>[])] : [];
+        const next = agents.map((row) =>
+          row.name === name ? { ...row, enabled } : row,
+        );
+        return { ...cfg, agents: next };
+      });
+      await fetch(`${hubHttp}/api/agents/restart`, { method: 'POST' });
+    } catch (e) {
+      setRoomAgents((prev) => prev.map((a) => (a.name === name ? { ...a, enabled: !enabled } : a)));
+      setRoomAgentsErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRoomAgentsBusy(null);
+    }
+  };
+
+  const resetSlimRoom = async () => {
+    setRoomAgentsErr(null);
+    setRoomAgentsBusy('reset');
+    try {
+      await mergeSettingsPut(hubHttp, (cfg) => {
+        const agents = Array.isArray(cfg.agents) ? [...(cfg.agents as Record<string, unknown>[])] : [];
+        const next = agents.map((row) => {
+          const typ = String(row.type || '');
+          const on = typ === 'assistant' || typ === 'backend';
+          return { ...row, enabled: on };
+        });
+        const packs = (cfg.packs && typeof cfg.packs === 'object' ? cfg.packs : {}) as Record<string, unknown>;
+        return { ...cfg, agents: next, packs: { ...packs, default_room: 'slim' } };
+      });
+      await fetch(`${hubHttp}/api/agents/restart`, { method: 'POST' });
+      setRoomAgents((prev) =>
+        prev.map((a) => ({ ...a, enabled: a.type === 'assistant' || a.type === 'backend' })),
+      );
+    } catch (e) {
+      setRoomAgentsErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRoomAgentsBusy(null);
+    }
+  };
+
   const handleMcpMasterToggle = async (enabled: boolean) => {
     setMcpEnabled(enabled);
     try {
@@ -295,7 +356,54 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
     <div className="space-y-6">
       <div className="rounded-lg border border-slack-border bg-slack-bgHover/30 p-4 text-sm text-slack-textMuted">
         <strong className="text-slack-text">Always on:</strong> Assistant and CLI agents
-        when installed. Domain packs add optional in-process specialists and MCP tools below.
+        when installed. Toggle in-process specialists below — each enabled specialist can load a local model.
+      </div>
+
+      <div className="rounded-lg border border-slack-border p-4">
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slack-text">Room specialists</h3>
+            <p className="mt-1 text-sm text-slack-textMuted">
+              Who actually starts with the hub. Default room is Assistant + BackendEngineer on qwen3.5:9b.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void resetSlimRoom()}
+            disabled={roomAgentsBusy !== null}
+            className="shrink-0 rounded border border-slack-border px-2 py-1 text-xs text-slack-text hover:bg-slack-bgHover disabled:opacity-50"
+          >
+            Reset to slim
+          </button>
+        </div>
+        {roomAgentsErr && <p className="mb-2 text-sm text-red-500">{roomAgentsErr}</p>}
+        {roomAgents.length === 0 ? (
+          <p className="text-sm text-slack-textMuted">No configured specialists. Enable a domain pack in Store first.</p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {roomAgents.map((a) => {
+              const locked = a.type === 'assistant';
+              return (
+                <label
+                  key={`${a.type}:${a.name}`}
+                  className={`flex items-center gap-2 text-sm ${locked ? 'cursor-default opacity-80' : 'cursor-pointer'}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={locked || a.enabled}
+                    disabled={locked || roomAgentsBusy !== null}
+                    onChange={(e) => void handleRoomAgentToggle(a.name, e.target.checked)}
+                    className="rounded border-slack-border"
+                  />
+                  <span className="text-slack-text">
+                    {a.name}
+                    <span className="ml-1 text-xs text-slack-textMuted">{locked ? 'always on' : a.type}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="rounded-lg border border-slack-border p-4">

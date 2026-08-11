@@ -26,16 +26,16 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	startupComplete := hubStartupComplete.Load()
 	health := map[string]interface{}{
-		"status":            "ok",
-		"uptime_secs":       int(time.Since(serverStartTime).Seconds()),
-		"agent_count":       len(agents),
-		"agents_listening":  listening,
-		"agents_expected":   expected,
-		"agents_ready":      startupComplete && agentsReady,
-		"startup_complete":  startupComplete,
-		"version":           "1.0.0",
-		"snapshot":          chatHub.GetSessionSaveHealth(),
-		"features":          []string{"hub_data_read"},
+		"status":           "ok",
+		"uptime_secs":      int(time.Since(serverStartTime).Seconds()),
+		"agent_count":      len(agents),
+		"agents_listening": listening,
+		"agents_expected":  expected,
+		"agents_ready":     startupComplete && agentsReady,
+		"startup_complete": startupComplete,
+		"version":          "1.0.0",
+		"snapshot":         chatHub.GetSessionSaveHealth(),
+		"features":         []string{"hub_data_read"},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -123,6 +123,9 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 			}
 			if incoming.Packs.CatalogURL != "" {
 				appConfig.Packs.CatalogURL = incoming.Packs.CatalogURL
+			}
+			if incoming.Packs.DefaultRoom != "" {
+				appConfig.Packs.DefaultRoom = incoming.Packs.DefaultRoom
 			}
 		}
 		appConfig.MCP = incoming.MCP

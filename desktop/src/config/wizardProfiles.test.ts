@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { inferWizardTrackFromPacks } from './wizardProfiles';
+import {
+  agentsForTrack,
+  inferWizardTrackFromPacks,
+  modelsToEnsureForTrack,
+  ollamaModelForTrack,
+  UTILITY_OLLAMA_MODEL,
+} from './wizardProfiles';
 
 describe('inferWizardTrackFromPacks', () => {
   it('returns general when packs are missing or empty', () => {
@@ -30,6 +36,15 @@ describe('inferWizardTrackFromPacks', () => {
   it('returns developer when ide or software-development is enabled', () => {
     expect(inferWizardTrackFromPacks({ ide: true })).toBe('developer');
     expect(inferWizardTrackFromPacks({ 'software-development': true })).toBe('developer');
+  });
+
+  it('developer track seeds Assistant + BackendEngineer on 9b', () => {
+    expect(agentsForTrack('developer')).toEqual([
+      { type: 'assistant', name: 'Assistant', enabled: true },
+      { type: 'backend', name: 'BackendEngineer', enabled: true },
+    ]);
+    expect(ollamaModelForTrack('developer')).toBe(UTILITY_OLLAMA_MODEL);
+    expect(modelsToEnsureForTrack('developer', 'ollama')).toEqual([UTILITY_OLLAMA_MODEL]);
   });
 
   it('ignores disabled pack flags', () => {

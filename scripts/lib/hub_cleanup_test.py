@@ -27,6 +27,26 @@ class HubCleanupTest(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(missing, [])
 
+    def test_merge_roster_enabled_appends_and_flips(self) -> None:
+        agents = [{"name": "BackendEngineer", "type": "backend", "enabled": True}]
+        merged, changed = hub_cleanup.merge_roster_enabled(
+            agents, ["BackendEngineer", "FrontendEngineer"]
+        )
+        self.assertTrue(changed)
+        names = {a["name"]: a for a in merged}
+        self.assertTrue(names["BackendEngineer"]["enabled"])
+        self.assertTrue(names["FrontendEngineer"]["enabled"])
+        self.assertEqual(names["FrontendEngineer"]["type"], "frontend")
+
+    def test_merge_roster_enabled_noop(self) -> None:
+        agents = [
+            {"name": "Assistant", "type": "assistant", "enabled": True},
+            {"name": "BackendEngineer", "type": "backend", "enabled": True},
+        ]
+        merged, changed = hub_cleanup.merge_roster_enabled(agents, ["Assistant", "BackendEngineer"])
+        self.assertFalse(changed)
+        self.assertEqual(len(merged), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

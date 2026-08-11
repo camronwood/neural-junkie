@@ -36,14 +36,17 @@ export function agentsForTrack(track: WizardTrack): WizardAgentChoice[] {
   if (track === 'general') {
     return [{ type: 'assistant', name: 'Assistant', enabled: true }];
   }
-  return [{ type: 'assistant', name: 'Assistant', enabled: true }];
+  return [
+    { type: 'assistant', name: 'Assistant', enabled: true },
+    { type: 'backend', name: 'BackendEngineer', enabled: true },
+  ];
 }
 
 export function ollamaModelForTrack(track: WizardTrack): string {
   if (track === 'lifeSciences') return BIO_OLLAMA_CHAT_MODEL;
   if (track === 'cad') return CAD_OLLAMA_CHAT_MODEL;
   if (track === 'general') return UTILITY_OLLAMA_MODEL;
-  return DEV_OLLAMA_MODEL;
+  return UTILITY_OLLAMA_MODEL;
 }
 
 export function modelsToEnsureForTrack(track: WizardTrack, providerType: 'ollama' | 'cloud'): string[] {
@@ -51,7 +54,7 @@ export function modelsToEnsureForTrack(track: WizardTrack, providerType: 'ollama
   if (track === 'lifeSciences') return [BIO_OLLAMA_CHAT_MODEL, BIO_OLLAMA_TOOL_MODEL];
   if (track === 'cad') return [CAD_OLLAMA_CHAT_MODEL, CAD_OLLAMA_CHAT_MODEL_LIGHT, CAD_OLLAMA_TOOL_MODEL];
   if (track === 'general') return [UTILITY_OLLAMA_MODEL];
-  return [DEV_OLLAMA_MODEL, UTILITY_OLLAMA_MODEL];
+  return [UTILITY_OLLAMA_MODEL];
 }
 
 export function packsEnabledForTrack(track: WizardTrack): Record<string, boolean> {

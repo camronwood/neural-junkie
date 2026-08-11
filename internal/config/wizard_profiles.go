@@ -12,12 +12,12 @@ const (
 
 // WizardProfile holds model and agent defaults for a setup track.
 type WizardProfile struct {
-	Track            WizardTrack
-	OllamaModel      string
-	ModelsToEnsure   []string
-	HFHostedModel    string // Hub repo id for huggingface provider
-	CloudAnthropic   string
-	DefaultAgents    []AgentConfig
+	Track          WizardTrack
+	OllamaModel    string
+	ModelsToEnsure []string
+	HFHostedModel  string // Hub repo id for huggingface provider
+	CloudAnthropic string
+	DefaultAgents  []AgentConfig
 }
 
 const (
@@ -95,12 +95,13 @@ func WizardProfileFor(track WizardTrack) WizardProfile {
 	default:
 		return WizardProfile{
 			Track:          WizardTrackDeveloper,
-			OllamaModel:    DevOllamaCodeModel,
-			ModelsToEnsure: []string{DevOllamaCodeModel, UtilityOllamaModel},
+			OllamaModel:    UtilityOllamaModel,
+			ModelsToEnsure: []string{UtilityOllamaModel},
 			HFHostedModel:  "",
 			CloudAnthropic: "claude-3-5-sonnet-20241022",
 			DefaultAgents: []AgentConfig{
-				{Type: "assistant", Name: "Assistant", Enabled: true},
+				{Type: "assistant", Name: "Assistant", Enabled: true, ProviderID: "ollama-local", Model: UtilityOllamaModel},
+				{Type: "backend", Name: "BackendEngineer", Enabled: true, ProviderID: "ollama-local", Model: UtilityOllamaModel},
 			},
 		}
 	}
@@ -126,10 +127,12 @@ func (c *Config) ApplyWizardProfile(track WizardTrack, ollamaLocal bool) {
 		_ = c.InstallPack(PackSoftwareDevelopment)
 		_ = c.SetPackEnabled(PackSoftwareDevelopment, true)
 		_ = c.SetLayoutOwner(PackIDE)
+		c.Packs.DefaultRoom = DefaultRoomSlim
 	default:
 		// general track: no packs
 	}
 	c.SyncAgentsFromPacks()
+	_ = c.applySlimDefaultRoom()
 	c.Ollama.ModelsToEnsure = append([]string(nil), c.Ollama.ModelsToEnsure...)
 
 	if ollamaLocal {
