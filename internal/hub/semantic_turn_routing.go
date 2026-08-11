@@ -250,7 +250,7 @@ func (h *Hub) semanticTurnFeatures(msg *protocol.Message) intent.TurnFeatures {
 					features.OpenArtifactTitle = t
 				}
 			} else {
-				features.OpenArtifactRenderer = "nj.markdown"
+				features.OpenArtifactRenderer = "nj.document"
 			}
 		}
 	} else if id, renderer, title := h.semanticOpenCanvasArtifact(msg.Channel, msg.ID); id != "" {

@@ -702,7 +702,8 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 	if len(issues) > 0 {
 		switch {
 		case st.goal.RequiresActionEvidence() && shouldRewriteAsSafeFailureForGoal(st.goal, st.evidence, issues, st.response) &&
-			!shouldKeepOpenCanvasReviseResponse(st.msg, st.goal, issues):
+			!shouldKeepOpenCanvasReviseResponse(st.msg, st.goal, issues) &&
+			!shouldKeepChatSurfaceResponse(st.msg, st.goal, issues, st.response):
 			st.response = safeActionFailure(st.goal, st.evidence)
 		case st.goal.RequiresActionEvidence():
 			// Misclassified action goals often still get a good conversational answer.

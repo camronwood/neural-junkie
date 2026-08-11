@@ -24,6 +24,17 @@ describe('resolveArtifactRenderer', () => {
     expect(result.reason).toBe('requested');
   });
 
+  it('resolves nj.document by renderer and media type', () => {
+    const result = resolveArtifactRenderer(artifact({
+      renderer_id: 'nj.document',
+      media_type: 'application/vnd.neural-junkie.document+json',
+      data: { schema_version: 1, blocks: [] },
+    }));
+
+    expect(result.registration?.id).toBe('nj.document');
+    expect(result.reason).toBe('requested');
+  });
+
   it('falls back deterministically by media type', () => {
     const result = resolveArtifactRenderer(artifact({ renderer_id: 'missing' }));
 

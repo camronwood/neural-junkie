@@ -293,6 +293,32 @@ func TestNoChangeOutcomeDoesNotReportInspectedCandidates(t *testing.T) {
 	}
 }
 
+func TestChatSurfaceKeepsArtifactSoftFailResponse(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "please summarize my last meeting notes in the chat")
+	msg.Metadata = map[string]interface{}{
+		"open_artifact": map[string]interface{}{
+			"id": "art-1", "renderer_id": "nj.markdown", "title": "St. Louis to Sea Side",
+		},
+	}
+	goal := TurnGoal{Action: ActionArtifact, ExpectedEvidence: []EvidenceKind{EvidenceArtifactCreated}}
+	resp := "Yesterday's trip planning call covered the St. Louis to Seaside drive and the Friday arrival."
+	issues := validateResponseAgainstEvidence(goal, &ActionEvidenceLedger{}, msg, resp, nil)
+	if !shouldKeepChatSurfaceResponse(msg, goal, issues, resp) {
+		t.Fatalf("expected keep chat-surface summary; issues=%v", issues)
+	}
+	if !shouldRewriteAsSafeFailureForGoal(goal, &ActionEvidenceLedger{}, issues, resp) {
+		t.Fatal("missing artifact evidence would normally rewrite")
+	}
+	canvasAsk := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "Create a Neural Canvas of the meeting notes")
+	if shouldKeepChatSurfaceResponse(canvasAsk, goal, issues, resp) {
+		t.Fatal("explicit canvas create must not use chat-surface keep path")
+	}
+}
+
 func TestOpenCanvasReviseKeepsEditSoftFailResponse(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{
 		ID: "user", Name: "Camron", Type: "human",

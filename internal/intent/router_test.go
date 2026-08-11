@@ -424,6 +424,81 @@ func TestPolicyCanvasTextAskDoesNotPromoteStatusQuestion(t *testing.T) {
 	}
 }
 
+func TestPolicyOpenCanvasDoesNotPromoteMeetingNotesSummary(t *testing.T) {
+	// Live failure: focused Neural Canvas tab promoted "summarize today's meeting
+	// notes" into an artifact update instead of a chat answer.
+	decision := ResolvePolicy(TurnFeatures{
+		Text:                 "can you summarize todays meeting notes for me?",
+		ComposerMode:         "agent",
+		OpenArtifactID:       "541e3c624b6c00cba4eb83b9b50bf2f8",
+		OpenArtifactRenderer: "nj.markdown",
+		OpenArtifactTitle:    "St. Louis to Sea Side",
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionAnswer,
+		MutationRequested: MutationNone,
+		Confidence:        0.9,
+	}, SourceLocalModel)
+	if decision.Action != ActionAnswer {
+		t.Fatalf("action=%s overrides=%v, want answer for meeting-notes summary", decision.Action, decision.PolicyOverrides)
+	}
+	if containsString(decision.PolicyOverrides, "open_canvas_artifact") {
+		t.Fatalf("overrides=%v must not include open_canvas_artifact", decision.PolicyOverrides)
+	}
+}
+
+func TestPolicyOpenCanvasDoesNotPromoteChatSurfaceAsk(t *testing.T) {
+	cases := []string{
+		"please summarize my last meeting notes in the chat",
+		"just show me text in the chat please",
+	}
+	for _, text := range cases {
+		decision := ResolvePolicy(TurnFeatures{
+			Text:                 text,
+			ComposerMode:         "agent",
+			OpenArtifactID:       "art-1",
+			OpenArtifactRenderer: "nj.markdown",
+			OpenArtifactTitle:    "St. Louis to Sea Side",
+		}, SemanticIntent{
+			SchemaVersion:     SchemaVersion,
+			Interaction:       InteractionQuestion,
+			RequestedAction:   ActionArtifact,
+			MutationRequested: MutationExternal,
+			Confidence:        0.9,
+			ReasonCodes:       []string{"blank_canvas", "durable_artifact"},
+		}, SourceLocalModel)
+		if decision.Action != ActionAnswer {
+			t.Fatalf("text=%q action=%s overrides=%v, want answer", text, decision.Action, decision.PolicyOverrides)
+		}
+		if !containsString(decision.PolicyOverrides, "chat_surface_demote") {
+			t.Fatalf("text=%q overrides=%v, want chat_surface_demote", text, decision.PolicyOverrides)
+		}
+	}
+}
+
+func TestPolicyOpenCanvasStillPromotesPutMeetingNotesInThere(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:                 "put the meeting notes in there",
+		ComposerMode:         "agent",
+		OpenArtifactID:       "art-1",
+		OpenArtifactRenderer: "nj.markdown",
+		OpenArtifactTitle:    "Plan",
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionQuestion,
+		RequestedAction:   ActionAnswer,
+		MutationRequested: MutationNone,
+		Confidence:        0.9,
+	}, SourceLocalModel)
+	if decision.Action != ActionArtifact {
+		t.Fatalf("action=%s overrides=%v, want artifact for explicit canvas fill", decision.Action, decision.PolicyOverrides)
+	}
+	if !containsString(decision.PolicyOverrides, "open_canvas_artifact") {
+		t.Fatalf("overrides=%v, want open_canvas_artifact", decision.PolicyOverrides)
+	}
+}
+
 func TestPolicyOpenCanvasArtifactPromotesTaskAnswerToArtifact(t *testing.T) {
 	decision := ResolvePolicy(TurnFeatures{
 		Text:                 "add a list of places we are going to visit",
@@ -715,6 +790,24 @@ func TestPolicyCanvasTextAskPromotesDespitePendingEdit(t *testing.T) {
 	}, SourceLocalModel)
 	if decision.Action != ActionArtifact {
 		t.Fatalf("action=%s, canvas create must not be blocked by pending edit", decision.Action)
+	}
+}
+
+func TestPrefersChatOverOpenCanvas(t *testing.T) {
+	if !PrefersChatOverOpenCanvas("can you summarize todays meeting notes for me?") {
+		t.Fatal("expected meeting-notes summary to prefer chat")
+	}
+	if !PrefersChatOverOpenCanvas("please summarize my last meeting notes in the chat") {
+		t.Fatal("expected in-the-chat meeting summary to prefer chat")
+	}
+	if !PrefersChatOverOpenCanvas("just show me text in the chat please") {
+		t.Fatal("expected explicit chat-surface ask")
+	}
+	if PrefersChatOverOpenCanvas("put the meeting notes in there") {
+		t.Fatal("explicit canvas fill must still revise the open page")
+	}
+	if PrefersChatOverOpenCanvas("add weather to the canvas") {
+		t.Fatal("canvas fill must not prefer chat")
 	}
 }
 

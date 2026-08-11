@@ -6,8 +6,11 @@ writing generated files into a workspace.
 
 ## Core renderers
 
-- `nj.markdown`, `nj.mermaid`, and `nj.code`
-- `nj.table`, `nj.chart`, and `nj.timeline`
+- `nj.document` — default collaborative page (block document)
+- `nj.markdown` — legacy page; opened as a document (one markdown block) and
+  rewritten to `nj.document` on the next update
+- `nj.mermaid` and `nj.code`
+- `nj.table`, `nj.chart`, and `nj.timeline` — standalone artifacts
 - `nj.image` and `nj.graph`
 - `nj.map` — interactive OSM maps with markers and walking/driving route polylines
   (Maps pack; media type `application/vnd.neural-junkie.map+json`)
@@ -16,6 +19,34 @@ writing generated files into a workspace.
 
 Renderers consume validated declarative data. Neural Canvas never evaluates
 artifact JavaScript or pack-provided React components.
+
+## Document schema (`nj.document`)
+
+Media type: `application/vnd.neural-junkie.document+json`. API version `1`.
+
+```json
+{
+  "schema_version": 1,
+  "title": "Trip plan",
+  "blocks": [
+    { "type": "heading", "level": 1, "text": "Trip plan" },
+    { "type": "list", "items": ["Tokyo", "Kyoto"] },
+    {
+      "type": "table",
+      "columns": [{ "key": "name", "label": "Name" }],
+      "rows": [{ "name": "Ada" }]
+    }
+  ]
+}
+```
+
+v1 block types: `heading`, `markdown`, `list`, `table`, `callout`, `mermaid`,
+`image`, `columns`. Discriminator is `type`, never `kind`. Unknown types render
+as a compact fallback.
+
+Agents may still emit Markdown. The host compiler lifts headings, lists, GFM
+pipe tables, mermaid fences, and images into blocks. Existing `nj.markdown`
+string payloads unwrap on read and are not rewritten until the next update.
 
 ## Storage and privacy
 

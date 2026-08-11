@@ -2,8 +2,14 @@ import { Background, Controls, ReactFlow, type Edge, type Node } from '@xyflow/r
 import '@xyflow/react/dist/style.css';
 import { useMemo } from 'react';
 import { MermaidCanvas } from '../MermaidCanvas';
-import { RichMarkdownView } from '../RichMarkdownView';
+import { DocumentArtifactRenderer } from './DocumentArtifactRenderer';
 import { MapArtifactRenderer } from './MapArtifactRenderer';
+import {
+  EmptyArtifact,
+  ImageArtifactRenderer,
+  TableArtifactRenderer,
+  textFrom,
+} from './artifactViews';
 import type { ArtifactRendererProps, ArtifactRendererRegistration } from './types';
 import {
   ArenaArtifactRenderer,
@@ -14,27 +20,14 @@ import {
   StructureArtifactRenderer,
 } from './specializedRenderers';
 
-const textFrom = (value: unknown): string =>
-  typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+export { EmptyArtifact, ImageArtifactRenderer, TableArtifactRenderer, textFrom } from './artifactViews';
 
-export function MarkdownArtifactRenderer({ artifact, compact }: ArtifactRendererProps) {
-  const raw = textFrom(artifact.data).trim();
-  if (!raw) {
-    return (
-      <div className={compact ? 'p-2 text-sm text-slack-textMuted' : 'h-full overflow-auto p-4 text-sm text-slack-textMuted'}>
-        Empty canvas — keep chatting to fill it in
-      </div>
-    );
-  }
-  return (
-    <div className={compact ? '' : 'h-full overflow-auto p-4'}>
-      <RichMarkdownView
-        content={raw}
-        compact={compact}
-        artifactId={typeof artifact.id === 'string' ? artifact.id : undefined}
-      />
-    </div>
-  );
+export function MarkdownArtifactRenderer(props: ArtifactRendererProps) {
+  return <DocumentArtifactRenderer {...props} />;
+}
+
+export function DocumentPageArtifactRenderer(props: ArtifactRendererProps) {
+  return <DocumentArtifactRenderer {...props} />;
 }
 
 export function MermaidArtifactRenderer({ artifact, compact }: ArtifactRendererProps) {
@@ -72,72 +65,6 @@ export function CodeArtifactRenderer({ artifact, compact }: ArtifactRendererProp
       <pre className={`${compact ? 'max-h-40 p-2 text-xs' : 'p-4 text-sm'} overflow-auto`}>
         <code>{code}</code>
       </pre>
-    </div>
-  );
-}
-
-interface TableColumn {
-  key: string;
-  label: string;
-}
-
-function normalizeTable(data: unknown): { columns: TableColumn[]; rows: unknown[] } {
-  if (!data || typeof data !== 'object') return { columns: [], rows: [] };
-  const source = data as { columns?: unknown; rows?: unknown };
-  const rows = Array.isArray(source.rows) ? source.rows : [];
-  const supplied = Array.isArray(source.columns) ? source.columns : [];
-  const columns = supplied.flatMap((column): TableColumn[] => {
-    if (typeof column === 'string') return [{ key: column, label: column }];
-    if (!column || typeof column !== 'object') return [];
-    const candidate = column as { key?: unknown; label?: unknown };
-    if (typeof candidate.key !== 'string') return [];
-    return [{
-      key: candidate.key,
-      label: typeof candidate.label === 'string' ? candidate.label : candidate.key,
-    }];
-  });
-  if (columns.length || !rows.length || !rows[0] || typeof rows[0] !== 'object') {
-    return { columns, rows };
-  }
-  return {
-    columns: Object.keys(rows[0] as Record<string, unknown>).map((key) => ({ key, label: key })),
-    rows,
-  };
-}
-
-function tableCell(row: unknown, column: TableColumn, index: number): string {
-  if (Array.isArray(row)) return textFrom(row[index] ?? '');
-  if (row && typeof row === 'object') return textFrom((row as Record<string, unknown>)[column.key] ?? '');
-  return textFrom(row);
-}
-
-export function TableArtifactRenderer({ artifact, compact }: ArtifactRendererProps) {
-  const { columns, rows } = normalizeTable(artifact.data);
-  if (!columns.length) return <EmptyArtifact message="No table columns" />;
-  const visibleRows = compact ? rows.slice(0, 4) : rows;
-
-  return (
-    <div className={`overflow-auto rounded border border-slate-700 ${compact ? '' : 'm-4 h-[calc(100%-2rem)]'}`}>
-      <table className="w-full border-collapse text-left text-sm">
-        <thead className="sticky top-0 bg-slate-900 text-slate-300">
-          <tr>{columns.map((column) => (
-            <th key={column.key} className="border-b border-slate-700 px-3 py-2 font-medium">
-              {column.label}
-            </th>
-          ))}</tr>
-        </thead>
-        <tbody>
-          {visibleRows.map((row, rowIndex) => (
-            <tr key={rowIndex} className="odd:bg-slate-900/30">
-              {columns.map((column, columnIndex) => (
-                <td key={column.key} className="border-b border-slate-800 px-3 py-2 text-slate-200">
-                  {tableCell(row, column, columnIndex)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
@@ -285,30 +212,6 @@ export function TimelineArtifactRenderer({ artifact, compact }: ArtifactRenderer
   );
 }
 
-function safeImageSource(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  return /^(https?:|blob:|data:image\/(?:png|jpeg|gif|webp|svg\+xml);)/i.test(value) ? value : null;
-}
-
-export function ImageArtifactRenderer({ artifact }: ArtifactRendererProps) {
-  const data = typeof artifact.data === 'string'
-    ? { src: artifact.data, alt: artifact.title, caption: undefined }
-    : artifact.data as { src?: unknown; alt?: unknown; caption?: unknown };
-  const src = safeImageSource(data?.src);
-  if (!src) return <EmptyArtifact message="Image source is not allowed" />;
-
-  return (
-    <figure className="flex h-full flex-col items-center justify-center">
-      <img
-        src={src}
-        alt={typeof data.alt === 'string' ? data.alt : artifact.title}
-        className="max-h-full max-w-full rounded object-contain"
-      />
-      {typeof data.caption === 'string' && <figcaption className="mt-2 text-sm text-slate-400">{data.caption}</figcaption>}
-    </figure>
-  );
-}
-
 interface GraphNodeData extends Record<string, unknown> {
   label: string;
 }
@@ -363,14 +266,6 @@ export function GraphArtifactRenderer({ artifact, compact }: ArtifactRendererPro
   );
 }
 
-export function EmptyArtifact({ message }: { message: string }) {
-  return (
-    <div className="flex min-h-24 items-center justify-center rounded border border-dashed border-slate-700 p-4 text-sm text-slate-400">
-      {message}
-    </div>
-  );
-}
-
 export function ChartArtifactRenderer(props: ArtifactRendererProps) {
   const data = props.artifact.data as { chart_type?: unknown; type?: unknown } | null;
   const type = String(data?.chart_type ?? data?.type ?? 'line').toLowerCase();
@@ -380,6 +275,7 @@ export function ChartArtifactRenderer(props: ArtifactRendererProps) {
 }
 
 export const BUILT_IN_RENDERERS: readonly ArtifactRendererRegistration[] = [
+  { id: 'nj.document', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['application/vnd.neural-junkie.document+json'], component: DocumentPageArtifactRenderer },
   { id: 'nj.markdown', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['text/markdown'], component: MarkdownArtifactRenderer },
   { id: 'nj.mermaid', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['text/vnd.mermaid', 'application/vnd.mermaid'], component: MermaidArtifactRenderer },
   { id: 'nj.code', apiVersions: ['1', '1.0', 'v1'], mediaTypes: ['text/plain', 'application/vnd.neural-canvas.code+json', 'application/vnd.neural-junkie.code+json'], component: CodeArtifactRenderer },

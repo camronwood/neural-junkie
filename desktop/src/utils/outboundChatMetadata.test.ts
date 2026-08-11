@@ -425,7 +425,7 @@ describe('buildHumanOutboundMetadata open_artifact', () => {
     });
   });
 
-  it('defaults renderer_id to nj.markdown when tab lacks cached renderer', () => {
+  it('defaults renderer_id to nj.document when tab lacks cached renderer', () => {
     useEditorStore.setState({
       tabs: [
         {
@@ -450,7 +450,7 @@ describe('buildHumanOutboundMetadata open_artifact', () => {
     expect(meta?.open_artifact).toEqual({
       id: 'art-trip-1',
       title: 'Trip Planning',
-      renderer_id: 'nj.markdown',
+      renderer_id: 'nj.document',
     });
   });
 

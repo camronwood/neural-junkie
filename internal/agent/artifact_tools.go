@@ -86,10 +86,10 @@ var createArtifactToolSchema = json.RawMessage(`{
   "type": "object",
   "properties": {
     "title": {"type": "string", "description": "Short descriptive artifact title"},
-    "renderer_id": {"type": "string", "enum": ["nj.markdown","nj.mermaid","nj.code","nj.table","nj.chart","nj.timeline","nj.image","nj.graph","nj.map"]},
+    "renderer_id": {"type": "string", "enum": ["nj.document","nj.markdown","nj.mermaid","nj.code","nj.table","nj.chart","nj.timeline","nj.image","nj.graph","nj.map"]},
     "media_type": {"type": "string", "description": "Renderer media type"},
     "kind": {"type": "string"},
-    "data": {"description": "Declarative JSON payload for the renderer"},
+    "data": {"description": "Declarative JSON payload. For nj.document: {schema_version:1, blocks:[{type, ...}]}. Never use kind as a block discriminator."},
     "fallback": {"type": "string", "description": "Markdown or plain-text fallback"},
     "workspace_id": {"type": "string"},
     "project_id": {"type": "string"}
@@ -115,7 +115,7 @@ func artifactToolDefinitions() []ai.ClaudeToolDefinition {
 	return []ai.ClaudeToolDefinition{
 		{
 			Name:        createArtifactToolName,
-			Description: "Create a durable Neural Canvas artifact for a report, chart, table, timeline, Mermaid diagram, or graph. Use when the output benefits from a standalone visual artifact.",
+			Description: "Create a durable Neural Canvas artifact. Default collaborative pages use nj.document with a blocks[] payload (heading, list, table, callout, mermaid, image, columns). Use standalone nj.table/nj.chart/nj.mermaid only for dedicated single-purpose artifacts.",
 			InputSchema: createArtifactToolSchema,
 		},
 		{
@@ -145,12 +145,14 @@ func artifactToolsEnabledForMessage(msg *protocol.Message) bool {
 
 func appendArtifactPrompt(system *strings.Builder) {
 	system.WriteString("NEURAL CANVAS:\n")
-	system.WriteString("Use create_artifact for substantial standalone analytical deliverables such as reports, charts, tables, timelines, Mermaid diagrams, and graph explorations. Keep short factual answers in chat.\n")
+	system.WriteString("Default collaborative pages use renderer nj.document (media type application/vnd.neural-junkie.document+json). data is {\"schema_version\":1,\"blocks\":[...]} with block types heading, markdown, list, table, callout, mermaid, image, and columns. Use type, never kind.\n")
+	system.WriteString("Use create_artifact for substantial standalone analytical deliverables such as reports, charts, timelines, Mermaid diagrams, and graph explorations. Keep short factual answers in chat.\n")
 	system.WriteString("When the user explicitly requests a Neural Canvas or standalone artifact, call create_artifact in this turn. Do not promise to create it later and do not start a file implementation session.\n")
 	system.WriteString("Generic new/blank canvas creates an empty collaborative page. Only generate a workspace report when the user asks for a report/summary about the project.\n")
-	system.WriteString("When the user asks to update/revise an existing canvas (colors, layout, black-and-white, content, add sections, add mermaid/images on the page), call update_artifact with artifact_id, expected_revision, and the full new data payload. Do not edit repo files (tauri.conf.json, CSS, themes) for canvas style changes.\n")
+	system.WriteString("When the user asks to update/revise an existing canvas (colors, layout, black-and-white, content, add sections, add a table, add mermaid/images on the page), call update_artifact with artifact_id, expected_revision, and the full new document payload. Do not edit repo files (tauri.conf.json, CSS, themes) for canvas style changes.\n")
+	system.WriteString("Add tables, lists, mermaid, and images as blocks on the open document. Use standalone nj.table / nj.mermaid only when the user wants a dedicated artifact, not when a page is already open.\n")
 	system.WriteString("Never emit [FILE_CHANGE], propose_file_edit, or workspace file edits for Neural Canvas requests — the canvas is app-managed, not a repo file.\n")
-	system.WriteString("Never call generate_image for standalone Neural Canvas / Mermaid / chart / table creates — call create_artifact instead. Embedding an image onto an open markdown canvas page is allowed via the canvas update path.\n")
+	system.WriteString("Never call generate_image for standalone Neural Canvas / Mermaid / chart / table creates — call create_artifact instead. Embedding an image onto an open canvas page is allowed via the canvas update path.\n")
 	system.WriteString("Artifact payloads must be declarative JSON. Never place executable JavaScript, React code, or arbitrary HTML in an artifact.\n\n")
 }
 

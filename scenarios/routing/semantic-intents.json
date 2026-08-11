@@ -1005,6 +1005,52 @@
       "want_override_any": "inspect_requires_workspace"
     },
     {
+      "name": "open-canvas-meeting-notes-stay-chat",
+      "text": "can you summarize todays meeting notes for me?",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "open_artifact_title": "St. Louis to Sea Side",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "chat_surface",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question"
+    },
+    {
+      "name": "open-canvas-chat-surface-demote",
+      "text": "just show me text in the chat please",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "chat_surface",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "task",
+      "stamp_reason_codes": [
+        "blank_canvas",
+        "durable_artifact"
+      ],
+      "want_override_any": "chat_surface_demote"
+    },
+    {
+      "name": "open-canvas-meeting-notes-in-chat",
+      "text": "please summarize my last meeting notes in the chat",
+      "composer_mode": "agent",
+      "open_artifact_id": "art-1",
+      "open_artifact_renderer": "markdown",
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "chat_surface",
+      "stamp_action": "artifact",
+      "stamp_mutation": "external",
+      "stamp_interaction": "task",
+      "want_override_any": "chat_surface_demote"
+    },
+    {
       "name": "repo-fact-where-file",
       "text": "Where is the Express dependency declared in this repo?",
       "composer_mode": "agent",

@@ -230,7 +230,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		strings.ToLower(strings.TrimSpace(features.ComposerMode)) != "export" &&
 		!pendingActionBlocksCanvasPromote(features) {
 		promoteOpenCanvas := false
-		if !metaCanvasQ {
+		if !metaCanvasQ && !PrefersChatOverOpenCanvas(features.Text) {
 			switch decision.Action {
 			case ActionEdit, ActionRun, ActionInspect, ActionImage,
 				ActionAskUser, ActionContinue, ActionAnswer, ActionPlan:
@@ -305,6 +305,20 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			LooksLikePriorContentCanvasAsk(features.Text) {
 			decision.Retrieval = append(decision.Retrieval, RetrievalPriorReference)
 		}
+	}
+
+	// Chat-surface and meeting-note Q&A stay in-thread even when a canvas tab is
+	// focused or the user said "in the chat". No-canvas meeting-note spray still
+	// uses spurious_artifact_demote. Explicit fill/create ("put the notes in
+	// there") still revises the page.
+	if decision.Action == ActionArtifact && features.ExplicitAction == "" &&
+		PrefersChatOverOpenCanvas(features.Text) &&
+		(hasOpenCanvas || LooksLikeChatSurfaceAsk(features.Text)) {
+		decision.Action = ActionAnswer
+		decision.RequestedAction = ActionAnswer
+		decision.Mutation = MutationNone
+		decision.ContinuationTarget = ""
+		decision.PolicyOverrides = append(decision.PolicyOverrides, "chat_surface_demote")
 	}
 
 	// Tiny local classifiers also stamp ActionArtifact + blank_canvas on unrelated
@@ -706,6 +720,65 @@ func hasCanvasDeliverableReasonCode(codes []string) bool {
 		}
 	}
 	return false
+}
+
+// PrefersChatOverOpenCanvas reports turns that must stay in-thread even when a
+// Neural Canvas tab is focused. Explicit canvas fill/create still revises the page.
+func PrefersChatOverOpenCanvas(text string) bool {
+	if LooksLikeChatSurfaceAsk(text) {
+		return true
+	}
+	if LooksLikeMeetingNotesAsk(text) &&
+		!LooksLikeOpenCanvasFillAsk(text) &&
+		!LooksLikeCanvasDeliverableAsk(text) {
+		return true
+	}
+	return false
+}
+
+// LooksLikeChatSurfaceAsk reports the user wants the reply in the chat thread,
+// not as a Neural Canvas artifact.
+func LooksLikeChatSurfaceAsk(text string) bool {
+	c := strings.ToLower(strings.TrimSpace(text))
+	if c == "" {
+		return false
+	}
+	cues := []string{
+		"in the chat", "in chat", "in this chat", "in this thread",
+		"as text", "as a message", "just text", "just the text",
+		"show me text", "show me the text",
+		"don't use the canvas", "dont use the canvas",
+		"without a canvas", "without the canvas",
+		"no canvas", "not on the canvas", "not in the canvas",
+		"don't create a canvas", "dont create a canvas",
+		"don't make a canvas", "dont make a canvas",
+	}
+	for _, cue := range cues {
+		if strings.Contains(c, cue) {
+			return true
+		}
+	}
+	return false
+}
+
+// LooksLikeMeetingNotesAsk reports questions about synced meeting notes.
+func LooksLikeMeetingNotesAsk(text string) bool {
+	c := strings.ToLower(strings.TrimSpace(text))
+	if c == "" {
+		return false
+	}
+	cues := []string{
+		"meeting notes", "meeting note", "meeting summary",
+		"summarize notes", "summarise notes",
+		"last meeting", "recent meeting", "today's meeting", "todays meeting",
+		"notes from today", "notes from my last", "notes from the last",
+	}
+	for _, cue := range cues {
+		if strings.Contains(c, cue) {
+			return true
+		}
+	}
+	return strings.Contains(c, "meeting") && strings.Contains(c, "notes")
 }
 
 // LooksLikeCanvasDeliverableAsk reports user text that asks to create/open a Neural

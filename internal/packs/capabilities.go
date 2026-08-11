@@ -39,6 +39,7 @@ const (
 // KnownArtifactRenderers are trusted, host-owned Neural Canvas renderers.
 // Packs may map data to these IDs but cannot ship executable UI code.
 var KnownArtifactRenderers = []string{
+	"nj.document",
 	"nj.markdown",
 	"nj.mermaid",
 	"nj.code",

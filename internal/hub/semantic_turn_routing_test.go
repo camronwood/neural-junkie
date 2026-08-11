@@ -316,7 +316,7 @@ func TestSemanticTurnFeaturesDefaultsRendererWhenHistoryMissing(t *testing.T) {
 		},
 	}
 	features := h.semanticTurnFeatures(msg)
-	if features.OpenArtifactRenderer != "nj.markdown" {
-		t.Fatalf("renderer=%q, want default nj.markdown", features.OpenArtifactRenderer)
+	if features.OpenArtifactRenderer != "nj.document" {
+		t.Fatalf("renderer=%q, want default nj.document", features.OpenArtifactRenderer)
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/artifacts"
+	"github.com/camronwood/neural-junkie/internal/canvasdoc"
 	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/routing"
@@ -43,7 +44,7 @@ func wantsMarkdownCanvas(content string) bool {
 		return false
 	}
 	if strings.Contains(c, "chart") || strings.Contains(c, "timeline") ||
-		strings.Contains(c, "table") || strings.Contains(c, "nj.map") {
+		strings.Contains(c, "nj.map") {
 		return false
 	}
 	if strings.Contains(c, "markdown") || strings.Contains(c, "report") ||
@@ -157,7 +158,7 @@ func (a *Agent) tryNeuralCanvasMarkdownShortcut(
 
 	streamMsgID := StreamMessageIDFromContext(ctx)
 	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
-		Kind: "start", Name: createArtifactToolName, Preview: "Creating Neural Canvas Markdown…",
+		Kind: "start", Name: createArtifactToolName, Preview: "Creating Neural Canvas…",
 	})
 
 	kind := markdownCanvasCreateKind(msg)
@@ -197,12 +198,19 @@ func (a *Agent) tryNeuralCanvasMarkdownShortcut(
 
 	if strings.TrimSpace(body) == "" {
 		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
-			Kind: "error", Name: createArtifactToolName, Preview: "empty markdown payload",
+			Kind: "error", Name: createArtifactToolName, Preview: "empty document payload",
 		})
 		return "I couldn't create the requested Neural Canvas artifact in this turn.", true
 	}
 
-	data, err := json.Marshal(body)
+	doc := canvasdoc.FromModelOutput(body)
+	if title != "" {
+		doc = canvasdoc.EnsureHeading(doc, title)
+		if doc.Title == "" {
+			doc.Title = title
+		}
+	}
+	data, fallback, err := canvasdoc.Marshal(doc)
 	if err != nil {
 		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
 			Kind: "error", Name: createArtifactToolName, Preview: err.Error(),
@@ -211,11 +219,11 @@ func (a *Agent) tryNeuralCanvasMarkdownShortcut(
 	}
 	input, err := json.Marshal(map[string]any{
 		"title":       title,
-		"renderer_id": "nj.markdown",
-		"media_type":  "text/markdown",
-		"kind":        "markdown",
+		"renderer_id": canvasdoc.RendererID,
+		"media_type":  canvasdoc.MediaType,
+		"kind":        "document",
 		"data":        json.RawMessage(data),
-		"fallback":    body,
+		"fallback":    fallback,
 	})
 	if err != nil {
 		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
@@ -241,7 +249,7 @@ func (a *Agent) tryNeuralCanvasMarkdownShortcut(
 	if project == "" {
 		project = "the shared workspace"
 	}
-	return fmt.Sprintf("Posted a Neural Canvas markdown report for **%s**. %s", project, result), true
+	return fmt.Sprintf("Posted a Neural Canvas report for **%s**. %s", project, result), true
 }
 
 func decisionHasReasonCode(msg *protocol.Message, code string) bool {
@@ -590,22 +598,7 @@ func stripMarkdownFence(raw string) string {
 }
 
 func markdownSourceFromPayload(payload json.RawMessage) string {
-	if len(payload) == 0 {
-		return ""
-	}
-	var asString string
-	if err := json.Unmarshal(payload, &asString); err == nil {
-		return asString // preserve intentional leading/trailing whitespace for blank scaffolds
-	}
-	var asObj map[string]any
-	if err := json.Unmarshal(payload, &asObj); err == nil {
-		for _, key := range []string{"markdown", "content", "text", "body"} {
-			if v, ok := asObj[key].(string); ok {
-				return v
-			}
-		}
-	}
-	return string(payload)
+	return canvasdoc.ToMarkdown(canvasdoc.Unwrap(payload))
 }
 
 // openArtifactFromMessageMetadata returns the canvas the client reports as currently open.
@@ -696,10 +689,7 @@ func isMarkdownArtifact(art *artifacts.Artifact) bool {
 	if art == nil {
 		return false
 	}
-	if art.Renderer.ID == "nj.markdown" {
-		return true
-	}
-	return strings.Contains(strings.ToLower(art.Renderer.MediaType), "markdown")
+	return canvasdoc.IsPageRenderer(art.Renderer.ID, art.Renderer.MediaType)
 }
 
 func recentMarkdownArtifactID(history []*protocol.Message, skipMsgID string) string {
@@ -714,9 +704,7 @@ func recentMarkdownArtifactID(history []*protocol.Message, skipMsgID string) str
 		if !ok || strings.TrimSpace(ref.ID) == "" {
 			continue
 		}
-		rid := strings.ToLower(ref.RendererID)
-		media := strings.ToLower(ref.MediaType)
-		if rid == "nj.markdown" || strings.Contains(media, "markdown") {
+		if canvasdoc.IsPageRenderer(ref.RendererID, ref.MediaType) {
 			return ref.ID
 		}
 	}
@@ -753,11 +741,12 @@ func (a *Agent) tryNeuralCanvasMarkdownUpdateShortcut(
 	if current == nil || !isMarkdownArtifact(current) {
 		return "", false
 	}
-	existing := markdownSourceFromPayload(current.Payload)
+	existingDoc := canvasdoc.Unwrap(current.Payload)
+	existing := canvasdoc.ToMarkdown(existingDoc)
 
 	streamMsgID := StreamMessageIDFromContext(ctx)
 	a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
-		Kind: "start", Name: updateArtifactToolName, Preview: "Updating Neural Canvas Markdown…",
+		Kind: "start", Name: updateArtifactToolName, Preview: "Updating Neural Canvas…",
 	})
 
 	liveCtx := ""
@@ -798,39 +787,38 @@ func (a *Agent) tryNeuralCanvasMarkdownUpdateShortcut(
 	}
 	if strings.TrimSpace(body) == "" {
 		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
-			Kind: "error", Name: updateArtifactToolName, Preview: "empty markdown payload",
+			Kind: "error", Name: updateArtifactToolName, Preview: "empty document payload",
 		})
 		return "I couldn't update the Neural Canvas in this turn.", true
 	}
 
-	data, err := json.Marshal(body)
+	doc := canvasdoc.FromModelOutput(body)
+	title := resolveMarkdownCanvasUpdateTitle(current.Title, msg.Content, canvasdoc.ToMarkdown(doc))
+	if usedPrior {
+		if h1 := canvasdoc.FirstHeading(doc); h1 != "" && h1 != "Canvas" {
+			title = h1
+		}
+	}
+	if title != "" {
+		doc = canvasdoc.EnsureHeading(doc, title)
+		if doc.Title == "" {
+			doc.Title = title
+		}
+	}
+	data, fallback, err := canvasdoc.Marshal(doc)
 	if err != nil {
 		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
 			Kind: "error", Name: updateArtifactToolName, Preview: err.Error(),
 		})
 		return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
 	}
-	title := resolveMarkdownCanvasUpdateTitle(current.Title, msg.Content, body)
-	if usedPrior {
-		if h1 := firstMarkdownH1(body); h1 != "" && h1 != "Canvas" {
-			title = h1
-		}
-	}
-	if title != "" {
-		body = ensureMarkdownH1(body, title)
-		data, err = json.Marshal(body)
-		if err != nil {
-			a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
-				Kind: "error", Name: updateArtifactToolName, Preview: err.Error(),
-			})
-			return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
-		}
-	}
 	input := map[string]any{
 		"artifact_id":       current.ID,
 		"expected_revision": current.Revision,
+		"renderer_id":       canvasdoc.RendererID,
+		"media_type":        canvasdoc.MediaType,
 		"data":              json.RawMessage(data),
-		"fallback":          body,
+		"fallback":          fallback,
 	}
 	if title != "" {
 		input["title"] = title
@@ -1161,8 +1149,9 @@ func (a *Agent) generateMarkdownRevisionForCanvas(
 ) (string, error) {
 	var b strings.Builder
 	b.WriteString("Revise the Markdown document below per the user request. Output Markdown only — no fences, no FILE_CHANGE.\n")
-	b.WriteString("Preserve existing sections, lists, mermaid fenced blocks, and image links unless the user asks to change or remove them.\n")
-	b.WriteString("Add or fill content as requested (new headings, lists, sections).\n")
+	b.WriteString("Preserve existing sections, lists, tables, mermaid fenced blocks, and image links unless the user asks to change or remove them.\n")
+	b.WriteString("Add or fill content as requested (new headings, lists, GFM pipe tables, sections, callouts).\n")
+	b.WriteString("When the user asks for a table, emit a GitHub-flavored pipe table in this document — do not create a separate artifact.\n")
 	b.WriteString("When the user asks for a diagram, insert or update a ```mermaid fenced block in this document with valid Mermaid source.\n")
 	b.WriteString("If the H1 is still \"Canvas\", retitle it using ONLY words/topics from USER REQUEST (e.g. location + topic).\n")
 	b.WriteString("If the user asks to rename/retitle the page, set the H1 to their exact requested title.\n")
@@ -1294,30 +1283,42 @@ func (a *Agent) tryNeuralCanvasMarkdownImageEmbedShortcut(
 		Kind: "result", Name: generateImageToolName, Preview: assetName,
 	})
 
-	existing := markdownSourceFromPayload(current.Payload)
+	doc := canvasdoc.Unwrap(current.Payload)
 	alt := "Generated image"
-	if h := firstMarkdownH1(existing); h != "" {
+	if h := canvasdoc.FirstHeading(doc); h != "" {
 		alt = h
 	}
 	assetURL := fmt.Sprintf("/api/artifacts/%s/assets/%s", current.ID, assetName)
-	imageBlock := fmt.Sprintf("\n\n![%s](%s)\n", alt, assetURL)
-	body := strings.TrimRight(existing, "\n") + imageBlock
+	existingMD := canvasdoc.ToMarkdown(doc)
+	body := strings.TrimRight(existingMD, "\n") + fmt.Sprintf("\n\n![%s](%s)\n", alt, assetURL)
 	if revised, err := a.generateMarkdownRevisionForCanvas(ctx, msg, body, "", eff); err == nil {
 		if cleaned := strings.TrimSpace(stripMarkdownFence(revised)); cleaned != "" &&
-			strings.Contains(cleaned, assetURL) {
+			strings.Contains(cleaned, assetURL) && !looksLikeSpuriousCanvasJSONPayload(cleaned) {
 			body = cleaned
 		}
 	}
-
-	data, err := json.Marshal(body)
+	doc = canvasdoc.FromModelOutput(body)
+	hasImage := false
+	for _, block := range doc.Blocks {
+		if block.Type == canvasdoc.TypeImage && block.Src == assetURL {
+			hasImage = true
+			break
+		}
+	}
+	if !hasImage {
+		doc.Blocks = append(doc.Blocks, canvasdoc.Block{Type: canvasdoc.TypeImage, Src: assetURL, Alt: alt})
+	}
+	data, fallback, err := canvasdoc.Marshal(doc)
 	if err != nil {
 		return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true
 	}
 	input, err := json.Marshal(map[string]any{
 		"artifact_id":       current.ID,
 		"expected_revision": current.Revision,
+		"renderer_id":       canvasdoc.RendererID,
+		"media_type":        canvasdoc.MediaType,
 		"data":              json.RawMessage(data),
-		"fallback":          body,
+		"fallback":          fallback,
 	})
 	if err != nil {
 		return fmt.Sprintf("I couldn't update the Neural Canvas: %v", err), true

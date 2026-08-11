@@ -9,9 +9,14 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/artifacts"
+	"github.com/camronwood/neural-junkie/internal/canvasdoc"
 	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func documentText(payload json.RawMessage) string {
+	return canvasdoc.ToMarkdown(canvasdoc.Unwrap(payload))
+}
 
 func TestWantsMermaidCanvas(t *testing.T) {
 	if !wantsMermaidCanvas("Create a Neural Canvas Mermaid diagram of this architecture") {
@@ -47,6 +52,9 @@ func TestWantsMarkdownCanvas(t *testing.T) {
 	}
 	if !wantsMarkdownCanvas("create a new canvas") {
 		t.Fatal("generic new canvas should be markdown")
+	}
+	if !wantsMarkdownCanvas("create a canvas with a table of coverage gaps") {
+		t.Fatal("table on a new canvas should stay a document page")
 	}
 	if wantsMarkdownCanvas("Create a Neural Canvas Mermaid diagram of this architecture") {
 		t.Fatal("mermaid ask is not markdown")
@@ -120,21 +128,21 @@ func TestMermaidShortcutSkipsMarkdownAskWithPriorMermaid(t *testing.T) {
 	if !ok {
 		t.Fatal("expected markdown shortcut")
 	}
-	if !strings.Contains(resp, "markdown report") {
+	if !strings.Contains(resp, "Neural Canvas report") {
 		t.Fatalf("resp=%q", resp)
 	}
 	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var sawMarkdown bool
+	var sawDocument bool
 	for _, item := range items {
-		if item.Renderer.ID == "nj.markdown" {
-			sawMarkdown = true
+		if item.Renderer.ID == canvasdoc.RendererID {
+			sawDocument = true
 		}
 	}
-	if !sawMarkdown {
-		t.Fatalf("expected nj.markdown artifact, got %+v", items)
+	if !sawDocument {
+		t.Fatalf("expected nj.document artifact, got %+v", items)
 	}
 	still, err := store.Get(created.ID)
 	if err != nil {
@@ -190,16 +198,13 @@ func TestTryNeuralCanvasMarkdownShortcutCreatesArtifact(t *testing.T) {
 	if !strings.Contains(resp, "blank Neural Canvas") {
 		t.Fatalf("resp=%q, want blank canvas confirmation", resp)
 	}
-	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: "nj.markdown"})
+	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: canvasdoc.RendererID})
 	if err != nil || len(items) != 1 {
 		t.Fatalf("items=%+v err=%v", items, err)
 	}
-	var payload string
-	if err := json.Unmarshal(items[0].Payload, &payload); err != nil {
-		t.Fatal(err)
-	}
+	payload := documentText(items[0].Payload)
 	if !strings.HasPrefix(strings.TrimSpace(payload), "# Canvas") {
-		t.Fatalf("blank canvas payload=%q", payload)
+		t.Fatalf("blank canvas payload=%q raw=%s", payload, string(items[0].Payload))
 	}
 	if strings.Contains(payload, "Workspace-grounded") || strings.Contains(payload, "mock response") {
 		t.Fatalf("generic create must not auto-generate a workspace report; got=%q", payload)
@@ -245,7 +250,7 @@ func TestTryNeuralCanvasMarkdownShortcutUsesPriorReferenceBody(t *testing.T) {
 	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
 		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
 		RequestedAction: intent.ActionArtifact, Action: intent.ActionArtifact,
-		Mutation:        intent.MutationExternal, Confidence: 1, Source: intent.SourceLocalModel,
+		Mutation: intent.MutationExternal, Confidence: 1, Source: intent.SourceLocalModel,
 		Retrieval: []intent.RetrievalTarget{intent.RetrievalPriorReference, intent.RetrievalCodebase},
 	}); err != nil {
 		t.Fatal(err)
@@ -255,17 +260,14 @@ func TestTryNeuralCanvasMarkdownShortcutUsesPriorReferenceBody(t *testing.T) {
 	if !ok {
 		t.Fatal("expected markdown shortcut")
 	}
-	if !strings.Contains(resp, "markdown report") {
+	if !strings.Contains(resp, "Neural Canvas report") {
 		t.Fatalf("resp=%q", resp)
 	}
-	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: "nj.markdown"})
+	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: canvasdoc.RendererID})
 	if err != nil || len(items) != 1 {
 		t.Fatalf("items=%+v err=%v", items, err)
 	}
-	var payload string
-	if err := json.Unmarshal(items[0].Payload, &payload); err != nil {
-		t.Fatalf("payload unmarshal: %v raw=%s", err, string(items[0].Payload))
-	}
+	payload := documentText(items[0].Payload)
 	if !strings.Contains(payload, "React frontend with Tauri backend for dickory-docs") {
 		t.Fatalf("payload missing prior summary; got=%q", payload)
 	}
@@ -320,15 +322,14 @@ func TestTryNeuralCanvasMarkdownShortcutWorkspaceReport(t *testing.T) {
 	if !ok {
 		t.Fatal("expected markdown shortcut for workspace report")
 	}
-	if !strings.Contains(resp, "markdown report") {
+	if !strings.Contains(resp, "Neural Canvas report") {
 		t.Fatalf("resp=%q", resp)
 	}
-	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: "nj.markdown"})
+	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: canvasdoc.RendererID})
 	if err != nil || len(items) != 1 {
 		t.Fatalf("items=%+v err=%v", items, err)
 	}
-	var payload string
-	_ = json.Unmarshal(items[0].Payload, &payload)
+	payload := documentText(items[0].Payload)
 	if !strings.Contains(payload, "dickory-docs") && !strings.Contains(payload, "mock response") {
 		t.Fatalf("workspace report payload unexpected: %q", payload)
 	}
@@ -416,14 +417,16 @@ func TestTryNeuralCanvasMarkdownUpdateShortcutFillIn(t *testing.T) {
 	if got.Revision != 2 {
 		t.Fatalf("revision=%d, want 2", got.Revision)
 	}
-	var payload string
-	_ = json.Unmarshal(got.Payload, &payload)
+	payload := documentText(got.Payload)
 	if !strings.Contains(payload, "Tokyo") {
-		t.Fatalf("payload missing places; got=%q", payload)
+		t.Fatalf("payload missing places; got=%q raw=%s", payload, string(got.Payload))
 	}
-	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: "nj.markdown"})
+	if got.Renderer.ID != canvasdoc.RendererID {
+		t.Fatalf("renderer=%q, want nj.document after update", got.Renderer.ID)
+	}
+	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: canvasdoc.RendererID})
 	if err != nil || len(items) != 1 {
-		t.Fatalf("expected one markdown artifact, got %+v err=%v", items, err)
+		t.Fatalf("expected one document artifact, got %+v err=%v", items, err)
 	}
 }
 
@@ -502,10 +505,22 @@ func TestTryNeuralCanvasMarkdownUpdateEmbedsMermaidNotSeparateArtifact(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	var payload string
-	_ = json.Unmarshal(got.Payload, &payload)
+	payload := documentText(got.Payload)
 	if !strings.Contains(payload, "```mermaid") {
-		t.Fatalf("expected mermaid fence on markdown page; got=%q", payload)
+		t.Fatalf("expected mermaid block on document page; got=%q raw=%s", payload, string(got.Payload))
+	}
+	doc := canvasdoc.Unwrap(got.Payload)
+	var sawMermaid bool
+	for _, block := range doc.Blocks {
+		if block.Type == canvasdoc.TypeMermaid && strings.Contains(block.Source, "Tokyo") {
+			sawMermaid = true
+		}
+	}
+	if !sawMermaid {
+		t.Fatalf("expected mermaid block, got %+v", doc.Blocks)
+	}
+	if got.Renderer.ID != canvasdoc.RendererID {
+		t.Fatalf("renderer=%q, want nj.document", got.Renderer.ID)
 	}
 }
 
@@ -661,7 +676,10 @@ func TestTryNeuralCanvasMarkdownUpdateShortcutWeatherFill(t *testing.T) {
 		!strings.Contains(strings.ToLower(got.Title), "louis") {
 		t.Fatalf("title=%q, want weather + St Louis from ask", got.Title)
 	}
-	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: "nj.markdown"})
+	if got.Renderer.ID != canvasdoc.RendererID {
+		t.Fatalf("renderer=%q, want nj.document after weather fill", got.Renderer.ID)
+	}
+	items, err := store.List(artifacts.Filter{ChannelID: "dm-camron-assistant", RendererID: canvasdoc.RendererID})
 	if err != nil || len(items) != 1 {
 		t.Fatalf("expected one artifact, got %+v", items)
 	}
@@ -1186,13 +1204,15 @@ func TestTryNeuralCanvasMarkdownRenameOnlyUpdatesTitle(t *testing.T) {
 	if got.Title != "St. Louis to Florida" {
 		t.Fatalf("title=%q, want St. Louis to Florida", got.Title)
 	}
-	var payload string
-	_ = json.Unmarshal(got.Payload, &payload)
+	payload := documentText(got.Payload)
 	if !strings.HasPrefix(strings.TrimSpace(payload), "# St. Louis to Florida") {
-		t.Fatalf("H1 not retitled; payload=%q", payload)
+		t.Fatalf("H1 not retitled; payload=%q raw=%s", payload, string(got.Payload))
 	}
 	if !strings.Contains(payload, "## Notes") || !strings.Contains(payload, "start planning") {
 		t.Fatalf("rename-only must preserve body; payload=%q", payload)
+	}
+	if got.Renderer.ID != canvasdoc.RendererID {
+		t.Fatalf("renderer=%q, want nj.document", got.Renderer.ID)
 	}
 }
 
@@ -1255,6 +1275,90 @@ func TestLooksLikeSpuriousCanvasJSONPayload(t *testing.T) {
 	}
 	if looksLikeSpuriousCanvasJSONPayload("# Phoenix Team Meeting\n\n- notes\n") {
 		t.Fatal("real markdown must not be rejected")
+	}
+	docJSON := `{"schema_version":1,"blocks":[{"type":"heading","level":1,"text":"Hi"}]}`
+	if looksLikeSpuriousCanvasJSONPayload(docJSON) {
+		t.Fatal("document JSON must not be rejected as tool metadata")
+	}
+}
+
+func TestTryNeuralCanvasMarkdownUpdateLiftsGFMTable(t *testing.T) {
+	store, err := artifacts.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	agentArtifactStoreOnce = sync.Once{}
+	agentArtifactStore = nil
+	agentArtifactStoreErr = nil
+	agentArtifactStoreOnce.Do(func() { agentArtifactStore = store })
+	t.Cleanup(func() {
+		agentArtifactStoreOnce = sync.Once{}
+		agentArtifactStore = nil
+		agentArtifactStoreErr = nil
+	})
+
+	provider := &revisionMarkdownProvider{
+		revision: "# Coverage\n\n| Gap | Owner |\n| --- | --- |\n| Auth | Ada |\n",
+	}
+	hub := newConversationStateCaptureHub()
+	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, provider, hub)
+
+	created, err := store.Create(artifacts.Artifact{
+		Kind:  "markdown",
+		Title: "Canvas",
+		Links: artifacts.ArtifactLinks{ChannelID: "dm-camron-assistant"},
+		Renderer: artifacts.Renderer{
+			ID: "nj.markdown", APIVersion: "1", MediaType: "text/markdown",
+		},
+		Payload: mustJSONString("# Canvas\n\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := protocol.NewMessage(protocol.MessageTypeArtifactChanged, "dm-camron-assistant", a.Info, created.Title)
+	changed.SetArtifactReference(protocol.ArtifactReference{
+		ID: created.ID, Title: created.Title, RendererID: "nj.markdown",
+		MediaType: "text/markdown", Revision: int64(created.Revision), Action: "created",
+	})
+	a.replaceChannelHistory("dm-camron-assistant", []*protocol.Message{changed})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-camron-assistant",
+		protocol.AgentInfo{ID: "user-1", Name: "Camron", Type: "human"},
+		"add a table of coverage gaps",
+	)
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionArtifact, Action: intent.ActionArtifact,
+		Mutation: intent.MutationExternal, Confidence: 1, Source: intent.SourceLocalModel,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, ok := a.tryNeuralCanvasMarkdownShortcut(context.Background(), msg, "", provider)
+	if !ok {
+		t.Fatal("expected document update for table ask")
+	}
+	if !strings.Contains(resp, "Updated the Neural Canvas") {
+		t.Fatalf("resp=%q", resp)
+	}
+	got, err := store.Get(created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Renderer.ID != canvasdoc.RendererID {
+		t.Fatalf("renderer=%q", got.Renderer.ID)
+	}
+	doc := canvasdoc.Unwrap(got.Payload)
+	var sawTable bool
+	for _, block := range doc.Blocks {
+		if block.Type == canvasdoc.TypeTable && len(block.Rows) > 0 && block.Rows[0]["gap"] == "Auth" {
+			sawTable = true
+		}
+	}
+	if !sawTable {
+		t.Fatalf("expected lifted table block, got %+v", doc.Blocks)
 	}
 }
 
@@ -1327,15 +1431,12 @@ func TestTryNeuralCanvasMarkdownUpdateUsesPriorContentNotJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var payload string
-	if err := json.Unmarshal(got.Payload, &payload); err != nil {
-		t.Fatalf("payload must be markdown string: %v raw=%s", err, string(got.Payload))
-	}
+	payload := documentText(got.Payload)
 	if looksLikeSpuriousCanvasJSONPayload(payload) {
 		t.Fatalf("payload still JSON metadata: %q", payload)
 	}
 	if !strings.Contains(payload, "Phoenix Team Meeting") || !strings.Contains(payload, "Camron Wood") {
-		t.Fatalf("payload missing prior meeting content: %q", payload)
+		t.Fatalf("payload missing prior meeting content: %q raw=%s", payload, string(got.Payload))
 	}
 	if strings.Contains(payload, "Project X") {
 		t.Fatalf("must not keep invented Project X body: %q", payload)

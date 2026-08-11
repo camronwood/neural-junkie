@@ -313,6 +313,30 @@ func shouldRewriteAsSafeFailureForGoal(goal TurnGoal, ledger *ActionEvidenceLedg
 	return true
 }
 
+// shouldKeepChatSurfaceResponse keeps a non-empty chat answer when the user
+// asked for text in-thread (or a meeting-note summary) but the turn was
+// mis-stamped ActionArtifact because a canvas tab was focused.
+func shouldKeepChatSurfaceResponse(msg *protocol.Message, goal TurnGoal, issues []responseValidationIssue, response string) bool {
+	if msg == nil || strings.TrimSpace(response) == "" {
+		return false
+	}
+	if goal.Action != ActionArtifact {
+		return false
+	}
+	if !intent.PrefersChatOverOpenCanvas(msg.Content) {
+		return false
+	}
+	for _, issue := range issues {
+		switch issue {
+		case issueMissingRequiredEvidence:
+			continue
+		default:
+			return false
+		}
+	}
+	return len(issues) > 0
+}
+
 // shouldKeepOpenCanvasReviseResponse suppresses Edit/AskUser soft-fails when the
 // user clearly asked to revise an open Neural Canvas. Promote should normally
 // stamp ActionArtifact first; this is a safety net so "wasn't able to make

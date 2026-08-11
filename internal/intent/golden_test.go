@@ -107,6 +107,35 @@ func TestClassifierGoldenContract(t *testing.T) {
 			wantAction: ActionAnswer,
 		},
 		{
+			// Live misroute: open canvas tab promoted a meeting-notes summary.
+			text: "can you summarize todays meeting notes for me?",
+			features: TurnFeatures{
+				OpenArtifactID:       "art-1",
+				OpenArtifactRenderer: "nj.markdown",
+				OpenArtifactTitle:    "St. Louis to Sea Side",
+			},
+			intent: func() SemanticIntent {
+				i := mustIntent(t, ActionAnswer, MutationNone)
+				i.Interaction = InteractionQuestion
+				return i
+			}(),
+			wantAction: ActionAnswer,
+		},
+		{
+			// Follow-up asked for chat text after a canvas dump.
+			text: "just show me text in the chat please",
+			features: TurnFeatures{
+				OpenArtifactID:       "art-1",
+				OpenArtifactRenderer: "nj.markdown",
+			},
+			intent: func() SemanticIntent {
+				i := mustIntent(t, ActionArtifact, MutationExternal, "blank_canvas")
+				return i
+			}(),
+			wantAction:   ActionAnswer,
+			wantOverride: "chat_surface_demote",
+		},
+		{
 			// Follow-up continue of a broken ask_user canvas goal must still become artifact.
 			text: "can we create a new canvas for this?",
 			features: TurnFeatures{

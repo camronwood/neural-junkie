@@ -10,6 +10,7 @@ export const NJ_VIEWER = {
   MUSIC: 'nj.music',
   ARENA: 'nj.arena',
   MAP: 'nj.map',
+  DOCUMENT: 'nj.document',
   MARKDOWN: 'nj.markdown',
   MERMAID: 'nj.mermaid',
 } as const;

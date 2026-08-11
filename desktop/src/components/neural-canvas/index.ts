@@ -15,12 +15,14 @@ export {
   GraphArtifactRenderer,
   ImageArtifactRenderer,
   LineChartArtifactRenderer,
+  DocumentPageArtifactRenderer,
   MarkdownArtifactRenderer,
   MermaidArtifactRenderer,
   ScatterChartArtifactRenderer,
   TableArtifactRenderer,
   TimelineArtifactRenderer,
 } from './renderers';
+export { DocumentArtifactRenderer } from './DocumentArtifactRenderer';
 export { MapArtifactRenderer } from './MapArtifactRenderer';
 export type {
   ArtifactCardProps,
