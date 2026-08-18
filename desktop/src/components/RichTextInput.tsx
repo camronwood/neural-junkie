@@ -28,7 +28,10 @@ import { isImagePreviewPath } from '../utils/editorFileKind';
 import { isScanSummaryWellPath, scanSummaryDirForFilePath } from '../utils/scanSummary';
 import { resolveScanSummaryWellImageSrc } from '../utils/scanSummaryImage';
 import {
+  clearActiveWorkspaceFileDropZoneHover,
   clearWorkspaceFileDragData,
+  getActiveWorkspaceFileDragPayloads,
+  isWorkspaceFileDragActive,
   parseWorkspaceFileDrag,
   setActiveWorkspaceFileDropZone,
   WORKSPACE_FILE_DROP_EVENT,
@@ -114,7 +117,6 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
     const attachInputRef = useRef<HTMLInputElement>(null);
     const dropZoneRef = useRef<HTMLDivElement>(null);
     const sendingRef = useRef(false);
-    const dropZoneDepthRef = useRef(0);
 
     const visionAgents = agents.filter((agent) => agent.supports_vision);
     const hasVisionAgents = visionAgents.length > 0;
@@ -293,12 +295,33 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
           textRefs.push(ref);
         }
       }
-      if (textRefs.length > 0) {
-        setAttachError(null);
-        setPendingAttachments((prev) => {
-          void attachmentsFromWorkspaceRefs(textRefs, prev).then(setPendingAttachments);
-          return prev;
+      if (textRefs.length === 0) return;
+
+      setAttachError(null);
+      try {
+        const result = await new Promise<{
+          attachments: PromptAttachmentPayload[];
+          errors: string[];
+          prevCount: number;
+        }>((resolve, reject) => {
+          setPendingAttachments((prev) => {
+            void attachmentsFromWorkspaceRefs(textRefs, prev)
+              .then((out) => {
+                setPendingAttachments(out.attachments);
+                resolve({ ...out, prevCount: prev.length });
+              })
+              .catch(reject);
+            return prev;
+          });
         });
+        if (result.errors.length > 0) {
+          setAttachError(result.errors.join(' '));
+        } else if (result.attachments.length <= result.prevCount) {
+          setAttachError('No new files were attached. Try the paperclip button.');
+        }
+      } catch (e) {
+        console.error('[ingestWorkspaceRefs]', e);
+        setAttachError(e instanceof Error ? e.message : 'Could not attach dropped files.');
       }
     };
 
@@ -306,6 +329,12 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       const workspaceRefs = parseWorkspaceFileDrag(dataTransfer);
       if (workspaceRefs.length > 0) {
         await ingestWorkspaceRefs(workspaceRefs);
+        return;
+      }
+      // Last resort: in-memory explorer drag when DataTransfer was emptied by WebKit.
+      const activeRefs = getActiveWorkspaceFileDragPayloads();
+      if (activeRefs.length > 0) {
+        await ingestWorkspaceRefs(activeRefs);
         return;
       }
       await ingestDroppedFiles(dataTransfer.files);
@@ -344,7 +373,6 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
               setDragActive(false);
             } else if (event.payload.type === 'drop') {
               setDragActive(false);
-              dropZoneDepthRef.current = 0;
               void ingestAbsolutePaths(event.payload.paths);
             }
           })
@@ -372,8 +400,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
               : [];
         if (payloads.length === 0) return;
         setDragActive(false);
-        dropZoneDepthRef.current = 0;
-        setActiveWorkspaceFileDropZone(null);
+        clearActiveWorkspaceFileDropZoneHover();
         void ingestWorkspaceRefs(payloads).finally(clearWorkspaceFileDragData);
       };
       node.addEventListener(WORKSPACE_FILE_DROP_EVENT, onWorkspaceFileDrop);
@@ -554,34 +581,39 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
           e.preventDefault();
           e.stopPropagation();
           setActiveWorkspaceFileDropZone(e.currentTarget);
-          dropZoneDepthRef.current += 1;
           setDragActive(true);
         }}
         onDragLeave={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          dropZoneDepthRef.current = Math.max(0, dropZoneDepthRef.current - 1);
-          if (dropZoneDepthRef.current === 0) {
-            setActiveWorkspaceFileDropZone(null);
+          const related = e.relatedTarget as Node | null;
+          // Crossing into a child (textarea, buttons) is not a real leave.
+          if (related && e.currentTarget.contains(related)) {
+            return;
           }
-          if (dropZoneDepthRef.current === 0 && !isTauriRuntime()) {
-            setDragActive(false);
+          setDragActive(false);
+          // Keep sticky drop zone while an explorer drag is alive so dragend can attach.
+          clearActiveWorkspaceFileDropZoneHover();
+          if (!isWorkspaceFileDragActive()) {
+            setActiveWorkspaceFileDropZone(null);
           }
         }}
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setActiveWorkspaceFileDropZone(e.currentTarget);
-          if (e.dataTransfer.types.includes(WORKSPACE_FILE_DRAG_MIME)) {
+          if (
+            e.dataTransfer.types.includes(WORKSPACE_FILE_DRAG_MIME) ||
+            isWorkspaceFileDragActive()
+          ) {
             e.dataTransfer.dropEffect = 'copy';
           }
         }}
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          dropZoneDepthRef.current = 0;
           setDragActive(false);
-          setActiveWorkspaceFileDropZone(null);
+          clearActiveWorkspaceFileDropZoneHover();
           void ingestDataTransfer(e.dataTransfer).finally(clearWorkspaceFileDragData);
         }}
       >

@@ -1,4 +1,4 @@
-import type { Collaboration } from '../../types/protocol';
+import type { Collaboration, Message } from '../../types/protocol';
 import { markdownPreviewLine } from '../../utils/markdownPreview';
 import { ChatFindBar } from '../ChatFindBar';
 import { MessageList } from '../MessageList';
@@ -17,6 +17,7 @@ interface ChatMessageListProps extends FirstWinCoachActions {
   collaborationForChannel: Collaboration | null;
   channelAwaitingWorkspaceCollab: Collaboration | null | undefined;
   onOpenWorkspaceGate: () => void;
+  onContinueGeneration?: (message: Message) => void | Promise<void>;
 }
 
 export function ChatMessageList({
@@ -34,6 +35,7 @@ export function ChatMessageList({
   onOpenAgentDM,
   onPrefillComposer,
   onOpenModelLibrary,
+  onContinueGeneration,
 }: ChatMessageListProps) {
   const showRoutingOnMessages = useSettingsStore(
     (s) => s.layoutSettings.showRoutingOnMessages !== false,
@@ -114,6 +116,7 @@ export function ChatMessageList({
         onOpenAgentDM={onOpenAgentDM}
         onPrefillComposer={onPrefillComposer}
         onOpenModelLibrary={onOpenModelLibrary}
+        onContinueGeneration={onContinueGeneration}
       />
     </>
   );

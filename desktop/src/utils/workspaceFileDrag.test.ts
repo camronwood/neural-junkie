@@ -5,9 +5,11 @@ import {
   WORKSPACE_FILE_DROPZONE_ATTR,
   clearWorkspaceFileDragData,
   dispatchWorkspaceFileDropEventAtPoint,
+  dispatchWorkspaceFileDropToStickyZone,
   parseWorkspaceFileDrag,
   scheduleWorkspaceFileDragClear,
   setActiveWorkspaceFileDropZone,
+  clearActiveWorkspaceFileDropZoneHover,
   setWorkspaceFileDragData,
 } from './workspaceFileDrag';
 
@@ -59,6 +61,27 @@ describe('workspaceFileDrag', () => {
     expect(parseWorkspaceFileDrag(drop)).toEqual([{ workspaceId: 'ws-1', path: 'src/main.go' }]);
     clearWorkspaceFileDragData();
     expect(parseWorkspaceFileDrag(drop)).toEqual([]);
+  });
+
+  it('keeps in-memory payloads when text/plain mismatches (WKWebView quirk)', () => {
+    const source = {
+      setData() {
+        /* ignore */
+      },
+      getData() {
+        return '';
+      },
+      effectAllowed: '',
+    } as unknown as DataTransfer;
+    setWorkspaceFileDragData(source, { workspaceId: 'ws-1', path: 'docs/notes.md' });
+
+    const drop = {
+      getData(type: string) {
+        return type === 'text/plain' ? 'unrelated clipboard junk' : '';
+      },
+    } as unknown as DataTransfer;
+
+    expect(parseWorkspaceFileDrag(drop)).toEqual([{ workspaceId: 'ws-1', path: 'docs/notes.md' }]);
   });
 
   it('keeps the fallback briefly if dragend fires before drop', () => {
@@ -146,7 +169,7 @@ describe('workspaceFileDrag', () => {
     dropZone.remove();
   });
 
-  it('dispatches to the active drop zone when dragend coordinates miss', () => {
+  it('dispatches to the sticky drop zone when dragleave cleared hover and dragend coords miss', () => {
     const source = {
       setData() {
         /* ignore */
@@ -162,6 +185,8 @@ describe('workspaceFileDrag', () => {
     dropZone.setAttribute(WORKSPACE_FILE_DROPZONE_ATTR, 'true');
     document.body.appendChild(dropZone);
     setActiveWorkspaceFileDropZone(dropZone);
+    // Simulate WebKit dragleave clearing hover before dragend.
+    clearActiveWorkspaceFileDropZoneHover();
 
     const received: unknown[] = [];
     dropZone.addEventListener(WORKSPACE_FILE_DROP_EVENT, (event) => {
@@ -171,9 +196,65 @@ describe('workspaceFileDrag', () => {
     document.elementFromPoint = vi.fn(() => null);
 
     expect(dispatchWorkspaceFileDropEventAtPoint(0, 0)).toBe(true);
-    expect(received).toEqual([{ payload: { workspaceId: 'ws-1', path: 'run/A1' }, payloads: [{ workspaceId: 'ws-1', path: 'run/A1' }] }]);
+    expect(received).toEqual([
+      { payload: { workspaceId: 'ws-1', path: 'run/A1' }, payloads: [{ workspaceId: 'ws-1', path: 'run/A1' }] },
+    ]);
 
     document.elementFromPoint = originalElementFromPoint;
+    dropZone.remove();
+  });
+
+  it('dispatches via sticky helper when point lookup fails', () => {
+    const source = {
+      setData() {
+        /* ignore */
+      },
+      getData() {
+        return '';
+      },
+      effectAllowed: '',
+    } as unknown as DataTransfer;
+    setWorkspaceFileDragData(source, { workspaceId: 'ws-1', path: 'README.md' });
+
+    const dropZone = document.createElement('div');
+    dropZone.setAttribute(WORKSPACE_FILE_DROPZONE_ATTR, 'true');
+    document.body.appendChild(dropZone);
+    setActiveWorkspaceFileDropZone(dropZone);
+    clearActiveWorkspaceFileDropZoneHover();
+
+    const received: unknown[] = [];
+    dropZone.addEventListener(WORKSPACE_FILE_DROP_EVENT, (event) => {
+      received.push((event as CustomEvent).detail);
+    });
+
+    expect(dispatchWorkspaceFileDropToStickyZone()).toBe(true);
+    expect(received).toHaveLength(1);
+
+    dropZone.remove();
+  });
+
+  it('expires sticky drop zone after the hover TTL', () => {
+    vi.useFakeTimers();
+    const source = {
+      setData() {
+        /* ignore */
+      },
+      getData() {
+        return '';
+      },
+      effectAllowed: '',
+    } as unknown as DataTransfer;
+    setWorkspaceFileDragData(source, { workspaceId: 'ws-1', path: 'a.ts' });
+
+    const dropZone = document.createElement('div');
+    dropZone.setAttribute(WORKSPACE_FILE_DROPZONE_ATTR, 'true');
+    document.body.appendChild(dropZone);
+    setActiveWorkspaceFileDropZone(dropZone);
+    clearActiveWorkspaceFileDropZoneHover();
+
+    vi.advanceTimersByTime(800);
+    expect(dispatchWorkspaceFileDropToStickyZone()).toBe(false);
+
     dropZone.remove();
   });
 

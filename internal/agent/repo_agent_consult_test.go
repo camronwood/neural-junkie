@@ -51,3 +51,24 @@ func TestShouldRunRepoConsult_TaskWithWorkspace(t *testing.T) {
 		t.Fatal("closure should skip repo consult")
 	}
 }
+
+func TestShouldRunRepoConsult_PlanModeSkipped(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{Type: protocol.AgentTypeBackend, Name: "BackendEngineer"},
+	}
+	msg := &protocol.Message{
+		Content: "Plan how to add HelloWorld in the repo",
+		From:    protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"},
+		Metadata: map[string]interface{}{
+			"composer_mode": "plan",
+			"editor_mode":   "plan",
+			"workspace_context": map[string]interface{}{
+				"workspace_path": t.TempDir(),
+			},
+		},
+	}
+	a.recordKnowledgeRoute(msg, IntentSubstantive)
+	if a.shouldRunRepoConsult(t.Context(), msg, IntentTask) {
+		t.Fatal("plan mode must not auto-run repo consult")
+	}
+}

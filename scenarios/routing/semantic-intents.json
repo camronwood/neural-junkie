@@ -1166,6 +1166,90 @@
         "canvas_meta_question"
       ],
       "want_override_any": "open_canvas_meta_demote"
+    },
+    {
+      "name": "workspace-docs-review-typo-reivew",
+      "text": "please reivew the documents in the workspace",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ],
+      "want_context_tier": "outline",
+      "want_subject": "workspace_documents",
+      "want_review_mode": "workspace"
+    },
+    {
+      "name": "workspace-docs-review-paraphrase-ciso",
+      "text": "can you review the materials under the shared workspace folders",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ],
+      "want_context_tier": "outline",
+      "want_subject": "workspace_documents",
+      "want_review_mode": "workspace"
+    },
+    {
+      "name": "active-tab-document-review",
+      "text": "review the document I have open",
+      "composer_mode": "agent",
+      "has_workspace": true,
+      "want_action": "inspect",
+      "want_mutation": "none",
+      "want_retrieval": [
+        "codebase"
+      ],
+      "policy_class": "project_overview",
+      "stamp_action": "inspect",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "project_overview"
+      ],
+      "stamp_context_tier": "focus",
+      "stamp_subject": "active_document",
+      "stamp_review_mode": "document",
+      "want_context_tier": "focus",
+      "want_subject": "active_document",
+      "want_review_mode": "document"
+    },
+    {
+      "name": "canvas-spray-negative-meeting-notes",
+      "text": "what did we cover in the meeting notes yesterday?",
+      "composer_mode": "agent",
+      "has_workspace": false,
+      "want_action": "answer",
+      "want_mutation": "none",
+      "policy_class": "chat_surface",
+      "stamp_action": "answer",
+      "stamp_mutation": "none",
+      "stamp_interaction": "question",
+      "stamp_reason_codes": [
+        "blank_canvas"
+      ],
+      "want_context_tier": "none",
+      "want_subject": "conversation",
+      "want_review_mode": "none"
     }
   ]
 }

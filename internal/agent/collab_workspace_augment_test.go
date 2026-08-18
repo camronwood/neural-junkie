@@ -118,7 +118,7 @@ func TestEffectiveMCPToolAllowlist_outlinePlanningDropsRunCommand(t *testing.T) 
 		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
 		"I want to add UI themes under settings with light and dark modes")
 	msg.Metadata = map[string]interface{}{
-		MetadataContextScope:    ContextScopeOutline,
+		MetadataContextScope:     ContextScopeOutline,
 		MetadataConversationMode: ConversationModeCode,
 	}
 	allow := effectiveMCPToolAllowlist(&Agent{}, msg)
@@ -148,6 +148,67 @@ func TestEffectiveMCPToolAllowlist_outlinePlanningDropsRunCommand(t *testing.T) 
 	implAllow := effectiveMCPToolAllowlist(&Agent{}, impl)
 	if len(implAllow) != 0 {
 		t.Fatalf("impl session with empty agent allowlist should stay empty (all tools), got %v", implAllow)
+	}
+}
+
+func TestEffectiveMCPToolAllowlist_planComposerDropsRunCommand(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"Plan how to add a HelloWorld function")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "plan",
+		"composer_mode":          "plan",
+		MetadataConversationMode: ConversationModeCode,
+	}
+	allow := effectiveMCPToolAllowlist(&Agent{}, msg)
+	foundRead, foundGrep := false, false
+	for _, name := range allow {
+		if name == "run_command" || name == "propose_file_edit" || name == "search_replace" {
+			t.Fatalf("mutating tool %q must not be allowlisted for plan mode, got %v", name, allow)
+		}
+		if name == "read_file" {
+			foundRead = true
+		}
+		if name == "grep" {
+			foundGrep = true
+		}
+	}
+	if !foundRead || !foundGrep {
+		t.Fatalf("expected read_file and grep for plan mode, got %v", allow)
+	}
+	for _, name := range allow {
+		if name == "web_search" || name == "fetch_url" {
+			t.Fatalf("plan mode must not load web_search schemas, got %v", allow)
+		}
+	}
+}
+
+func TestEffectiveMCPToolAllowlist_constrainedAgentDropsWebSearch(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"Add HelloWorld to main.go")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"composer_mode":          "agent",
+		"implementation_session": true,
+		MetadataConversationMode: ConversationModeCode,
+	}
+	a := &Agent{Info: protocol.AgentInfo{AIProvider: "ollama", AIModel: "qwen3.5:9b"}}
+	allow := effectiveMCPToolAllowlist(a, msg)
+	foundRead, foundRun := false, false
+	for _, name := range allow {
+		if name == "web_search" || name == "fetch_url" {
+			t.Fatalf("constrained agent must not load web_search schemas, got %v", allow)
+		}
+		if name == "read_file" {
+			foundRead = true
+		}
+		if name == "run_command" {
+			foundRun = true
+		}
+	}
+	if !foundRead || !foundRun {
+		t.Fatalf("expected read_file and run_command for constrained impl agent, got %v", allow)
 	}
 }
 

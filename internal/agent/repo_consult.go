@@ -113,6 +113,12 @@ func (a *Agent) shouldSkipRepoConsult(msg *protocol.Message) bool {
 	if len(msg.Content) > 0 && msg.Content[0] == '/' {
 		return true
 	}
+	if msg.IdeEditorModeIsPlan() {
+		return true
+	}
+	if a.constrainedIDETurn(msg) {
+		return true
+	}
 	return false
 }
 

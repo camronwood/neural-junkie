@@ -65,6 +65,9 @@ func semanticTurnRouter(cfg *config.Config) *intent.Router {
 		return nil
 	}
 	rc := cfg.Routing.Normalized()
+	if rc.SemanticTextGatesDisabled {
+		intent.SetTextGatesDisabled(true)
+	}
 	provider := routingClassifierProvider(cfg, rc.SemanticClassifierModel)
 	router := intent.NewRouter(nil, rc.MinConfidence)
 	if provider != nil {
@@ -72,6 +75,20 @@ func semanticTurnRouter(cfg *config.Config) *intent.Router {
 	}
 	router.Timeout = time.Duration(rc.SemanticClassifierTimeoutMS) * time.Millisecond
 	return router
+}
+
+// prepareDispatchEnabled reports whether /api/turn/prepare + dispatch are active.
+func prepareDispatchEnabled(cfg *config.Config) bool {
+	if cfg == nil {
+		return true
+	}
+	if cfg.Routing.SemanticRoutingLegacyRollback {
+		return false
+	}
+	if cfg.Routing.SemanticPrepareDispatchEnabled == nil {
+		return true
+	}
+	return *cfg.Routing.SemanticPrepareDispatchEnabled
 }
 
 type semanticAIGenerator struct {

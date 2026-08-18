@@ -102,6 +102,17 @@ func effectiveMCPToolAllowlist(a *Agent, msg *protocol.Message) []string {
 		base = a.MCPToolAllowlist
 	}
 	base = withSharedWebSearchAllowlist(base)
+	if msg != nil && msg.IdeEditorModeIsPlan() {
+		return narrowMCPToolAllowlist(base, planModeAllowedTools)
+	}
+	if a != nil && isIDEComposerTurn(msg) && a.turnContextProfile(msg).Constrained &&
+		!msg.IdeEditorModeIsAsk() {
+		keep := append([]string{}, constrainedAgentReadTools...)
+		if msg != nil && msg.ImplementationSession() {
+			keep = append(keep, "run_command")
+		}
+		return narrowMCPToolAllowlist(base, keep)
+	}
 	if outlinePlanningReadOnlyTools(msg) {
 		return narrowMCPToolAllowlist(base, outlinePlanningAllowedTools)
 	}
@@ -119,8 +130,25 @@ func outlinePlanningReadOnlyTools(msg *protocol.Message) bool {
 	if msg == nil || msg.ImplementationSession() {
 		return false
 	}
+	if msg.IdeEditorModeIsPlan() {
+		return true
+	}
 	scope := ContextScopeFromMessage(msg)
 	return scope == ContextScopeOutline || scope == ContextScopeHint
+}
+
+// planModeAllowedTools are workspace read tools only (no web_search schemas —
+// those blow 9B context on Plan turns).
+var planModeAllowedTools = []string{
+	"read_file", "get_file_content", "list_dir", "glob", "glob_file_search",
+	"grep", "semantic_search",
+}
+
+// constrainedAgentReadTools are workspace read tools for small-Ollama Agent/edit
+// (no web_search schemas — those blow 9B context).
+var constrainedAgentReadTools = []string{
+	"read_file", "get_file_content", "list_dir", "glob", "glob_file_search",
+	"grep", "semantic_search",
 }
 
 // outlinePlanningAllowedTools are read/discovery tools safe for outline planning.

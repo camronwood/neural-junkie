@@ -69,12 +69,44 @@ type StructuredOutputProvider interface {
 	GenerateStructuredResponse(ctx context.Context, request StructuredOutputRequest) (StructuredOutputResult, error)
 }
 
+// Stream terminal reasons (provider-neutral).
+const (
+	TerminalReasonStop      = "stop"
+	TerminalReasonLength    = "length"
+	TerminalReasonToolCalls = "tool_calls"
+	TerminalReasonTimeout   = "timeout"
+	TerminalReasonCancelled = "cancelled"
+	TerminalReasonError     = "error"
+)
+
+// NormalizeTerminalReason maps provider-specific finish/done reasons to NJ values.
+func NormalizeTerminalReason(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "length", "max_tokens", "max_completion_tokens":
+		return TerminalReasonLength
+	case "stop", "end_turn", "eos":
+		return TerminalReasonStop
+	case "tool_calls", "tool_use", "function_call":
+		return TerminalReasonToolCalls
+	case "timeout", "deadline_exceeded":
+		return TerminalReasonTimeout
+	case "cancelled", "canceled", "abort", "aborted":
+		return TerminalReasonCancelled
+	case "error":
+		return TerminalReasonError
+	default:
+		return ""
+	}
+}
+
 // StreamToken represents a single token/chunk from a streaming AI response.
 type StreamToken struct {
-	Content  string
-	Thinking string // reasoning delta (Ollama thinking models)
-	Done     bool
-	Error    error
+	Content              string
+	Thinking             string // reasoning delta (Ollama thinking models)
+	Done                 bool
+	Error                error
+	TerminalReason       string // provider-neutral: length|stop|timeout|...
+	ProviderTerminalReason string // raw provider done_reason / finish_reason
 }
 
 // StreamingProvider is an optional interface that AIProviders can implement

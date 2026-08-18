@@ -95,7 +95,7 @@ func walkFiles(root string) ([]string, error) {
 			return nil
 		}
 		if d.IsDir() {
-			if path != root && ignoreDirs[d.Name()] {
+			if path != root && (ignoreDirs[d.Name()] || repo.ShouldIgnore(d.Name())) {
 				return filepath.SkipDir
 			}
 			return nil

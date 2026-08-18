@@ -80,7 +80,7 @@ type OllamaConfig struct {
 	ReactToolModels []string `json:"react_tool_models,omitempty"`
 	// NumCtx sets Ollama options.num_ctx (0 = model/server default).
 	NumCtx int `json:"num_ctx,omitempty"`
-	// NumPredict caps output tokens (0 = provider heuristics / model default).
+	// NumPredict caps output tokens (0 = Ollama provider default of 4096).
 	NumPredict int `json:"num_predict,omitempty"`
 	// KeepAlive controls model unload (e.g. "5m", "0", "-1" for immediate unload). Empty = Ollama default.
 	KeepAlive string `json:"keep_alive,omitempty"`

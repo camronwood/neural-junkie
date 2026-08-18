@@ -45,6 +45,7 @@ func (a *Agent) ExecuteKnowledgePlan(ctx context.Context, msg *protocol.Message,
 	if a == nil || msg == nil || skipKnowledgeRetrievalForMessage(msg) {
 		return
 	}
+	_ = a.turnContextProfile(msg)
 	for _, r := range knowledgeRetrievers {
 		if r.Phase() != phase || !r.ShouldRun(plan, msg, intent) {
 			continue

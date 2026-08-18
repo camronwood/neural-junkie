@@ -49,6 +49,8 @@ type turnState struct {
 	response            string
 	streamMsgID         string
 	reasoningText       string
+	terminalReason      string
+	providerTerminalReason string
 	genErr              error
 	eff                 ai.AIProvider
 	implSessionProposed bool
@@ -403,6 +405,7 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 	var response string
 	var streamMsgID string
 	var reasoningText string
+	var terminalCapture streamTerminalCapture
 	var err error
 
 	var implSessionProposed bool
@@ -430,7 +433,7 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 			if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 				log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
 				llmSpan := trace.StartSpan(genCtx, "llm_call", map[string]any{"mode": "stream", "light_fallback": true})
-				response, streamMsgID, reasoningText, err = a.generateResponseStreaming(genCtx, msg, eff)
+				response, streamMsgID, reasoningText, err = a.generateResponseStreaming(genCtx, msg, eff, &terminalCapture)
 				if err != nil {
 					llmSpan.EndError(err, nil)
 				} else {
@@ -467,7 +470,7 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 		log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
 		genCtx := a.withToolObserver(st.ctx, toolObserver)
 		llmSpan := trace.StartSpan(genCtx, "llm_call", map[string]any{"mode": "stream"})
-		response, streamMsgID, reasoningText, err = a.generateResponseStreaming(genCtx, msg, eff)
+		response, streamMsgID, reasoningText, err = a.generateResponseStreaming(genCtx, msg, eff, &terminalCapture)
 		if err != nil {
 			llmSpan.EndError(err, nil)
 		} else {
@@ -488,6 +491,8 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 	st.response = response
 	st.streamMsgID = streamMsgID
 	st.reasoningText = reasoningText
+	st.terminalReason = terminalCapture.Reason
+	st.providerTerminalReason = terminalCapture.ProviderReason
 	st.genErr = err
 	st.implSessionProposed = implSessionProposed
 	st.implSessionFiles = implSessionFiles
@@ -593,6 +598,9 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 	if isAskModeReadOnly(msg) {
 		response = sanitizeAskModeResponse(response)
 	}
+	if msg.IdeEditorModeIsPlan() {
+		response = ensurePlanModeStructure(response)
+	}
 
 	st.response = response
 	st.proposedFileChange = proposedFileChange
@@ -612,6 +620,9 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 			responseMsg.Metadata = make(map[string]interface{})
 		}
 		responseMsg.Metadata["reasoning_text"] = st.reasoningText
+	}
+	if st.terminalReason != "" {
+		protocol.ApplyResponseCompletionMetadata(responseMsg, st.terminalReason, st.providerTerminalReason)
 	}
 	if consulted := a.TakeDelegationConsulted(); len(consulted) > 0 {
 		if responseMsg.Metadata == nil {
@@ -654,6 +665,7 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 		}
 		responseMsg.Metadata[protocol.IdeMetaCADFilesWritten] = paths
 	}
+	stampPersistedPlan(msg, responseMsg, response)
 	responseMsg.ReplyTo = msg.ID
 	if msg.IsInThread() {
 		responseMsg.ThreadID = msg.ThreadID

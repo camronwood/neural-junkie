@@ -42,4 +42,5 @@ Product screenshots stay in `assets/screenshots/` (synced into the gallery as sc
 | `lora` / `lora-v2` / `two-tier-lora` / `mcp-lora` / `personal-learning` / `conversation-memory` | Learning / LoRA |
 | `collaboration` / `collab-craft` / `solo-vs-collab-parity` / `stream-subscriptions` | Collab + streams |
 | `byom` / `community` / `test-harness` / `try-local-ai` / `product` | Product feature ads |
-| `the-habit` | 7-day LinkedIn letters — The Habit |
+| `the-habit` | 7-day LinkedIn letters — The Habit (week 1) |
+| `walk-into-a-room` | 7-day LinkedIn jokes — Walk Into a Room (week 2) |

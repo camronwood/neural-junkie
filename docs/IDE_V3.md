@@ -50,7 +50,7 @@ IDE-focused shortcuts (full list: [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md)
 | **auto_apply_edits** | Auto-approve proposals when the hub returns change IDs |
 | **yolo** | Auto-approve file changes (tool parity) |
 
-Plan mode (composer) is read-only like Ask — no implementation session or file proposals until you switch to Agent.
+Plan mode (composer) researches the workspace with read-only tools (`grep`, `read_file`, …), then replies with a Cursor-shaped YAML plan (`name` / `overview` / `todos`). File proposals stay blocked until you click **Build** (switches to Agent). Persisted plans live under `~/.neural-junkie/plans/` and `GET /api/plans`.
 
 ## APIs (still used by fast edit / tooling)
 

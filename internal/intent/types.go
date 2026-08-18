@@ -65,6 +65,48 @@ const (
 	SourceLegacyRollback Source = "legacy_rollback"
 )
 
+// Context tier controls how much workspace payload to attach for a turn.
+type ContextTier string
+
+const (
+	ContextTierNone    ContextTier = "none"
+	ContextTierHint    ContextTier = "hint"
+	ContextTierOutline ContextTier = "outline"
+	ContextTierFocus   ContextTier = "focus"
+	ContextTierFull    ContextTier = "full"
+)
+
+// ContextSubject names what the turn is about for retrieval/guidance.
+type ContextSubject string
+
+const (
+	ContextSubjectConversation       ContextSubject = "conversation"
+	ContextSubjectActiveDocument     ContextSubject = "active_document"
+	ContextSubjectWorkspaceDocuments ContextSubject = "workspace_documents"
+	ContextSubjectCodebase           ContextSubject = "codebase"
+)
+
+// ReviewMode selects document vs code vs workspace review guidance.
+type ReviewMode string
+
+const (
+	ReviewModeNone      ReviewMode = "none"
+	ReviewModeDocument  ReviewMode = "document"
+	ReviewModeWorkspace ReviewMode = "workspace"
+	ReviewModeCode      ReviewMode = "code"
+)
+
+// ContextPlan is the stamp-owned attachment/retrieval plan for a turn.
+// Classifier may propose fields; ResolvePolicy always finalizes them.
+type ContextPlan struct {
+	Tier                   ContextTier    `json:"context_tier"`
+	Subject                ContextSubject  `json:"subject"`
+	ReviewMode             ReviewMode      `json:"review_mode"`
+	ActiveContentSufficient bool           `json:"active_content_sufficient,omitempty"`
+	RequestedCategories    []string        `json:"requested_categories,omitempty"`
+	RequestedCapabilities  []string        `json:"requested_capabilities,omitempty"`
+}
+
 // TurnFeatures contains explicit state and bounded conversational facts. Free text
 // is present only for semantic classification; policy must not infer permissions from it.
 type TurnFeatures struct {
@@ -111,6 +153,10 @@ type SemanticIntent struct {
 	Confidence         float64           `json:"confidence"`
 	Ambiguities        []string          `json:"ambiguities,omitempty"`
 	ReasonCodes        []string          `json:"reason_codes,omitempty"`
+	// Optional classifier proposal; policy finalizes ContextPlan on TurnDecision.
+	ContextTier   ContextTier   `json:"context_tier,omitempty"`
+	Subject        ContextSubject `json:"subject,omitempty"`
+	ReviewMode     ReviewMode     `json:"review_mode,omitempty"`
 }
 
 // TurnDecision is the canonical, policy-resolved contract consumed by routing
@@ -134,6 +180,7 @@ type TurnDecision struct {
 	ClassifierModel     string            `json:"classifier_model,omitempty"`
 	ClassifierLatencyMS int64             `json:"classifier_latency_ms,omitempty"`
 	AbstentionReason    string            `json:"abstention_reason,omitempty"`
+	ContextPlan         ContextPlan       `json:"context_plan"`
 }
 
 func (s SemanticIntent) Validate() error {
@@ -166,6 +213,15 @@ func (s SemanticIntent) Validate() error {
 			return fmt.Errorf("invalid retrieval target %q", target)
 		}
 	}
+	if !validContextTier(s.ContextTier) {
+		return fmt.Errorf("invalid context_tier %q", s.ContextTier)
+	}
+	if !validContextSubject(s.Subject) {
+		return fmt.Errorf("invalid subject %q", s.Subject)
+	}
+	if !validReviewMode(s.ReviewMode) {
+		return fmt.Errorf("invalid review_mode %q", s.ReviewMode)
+	}
 	return nil
 }
 
@@ -189,7 +245,35 @@ func (d TurnDecision) Validate() error {
 	if d.Confidence < 0 || d.Confidence > 1 {
 		return fmt.Errorf("decision confidence %v outside [0,1]", d.Confidence)
 	}
+	if err := d.ContextPlan.Validate(); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (p ContextPlan) Validate() error {
+	if !validContextTier(p.Tier) || p.Tier == "" {
+		return fmt.Errorf("invalid context_plan.context_tier %q", p.Tier)
+	}
+	if !validContextSubject(p.Subject) || p.Subject == "" {
+		return fmt.Errorf("invalid context_plan.subject %q", p.Subject)
+	}
+	if !validReviewMode(p.ReviewMode) || p.ReviewMode == "" {
+		return fmt.Errorf("invalid context_plan.review_mode %q", p.ReviewMode)
+	}
+	return nil
+}
+
+// EnsureContextPlan fills a valid ContextPlan when missing (tests, re-stamps).
+func EnsureContextPlan(decision *TurnDecision, features TurnFeatures) {
+	if decision == nil {
+		return
+	}
+	if err := decision.ContextPlan.Validate(); err == nil {
+		return
+	}
+	plan, _ := DeriveContextPlan(features, *decision, SemanticIntent{})
+	decision.ContextPlan = plan
 }
 
 func validInteraction(value InteractionKind) bool {
@@ -228,6 +312,24 @@ func validRecipient(value string) bool {
 func validComplexity(value string) bool {
 	value = strings.TrimSpace(value)
 	return value == "" || value == "cheap" || value == "standard" || value == "heavy"
+}
+
+func validContextTier(value ContextTier) bool {
+	value = ContextTier(strings.TrimSpace(string(value)))
+	return value == "" || value == ContextTierNone || value == ContextTierHint ||
+		value == ContextTierOutline || value == ContextTierFocus || value == ContextTierFull
+}
+
+func validContextSubject(value ContextSubject) bool {
+	value = ContextSubject(strings.TrimSpace(string(value)))
+	return value == "" || value == ContextSubjectConversation || value == ContextSubjectActiveDocument ||
+		value == ContextSubjectWorkspaceDocuments || value == ContextSubjectCodebase
+}
+
+func validReviewMode(value ReviewMode) bool {
+	value = ReviewMode(strings.TrimSpace(string(value)))
+	return value == "" || value == ReviewModeNone || value == ReviewModeDocument ||
+		value == ReviewModeWorkspace || value == ReviewModeCode
 }
 
 func normalizeStrings(values []string) []string {

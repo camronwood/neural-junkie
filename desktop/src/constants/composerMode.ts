@@ -38,7 +38,7 @@ export function composerModePlaceholder(mode: ComposerMode): string {
     case 'ask':
       return 'Ask a question (read-only — no file edits)…';
     case 'plan':
-      return 'Outline an approach and steps (no file edits yet)…';
+      return 'Plan how to change the code (research first, no file edits until Build)…';
     case 'agent':
       return 'Describe code changes to implement…';
   }
@@ -49,7 +49,7 @@ export function composerModeTitle(mode: ComposerMode): string {
     case 'ask':
       return 'Read-only — workspace tools, no file proposals';
     case 'plan':
-      return 'Structured plan only — no file edits or implementation session';
+      return 'Research then a structured plan — no file edits until Build';
     case 'agent':
       return 'May propose file changes for your approval';
   }

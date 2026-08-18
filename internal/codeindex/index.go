@@ -152,6 +152,9 @@ func Search(ctx context.Context, repoPath, query string, limit int) ([]SearchRes
 
 	scored := make([]embed.ScoredItem[SearchResult], 0, len(candidates))
 	for i, ch := range candidates {
+		if repo.IsDependencyPath(ch.Path) {
+			continue
+		}
 		score := embed.KeywordScore(query, ch.Path+" "+ch.Content)
 		if embedOK {
 			if vec, ok := vectors[ch.ID]; ok && len(vec) > 0 {

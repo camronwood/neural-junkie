@@ -395,6 +395,37 @@ export interface MessageErrorMetadata {
   retryable?: boolean;
 }
 
+/** Provider-neutral completion outcome on assistant replies. */
+export const TERMINAL_REASON_METADATA_KEY = 'terminal_reason';
+export const PROVIDER_TERMINAL_REASON_METADATA_KEY = 'provider_terminal_reason';
+export const CONTINUATION_AVAILABLE_METADATA_KEY = 'continuation_available';
+export const CONTINUATION_OF_METADATA_KEY = 'continuation_of';
+export const CONTINUATION_REASON_METADATA_KEY = 'continuation_reason';
+
+export type ResponseTerminalReason =
+  | 'stop'
+  | 'length'
+  | 'tool_calls'
+  | 'timeout'
+  | 'cancelled'
+  | 'error'
+  | 'unknown';
+
+export const OUTPUT_LENGTH_CONTINUATION_PROMPT =
+  'Continue your immediately preceding answer from exactly where it stopped. Do not repeat prior material. Preserve the requested format and complete any unfinished items.';
+
+export function getTerminalReason(metadata?: Record<string, unknown>): ResponseTerminalReason | '' {
+  const v = metadata?.[TERMINAL_REASON_METADATA_KEY];
+  return typeof v === 'string' ? (v as ResponseTerminalReason) : '';
+}
+
+export function isContinuationAvailable(metadata?: Record<string, unknown>): boolean {
+  return (
+    getTerminalReason(metadata) === 'length' &&
+    metadata?.[CONTINUATION_AVAILABLE_METADATA_KEY] === true
+  );
+}
+
 /** Persisted model reasoning (Ollama thinking / DeepSeek R1). */
 export const REASONING_TEXT_METADATA_KEY = 'reasoning_text';
 /** Stream delta carries a reasoning chunk when true. */

@@ -18,6 +18,7 @@ const (
 	maxFileSize       = 512 * 1024 // prompt injection cap per referenced file
 	maxTotalFileSize  = 2 * 1024 * 1024
 	legacyMaxFileSize = 50 * 1024
+	maxFileTreePromptBytes = 8 * 1024
 )
 
 // binaryExtensions are file types we skip (non-text)
@@ -341,11 +342,18 @@ func ResolveContextScopeForChannel(msg *protocol.Message, channelType protocol.C
 }
 
 // ResolveContextScope returns the effective workspace context tier for a message.
-// If workspace_context is absent, returns none. Legacy messages with workspace_context
-// but no context_scope default to full.
+// Prefer stamped ContextPlan.Tier when present; otherwise client context_scope /
+// workspace_context presence.
 func ResolveContextScope(msg *protocol.Message) string {
 	if msg == nil || msg.Metadata == nil {
 		return ContextScopeNone
+	}
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		tier := strings.TrimSpace(strings.ToLower(string(decision.ContextPlan.Tier)))
+		switch tier {
+		case ContextScopeNone, ContextScopeHint, ContextScopeOutline, ContextScopeFocus, ContextScopeFull:
+			return tier
+		}
 	}
 	if raw, ok := msg.Metadata[MetadataContextScope]; ok {
 		if s, ok := raw.(string); ok {
@@ -520,7 +528,9 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 	case ContextScopeFocus:
 		prompt.WriteString("The user shared limited code context (referenced paths and/or active file). ")
 		prompt.WriteString("Stay within the files shown; do not assume other parts of the repo. ")
-		prompt.WriteString("Line numbers in code blocks match the user's editor.\n\n")
+		prompt.WriteString("Line numbers in code blocks match the user's editor. ")
+		prompt.WriteString("If any open file is marked [ACTIVE], that is the tab they are looking at — treat it as the document when they say \"open\", \"tab\", or \"this file\". ")
+		prompt.WriteString("Do not ask which file they mean and do not claim you cannot see their editor/browser/device.\n\n")
 	default:
 		prompt.WriteString("The user has shared their active codebase with you. ")
 		prompt.WriteString("Use the code context below when the user's request is code-specific (review/debug/explain/edit paths/files). ")
@@ -545,6 +555,9 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 	includeTree := scope == ContextScopeOutline || scope == ContextScopeFocus || scope == ContextScopeFull
 	if includeTree {
 		if tree, ok := ctxMap["file_tree"].(string); ok && tree != "" {
+			if len(tree) > maxFileTreePromptBytes {
+				tree = tree[:maxFileTreePromptBytes] + "\n… (truncated; use glob_file_search / grep for the rest)\n"
+			}
 			prompt.WriteString(fmt.Sprintf("\nProject file tree:\n%s\n", tree))
 		}
 	}
@@ -552,7 +565,26 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 	includeFiles := scope == ContextScopeFocus || scope == ContextScopeFull
 	if includeFiles {
 		if files, ok := ctxMap["open_files"].([]interface{}); ok && len(files) > 0 {
+			activeName := ""
+			for _, f := range files {
+				fm, ok := f.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if isActive, _ := fm["is_active"].(bool); isActive {
+					if p, _ := fm["path"].(string); strings.TrimSpace(p) != "" {
+						activeName = p
+						break
+					}
+				}
+			}
 			prompt.WriteString(fmt.Sprintf("\nOpen files (%d):\n", len(files)))
+			if activeName != "" {
+				prompt.WriteString(fmt.Sprintf(
+					"ACTIVE EDITOR TAB (user is viewing this now): %s\n",
+					activeName,
+				))
+			}
 			for _, f := range files {
 				fm, ok := f.(map[string]interface{})
 				if !ok {

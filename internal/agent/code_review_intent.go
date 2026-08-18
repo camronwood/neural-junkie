@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -46,6 +47,13 @@ func userRequestsCodeReviewForMessage(msg *protocol.Message) bool {
 		return false
 	}
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		if decision.ContextPlan.ReviewMode == intent.ReviewModeCode {
+			return true
+		}
+		if decision.ContextPlan.Subject == intent.ContextSubjectCodebase &&
+			(decision.Action == intent.ActionInspect || decision.Domain == "code_review") {
+			return true
+		}
 		return decision.Domain == "code_review" || decision.RecipientType == "code-review"
 	}
 	return userRequestsCodeReview(msg.Content)

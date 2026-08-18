@@ -894,6 +894,9 @@ func TestPolicyComposerPlanStillForbidsWorkspaceFixMutation(t *testing.T) {
 	if decision.Mutation != MutationNone {
 		t.Fatalf("mutation=%s, plan mode must forbid mutation", decision.Mutation)
 	}
+	if !containsRetrievalTarget(decision.Retrieval, RetrievalCodebase) {
+		t.Fatalf("plan mode with workspace should retrieve codebase, got %v", decision.Retrieval)
+	}
 }
 
 func TestPolicyProjectOverviewDemotesRunToInspect(t *testing.T) {

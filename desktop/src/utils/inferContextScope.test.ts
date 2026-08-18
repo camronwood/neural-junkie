@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveContextScope } from './inferContextScope';
+import { resolveContextScope, scopeFromContextRequest } from './inferContextScope';
 
 describe('resolveContextScope', () => {
   it('off mode returns none', () => {
@@ -20,22 +20,23 @@ describe('resolveContextScope', () => {
     expect(r.reason).toContain('collaboration');
   });
 
-  it('general AWS question returns none', () => {
+  it('prepare envelope defaults to structural hint (not NL phrase focus)', () => {
     const r = resolveContextScope({
       message: 'What is AWS SSO and how do I use it in our dev account?',
       mode: 'auto',
       channelKind: 'general',
     });
-    expect(r.scope).toBe('none');
+    expect(r.scope).toBe('hint');
+    expect(r.reason).toContain('prepare envelope');
   });
 
-  it('path in message returns focus', () => {
+  it('explicit path tokens stay prepare hint (hub context_request upgrades)', () => {
     const r = resolveContextScope({
       message: 'Please review internal/hub/hub.go for race conditions',
       mode: 'auto',
       channelKind: 'general',
     });
-    expect(r.scope).toBe('focus');
+    expect(r.scope).toBe('hint');
   });
 
   it('collab social question returns hint', () => {
@@ -47,32 +48,15 @@ describe('resolveContextScope', () => {
     expect(r.scope).toBe('hint');
   });
 
-  it('collab with path returns focus not full', () => {
+  it('hub stamp tier overrides prepare envelope', () => {
     const r = resolveContextScope({
-      message: 'review src/main.rs for bugs',
-      mode: 'auto',
-      channelKind: 'collaboration',
-    });
-    expect(r.scope).toBe('focus');
-  });
-
-  it('architecture question returns outline', () => {
-    const r = resolveContextScope({
-      message: 'What is the architecture of this repo?',
+      message: 'please reivew the documents in the workspace',
       mode: 'auto',
       channelKind: 'general',
+      stampContextTier: 'outline',
     });
     expect(r.scope).toBe('outline');
-  });
-
-  it('knowledge-graph relate question returns outline', () => {
-    const r = resolveContextScope({
-      message:
-        "How does CISO relate to the rest of the codebase? CISO (repo) in community 'root' — degree 1, 1 neighbors",
-      mode: 'auto',
-      channelKind: 'dm',
-    });
-    expect(r.scope).toBe('outline');
+    expect(r.reason).toContain('stamp');
   });
 
   it('manual override wins', () => {
@@ -86,67 +70,34 @@ describe('resolveContextScope', () => {
     ).toBe('full');
   });
 
-  it('new document open without path returns focus', () => {
-    const r = resolveContextScope({
-      message: 'I have a new document open, can you review?',
-      mode: 'auto',
-      channelKind: 'general',
-    });
-    expect(r.scope).toBe('focus');
-  });
-
-  it('review typo with active tab returns focus', () => {
+  it('IDE with active tab uses prepare hint until stamp fetch', () => {
     const r = resolveContextScope({
       message: 'can you reivew what I have open?',
       mode: 'auto',
       channelKind: 'general',
       activeTabPath: '/Users/me/proj/rfc.md',
-    });
-    expect(r.scope).toBe('focus');
-  });
-
-  it('ambiguous chat without editor signals stays hint', () => {
-    const r = resolveContextScope({
-      message: 'thoughts on our roadmap for Q3?',
-      mode: 'auto',
-      channelKind: 'general',
+      ideCoding: true,
     });
     expect(r.scope).toBe('hint');
   });
 
-  it('workspace visibility returns outline or focus', () => {
-    const r = resolveContextScope({
-      message: 'can you see my workspace?',
-      mode: 'auto',
-      channelKind: 'dm',
-    });
-    expect(r.scope).toBe('outline');
-    const withTab = resolveContextScope({
-      message: 'can you see my workspace?',
-      mode: 'auto',
-      channelKind: 'dm',
-      activeTabPath: '/Users/me/proj/main.tsx',
-    });
-    expect(withTab.scope).toBe('focus');
-  });
-
-  it('workspace access affirmation returns outline', () => {
-    const r = resolveContextScope({
-      message: 'you have workspace access',
-      mode: 'auto',
-      channelKind: 'dm',
-    });
-    expect(r.scope).toBe('outline');
-  });
-
-  it('summarize_scan_analysis with open tab returns focus', () => {
+  it('scan tool + open tab stays prepare hint', () => {
     const r = resolveContextScope({
       message: 'use summarize_scan_analysis on the file I have open',
       mode: 'auto',
       channelKind: 'dm',
       activeTabPath: '/data/plate-1/reports/results.json',
     });
-    expect(r.scope).toBe('focus');
+    expect(r.scope).toBe('hint');
     expect(r.reason).toContain('scan');
+  });
+});
+
+describe('scopeFromContextRequest', () => {
+  it('maps hub tiers and include flags', () => {
+    expect(scopeFromContextRequest({ context_tier: 'outline' })).toBe('outline');
+    expect(scopeFromContextRequest({ include_document_bodies: true })).toBe('full');
+    expect(scopeFromContextRequest({ include_active_tab: true })).toBe('focus');
+    expect(scopeFromContextRequest({ include_file_tree: true })).toBe('outline');
   });
 });

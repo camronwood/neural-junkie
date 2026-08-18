@@ -67,6 +67,26 @@ describe('chatStore stream coalescing', () => {
     expect(promoted?.content).toBe('done');
   });
 
+  it('finalizeStream merges stream_end continuation metadata', () => {
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 1 as unknown as number;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    const id = 'stream-msg-length';
+    useChatStore.getState().appendStreamDelta(streamDelta(id, 'Partial answer (no'));
+    useChatStore.getState().finalizeStream(id, {
+      terminal_reason: 'length',
+      continuation_available: true,
+      provider_terminal_reason: 'length',
+    });
+
+    const promoted = useChatStore.getState().messages.find((m) => m.id === id);
+    expect(promoted?.metadata?.terminal_reason).toBe('length');
+    expect(promoted?.metadata?.continuation_available).toBe(true);
+  });
+
   it('finalizeStream is a no-op for unknown stream ids', () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 0 as unknown as number));
     vi.stubGlobal('cancelAnimationFrame', vi.fn());

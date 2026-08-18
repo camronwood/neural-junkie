@@ -18,6 +18,10 @@ func TestShouldIgnoreEntry(t *testing.T) {
 		{"desktop/src-tauri/icons/icon.icns", "icon.icns", true},
 		{".scenario-baseline/Makefile", "Makefile", true},
 		{"Makefile", "Makefile", false},
+		{".venv-icon/lib/python3.14/site-packages/PIL/TiffImagePlugin.py", "TiffImagePlugin.py", true},
+		{"lib/python3.12/site-packages/PIL/TiffImagePlugin.py", "TiffImagePlugin.py", true},
+		{"cad_venv/lib/python3.11/site-packages/foo.py", "foo.py", true},
+		{"internal/repo/analyzer.go", "analyzer.go", false},
 		{"reader/libatikcameras.so", "libatikcameras.so", true},
 		{"ui/package-lock.json", "package-lock.json", true},
 		{"go.sum", "go.sum", true},
@@ -40,5 +44,14 @@ func TestIsScenarioBaselinePath(t *testing.T) {
 	}
 	if IsScenarioBaselinePath("Makefile") {
 		t.Fatal("live Makefile must not be treated as baseline")
+	}
+}
+
+func TestIsDependencyPath(t *testing.T) {
+	if !IsDependencyPath("/Users/me/.venv-icon/lib/python3.14/site-packages/PIL/TiffImagePlugin.py") {
+		t.Fatal("expected absolute site-packages path ignored")
+	}
+	if IsDependencyPath("internal/agent/plan_mode_prompt.go") {
+		t.Fatal("project source must not be treated as dependency")
 	}
 }

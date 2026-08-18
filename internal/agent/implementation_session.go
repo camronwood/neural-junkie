@@ -1068,6 +1068,7 @@ func repairNoteFromContext(ctx context.Context) string {
 
 func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, error) {
 	intent := turnIntentForContext(ctx, a, msg)
+	_ = a.turnContextProfile(msg)
 	prompt := a.buildPromptForIntent(msg, intent)
 	prompt = a.appendDelegationContext(ctx, msg, prompt)
 	prompt = a.appendRepoConsultContext(ctx, msg, prompt, intent)
@@ -1158,9 +1159,17 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 	eff = a.toolCapableProvider(approvalCtx, eff)
 	if len(a.agentToolDefinitions(msg)) > 0 {
-		return a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
+		response, err := a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
+		if recovered, ok := a.recoverEmptyConstrainedReply(approvalCtx, msg, eff, response, err); ok {
+			return recovered, nil
+		}
+		return response, err
 	}
-	return eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
+	response, err := eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
+	if recovered, ok := a.recoverEmptyConstrainedReply(approvalCtx, msg, eff, response, err); ok {
+		return recovered, nil
+	}
+	return response, err
 }
 
 func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Message, state *ImplementationSessionState) (output string, failed bool, skipped bool) {

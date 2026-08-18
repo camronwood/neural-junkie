@@ -61,6 +61,7 @@ function ChatListFooter() {
 
 interface MessageListProps extends FirstWinCoachActions {
   searchQuery?: string;
+  onContinueGeneration?: (message: MessageType) => void | Promise<void>;
 }
 
 export function MessageList({
@@ -70,6 +71,7 @@ export function MessageList({
   onOpenAgentDM,
   onPrefillComposer,
   onOpenModelLibrary,
+  onContinueGeneration,
 }: MessageListProps) {
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const { channel, messages, threadMetadata, streamingMessages, openThread, serverAddr, pendingScrollToMessageId, setPendingScrollToMessageId, setHighlightMessageId, agents, myAgents } = useChatStore(
@@ -353,13 +355,22 @@ export function MessageList({
             message={row.message}
             threadMetadata={slackThreadMetadataLookup(threadMetadata, row.message, channel)}
             onOpenThread={openThread}
+            onContinueGeneration={onContinueGeneration}
             channelName={channel}
           />
         );
       }
-      return <Message message={row.message} onOpenThread={openThread} channelName={channel} isStreaming />;
+      return (
+        <Message
+          message={row.message}
+          onOpenThread={openThread}
+          onContinueGeneration={onContinueGeneration}
+          channelName={channel}
+          isStreaming
+        />
+      );
     },
-    [threadMetadata, openThread, channel]
+    [threadMetadata, openThread, channel, onContinueGeneration]
   );
 
   const virtuosoComponents = useMemo(

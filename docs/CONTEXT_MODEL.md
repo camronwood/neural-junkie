@@ -144,6 +144,20 @@ MCP tools and `[FILE_CHANGE]` docs are **off** for `direct` + `casual`; **on** f
 
 Implementation: `promptPersonaTier()` in `internal/agent/prompt_persona.go`.
 
+## Turn context compiler
+
+IDE Ask / Plan / Agent turns on **constrained** local models (Ollama `<=9b` or `num_ctx <= 8192`) are compiled instead of accumulating encyclopedia + MCP text catalogs + retrieval dumps.
+
+| Decision | Constrained Ollama (e.g. qwen3.5:9b / 8k) | Cloud / large-ctx |
+|----------|-------------------------------------------|-------------------|
+| Prompt | Short Ask / Plan / Agent contract (`buildConstrainedComposerPrompt`) | Existing `buildPrompt` / Agent Runtime v2 |
+| Tools | Native JSON only; Plan read-only; Agent read + patch (`run_command` in impl sessions); no `web_search` unless unconstrained | Full allowlist + native JSON |
+| Retrieval | Pull via grep/read; no unscoped `@codebase` dump or `repo_consult` unless a path / `@codebase` is cited | Existing merge / consult |
+| Budget | `MaxPromptBytes` from ~55% of `num_ctx` (well under the 64KB Agent Runtime floor) | 32 / 48 / 64 / 192KB tiers |
+| Empty reply | Compact no-tools retry on `ErrOllamaNoContent` | Existing stream retries only |
+
+Profile is stamped on message metadata as `context_profile` next to `context_budget_stats`. Implementation: `internal/agent/context_profile.go`.
+
 ## Context budget
 
 Before the LLM call, `applyContextBudget()` enforces a ~32KB prompt target (tunable):

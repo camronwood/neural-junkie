@@ -326,6 +326,12 @@ func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) (
 	case IntentLowSignal, IntentMeta:
 		return a.buildMinimalPrompt(msg)
 	default:
+		if a.constrainedIDETurn(msg) {
+			return a.injectSessionSummary(a.buildConstrainedComposerPrompt(msg, intent), msg)
+		}
+		if msg != nil && msg.IdeEditorModeIsPlan() {
+			return a.injectSessionSummary(a.buildComposerPlanPrompt(msg), msg)
+		}
 		if a.Info.Type == protocol.AgentTypeAssistant && a.shouldUseDialogueAssistantPrompt(msg) {
 			return a.injectSessionSummary(a.buildDialogueAssistantPrompt(msg), msg)
 		}

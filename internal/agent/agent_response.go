@@ -36,6 +36,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
+	_ = a.turnContextProfile(msg)
 	restoreCLI := a.prepareCLIInvocation(msg)
 	defer restoreCLI()
 
@@ -142,6 +143,9 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	}
 	if len(a.agentToolDefinitions(msg)) > 0 {
 		response, err := a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
+		if recovered, ok := a.recoverEmptyConstrainedReply(approvalCtx, msg, eff, response, err); ok {
+			response, err = recovered, nil
+		}
 		if err != nil {
 			return "", err
 		}
@@ -151,6 +155,9 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		return a.finalizeWorkspaceVisibilityReply(msg, response), nil
 	}
 	response, err := eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
+	if recovered, ok := a.recoverEmptyConstrainedReply(approvalCtx, msg, eff, response, err); ok {
+		response, err = recovered, nil
+	}
 	if err != nil {
 		return "", err
 	}
@@ -173,6 +180,35 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		return retry, nil
 	}
 	return a.finalizeWorkspaceVisibilityReply(msg, response), nil
+}
+
+func (a *Agent) recoverEmptyConstrainedReply(ctx context.Context, msg *protocol.Message, eff ai.AIProvider, text string, err error) (string, bool) {
+	if msg == nil || eff == nil {
+		return "", false
+	}
+	if !a.turnContextProfile(msg).EmptyRetry {
+		return "", false
+	}
+	if strings.TrimSpace(text) != "" && err == nil {
+		return "", false
+	}
+	if err != nil && !errors.Is(err, ai.ErrOllamaNoContent) {
+		return "", false
+	}
+	retryPrompt := a.buildConstrainedComposerPrompt(msg, IntentTask)
+	if !isIDEComposerTurn(msg) {
+		retryPrompt = a.buildUltraCompactOllamaPrompt(msg)
+	}
+	retry, retryErr := eff.GenerateResponse(ctx, retryPrompt, nil)
+	if retryErr != nil || strings.TrimSpace(retry) == "" {
+		return "", false
+	}
+	log.Printf("[%s] Constrained empty reply; used compact no-tools retry", a.Info.Name)
+	return retry, true
+}
+
+func (a *Agent) recoverEmptyPlanReply(ctx context.Context, msg *protocol.Message, eff ai.AIProvider, text string, err error) (string, bool) {
+	return a.recoverEmptyConstrainedReply(ctx, msg, eff, text, err)
 }
 
 func (a *Agent) completeMixedImageResponse(
@@ -199,13 +235,32 @@ func (a *Agent) completeMixedImageResponse(
 	return companion + "\n\n" + imageResponse
 }
 
+// streamTerminalCapture carries provider completion outcome out of a stream collect.
+type streamTerminalCapture struct {
+	Reason         string
+	ProviderReason string
+}
+
+func stampStreamTerminal(out *streamTerminalCapture, reason, providerReason string) {
+	if out == nil {
+		return
+	}
+	if reason != "" {
+		out.Reason = reason
+	}
+	if providerReason != "" {
+		out.ProviderReason = providerReason
+	}
+}
+
 // generateResponseStreaming builds the same prompt as generateResponse but
 // streams the AI response token-by-token. Each token is broadcast to
 // subscribers as a stream_delta message. Returns the full accumulated text
 // and the stable stream message ID so the caller can reuse it for the
 // final chat message (allowing the frontend to correlate streaming with
 // the persisted message).
-func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, string, string, error) {
+// terminalOut, when non-nil, receives the provider completion reason (e.g. length).
+func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider, terminalOut *streamTerminalCapture) (string, string, string, error) {
 	if designAnalysis, ok := msg.Metadata["design_analysis"].(bool); ok && designAnalysis {
 		resp, err := a.generateDesignAnalysisResponse(ctx, msg)
 		return resp, "", "", err
@@ -229,6 +284,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
+	_ = a.turnContextProfile(msg)
 	restoreCLI := a.prepareCLIInvocation(msg)
 	defer restoreCLI()
 
@@ -306,7 +362,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		if mp, ok := eff.(ai.MultimodalProvider); ok {
 			tokenCh, err := mp.GenerateMultimodalStream(approvalCtx, prompt, imgs, historyToMessages(history))
 			if err == nil {
-				return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+				return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 			}
 			log.Printf("[%s] Multimodal stream failed (%v), falling back to batch multimodal", a.Info.Name, err)
 			text, err := mp.GenerateMultimodal(approvalCtx, prompt, imgs, historyToMessages(history))
@@ -326,35 +382,35 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}
 		close(tokenCh)
-		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 	}
 	if resp, ok := a.tryOpenCanvasMetaAnswer(msg); ok {
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}
 		close(tokenCh)
-		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 	}
 	if resp, ok := a.tryMapsRouteShortcut(approvalCtx, msg); ok {
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}
 		close(tokenCh)
-		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 	}
 	if resp, ok := a.tryNeuralCanvasMarkdownShortcut(approvalCtx, msg, prompt, eff); ok {
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}
 		close(tokenCh)
-		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 	}
 	if resp, ok := a.tryNeuralCanvasMermaidShortcut(approvalCtx, msg, prompt, eff); ok {
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}
 		close(tokenCh)
-		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 	}
 	if resp, ok := a.tryHubImageGenerationShortcut(approvalCtx, msg); ok {
 		resp = a.completeMixedImageResponse(approvalCtx, msg, prompt, history, eff, resp)
@@ -362,14 +418,14 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}
 		close(tokenCh)
-		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 	}
 	if resp, ok := a.tryHubMusicGenerationShortcut(approvalCtx, msg); ok {
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}
 		close(tokenCh)
-		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 	}
 	if len(a.agentToolDefinitions(msg)) > 0 {
 		outerObserver := ai.ToolStepObserverFromContext(approvalCtx)
@@ -381,12 +437,15 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			}
 		})
 		text, err := a.generateWithAgentTools(toolCtx, msg, prompt, history, eff)
+		if recovered, ok := a.recoverEmptyConstrainedReply(approvalCtx, msg, eff, text, err); ok {
+			text, err = recovered, nil
+		}
 		if err != nil {
 			return "", "", "", err
 		}
 		text = a.maybeRetryConversationalQuality(approvalCtx, msg, text, history, eff)
 		text = a.finalizeWorkspaceVisibilityReply(msg, text)
-		return a.streamTextAsTokens(approvalCtx, msg, streamMsgID, text)
+		return a.streamTextAsTokens(approvalCtx, msg, streamMsgID, text, terminalOut)
 	}
 
 	sp, ok := eff.(ai.StreamingProvider)
@@ -419,7 +478,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		if err != nil {
 			return "", "", "", err
 		}
-		text, id, reasoning, err := a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+		text, id, reasoning, err := a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 		if err != nil {
 			if strings.TrimSpace(text) != "" &&
 				a.Info.Type == protocol.AgentTypeAssistant &&
@@ -455,7 +514,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 				fbPrompt := a.buildCompactOllamaPrompt(msg)
 				tokenCh, err := fbSP.GenerateResponseStream(approvalCtx, fbPrompt, nil)
 				if err == nil {
-					text, id, reasoning, err := a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+					text, id, reasoning, err := a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh, terminalOut)
 					if err == nil && strings.TrimSpace(text) != "" && !looksLikeOllamaPromptLeak(text) {
 						return text, id, reasoning, nil
 					}
@@ -474,10 +533,12 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 }
 
 // collectStreamTokens drains a stream channel, broadcasts deltas, emits stream_end, and returns full text.
-func (a *Agent) collectStreamTokens(ctx context.Context, msg *protocol.Message, streamMsgID string, tokenCh <-chan ai.StreamToken) (string, string, string, error) {
+func (a *Agent) collectStreamTokens(ctx context.Context, msg *protocol.Message, streamMsgID string, tokenCh <-chan ai.StreamToken, terminalOut *streamTerminalCapture) (string, string, string, error) {
 	var fullResponse strings.Builder
 	var fullReasoning strings.Builder
 	var streamErr error
+	var terminalReason string
+	var providerTerminalReason string
 	bufferForValidation := false
 	if goal, ok := turnGoalFromContext(ctx); ok {
 		bufferForValidation = goal.RequiresActionEvidence()
@@ -541,6 +602,14 @@ func (a *Agent) collectStreamTokens(ctx context.Context, msg *protocol.Message, 
 				}
 			}
 			if token.Done {
+				if token.TerminalReason != "" {
+					terminalReason = token.TerminalReason
+				}
+				if token.ProviderTerminalReason != "" {
+					providerTerminalReason = token.ProviderTerminalReason
+				} else if terminalReason == "" && token.TerminalReason != "" {
+					providerTerminalReason = token.TerminalReason
+				}
 				goto finishStream
 			}
 		}
@@ -549,6 +618,7 @@ func (a *Agent) collectStreamTokens(ctx context.Context, msg *protocol.Message, 
 finishStream:
 	if streamErr != nil {
 		if errors.Is(streamErr, context.Canceled) {
+			terminalReason = protocol.TerminalReasonCancelled
 			if fullResponse.Len() > 0 {
 				fullResponse.WriteString("\n\n[stopped]")
 			}
@@ -559,6 +629,7 @@ finishStream:
 				endMsg.ThreadID = msg.ThreadID
 				endMsg.IsThreadReply = true
 			}
+			stampStreamTerminal(terminalOut, terminalReason, providerTerminalReason)
 			a.Hub.BroadcastDirect(msg.Channel, endMsg)
 			return "", "", "", context.Canceled
 		}
@@ -575,6 +646,7 @@ finishStream:
 				endMsg.ThreadID = msg.ThreadID
 				endMsg.IsThreadReply = true
 			}
+			stampStreamTerminal(terminalOut, protocol.TerminalReasonTimeout, "")
 			a.Hub.BroadcastDirect(msg.Channel, endMsg)
 			return "", streamMsgID, "", streamErr
 		}
@@ -582,6 +654,12 @@ finishStream:
 		fullResponse.WriteString("\n\n[")
 		fullResponse.WriteString(truncationLabelForError(streamErr))
 		fullResponse.WriteString("]")
+		_, code, _ := classifyUserFacingError(streamErr)
+		if code == "timeout" {
+			terminalReason = protocol.TerminalReasonTimeout
+		} else if terminalReason == "" {
+			terminalReason = protocol.TerminalReasonError
+		}
 	}
 
 	endMsg := protocol.NewMessage(
@@ -596,6 +674,13 @@ finishStream:
 		endMsg.ThreadID = msg.ThreadID
 		endMsg.IsThreadReply = true
 	}
+	if terminalReason == "" && providerTerminalReason != "" {
+		terminalReason = ai.NormalizeTerminalReason(providerTerminalReason)
+	}
+	if terminalReason != "" {
+		protocol.ApplyResponseCompletionMetadata(endMsg, terminalReason, providerTerminalReason)
+	}
+	stampStreamTerminal(terminalOut, terminalReason, providerTerminalReason)
 	a.Hub.BroadcastDirect(msg.Channel, endMsg)
 
 	return fullResponse.String(), streamMsgID, fullReasoning.String(), nil

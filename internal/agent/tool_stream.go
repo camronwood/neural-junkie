@@ -78,7 +78,7 @@ func (a *Agent) broadcastStreamEnd(msg *protocol.Message, streamMsgID string) {
 	a.Hub.BroadcastDirect(msg.Channel, endMsg)
 }
 
-func (a *Agent) streamTextAsTokens(ctx context.Context, msg *protocol.Message, streamMsgID, text string) (string, string, string, error) {
+func (a *Agent) streamTextAsTokens(ctx context.Context, msg *protocol.Message, streamMsgID, text string, terminalOut *streamTerminalCapture) (string, string, string, error) {
 	tokenCh := make(chan ai.StreamToken, 32)
 	go func() {
 		defer close(tokenCh)
@@ -98,9 +98,9 @@ func (a *Agent) streamTextAsTokens(ctx context.Context, msg *protocol.Message, s
 				}
 			}
 		}
-		tokenCh <- ai.StreamToken{Done: true}
+		tokenCh <- ai.StreamToken{Done: true, TerminalReason: protocol.TerminalReasonStop}
 	}()
-	return a.collectStreamTokens(ctx, msg, streamMsgID, tokenCh)
+	return a.collectStreamTokens(ctx, msg, streamMsgID, tokenCh, terminalOut)
 }
 
 func (a *Agent) hasWorkspaceTools() bool {

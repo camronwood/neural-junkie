@@ -29,6 +29,7 @@ from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
 from lib.regression_boot import maybe_boot_regression, restart_hub_for_live_run  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
 from lib.scenario_assert import (  # noqa: E402
+    check_contains_all,
     check_file_deliverable,
     check_text_patterns,
     expand_deliverable_steps,
@@ -91,6 +92,7 @@ class ImplementContext:
         self.baseline_agent_count: dict[str, int] = {}
         self.file_snapshots: dict[str, str] = {}
         self.telemetry = telemetry or new_run("implement", str(scenario.get("name") or "unknown"))
+        self.last_send_metadata: dict = {}
 
 
 def _chat_baseline(ctx: ImplementContext, agent: str) -> int:
@@ -122,8 +124,33 @@ def step_send(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     ctx.baseline_agent_count[from_name] = _chat_baseline(ctx, from_name)
     content = (step.get("content") or "").strip()
     meta = enrich_send_metadata(step.get("metadata"), ctx.scenario, content=content)
+    ctx.last_send_metadata = dict(meta) if isinstance(meta, dict) else {}
     code, _ = hub.send_message(ctx.base, ctx.channel, content, metadata=meta, from_name=DEFAULT_FROM)
     return (True, "sent") if code == 200 else (False, f"send failed ({code})")
+
+
+def wait_reply_nudge(last_send: dict | None, from_name: str) -> tuple[dict, str]:
+    """Preserve composer mode on silent-agent nudges (plan/ask must stay read-only)."""
+    last = last_send if isinstance(last_send, dict) else {}
+    mode = str(last.get("composer_mode") or last.get("editor_mode") or "agent").strip().lower()
+    if mode not in ("ask", "plan", "agent", "export"):
+        mode = "agent"
+    mention = from_name if from_name.startswith("@") else f"@{from_name}"
+    route = last.get("ide_route_agent_type") or ide_route_for_target_agent(from_name)
+    meta: dict = {
+        "conversation_mode": last.get("conversation_mode") or "code",
+        "editor_mode": "agent" if mode == "export" else mode,
+        "composer_mode": mode,
+    }
+    if mode in ("ask", "plan"):
+        meta["implementation_session"] = False
+        text = f"{mention} please continue the plan from the prior request."
+    else:
+        meta["implementation_session"] = True
+        text = f"{mention} please continue the implementation from the prior request."
+    if route:
+        meta["ide_route_agent_type"] = route
+    return meta, text
 
 
 def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
@@ -201,19 +228,11 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
         # Mid-wait nudge once if the assignee is silent (common under Ollama soak).
         if not nudged and time.time() > deadline - (secs * 0.45):
             nudged = True
-            mention = from_name if from_name.startswith("@") else f"@{from_name}"
-            route = ide_route_for_target_agent(from_name)
-            nudge_meta: dict = {
-                "conversation_mode": "code",
-                "implementation_session": True,
-                "editor_mode": "agent",
-            }
-            if route:
-                nudge_meta["ide_route_agent_type"] = route
+            nudge_meta, nudge_text = wait_reply_nudge(ctx.last_send_metadata, from_name)
             hub.send_message(
                 ctx.base,
                 ctx.channel,
-                f"{mention} please continue the implementation from the prior request.",
+                nudge_text,
                 metadata=nudge_meta,
                 from_name=DEFAULT_FROM,
             )
@@ -241,6 +260,15 @@ def step_assert_messages(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
                 print(f"  soft any_match miss: {detail}", flush=True)
             else:
                 return False, detail
+    if contains_all := step.get("contains_all"):
+        ok, detail = check_contains_all(text, contains_all)
+        if not ok:
+            return False, detail
+    if optional_any := step.get("any_match_optional"):
+        if isinstance(optional_any, list) and optional_any:
+            ok, detail = check_text_patterns(text, any_match=optional_any)
+            if not ok:
+                print(f"  soft any_match miss: {detail}", flush=True)
     if none_match := step.get("none_match"):
         ok, detail = check_text_patterns(text, none_match=none_match)
         if not ok:

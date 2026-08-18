@@ -91,7 +91,12 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if includeTooling {
 		appendGitInspectPrompt(&system, msg)
 	}
-	if askModeReadOnly {
+	if msg != nil && msg.IdeEditorModeIsAsk() {
+		system.WriteString("=== ASK MODE (READ-ONLY) ===\n")
+		system.WriteString("Explain and advise only. Do NOT propose file edits, call propose_file_edit, or emit [FILE_CHANGE] blocks.\n\n")
+	} else if msg != nil && msg.IdeEditorModeIsPlan() {
+		appendPlanModePrompt(&system)
+	} else if askModeReadOnly {
 		system.WriteString("=== ASK MODE (READ-ONLY) ===\n")
 		system.WriteString("Explain and advise only. Do NOT propose file edits, call propose_file_edit, or emit [FILE_CHANGE] blocks.\n\n")
 	}
@@ -116,7 +121,10 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	collabInfo := a.getCollaborationContext(msg)
 	isCollab := collabInfo.ID != ""
 
-	if a.MCPServer != nil && includeTooling && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
+	nativeToolsOnly := a.turnContextProfile(msg).NativeToolsOnly
+	if a.MCPServer != nil && includeTooling && !nativeToolsOnly &&
+		!(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) &&
+		!(msg != nil && msg.IdeEditorModeIsPlan()) {
 		mcpServer := mcpServerFromInterface(a.MCPServer)
 		allowlist := effectiveMCPToolAllowlist(a, msg)
 		appendMCPToolsPrompt(&system, mcpServer, a.Info.Type, allowlist)

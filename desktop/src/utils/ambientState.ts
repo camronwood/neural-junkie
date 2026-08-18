@@ -49,18 +49,16 @@ export function sanitizeAmbientText(value: string): string {
     .replace(SECRET_ASSIGNMENT_RE, '$1[REDACTED]');
 }
 
-export function ambientStateIsRelevant(message: string, ideCoding = false): boolean {
-  const text = message.trim();
-  if (!text) return false;
-  return (
-    ideCoding ||
-    /\b(code|file|editor|selection|line|implement|fix|debug|error|warning|diagnostic|test|build|terminal|command|shell|git|commit|branch|diff|staged|workspace|repo)\b/i.test(
-      text,
-    ) ||
-    /(?:^|[\s"'`(])(?:[./]?(?:[\w.-]+\/)+[\w.-]+\.[a-z0-9]+|[\w.-]+\.(?:go|rs|py|js|jsx|ts|tsx|json|ya?ml|toml|md))\b/i.test(
-      text,
-    )
-  );
+export function ambientStateIsRelevant(
+  message: string,
+  ideCoding = false,
+  opts?: { includeGit?: boolean; includeDiagnostics?: boolean; force?: boolean },
+): boolean {
+  if (opts?.force || opts?.includeGit || opts?.includeDiagnostics) return true;
+  if (ideCoding) return true;
+  // Structural only: do not infer ambient attachment from natural-language phrases.
+  void message;
+  return false;
 }
 
 function jsonBytes(value: unknown): number {
@@ -98,9 +96,15 @@ function boundedAmbientState(state: AmbientState): AmbientState | undefined {
 
 export function buildAmbientState(
   message: string,
-  options: { ideCoding?: boolean; git?: AmbientGitState } = {},
+  options: {
+    ideCoding?: boolean;
+    git?: AmbientGitState;
+    force?: boolean;
+    includeGit?: boolean;
+    includeDiagnostics?: boolean;
+  } = {},
 ): AmbientState | undefined {
-  if (!ambientStateIsRelevant(message, options.ideCoding)) return undefined;
+  if (!ambientStateIsRelevant(message, options.ideCoding, options)) return undefined;
 
   const editor = useEditorStore.getState();
   const activeTab = editor.tabs.find((tab) => tab.id === editor.activeTabId);
@@ -161,10 +165,11 @@ export async function attachAmbientStateMetadata(
   metadata: Record<string, unknown> | undefined,
   message: string,
   ideCoding = false,
+  opts?: { includeGit?: boolean; includeDiagnostics?: boolean; force?: boolean },
 ): Promise<Record<string, unknown> | undefined> {
-  if (!ambientStateIsRelevant(message, ideCoding)) return metadata;
+  if (!ambientStateIsRelevant(message, ideCoding, opts)) return metadata;
   let git: AmbientGitState | undefined;
-  if (/\b(git|commit|branch|diff|staged|unstaged|untracked)\b/i.test(message)) {
+  if (opts?.includeGit || opts?.force) {
     const explorer = useFileExplorerStore.getState();
     const workspace =
       explorer.workspaces.find((item) => item.id === explorer.activeWorkspaceId) ??
@@ -183,7 +188,13 @@ export async function attachAmbientStateMetadata(
       }
     }
   }
-  const ambient = buildAmbientState(message, { ideCoding, git });
+  const ambient = buildAmbientState(message, {
+    ideCoding: ideCoding || Boolean(opts?.force),
+    git,
+    force: opts?.force,
+    includeGit: opts?.includeGit,
+    includeDiagnostics: opts?.includeDiagnostics,
+  });
   if (!ambient) return metadata;
   return { ...(metadata ?? {}), [AMBIENT_STATE_METADATA_KEY]: ambient };
 }

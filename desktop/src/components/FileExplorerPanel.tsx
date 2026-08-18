@@ -12,6 +12,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { isImagePreviewPath, workspaceAbsolutePath } from '../utils/editorFileKind';
 import {
   dispatchWorkspaceFileDropEventAtPoint,
+  dispatchWorkspaceFileDropToStickyZone,
   scheduleWorkspaceFileDragClear,
   setWorkspaceFileDragData,
 } from '../utils/workspaceFileDrag';
@@ -697,8 +698,17 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
   };
 
   const handleFileDragEnd = (e: React.DragEvent) => {
-    dispatchWorkspaceFileDropEventAtPoint(e.clientX, e.clientY);
-    scheduleWorkspaceFileDragClear();
+    // WKWebView often skips HTML5 drop for in-app drags and reports (0,0) on dragend.
+    // Try point first, then sticky composer zone from the last hover.
+    const delivered =
+      dispatchWorkspaceFileDropEventAtPoint(e.clientX, e.clientY) ||
+      dispatchWorkspaceFileDropToStickyZone();
+    if (!delivered) {
+      scheduleWorkspaceFileDragClear();
+    } else {
+      // Drop handler clears drag data; still schedule a safety clear.
+      scheduleWorkspaceFileDragClear();
+    }
   };
 
   const handleContextMenu = (e: React.MouseEvent, file: FileNode) => {

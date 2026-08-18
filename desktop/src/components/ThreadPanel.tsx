@@ -94,7 +94,7 @@ export function ThreadPanel({ threadId, parentMessage, onClose, onSendReply }: T
         return;
       }
       if (message.type === 'stream_end') {
-        st.finalizeStream(message.id);
+        st.finalizeStream(message.id, message.metadata as Record<string, unknown> | undefined);
         return;
       }
 

@@ -1,0 +1,58 @@
+{
+  "name": "plan-mode-structure",
+  "description": "Plan composer mode emits YAML todos and an Out of scope section without file edits.",
+  "tags": [
+    "implement",
+    "plan",
+    "cursor-parity"
+  ],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "minimal-repo"
+  },
+  "expect_no_deliverables": true,
+  "steps": [
+    {
+      "action": "send",
+      "content": "Plan how to add a HelloWorld function to core/sample/main.go. Reply with YAML frontmatter that includes name, overview, and todos (each with id, content, status pending). After the YAML you MUST include a heading exactly \"## Out of scope\". Required literal strings in your reply: todos: and ## Out of scope. Use a mermaid flowchart if useful. Do not edit files.",
+      "metadata": {
+        "editor_mode": "plan",
+        "composer_mode": "plan",
+        "ide_route_agent_type": "backend",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "300s"
+    },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "contains_all": [
+        "todos:",
+        "(?i)out of scope"
+      ],
+      "any_match_optional": [
+        "```mermaid",
+        "HelloWorld"
+      ],
+      "none_match": [
+        "\\[FILE_CHANGE\\]",
+        "Proposing to edit",
+        "Proposing to create"
+      ]
+    },
+    {
+      "action": "assert_no_file_change"
+    }
+  ],
+  "cleanup": "clear"
+}

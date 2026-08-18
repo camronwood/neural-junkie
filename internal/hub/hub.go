@@ -80,6 +80,7 @@ type Hub struct {
 	channelSummaryModel      string
 	conversationState        map[string]*ChannelConversationState
 	semanticTurnRouter       SemanticTurnRouter
+	preparedTurns            map[string]*preparedTurn
 	// restoredChannelMemberNames temporarily retains stable agent names while
 	// runtime IDs are recreated during startup.
 	restoredChannelMemberNames map[string][]string

@@ -226,7 +226,7 @@ export interface ChatState {
   
   // Streaming actions
   appendStreamDelta: (msg: Message) => void;
-  finalizeStream: (streamId: string) => void;
+  finalizeStream: (streamId: string, endMetadata?: Record<string, unknown>) => void;
   setChannelHold: (channelName: string, held: boolean) => void;
   isChannelHeld: (channelName: string) => boolean;
   stopAllStreamsForChannel: (channelName: string) => void;
@@ -939,7 +939,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     }
   },
 
-  finalizeStream: (streamId) => {
+  finalizeStream: (streamId, endMetadata) => {
     if (streamFlushRaf.current !== 0) {
       if (typeof cancelAnimationFrame !== 'undefined') {
         cancelAnimationFrame(streamFlushRaf.current);
@@ -968,7 +968,11 @@ export const useChatStore = create<ChatState>((set, get) => {
         return pendingBatch ? { ...state, streamingMessages } : state;
       }
       const { [streamId]: _removed, ...rest } = streamingMessages;
-      const reasoning = getReasoningText(streamed.metadata as Record<string, unknown> | undefined);
+      const mergedMeta = {
+        ...(streamed.metadata ?? {}),
+        ...(endMetadata ?? {}),
+      };
+      const reasoning = getReasoningText(mergedMeta);
       if (!streamed.content?.trim() && !reasoning.trim()) {
         return { ...state, streamingMessages: rest };
       }
@@ -981,8 +985,10 @@ export const useChatStore = create<ChatState>((set, get) => {
         type: 'chat' as Message['type'],
         content: capStreamContent(streamed.content ?? ''),
         metadata: reasoning
-          ? { ...streamed.metadata, [REASONING_TEXT_METADATA_KEY]: reasoning }
-          : streamed.metadata,
+          ? { ...mergedMeta, [REASONING_TEXT_METADATA_KEY]: reasoning }
+          : Object.keys(mergedMeta).length > 0
+            ? mergedMeta
+            : streamed.metadata,
       };
       return {
         streamingMessages: rest,

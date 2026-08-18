@@ -43,9 +43,35 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 
 	stampCanonicalGovernance(msg)
 	features := h.semanticTurnFeatures(msg)
-	decision := router.Resolve(ctx, features)
+
+	var decision intent.TurnDecision
+	if token := prepareTokenFromMessage(msg); token != "" {
+		pt, ok := h.ConsumePreparedTurn(token)
+		if !ok || pt == nil {
+			return
+		}
+		if pt.Channel != "" && msg.Channel != "" && pt.Channel != msg.Channel {
+			return
+		}
+		decision = pt.Decision
+		intent.EnsureContextPlan(&decision, features)
+		delete(msg.Metadata, prepareTokenMetaKey)
+	} else {
+		decision = router.Resolve(ctx, features)
+	}
 	if err := protocol.StampTurnDecision(msg, decision); err != nil {
 		return
+	}
+	// Prefer stamp-owned context tier over client context_scope once decided.
+	if gov, ok := protocol.ExtractTurnGovernance(msg); ok {
+		gov.ContextTier = string(decision.ContextPlan.Tier)
+		protocol.StampTurnGovernance(msg, gov)
+	} else {
+		stampCanonicalGovernance(msg)
+		if gov, ok := protocol.ExtractTurnGovernance(msg); ok {
+			gov.ContextTier = string(decision.ContextPlan.Tier)
+			protocol.StampTurnGovernance(msg, gov)
+		}
 	}
 	if msg.Metadata == nil {
 		msg.Metadata = make(map[string]interface{})
@@ -87,6 +113,7 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		if !decisionHasFailureFixReason(decision) {
 			decision.ReasonCodes = append(decision.ReasonCodes, "runtime_failure")
 		}
+		intent.EnsureContextPlan(&decision, features)
 		if err := protocol.StampTurnDecision(msg, decision); err != nil {
 			return
 		}
@@ -100,6 +127,7 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		decision.Action = intent.ActionAnswer
 		decision.RequestedAction = intent.ActionAnswer
 		decision.Mutation = intent.MutationNone
+		intent.EnsureContextPlan(&decision, features)
 		if err := protocol.StampTurnDecision(msg, decision); err != nil {
 			return
 		}

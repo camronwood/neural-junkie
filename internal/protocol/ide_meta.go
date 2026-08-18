@@ -12,6 +12,8 @@ const (
 	IdeMetaImplementationOutcome   = "implementation_session_outcome"
 	IdeMetaCADFilesWritten         = "cad_files_written"
 	MetadataDispatchToken          = "dispatch_token"
+	MetaPlanID                     = "plan_id"
+	MetaPlanName                   = "plan_name"
 )
 
 // IdeRouteAgentType returns the specialist type slug routed for an IDE-scoped message (e.g. backend, frontend).

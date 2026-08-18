@@ -124,3 +124,38 @@ func TestAttachUserRulesMetadataIfMissing(t *testing.T) {
 		t.Fatalf("got %q", raw)
 	}
 }
+
+func TestAppendPromptAttachments_dropsDependencyAndPlanFraming(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general",
+		protocol.AgentInfo{ID: "u1", Name: "Camron", Type: protocol.AgentTypeGeneral},
+		"Plan how to add HelloWorld")
+	msg.Metadata = map[string]any{
+		"composer_mode": "plan",
+		"editor_mode":   "plan",
+		MetadataPromptAttachments: []any{
+			map[string]any{
+				"path":    ".venv-icon/lib/python3.14/site-packages/PIL/TiffImagePlugin.py",
+				"content": "assert isinstance(_denominator, int)",
+			},
+			map[string]any{
+				"path":    "internal/agent/plan_mode_prompt.go",
+				"content": "func appendPlanModePrompt()",
+			},
+		},
+	}
+	var b strings.Builder
+	AppendPromptAttachments(&b, msg)
+	out := b.String()
+	if strings.Contains(out, "TiffImagePlugin") {
+		t.Fatalf("dependency chunk leaked into prompt: %q", out)
+	}
+	if !strings.Contains(out, "plan_mode_prompt.go") {
+		t.Fatalf("expected project file kept: %q", out)
+	}
+	if !strings.Contains(out, "candidate search hits") {
+		t.Fatalf("expected plan framing: %q", out)
+	}
+	if strings.Contains(out, "answer from the attached source chunks") {
+		t.Fatal("plan mode must not treat search hits as the answer")
+	}
+}

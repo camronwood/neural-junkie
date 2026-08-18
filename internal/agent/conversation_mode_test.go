@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -155,6 +156,161 @@ func TestShouldIncludeToolingInPrompt_casualChat(t *testing.T) {
 	msg.Metadata = map[string]interface{}{MetadataConversationMode: "chat"}
 	if ag.shouldIncludeToolingInPrompt(msg, IntentLowSignal) {
 		t.Fatal("casual chat should not include tooling")
+	}
+}
+
+func TestShouldIncludeToolingInPrompt_planVsAsk(t *testing.T) {
+	hub := shouldRespondTestHub{}
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", []string{"go"}, ai.NewMockProvider(), hub)
+	plan := protocol.NewMessage(protocol.MessageTypeQuestion, "dev", protocol.AgentInfo{ID: "u", Name: "User"}, "Plan how to add HelloWorld")
+	plan.Metadata = map[string]interface{}{
+		"editor_mode":            "plan",
+		"composer_mode":          "plan",
+		MetadataConversationMode: ConversationModeCode,
+	}
+	if !ag.shouldIncludeToolingInPrompt(plan, IntentTask) {
+		t.Fatal("plan mode + task intent must include tooling")
+	}
+	ask := protocol.NewMessage(protocol.MessageTypeQuestion, "dev", protocol.AgentInfo{ID: "u", Name: "User"}, "Plan how to add HelloWorld")
+	ask.Metadata = map[string]interface{}{
+		"editor_mode":            "ask",
+		"composer_mode":          "ask",
+		MetadataConversationMode: ConversationModeCode,
+	}
+	if ag.shouldIncludeToolingInPrompt(ask, IntentTask) {
+		t.Fatal("ask mode must not include tooling even for task intent")
+	}
+}
+
+func TestAppendPlanModePrompt(t *testing.T) {
+	var b strings.Builder
+	appendPlanModePrompt(&b)
+	out := b.String()
+	if !strings.Contains(out, "=== PLAN MODE ===") {
+		t.Fatalf("missing PLAN MODE banner: %q", out)
+	}
+	if !strings.Contains(out, "todos:") || !strings.Contains(out, "Out of scope") {
+		t.Fatalf("missing plan skeleton: %q", out)
+	}
+	if !strings.Contains(out, "MUST include") {
+		t.Fatal("expected mandatory Out of scope instruction")
+	}
+	if !strings.Contains(out, "FILE_CHANGE") {
+		t.Fatal("expected FILE_CHANGE prohibition")
+	}
+	if !strings.Contains(out, "site-packages") {
+		t.Fatal("expected third-party ignore instruction")
+	}
+}
+
+func TestBuildPromptForIntent_planSkipsAssistantEncyclopedia(t *testing.T) {
+	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	a.Info.AIModel = "qwen3.5:9b"
+	a.Info.AIProvider = "ollama"
+	a.SetPromptBuilder(func(*protocol.Message) string {
+		return "/create-expert encyclopedia dump"
+	})
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general",
+		protocol.AgentInfo{Name: "Camron", Type: "human"},
+		"Plan how to add a HelloWorld function to main.go")
+	msg.Metadata = map[string]interface{}{
+		"composer_mode":          "plan",
+		"editor_mode":            "plan",
+		MetadataConversationMode: ConversationModeCode,
+	}
+	got := a.buildPromptForIntent(msg, IntentTask)
+	if strings.Contains(got, "/create-expert") {
+		t.Fatal("plan must not use Assistant command encyclopedia")
+	}
+	if !strings.Contains(got, "todos:") || !strings.Contains(got, "Out of scope") {
+		t.Fatalf("expected compact plan skeleton: %q", got)
+	}
+}
+
+func TestBuildPromptForIntent_constrainedAgentSkipsAssistantEncyclopedia(t *testing.T) {
+	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	a.Info.AIModel = "qwen3.5:9b"
+	a.Info.AIProvider = "ollama"
+	a.SetPromptBuilder(func(*protocol.Message) string {
+		return "/create-expert encyclopedia dump\noperation: create|edit|delete|move"
+	})
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general",
+		protocol.AgentInfo{Name: "Camron", Type: "human"},
+		"Add a HelloWorld function to main.go")
+	msg.Metadata = map[string]interface{}{
+		"composer_mode":          "agent",
+		"editor_mode":            "agent",
+		MetadataConversationMode: ConversationModeCode,
+	}
+	got := a.buildPromptForIntent(msg, IntentTask)
+	if strings.Contains(got, "/create-expert") {
+		t.Fatal("constrained agent must not use Assistant command encyclopedia")
+	}
+	if strings.Contains(got, "operation: create|edit|delete|move") {
+		t.Fatal("constrained agent must not paste FILE_CHANGE machine docs")
+	}
+	if !strings.Contains(got, "=== AGENT MODE ===") {
+		t.Fatalf("expected compact agent contract: %q", got)
+	}
+}
+
+func TestRecoverEmptyPlanReply(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{
+		Name:       "Assistant",
+		Type:       protocol.AgentTypeAssistant,
+		AIProvider: "ollama",
+		AIModel:    "qwen3.5:9b",
+	}}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general",
+		protocol.AgentInfo{Name: "Camron", Type: "human"},
+		"Plan how to add a HelloWorld function to main.go")
+	msg.Metadata = map[string]interface{}{
+		"composer_mode": "plan",
+		"editor_mode":   "plan",
+	}
+	mock := ai.NewMockProvider()
+	got, ok := a.recoverEmptyPlanReply(context.Background(), msg, mock, "", ai.ErrOllamaNoContent)
+	if !ok || strings.TrimSpace(got) == "" {
+		t.Fatalf("expected compact no-tools retry, ok=%v got=%q", ok, got)
+	}
+	if retry, again := a.recoverEmptyPlanReply(context.Background(), msg, mock, "already planned", nil); again {
+		t.Fatalf("non-empty plan reply must not retry, got %q", retry)
+	}
+}
+
+func TestRecoverEmptyConstrainedReply_agent(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{
+		Name:       "BackendEngineer",
+		Type:       protocol.AgentTypeBackend,
+		AIProvider: "ollama",
+		AIModel:    "qwen3.5:9b",
+	}}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general",
+		protocol.AgentInfo{Name: "Camron", Type: "human"},
+		"Add HelloWorld to main.go")
+	msg.Metadata = map[string]interface{}{
+		"composer_mode": "agent",
+		"editor_mode":   "agent",
+	}
+	mock := ai.NewMockProvider()
+	got, ok := a.recoverEmptyConstrainedReply(context.Background(), msg, mock, "", ai.ErrOllamaNoContent)
+	if !ok || strings.TrimSpace(got) == "" {
+		t.Fatalf("expected agent empty retry, ok=%v got=%q", ok, got)
+	}
+}
+
+func TestEnsurePlanModeStructureAppendsOutOfScope(t *testing.T) {
+	raw := "---\nname: HelloWorld plan\noverview: Add a helper.\ntodos:\n  - id: add-fn\n    content: Add HelloWorld\n    status: pending\n---\n\n# HelloWorld\n"
+	got := ensurePlanModeStructure(raw)
+	if !strings.Contains(got, "todos:") {
+		t.Fatalf("lost todos: %q", got)
+	}
+	if !strings.Contains(got, "## Out of scope") {
+		t.Fatalf("expected Out of scope: %q", got)
+	}
+	again := ensurePlanModeStructure(got)
+	if strings.Count(strings.ToLower(again), "out of scope") != strings.Count(strings.ToLower(got), "out of scope") {
+		t.Fatalf("should not duplicate Out of scope: %q", again)
 	}
 }
 

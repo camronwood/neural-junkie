@@ -743,6 +743,15 @@ func workspaceGroundingRequirement(totalLoaded int, content string, implementati
 			totalLoaded,
 		)
 	}
+	if userRequestsEditorDocumentReview(content) {
+		return fmt.Sprintf(
+			"\nGrounding requirement: Start your answer with exactly this one line:\n"+
+				"\"Grounding: I loaded %d file(s) from the workspace context for this answer.\"\n"+
+				"Then immediately review the ACTIVE open file from WORKSPACE CONTEXT. "+
+				"Name that file path in your next sentence. Do not ask which file or claim you cannot see their editor/tab.\n\n",
+			totalLoaded,
+		)
+	}
 	return fmt.Sprintf(
 		"\nGrounding requirement: Start your answer with exactly this one line:\n"+
 			"\"Grounding: I loaded %d file(s) from the workspace context for this answer.\"\nThen continue with your analysis.\n\n",

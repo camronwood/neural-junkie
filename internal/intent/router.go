@@ -223,8 +223,8 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	hasOpenCanvas := strings.TrimSpace(features.OpenArtifactID) != "" ||
 		strings.TrimSpace(features.OpenArtifactRenderer) != ""
 	metaCanvasQ := hasOpenCanvas &&
-		!LooksLikeCanvasRenameAsk(features.Text) &&
-		!LooksLikeOpenCanvasFillAsk(features.Text) &&
+		!gateText(LooksLikeCanvasRenameAsk, features.Text) &&
+		!gateText(LooksLikeOpenCanvasFillAsk, features.Text) &&
 		hasMetaCanvasReasonCode(decision.ReasonCodes)
 	if hasOpenCanvas && features.ExplicitAction == "" &&
 		strings.ToLower(strings.TrimSpace(features.ComposerMode)) != "export" &&
@@ -302,7 +302,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 			decision.ReasonCodes = append(decision.ReasonCodes, "durable_artifact")
 		}
 		if !slices.Contains(decision.Retrieval, RetrievalPriorReference) &&
-			LooksLikePriorContentCanvasAsk(features.Text) {
+			gateText(LooksLikePriorContentCanvasAsk, features.Text) {
 			decision.Retrieval = append(decision.Retrieval, RetrievalPriorReference)
 		}
 	}
@@ -313,7 +313,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	// there") still revises the page.
 	if decision.Action == ActionArtifact && features.ExplicitAction == "" &&
 		PrefersChatOverOpenCanvas(features.Text) &&
-		(hasOpenCanvas || LooksLikeChatSurfaceAsk(features.Text)) {
+		(hasOpenCanvas || gateText(LooksLikeChatSurfaceAsk, features.Text)) {
 		decision.Action = ActionAnswer
 		decision.RequestedAction = ActionAnswer
 		decision.Mutation = MutationNone
@@ -330,9 +330,9 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		!containsString(decision.PolicyOverrides, "canvas_reason_artifact") &&
 		!containsString(decision.PolicyOverrides, "canvas_text_artifact") &&
 		!containsString(decision.PolicyOverrides, "open_canvas_artifact") &&
-		!LooksLikeCanvasDeliverableAsk(features.Text) &&
-		!LooksLikeMapsRouteAsk(features.Text) &&
-		!LooksLikeWorkspaceReportAsk(features.Text) {
+		!gateText(LooksLikeCanvasDeliverableAsk, features.Text) &&
+		!gateText(LooksLikeMapsRouteAsk, features.Text) &&
+		!gateText(LooksLikeWorkspaceReportAsk, features.Text) {
 		decision.Action = ActionAnswer
 		decision.RequestedAction = ActionAnswer
 		decision.Mutation = MutationNone
@@ -344,9 +344,9 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	// should stay conversational answer, not a question-prompt goal.
 	if decision.Action == ActionAskUser && features.ExplicitAction == "" &&
 		hasCanvasDeliverableReasonCode(decision.ReasonCodes) &&
-		!LooksLikeCanvasDeliverableAsk(features.Text) &&
-		!LooksLikeMapsRouteAsk(features.Text) &&
-		!LooksLikeWorkspaceReportAsk(features.Text) {
+		!gateText(LooksLikeCanvasDeliverableAsk, features.Text) &&
+		!gateText(LooksLikeMapsRouteAsk, features.Text) &&
+		!gateText(LooksLikeWorkspaceReportAsk, features.Text) {
 		decision.Action = ActionAnswer
 		decision.RequestedAction = ActionAnswer
 		decision.Mutation = MutationNone
@@ -359,8 +359,8 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	mode := strings.ToLower(strings.TrimSpace(features.ComposerMode))
 	if features.ExplicitAction == "" &&
 		hasReasonCode(decision.ReasonCodes, "project_overview") &&
-		!LooksLikeCanvasDeliverableAsk(features.Text) &&
-		!LooksLikeMapsRouteAsk(features.Text) &&
+		!gateText(LooksLikeCanvasDeliverableAsk, features.Text) &&
+		!gateText(LooksLikeMapsRouteAsk, features.Text) &&
 		!looksLikeExplicitCommandRunAsk(features.Text) {
 		switch decision.Action {
 		case ActionRun, ActionEdit, ActionContinue, ActionAskUser, ActionAnswer, ActionPlan, ActionDebug:
@@ -379,10 +379,10 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		mode != "ask" && mode != "plan" &&
 		features.HasWorkspace &&
 		hasFailureFixReasonCodes(decision.ReasonCodes) &&
-		!LooksLikeCanvasDeliverableAsk(features.Text) &&
-		!LooksLikeMapsRouteAsk(features.Text) &&
+		!gateText(LooksLikeCanvasDeliverableAsk, features.Text) &&
+		!gateText(LooksLikeMapsRouteAsk, features.Text) &&
 		!hasReasonCode(decision.ReasonCodes, "project_overview") &&
-		!LooksLikeProjectOverviewAsk(features.Text) {
+		!gateText(LooksLikeProjectOverviewAsk, features.Text) {
 		switch decision.Action {
 		case ActionAnswer, ActionPlan, ActionInspect, ActionAskUser, ActionRun, ActionContinue:
 			decision.Action = ActionDebug
@@ -431,7 +431,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		mode != "ask" && mode != "plan" &&
 		features.HasWorkspace &&
 		decision.Action == ActionPlan &&
-		LooksLikeDirectImplementationAsk(features.Text) {
+		gateText(LooksLikeDirectImplementationAsk, features.Text) {
 		decision.Action = ActionEdit
 		decision.RequestedAction = ActionEdit
 		decision.Mutation = MutationWorkspace
@@ -441,7 +441,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 
 	// Prior-content canvas creates need prior_reference even when the stamp is already artifact.
 	if decision.Action == ActionArtifact && features.ExplicitAction == "" &&
-		LooksLikePriorContentCanvasAsk(features.Text) &&
+		gateText(LooksLikePriorContentCanvasAsk, features.Text) &&
 		!slices.Contains(decision.Retrieval, RetrievalPriorReference) {
 		decision.Retrieval = append(decision.Retrieval, RetrievalPriorReference)
 	}
@@ -452,9 +452,9 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		features.HasWorkspace &&
 		mode != "ask" && mode != "plan" &&
 		decision.Action == ActionAnswer &&
-		(hasReasonCode(decision.ReasonCodes, "repo_fact") || LooksLikeRepoFactAsk(features.Text)) &&
-		!LooksLikeCanvasDeliverableAsk(features.Text) &&
-		!LooksLikeProjectOverviewAsk(features.Text) {
+		(hasReasonCode(decision.ReasonCodes, "repo_fact") || gateText(LooksLikeRepoFactAsk, features.Text)) &&
+		!gateText(LooksLikeCanvasDeliverableAsk, features.Text) &&
+		!gateText(LooksLikeProjectOverviewAsk, features.Text) {
 		decision.Action = ActionInspect
 		decision.RequestedAction = ActionInspect
 		decision.Mutation = MutationNone
@@ -547,7 +547,7 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 
 	if features.HasWorkspace {
 		switch decision.Action {
-		case ActionInspect, ActionDebug, ActionEdit, ActionRun, ActionContinue:
+		case ActionInspect, ActionDebug, ActionEdit, ActionRun, ActionContinue, ActionPlan:
 			if !containsRetrievalTarget(decision.Retrieval, RetrievalCodebase) {
 				decision.Retrieval = append(decision.Retrieval, RetrievalCodebase)
 				decision.PolicyOverrides = append(decision.PolicyOverrides, "workspace_requires_codebase_retrieval")
@@ -558,6 +558,11 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	if decision.Action == ActionRun && decision.Mutation == MutationExternal {
 		decision.Mutation = MutationNone
 		decision.PolicyOverrides = append(decision.PolicyOverrides, "run_mutation_normalize")
+	}
+	plan, usedFallback := DeriveContextPlan(features, decision, semantic)
+	decision.ContextPlan = plan
+	if usedFallback {
+		decision.PolicyOverrides = append(decision.PolicyOverrides, "context_plan_fallback")
 	}
 	decision.PolicyOverrides = normalizeStrings(decision.PolicyOverrides)
 	return decision
@@ -661,14 +666,14 @@ func shouldPromoteCanvasReasonCodes(decision TurnDecision, text string) bool {
 			maps = true
 		}
 	}
-	if maps && LooksLikeMapsRouteAsk(text) {
+	if maps && gateText(LooksLikeMapsRouteAsk, text) {
 		return true
 	}
-	if report && LooksLikeWorkspaceReportAsk(text) {
+	if report && gateText(LooksLikeWorkspaceReportAsk, text) {
 		return true
 	}
 	if blank || durable {
-		if LooksLikeCanvasDeliverableAsk(text) {
+		if gateText(LooksLikeCanvasDeliverableAsk, text) {
 			return true
 		}
 		// "ok please do that now" after a blank-canvas create: text has no "canvas",
@@ -725,12 +730,12 @@ func hasCanvasDeliverableReasonCode(codes []string) bool {
 // PrefersChatOverOpenCanvas reports turns that must stay in-thread even when a
 // Neural Canvas tab is focused. Explicit canvas fill/create still revises the page.
 func PrefersChatOverOpenCanvas(text string) bool {
-	if LooksLikeChatSurfaceAsk(text) {
+	if gateText(LooksLikeChatSurfaceAsk, text) {
 		return true
 	}
-	if LooksLikeMeetingNotesAsk(text) &&
-		!LooksLikeOpenCanvasFillAsk(text) &&
-		!LooksLikeCanvasDeliverableAsk(text) {
+	if gateText(LooksLikeMeetingNotesAsk, text) &&
+		!gateText(LooksLikeOpenCanvasFillAsk, text) &&
+		!gateText(LooksLikeCanvasDeliverableAsk, text) {
 		return true
 	}
 	return false
@@ -819,7 +824,7 @@ func pendingActionBlocksCanvasPromote(features TurnFeatures) bool {
 	if features.PendingAction != ActionEdit && features.PendingAction != ActionDebug {
 		return false
 	}
-	return !LooksLikeCanvasCreateOrFillAsk(features.Text)
+	return !gateText(LooksLikeCanvasCreateOrFillAsk, features.Text)
 }
 
 // LooksLikeCanvasCreateOrFillAsk reports explicit create/fill/post canvas asks.
@@ -1034,9 +1039,9 @@ func shouldPromoteCanvasTextAsk(decision TurnDecision, text string) bool {
 	case ActionEdit:
 		// Typo "canvans" often stamps edit; promote pure canvas creates, but keep
 		// mixed "fix then canvas" turns as workspace edit.
-		return LooksLikeCanvasCreateOrFillAsk(text) && !looksLikeMixedEditThenCanvasAsk(text)
+		return gateText(LooksLikeCanvasCreateOrFillAsk, text) && !looksLikeMixedEditThenCanvasAsk(text)
 	}
-	return LooksLikeCanvasCreateOrFillAsk(text)
+	return gateText(LooksLikeCanvasCreateOrFillAsk, text)
 }
 
 func looksLikeMixedEditThenCanvasAsk(text string) bool {

@@ -92,6 +92,16 @@ func ShouldIgnoreEntry(relPath, name string) bool {
 	return false
 }
 
+// IsDependencyPath reports whether path (relative or absolute) is third-party
+// or generated (venv, site-packages, node_modules, …).
+func IsDependencyPath(path string) bool {
+	slash := filepath.ToSlash(strings.TrimSpace(path))
+	if slash == "" {
+		return false
+	}
+	return ShouldIgnoreEntry(filepath.FromSlash(slash), filepath.Base(slash))
+}
+
 func isRootBuildOutput(relPath, name string) bool {
 	if _, ok := rootBuildOutputNames[name]; !ok {
 		return false

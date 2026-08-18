@@ -185,7 +185,7 @@ func TestActionTurnStreamingIsBufferedForValidation(t *testing.T) {
 	tokens <- ai.StreamToken{Done: true}
 	close(tokens)
 
-	response, _, _, err := a.collectStreamTokens(ctx, msg, "stream-1", tokens)
+	response, _, _, err := a.collectStreamTokens(ctx, msg, "stream-1", tokens, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

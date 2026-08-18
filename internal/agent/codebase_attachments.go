@@ -11,6 +11,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/codeindex"
 	"github.com/camronwood/neural-junkie/internal/codeintel"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/repo"
 	"github.com/camronwood/neural-junkie/internal/routing"
 )
 
@@ -18,6 +19,7 @@ var (
 	codebaseMentionRE     = regexp.MustCompile(`(?i)@codebase\b`)
 	codebaseSymbolRE      = regexp.MustCompile(`[A-Z][a-zA-Z0-9]{3,}`)
 	codebaseIdentifierRE  = regexp.MustCompile(`[A-Z][a-z0-9]*(?:[A-Z][a-zA-Z0-9]+)+`)
+	mentionedSourcePathRE = regexp.MustCompile(`(?i)(?:[\w.-]+/)+\w[\w.-]*\.[a-z][a-z0-9]*`)
 )
 
 // MergeCodebaseAttachments resolves @codebase in message content into prompt_attachments
@@ -26,7 +28,12 @@ func MergeCodebaseAttachments(msg *protocol.Message) {
 	if msg == nil || !codebaseMentionRE.MatchString(msg.Content) {
 		return
 	}
+	// @codebase is a deterministic mention. Prefer stamp retrieval when already present
+	// (dispatch path); otherwise use the mention-driven emergency phrase plan.
 	plan := routing.PlanKnowledgeRoute(msg.Content)
+	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
+		plan = routing.PlanKnowledgeRouteForDecision(decision)
+	}
 	_ = MergeCodebaseForRoute(msg, plan)
 }
 
@@ -55,6 +62,11 @@ func MergeCodebaseForRoute(msg *protocol.Message, plan routing.KnowledgePlan) bo
 	if query == "" {
 		return false
 	}
+	if !explicit && skipUnscopedCodebaseDump(msg) && len(mentionedSourcePaths(query)) == 0 {
+		// Constrained IDE / Plan researches with grep/read_file. Dumping 12 unscoped
+		// chunks on a large tree is how 9B latches onto random libraries (e.g. Pillow).
+		return false
+	}
 	paths := scopedRepoPathsFromMetadata(msg)
 	if len(paths) == 0 {
 		paths = []string{repoPath}
@@ -78,6 +90,10 @@ func mergeCodebaseSearchIntoMessage(msg *protocol.Message, repoPaths []string, q
 	}
 	hits, err := codeintel.SemanticSearchMulti(ctx, repoPaths, query, 4, 12)
 	semanticOK := err == nil && len(hits) > 0
+	if semanticOK {
+		hits = filterCodebaseHits(hits, query, msg)
+		semanticOK = len(hits) > 0
+	}
 	if semanticOK && len(symbols) > 0 && !semanticHitsContainAnySymbol(hits, symbols) {
 		// Semantic chunks can miss exact identifiers (e.g. ComputeObscureWidget in a deep path).
 		semanticOK = false
@@ -102,7 +118,9 @@ func mergeCodebaseSearchIntoMessage(msg *protocol.Message, repoPaths []string, q
 	if msg.Metadata["injected_codebase_count"] == nil {
 		msg.Metadata["injected_codebase_count"] = len(hits)
 	}
-	msg.Metadata["codebase_answer_from_attachments"] = true
+	if !msg.IdeEditorModeIsPlan() {
+		msg.Metadata["codebase_answer_from_attachments"] = true
+	}
 	return true
 }
 
@@ -185,25 +203,38 @@ func mergeCodebaseSearchFallback(msg *protocol.Message, repoPaths []string, quer
 	if len(results) == 0 {
 		return false
 	}
+	hits := make([]codeintel.RepoSearchHit, 0, len(results))
+	for i, r := range results {
+		hits = append(hits, codeintel.RepoSearchHit{
+			Hit:      codeintel.Hit{Path: r.Path, Content: r.Content},
+			RepoPath: resultRepos[i],
+			RepoName: codeintelRepoName(resultRepos[i]),
+		})
+	}
+	hits = filterCodebaseHits(hits, query, msg)
+	if len(hits) == 0 {
+		return false
+	}
 	if msg.Metadata == nil {
 		msg.Metadata = make(map[string]interface{})
 	}
 	existing := promptAttachmentsSlice(msg.Metadata[MetadataPromptAttachments])
-	for i, r := range results {
-		repoPath := resultRepos[i]
+	for _, h := range hits {
 		existing = append(existing, map[string]interface{}{
 			"type":      "codebase_chunk",
-			"path":      r.Path,
-			"content":   r.Content,
-			"repo_path": repoPath,
-			"repo_name": codeintelRepoName(repoPath),
+			"path":      h.Path,
+			"content":   h.Content,
+			"repo_path": h.RepoPath,
+			"repo_name": h.RepoName,
 		})
 	}
 	msg.Metadata[MetadataPromptAttachments] = existing
 	if msg.Metadata["injected_codebase_count"] == nil {
-		msg.Metadata["injected_codebase_count"] = len(results)
+		msg.Metadata["injected_codebase_count"] = len(hits)
 	}
-	msg.Metadata["codebase_answer_from_attachments"] = true
+	if !msg.IdeEditorModeIsPlan() {
+		msg.Metadata["codebase_answer_from_attachments"] = true
+	}
 	return true
 }
 
@@ -249,6 +280,51 @@ func workspacePathFromMetadata(msg *protocol.Message) string {
 	return strings.TrimSpace(p)
 }
 
+func mentionedSourcePaths(query string) []string {
+	found := mentionedSourcePathRE.FindAllString(query, -1)
+	if len(found) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(found))
+	seen := map[string]bool{}
+	for _, p := range found {
+		p = filepath.ToSlash(strings.TrimSpace(p))
+		key := strings.ToLower(p)
+		if p == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, p)
+	}
+	return out
+}
+
+func filterCodebaseHits(hits []codeintel.RepoSearchHit, query string, msg *protocol.Message) []codeintel.RepoSearchHit {
+	mentions := mentionedSourcePaths(query)
+	out := make([]codeintel.RepoSearchHit, 0, len(hits))
+	for _, h := range hits {
+		if repo.IsDependencyPath(h.Path) {
+			continue
+		}
+		if len(mentions) > 0 && !hitMatchesMentionedPath(h.Path, mentions) {
+			continue
+		}
+		out = append(out, h)
+	}
+	_ = msg
+	return out
+}
+
+func hitMatchesMentionedPath(path string, mentions []string) bool {
+	p := strings.ToLower(filepath.ToSlash(path))
+	for _, m := range mentions {
+		if strings.Contains(p, strings.ToLower(m)) {
+			return true
+		}
+	}
+	return false
+}
+
 var codebaseSourceExts = map[string]bool{
 	".go": true, ".ts": true, ".tsx": true, ".js": true, ".jsx": true,
 	".py": true, ".rs": true, ".java": true, ".css": true, ".md": true,
@@ -261,23 +337,23 @@ func grepWorkspaceSymbol(repoPath, symbol string, limit int) []codeindex.SearchR
 	var out []codeindex.SearchResult
 	_ = filepath.WalkDir(repoPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
-			if d != nil && d.IsDir() {
-				switch d.Name() {
-				case ".git", "node_modules", "dist", "target", "build", ".neural-junkie":
-					return filepath.SkipDir
-				}
+			if d != nil && d.IsDir() && repo.ShouldIgnore(d.Name()) {
+				return filepath.SkipDir
 			}
 			return nil
 		}
 		if !codebaseSourceExts[filepath.Ext(path)] {
 			return nil
 		}
-		b, err := os.ReadFile(path)
-		if err != nil || !strings.Contains(string(b), symbol) {
-			return nil
-		}
 		rel, err := filepath.Rel(repoPath, path)
 		if err != nil {
+			return nil
+		}
+		if repo.IsDependencyPath(rel) {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil || !strings.Contains(string(b), symbol) {
 			return nil
 		}
 		content := string(b)

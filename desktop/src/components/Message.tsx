@@ -15,6 +15,7 @@ import {
   isSlashCommandMessage,
   getArtifactReference,
   getChangeProposalCard,
+  isContinuationAvailable,
 } from '../types/protocol';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MessageContent } from './MessageContent';
@@ -39,6 +40,7 @@ import { formatToolStepLabel } from '../utils/thinkingActivityLabel';
 import { ChatClickableImage } from './ImageLightboxModal';
 import { ArtifactCard } from './neural-canvas';
 import { ChangeProposalMessageCard } from './ChangeProposalCard';
+import { PlanCard } from './PlanCard';
 
 function artifactOpenStub(ref: { title?: string; media_type?: string; renderer_id?: string }): string {
   const kind =
@@ -274,6 +276,7 @@ interface MessageProps {
   message: MessageType;
   threadMetadata?: ThreadMetadata;
   onOpenThread?: (threadId: string) => void;
+  onContinueGeneration?: (message: MessageType) => void | Promise<void>;
   channelName?: string;
   isStreaming?: boolean;
 }
@@ -319,11 +322,19 @@ function workspaceContextBadge(metadata?: Record<string, unknown>): { label: str
   };
 }
 
-function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStreaming }: MessageProps) {
+function MessageImpl({
+  message,
+  threadMetadata,
+  onOpenThread,
+  onContinueGeneration,
+  channelName,
+  isStreaming,
+}: MessageProps) {
   const threadOpenId = channelName
     ? slackThreadOpenId(message, channelName)
     : message.id;
   const [proposing, setProposing] = useState(false);
+  const [continuing, setContinuing] = useState(false);
   const isSystem = isSystemMessage(message.type);
   const isCommandOutput = message.type === 'command_output';
   const isDesignOutput = message.type === 'design_output';
@@ -340,6 +351,11 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const errorMeta = (message.metadata ?? {}) as MessageErrorMetadata;
   const hasErrorMeta = typeof errorMeta.error_code === 'string';
   const canRetry = errorMeta.retryable === true;
+  const canContinueGeneration =
+    !isStreaming &&
+    !isSystem &&
+    isContinuationAvailable(message.metadata as Record<string, unknown> | undefined) &&
+    typeof onContinueGeneration === 'function';
   const username = useChatStore(s => s.username);
   const highlightMessageId = useChatStore(s => s.highlightMessageId);
   const addToast = useToastStore(s => s.addToast);
@@ -428,6 +444,22 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
       });
     } finally {
       setProposing(false);
+    }
+  };
+
+  const handleContinueGeneration = async () => {
+    if (!canContinueGeneration || continuing || !onContinueGeneration) return;
+    setContinuing(true);
+    try {
+      await onContinueGeneration(message);
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Continue failed',
+        message: err instanceof Error ? err.message : 'Could not continue generation',
+      });
+    } finally {
+      setContinuing(false);
     }
   };
 
@@ -625,6 +657,9 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
             {implOutcome && !isStreaming && (
               <ImplementationSessionOutcomeCard outcome={implOutcome} />
             )}
+            {!isStreaming && message.from?.type !== 'human' && (
+              <PlanCard content={message.content} metadata={message.metadata} />
+            )}
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />
             )}
@@ -639,6 +674,25 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
                   title="Create a pending file change proposal from this message"
                 >
                   {proposing ? 'Creating proposal...' : 'Propose it?'}
+                </button>
+              </div>
+            )}
+            {canContinueGeneration && (
+              <div
+                data-testid="output-limit-continue"
+                className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-600/40 bg-amber-950/25 px-3 py-2"
+              >
+                <span className="text-xs text-amber-100">
+                  Output limit reached — this reply stopped mid-answer.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handleContinueGeneration()}
+                  disabled={continuing}
+                  className="shrink-0 px-3 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white text-xs font-semibold disabled:opacity-50"
+                  title="Ask the agent to continue from where it stopped"
+                >
+                  {continuing ? 'Continuing…' : 'Continue'}
                 </button>
               </div>
             )}
@@ -685,7 +739,8 @@ export const Message = memo(MessageImpl, (prev, next) => {
     prev.message === next.message &&
     prev.isStreaming === next.isStreaming &&
     prev.threadMetadata === next.threadMetadata &&
-    prev.onOpenThread === next.onOpenThread
+    prev.onOpenThread === next.onOpenThread &&
+    prev.onContinueGeneration === next.onContinueGeneration
   );
 });
 

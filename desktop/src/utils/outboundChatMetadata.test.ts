@@ -176,7 +176,7 @@ describe('buildHumanOutboundMetadata explicit turn metadata', () => {
       ],
     });
     expect(meta?.conversation_mode).toBeUndefined();
-    expect(meta?.context_scope_reason).toBe('workspace mode auto');
+    expect(meta?.context_scope).toBe('hint');
     expect(meta?.editor_mode).toBe('ask');
     expect(meta?.implementation_session).toBeUndefined();
     expect(meta?.workspace_context).toBeDefined();
@@ -252,7 +252,7 @@ describe('buildHumanOutboundMetadata custom expert turn context', () => {
       });
 
       expect(meta?.conversation_mode).toBeUndefined();
-      expect(meta?.context_scope).toBe(contextMode === 'always' ? 'full' : 'outline');
+      expect(meta?.context_scope).toBe(contextMode === 'always' ? 'full' : 'hint');
       expect(meta?.editor_mode).toBe('agent');
       expect(meta?.implementation_session).toBeUndefined();
     }
@@ -477,5 +477,44 @@ describe('buildHumanOutboundMetadata open_artifact', () => {
       composerMetadata: { editor_mode: 'agent' },
     });
     expect(meta?.open_artifact).toBeUndefined();
+  });
+});
+
+describe('buildHumanOutboundMetadata open document review', () => {
+  it('prepare envelope uses structural hint; bodies wait for hub context_request', () => {
+    useFileExplorerStore.setState({
+      workspaces: [{ id: 'ciso', name: 'CISO', path: '/Users/me/CISO', kind: 'local' }],
+      activeWorkspaceId: 'ciso',
+      fileTree: { ciso: [] },
+    });
+    useEditorStore.setState({
+      tabs: [
+        {
+          id: 'gilead',
+          workspaceId: 'ciso',
+          path: '/Users/me/CISO/gilead-security/GILEAD_SECTION_REMEDIATION.md',
+          content:
+            '# Gilead Questionnaire — Section Remediation Plan\n\nRemediation sprint starts 2026-09-01.\n',
+          language: 'markdown',
+          isDirty: false,
+        },
+      ],
+      activeTabId: 'gilead',
+    });
+
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'auto',
+      message: 'lets review the docuemnt I have open together',
+      channel: 'dm-camron-assistant',
+      channelType: 'dm',
+      composerMetadata: { editor_mode: 'agent' },
+      ideCoding: false,
+    });
+
+    // Phrase inference no longer upgrades to focus — hub stamp context_request does.
+    expect(meta?.context_scope).toBe('hint');
+    const workspace = meta?.workspace_context as WorkspaceContext;
+    expect(workspace?.workspace_path).toContain('CISO');
+    expect(workspace?.open_files ?? []).toEqual([]);
   });
 });

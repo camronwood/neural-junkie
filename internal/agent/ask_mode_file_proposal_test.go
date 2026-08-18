@@ -111,6 +111,25 @@ func TestAgentToolDefinitions_askModeOmitsProposeFileEdit(t *testing.T) {
 	if !toolNamesInclude(a.agentToolDefinitions(editMsg), searchReplaceToolName) {
 		t.Fatal("edit mode should expose search_replace")
 	}
+
+	planMsg := &protocol.Message{
+		Metadata: map[string]interface{}{
+			"editor_mode":   "plan",
+			"composer_mode": "plan",
+		},
+	}
+	var hasRead bool
+	for _, td := range a.agentToolDefinitions(planMsg) {
+		switch td.Name {
+		case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName:
+			t.Fatalf("plan mode must not expose %q", td.Name)
+		case "read_file":
+			hasRead = true
+		}
+	}
+	if !hasRead {
+		t.Fatal("plan mode should expose read_file")
+	}
 }
 
 func toolNamesInclude(tools []ai.ClaudeToolDefinition, name string) bool {

@@ -1330,6 +1330,71 @@ export class ChatAPI {
     }
   }
 
+  /** Classify a turn and return a context_request before uploading payloads. */
+  async prepareTurn(
+    channel: string,
+    content: string,
+    from: { name: string; type: string },
+    type: string = 'question',
+    metadata?: Record<string, any>
+  ): Promise<{
+    prepare_token: string;
+    context_request: import('../utils/contextRequestAttach').ContextRequestPayload;
+    decision?: Record<string, unknown>;
+  }> {
+    const body: any = { channel, content, type, from };
+    if (metadata) {
+      body.metadata = { ...metadata };
+      const replyTo = metadata.reply_to;
+      if (typeof replyTo === 'string' && replyTo.trim()) {
+        body.reply_to = replyTo.trim();
+      }
+    }
+    const response = await this.hubFetch(`/api/turn/prepare`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(detail.trim() || `Failed to prepare turn: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /** Finalize a prepared turn after uploading requested context. */
+  async dispatchTurn(
+    channel: string,
+    content: string,
+    from: { name: string; type: string },
+    type: string = 'question',
+    metadata?: Record<string, any>
+  ): Promise<SendMessageResponse> {
+    const body: any = { channel, content, type, from };
+    if (metadata) {
+      body.metadata = { ...metadata };
+      const replyTo = metadata.reply_to;
+      if (typeof replyTo === 'string' && replyTo.trim()) {
+        body.reply_to = replyTo.trim();
+      }
+    }
+    const response = await this.hubFetch(`/api/turn/dispatch`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to dispatch turn: ${response.statusText}`);
+    }
+    const text = await response.text();
+    if (!text.trim()) {
+      return { status: 'ok' };
+    }
+    try {
+      return JSON.parse(text) as SendMessageResponse;
+    } catch {
+      return { status: 'ok' };
+    }
+  }
+
   // Fetch list of active agents
   async fetchAgents(options?: { includeToolCounts?: boolean }): Promise<AgentInfo[]> {
     const params = new URLSearchParams();
@@ -3493,6 +3558,41 @@ export class ChatAPI {
     }
     const data = (await response.json()) as { markdown?: string };
     return data.markdown ?? '';
+  }
+
+  async getPlan(id: string): Promise<{
+    id: string;
+    name: string;
+    overview: string;
+    todos: Array<{ id: string; content: string; status: string }>;
+    markdown: string;
+  }> {
+    const response = await this.hubFetch(`/api/plans/${encodeURIComponent(id)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to load plan: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async putPlan(
+    id: string,
+    markdown: string
+  ): Promise<{
+    id: string;
+    name: string;
+    overview: string;
+    todos: Array<{ id: string; content: string; status: string }>;
+    markdown: string;
+  }> {
+    const response = await this.hubFetch(`/api/plans/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markdown }),
+    });
+    if (!response.ok) {
+      throw new Error((await response.text()) || `Failed to save plan: ${response.statusText}`);
+    }
+    return response.json();
   }
 
   // File change API methods

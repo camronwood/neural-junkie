@@ -91,6 +91,12 @@ func applyContextBudgetForMessage(msg *protocol.Message, prompt string) (string,
 		limit = ideContextBudgetLimit()
 		outline = ideWorkspaceOutlineBytes
 	}
+	if p, ok := turnContextProfileFromMetadata(msg); ok && p.Constrained && isIDEComposerTurn(msg) {
+		if p.MaxPromptBytes > 0 && (limit <= 0 || p.MaxPromptBytes < limit) {
+			limit = p.MaxPromptBytes
+		}
+		outline = maxBudgetWorkspaceOutline
+	}
 	prompt = cacheStableSystemOrder(prompt)
 	return applyContextBudgetWithLimit(prompt, limit, outline, channelID, canRetrieve)
 }

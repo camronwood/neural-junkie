@@ -2,6 +2,8 @@
 
 Not a feature tour. A week about the *practice* — written in first person, posted as letters with stills. Product appears as a place, not a spec sheet.
 
+**Week 2 (follow-on):** [Walk Into a Room](../walk-into-a-room/WALK-INTO-A-ROOM-LINKEDIN.md) — same rhythm, walk-into jokes.
+
 **Campaign:** The Habit  
 **Tagline:** A working habit.  
 **Format:** Organic LinkedIn feed posts. One still + letter per day.  

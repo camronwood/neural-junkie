@@ -62,7 +62,9 @@ func (a *Agent) promptPersonaTier(msg *protocol.Message) PromptPersonaTier {
 }
 
 func (a *Agent) shouldIncludeToolingInPrompt(msg *protocol.Message, intent TurnIntent) bool {
-	if isAskModeReadOnly(msg) {
+	// Ask stays advisory (no MCP docs). Plan is read-only for writes but must
+	// see grep/read_file so it can research before synthesizing a plan.
+	if msg != nil && msg.IdeEditorModeIsAsk() {
 		return false
 	}
 	if intent == IntentClosure || intent == IntentLowSignal || intent == IntentMeta {

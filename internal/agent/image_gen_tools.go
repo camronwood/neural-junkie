@@ -242,6 +242,16 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 			return nil
 		}
 	}
+	if msg != nil && msg.IdeEditorModeIsPlan() {
+		if isConversationalOnlyTurn(msg) || a.MCPServer == nil {
+			return nil
+		}
+		mcpTools := claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), effectiveMCPToolAllowlist(a, msg))
+		return a.filterToolsForActiveCapabilities(msg, mcpTools)
+	}
+	if a.constrainedIDETurn(msg) && !msg.IdeEditorModeIsAsk() {
+		return a.constrainedAgentToolDefinitions(msg)
+	}
 	var tools []ai.ClaudeToolDefinition
 	if a.imageGenerationToolsEnabledForMessage(msg) {
 		tools = append(tools, generateImageToolDefinition())
@@ -294,6 +304,20 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 	}
 	if shouldOfferAskUserTool(a, msg) {
 		tools = append(tools, askUserToolDefinition())
+	}
+	return tools
+}
+
+func (a *Agent) constrainedAgentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefinition {
+	var tools []ai.ClaudeToolDefinition
+	if !isConversationalOnlyTurn(msg) {
+		if a.MCPServer != nil {
+			mcpTools := claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer), effectiveMCPToolAllowlist(a, msg))
+			tools = append(tools, a.filterToolsForActiveCapabilities(msg, mcpTools)...)
+		}
+		if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
+			tools = append(tools, fileEditToolDefinitions()...)
+		}
 	}
 	return tools
 }

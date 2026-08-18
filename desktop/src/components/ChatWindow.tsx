@@ -25,10 +25,12 @@ import {
   buildHumanOutboundMetadata,
   cycleWorkspaceContextMode,
   loadWorkspaceContextMode,
+  loadScopedWorkspaceContext,
   workspaceContextModeLabel,
   WORKSPACE_CONTEXT_MODE_KEY,
 } from '../utils/outboundChatMetadata';
 import { attachAmbientStateMetadata } from '../utils/ambientState';
+import { applyContextRequestToMetadata } from '../utils/contextRequestAttach';
 import {
   clearPendingSendThinking,
   markPendingSendThinking,
@@ -127,6 +129,11 @@ import type {
   ThinkingAgent,
   ThinkingStatusMetadata,
 } from '../types/protocol';
+import {
+  CONTINUATION_OF_METADATA_KEY,
+  CONTINUATION_REASON_METADATA_KEY,
+  OUTPUT_LENGTH_CONTINUATION_PROMPT,
+} from '../types/protocol';
 import { isCollaborationMessage, getCollaborationId, getChangeProposalCard, showThreadReplyInMainTimeline, isToolStepStreamDelta, isReasoningStreamDelta, THINKING_ACTIVITY_DETAIL_KEY, THINKING_ACTIVITY_REASONING, THINKING_ACTIVITY_USING_TOOL, THINKING_ACTIVITY_WRITING } from '../types/protocol';
 import { findThreadParentMessage } from '../utils/slackThread';
 import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
@@ -170,6 +177,7 @@ import {
   type ComposerMode,
 } from '../constants/composerMode';
 import { prepareOutboundPayload } from '../utils/prepareOutboundPayload';
+import { NJ_BUILD_PLAN_EVENT, buildPlanBuildMessage } from '../utils/planCard';
 import { resolveWorkspaceScope, scopedRepoPaths } from '../utils/workspaceScope';
 import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
@@ -1919,7 +1927,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       }
       if (message.type === 'stream_end') {
         if (streamOnMainTimeline) {
-          st.finalizeStream(message.id);
+          st.finalizeStream(message.id, message.metadata as Record<string, unknown> | undefined);
         }
         st.removeThinkingAgent(message.channel || activeChannel, message.from.id);
         return;
@@ -2315,20 +2323,25 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
 
   const dispatchMessage = useCallback(
-    async (content: string, metadata?: Record<string, unknown>): Promise<boolean> => {
+    async (
+      content: string,
+      metadata?: Record<string, unknown>,
+      modeOverride?: ComposerMode,
+    ): Promise<boolean> => {
       useChatStore.getState().setChannelHold(channel, false);
 
       let sendContent = content;
       let composerMeta = metadata ?? {};
+      const effectiveComposerMode = modeOverride ?? composerMode;
       const ws =
         explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
         explorerWorkspaces[0];
       const payload = await prepareOutboundPayload({
         content,
-        composerMode,
+        composerMode: effectiveComposerMode,
         agents,
         activeTab: activeEditorTab,
-        editorAgentTrust: resolveEditorAgentTrust(layoutSettings, composerMode),
+        editorAgentTrust: resolveEditorAgentTrust(layoutSettings, effectiveComposerMode),
         composerMetadata: composerMeta,
         api: ideEnabled ? api : undefined,
         repoPath: ideEnabled ? ws?.path : undefined,
@@ -2373,13 +2386,75 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         if (slashCommand) {
           appendLocalSlashCommand(sendContent.trim());
         }
-        const sendResult = await api.sendMessage(
-          channel,
-          sendContent,
-          { name: username, type: 'human' },
-          'question',
-          mergedMetadata
-        );
+
+        let sendResult;
+        const from = { name: username, type: 'human' };
+        // Slash commands stay on /api/send; semantic turns use prepare/fetch/dispatch.
+        if (slashCommand || workspaceContextMode === 'off') {
+          sendResult = await api.sendMessage(channel, sendContent, from, 'question', mergedMetadata);
+        } else {
+          try {
+            const prepareMeta = { ...mergedMetadata };
+            // Prepare envelope: identity + tree only; bodies come after context_request.
+            if (prepareMeta.workspace_context && typeof prepareMeta.workspace_context === 'object') {
+              const ws = { ...(prepareMeta.workspace_context as Record<string, unknown>) };
+              ws.open_files = [];
+              prepareMeta.workspace_context = ws;
+              prepareMeta.context_scope = 'hint';
+              prepareMeta.context_scope_reason = 'prepare envelope — structural availability';
+            }
+            const prepared = await api.prepareTurn(
+              channel,
+              sendContent,
+              from,
+              'question',
+              prepareMeta,
+            );
+            const { primary } = loadScopedWorkspaceContext();
+            const activePath = useEditorStore.getState().tabs.find(
+              (t) => t.id === useEditorStore.getState().activeTabId,
+            )?.path;
+            const dispatchMeta = await applyContextRequestToMetadata({
+              api,
+              metadata: mergedMetadata ?? {},
+              message: sendContent,
+              contextRequest: prepared.context_request ?? {},
+              prepareToken: prepared.prepare_token,
+              fullWorkspace: primary,
+              activeTabPath: activePath,
+            });
+            const req = prepared.context_request ?? {};
+            const withAmbient =
+              req.include_git_status || req.include_diagnostics
+                ? await attachAmbientStateMetadata(
+                    dispatchMeta,
+                    sendContent,
+                    ideLayout && hasIdeComposer,
+                    {
+                      force: true,
+                      includeGit: Boolean(req.include_git_status),
+                      includeDiagnostics: Boolean(req.include_diagnostics),
+                    },
+                  )
+                : dispatchMeta;
+            sendResult = await api.dispatchTurn(
+              channel,
+              sendContent,
+              from,
+              'question',
+              withAmbient,
+            );
+          } catch (prepareErr) {
+            console.warn('[dispatchMessage] prepare/dispatch fallback to /api/send', prepareErr);
+            sendResult = await api.sendMessage(
+              channel,
+              sendContent,
+              from,
+              'question',
+              mergedMetadata,
+            );
+          }
+        }
         let timelineChannel = channel;
         if (sendResult.collaboration_channel) {
           clearPendingSendThinking(channel);
@@ -2493,6 +2568,52 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       activeWorkspaceId,
       resolveScopedRepoPaths,
     ]
+  );
+
+  const handleBuildPlan = useCallback(
+    async (req: { markdown: string; planId: string }) => {
+      setComposerMode('agent');
+      try {
+        localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, 'agent');
+      } catch {
+        /* ignore */
+      }
+      await dispatchMessage(
+        buildPlanBuildMessage(req.markdown),
+        {
+          plan_id: req.planId,
+          implementation_session: true,
+        },
+        'agent',
+      );
+    },
+    [dispatchMessage],
+  );
+
+  useEffect(() => {
+    const onBuild = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ markdown?: string; planId?: string }>).detail;
+      if (!detail?.markdown) return;
+      void handleBuildPlan({ markdown: detail.markdown, planId: detail.planId || 'plan' });
+    };
+    window.addEventListener(NJ_BUILD_PLAN_EVENT, onBuild);
+    return () => window.removeEventListener(NJ_BUILD_PLAN_EVENT, onBuild);
+  }, [handleBuildPlan]);
+
+  const handleContinueGeneration = useCallback(
+    async (message: Message) => {
+      const meta: Record<string, unknown> = {
+        [CONTINUATION_OF_METADATA_KEY]: message.id,
+        [CONTINUATION_REASON_METADATA_KEY]: 'output_length',
+        reply_to: message.id,
+      };
+      if (message.is_thread_reply && message.thread_id) {
+        await dispatchThreadReply(message.thread_id, OUTPUT_LENGTH_CONTINUATION_PROMPT, meta);
+        return;
+      }
+      await dispatchMessage(OUTPUT_LENGTH_CONTINUATION_PROMPT, meta);
+    },
+    [dispatchMessage, dispatchThreadReply],
   );
 
   const handleTrainLoRAForAgent = useCallback(
@@ -3280,6 +3401,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           onOpenAgentDM={handleCreateDM}
           onPrefillComposer={handleFirstWinPrefill}
           onOpenModelLibrary={handleFirstWinOpenModelLibrary}
+          onContinueGeneration={handleContinueGeneration}
         />
 
         <ChatInputArea

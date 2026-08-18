@@ -72,6 +72,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/room/", corsMiddleware(localOnly(handleRoomSubRoute)))
 	http.HandleFunc("/api/hub-data/read", corsMiddleware(localOnly(handleHubDataRead)))
 	http.HandleFunc("/api/send", corsMiddleware(localOnly(handleSendMessage)))
+	http.HandleFunc("/api/turn/prepare", corsMiddleware(localOnly(handleTurnPrepare)))
+	http.HandleFunc("/api/turn/dispatch", corsMiddleware(localOnly(handleTurnDispatch)))
 	http.HandleFunc("/api/broadcast", corsMiddleware(localOnly(handleBroadcastDirect)))
 	http.HandleFunc("/api/threads/", corsMiddleware(localOnly(handleThreads))) // Thread endpoints
 	http.HandleFunc("/api/import", corsMiddleware(localOnly(handleImport)))
@@ -251,6 +253,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/memory", corsMiddleware(localOnly(handleMemoryRoute)))
 	http.HandleFunc("/api/memory/", corsMiddleware(localOnly(handleMemoryRoute)))
 	http.HandleFunc("/api/user-rules", corsMiddleware(handleUserRules))
+	http.HandleFunc("/api/plans", corsMiddleware(localOnly(handlePlans)))
+	http.HandleFunc("/api/plans/", corsMiddleware(localOnly(handlePlansSubRoute)))
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))

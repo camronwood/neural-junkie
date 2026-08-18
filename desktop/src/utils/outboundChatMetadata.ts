@@ -28,6 +28,7 @@ import { concentrationAt, validationAt, isScanAnalysisResultsPath, scanAnalysisD
 import { scanAnalysisDirFromCsvPath } from './scanAnalysisCsv';
 import {
   channelNameToKind,
+  resolveContextScope,
   type ChannelKind,
 } from './inferContextScope';
 import type { ChannelMessageRef } from './implementationContinuation';
@@ -303,7 +304,7 @@ export function trimWorkspaceContext(
   return base;
 }
 
-function loadScopedWorkspaceContext(): {
+export function loadScopedWorkspaceContext(): {
   primary: WorkspaceContext;
   linked: LinkedWorkspaceContext[];
   scopeLabel: string | null;
@@ -462,27 +463,18 @@ export function buildHumanOutboundMetadata(options: {
       ? composerModeRaw
       : 'agent';
 
-  let scope: ContextScope;
-  let reason: string;
-  if (messageOverride) {
-    scope = messageOverride;
-    reason = 'manual override';
-  } else if (contextMode === 'off') {
-    scope = 'none';
-    reason = 'workspace mode off';
-  } else if (contextMode === 'always') {
-    scope = 'full';
-    reason = 'workspace mode always';
-  } else if (ideCoding || composerMode === 'export') {
-    scope = activeTabPath ? 'focus' : 'outline';
-    reason = activeTabPath ? 'active editor context' : 'workspace outline';
-  } else if (channelKind === 'collaboration') {
-    scope = 'hint';
-    reason = 'collaboration workspace hint';
-  } else {
-    scope = 'hint';
-    reason = 'workspace mode auto';
-  }
+  // Use the shared inferencer so "review the document I have open" attaches the
+  // active tab in auto mode — not only when ideCoding layout is on.
+  const inferred = resolveContextScope({
+    message,
+    mode: contextMode,
+    channelKind,
+    activeTabPath,
+    messageOverride: messageOverride ?? null,
+    ideCoding: Boolean(ideCoding) || composerMode === 'export',
+  });
+  const scope = inferred.scope;
+  const reason = inferred.reason;
 
   meta[EDITOR_MODE_KEY] = composerMode;
   if (composerMode === 'ask' || composerMode === 'plan') {

@@ -35,8 +35,41 @@ func TestAppendWorkspaceReviewGuidance_FocusWithFiles(t *testing.T) {
 	if !strings.Contains(out, "DOCUMENT / CODE REVIEW") {
 		t.Fatalf("expected review guidance, got %q", out)
 	}
-	if !strings.Contains(out, "Do NOT say you cannot access") {
-		t.Fatal("expected no-access denial guidance")
+	if !strings.Contains(out, "/proj/rfc.md") {
+		t.Fatal("expected active path named in guidance")
+	}
+	if !strings.Contains(out, "Do NOT ask which file") {
+		t.Fatal("expected no which-file nag guidance")
+	}
+}
+
+func TestAppendWorkspaceReviewGuidance_OpenTabFollowUp(t *testing.T) {
+	if !userRequestsEditorDocumentReview("the open tab") {
+		t.Fatal("expected open-tab follow-up as editor review")
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-camron-assistant", protocol.AgentInfo{Name: "Camron"}, "the open tab")
+	msg.Metadata = map[string]interface{}{
+		MetadataContextScope: ContextScopeFocus,
+		"workspace_context": map[string]interface{}{
+			"workspace_name": "CISO",
+			"open_files": []interface{}{
+				map[string]interface{}{
+					"path": "/Users/camron/CISO/GILEAD_SECTION_REMEDIATION.md",
+					"language": "markdown",
+					"content": "# Remediation\n",
+					"is_active": true,
+				},
+			},
+		},
+	}
+	var b strings.Builder
+	appendWorkspaceReviewGuidance(&b, msg)
+	out := b.String()
+	if !strings.Contains(out, "GILEAD_SECTION_REMEDIATION.md") {
+		t.Fatalf("expected active remediation path, got %q", out)
+	}
+	if !strings.Contains(out, "Do NOT ask which file") {
+		t.Fatal("expected force-review guidance")
 	}
 }
 
@@ -99,8 +132,11 @@ func TestAppendWorkspaceReviewGuidance_BiologyCanSeeFileQuestion(t *testing.T) {
 	var b strings.Builder
 	appendWorkspaceReviewGuidance(&b, msg)
 	out := b.String()
-	if !strings.Contains(out, "naming exactly what is visible") {
-		t.Fatalf("expected precise visibility guidance, got %q", out)
+	if !strings.Contains(out, "imageMetadata.json") {
+		t.Fatalf("expected active path named, got %q", out)
+	}
+	if !strings.Contains(out, "body was empty") {
+		t.Fatalf("expected empty-body caveat, got %q", out)
 	}
 	if !strings.Contains(out, "image pixels were not attached") {
 		t.Fatalf("expected image pixel caveat, got %q", out)

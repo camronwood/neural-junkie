@@ -22,8 +22,8 @@ func TestOllamaChatOptions_defaultCapsNativeToolModels(t *testing.T) {
 	t.Setenv("NJ_OLLAMA_NUM_PREDICT", "")
 	SetHubRuntimeOptions(config.PerformanceConfig{}, config.OllamaConfig{})
 	opts := ollamaChatOptions("qwen3.5:9b")
-	if opts["num_predict"] != 512 {
-		t.Fatalf("default num_predict = %#v, want 512", opts["num_predict"])
+	if opts["num_predict"] != 4096 {
+		t.Fatalf("default num_predict = %#v, want 4096", opts["num_predict"])
 	}
 }
 

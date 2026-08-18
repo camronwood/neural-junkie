@@ -81,7 +81,7 @@ export function applyIdeAskPrefix(content: string, mode: EditorAgentMode): strin
 export function applyIdePlanPrefix(content: string, mode: EditorAgentMode): string {
   if (mode !== 'plan') return content;
   if (content.toLowerCase().includes('[plan mode')) return content;
-  return `[PLAN mode — outline approach and numbered steps only; no file edits or shell commands that modify the repo]\n${content}`;
+  return `[PLAN mode — research with read tools, then a structured YAML plan; no file edits until Build]\n${content}`;
 }
 
 /** Resolve specialist slug from @mention or active editor tab. */

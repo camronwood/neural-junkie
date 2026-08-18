@@ -29,6 +29,9 @@ type corpusCase struct {
 	StampMutation      Mutation          `json:"stamp_mutation"`
 	StampInteraction   InteractionKind   `json:"stamp_interaction"`
 	StampReasonCodes   []string          `json:"stamp_reason_codes"`
+	StampContextTier  ContextTier      `json:"stamp_context_tier"`
+	StampSubject       ContextSubject    `json:"stamp_subject"`
+	StampReviewMode    ReviewMode        `json:"stamp_review_mode"`
 	WantAction         Action            `json:"want_action"`
 	WantActions        []Action          `json:"want_actions"`
 	WantMutation       Mutation          `json:"want_mutation"`
@@ -37,6 +40,9 @@ type corpusCase struct {
 	WantContinuation   string            `json:"want_continuation"`
 	WantInteraction    InteractionKind   `json:"want_interaction"`
 	WantOverrideAny    string            `json:"want_override_any"`
+	WantContextTier   ContextTier      `json:"want_context_tier"`
+	WantSubject        ContextSubject    `json:"want_subject"`
+	WantReviewMode     ReviewMode        `json:"want_review_mode"`
 	PolicyClass        string            `json:"policy_class"`
 }
 
@@ -126,6 +132,9 @@ func TestResolvePolicyAgainstCorpus(t *testing.T) {
 				ReasonCodes:        append([]string(nil), c.StampReasonCodes...),
 				RecipientType:      "assistant",
 				ContinuationTarget: c.WantContinuation,
+				ContextTier:       c.StampContextTier,
+				Subject:            c.StampSubject,
+				ReviewMode:         c.StampReviewMode,
 			}
 			if c.PendingActionID != "" && stampAction == ActionContinue {
 				semantic.ContinuationTarget = c.PendingActionID
@@ -151,7 +160,78 @@ func TestResolvePolicyAgainstCorpus(t *testing.T) {
 					t.Errorf("retrieval=%v missing %s", decision.Retrieval, target)
 				}
 			}
+			if c.WantContextTier != "" && decision.ContextPlan.Tier != c.WantContextTier {
+				t.Errorf("context_tier=%s want=%s plan=%+v", decision.ContextPlan.Tier, c.WantContextTier, decision.ContextPlan)
+			}
+			if c.WantSubject != "" && decision.ContextPlan.Subject != c.WantSubject {
+				t.Errorf("subject=%s want=%s plan=%+v", decision.ContextPlan.Subject, c.WantSubject, decision.ContextPlan)
+			}
+			if c.WantReviewMode != "" && decision.ContextPlan.ReviewMode != c.WantReviewMode {
+				t.Errorf("review_mode=%s want=%s plan=%+v", decision.ContextPlan.ReviewMode, c.WantReviewMode, decision.ContextPlan)
+			}
 		})
+	}
+}
+
+// TestResolvePolicyDualGateTextGatesOff compares corpus outcomes with LooksLike*
+// policy overrides disabled. Failures here are graduation blockers before helper deletion.
+func TestResolvePolicyDualGateTextGatesOff(t *testing.T) {
+	prevDisabled := !TextGatesEnabled()
+	SetTextGatesDisabled(true)
+	t.Cleanup(func() { SetTextGatesDisabled(prevDisabled) })
+
+	corpus := loadRoutingCorpus(t)
+	var disagreements int
+	for _, c := range corpus.Cases {
+		features := TurnFeatures{
+			Text:                 c.Text,
+			ComposerMode:         c.ComposerMode,
+			HasWorkspace:         c.HasWorkspace,
+			CanProposeFiles:      c.ComposerMode == "agent" || c.ComposerMode == "export",
+			CanRunImplementation: c.ComposerMode == "agent" || c.ComposerMode == "export",
+			PendingActionID:      c.PendingActionID,
+			PendingAction:        c.PendingAction,
+			PendingDescription:   c.PendingDescription,
+			OpenArtifactID:       c.OpenArtifactID,
+			OpenArtifactRenderer: c.OpenArtifactRend,
+			OpenArtifactTitle:    c.OpenArtifactTitle,
+		}
+		stampAction := c.StampAction
+		if stampAction == "" {
+			stampAction = c.WantAction
+		}
+		stampMutation := c.StampMutation
+		if stampMutation == "" {
+			stampMutation = c.WantMutation
+		}
+		stampInteraction := c.StampInteraction
+		if stampInteraction == "" {
+			stampInteraction = InteractionTask
+		}
+		semantic := SemanticIntent{
+			SchemaVersion:     SchemaVersion,
+			Interaction:       stampInteraction,
+			RequestedAction:   stampAction,
+			MutationRequested: stampMutation,
+			Confidence:        0.9,
+			ReasonCodes:       append([]string(nil), c.StampReasonCodes...),
+			RecipientType:     "assistant",
+			ContextTier:      c.StampContextTier,
+			Subject:           c.StampSubject,
+			ReviewMode:        c.StampReviewMode,
+		}
+		decision := ResolvePolicy(features, semantic, SourceLocalModel)
+		if !actionAccepted(decision.Action, c.WantAction, c.WantActions) || decision.Mutation != c.WantMutation {
+			disagreements++
+			t.Logf("dual-gate disagreement %s: got action=%s mutation=%s want=%s/%s overrides=%v",
+				c.Name, decision.Action, decision.Mutation, c.WantAction, c.WantMutation, decision.PolicyOverrides)
+		}
+	}
+	// Soft gate while graduating: keep disagreement rate under 20% of corpus.
+	max := len(corpus.Cases) / 5
+	if disagreements > max {
+		t.Fatalf("text-gates-off disagreements=%d exceed %d (%.0f%% of corpus); keep graduating reason_codes",
+			disagreements, max, 100*float64(disagreements)/float64(len(corpus.Cases)))
 	}
 }
 

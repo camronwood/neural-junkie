@@ -475,6 +475,7 @@ func (l *LMStudioProvider) GenerateResponseStream(ctx context.Context, prompt st
 		defer resp.Body.Close()
 
 		scanner := bufio.NewScanner(resp.Body)
+		var lastFinishReason string
 		for scanner.Scan() {
 			if ctx.Err() != nil {
 				ch <- StreamToken{Error: ctx.Err(), Done: true}
@@ -486,7 +487,11 @@ func (l *LMStudioProvider) GenerateResponseStream(ctx context.Context, prompt st
 			}
 			data := strings.TrimPrefix(line, "data: ")
 			if data == "[DONE]" {
-				ch <- StreamToken{Done: true}
+				ch <- StreamToken{
+					Done:                   true,
+					TerminalReason:         NormalizeTerminalReason(lastFinishReason),
+					ProviderTerminalReason: lastFinishReason,
+				}
 				return
 			}
 			var chunk openAIStreamChunk
@@ -496,15 +501,24 @@ func (l *LMStudioProvider) GenerateResponseStream(ctx context.Context, prompt st
 			if chunk.Usage.PromptTokens > 0 || chunk.Usage.CompletionTokens > 0 {
 				recordOpenAICompatUsage(&l.usage, chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens)
 			}
-			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
-				ch <- StreamToken{Content: chunk.Choices[0].Delta.Content}
+			if len(chunk.Choices) > 0 {
+				if chunk.Choices[0].FinishReason != nil && strings.TrimSpace(*chunk.Choices[0].FinishReason) != "" {
+					lastFinishReason = strings.TrimSpace(*chunk.Choices[0].FinishReason)
+				}
+				if chunk.Choices[0].Delta.Content != "" {
+					ch <- StreamToken{Content: chunk.Choices[0].Delta.Content}
+				}
 			}
 		}
 		if err := scanner.Err(); err != nil {
 			ch <- StreamToken{Error: fmt.Errorf("scanner error: %w", err), Done: true}
 			return
 		}
-		ch <- StreamToken{Done: true}
+		ch <- StreamToken{
+			Done:                   true,
+			TerminalReason:         NormalizeTerminalReason(lastFinishReason),
+			ProviderTerminalReason: lastFinishReason,
+		}
 	}()
 
 	return ch, nil

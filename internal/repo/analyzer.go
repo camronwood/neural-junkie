@@ -617,6 +617,17 @@ func ShouldIgnore(name string) bool {
 		}
 	}
 
+	lower := strings.ToLower(name)
+	switch lower {
+	case "site-packages", "dist-packages", "__pypackages__", ".tox", ".nox",
+		".mypy_cache", ".pytest_cache", ".eggs", "eggs":
+		return true
+	}
+	// .venv-icon, cad_venv, aws_venv — not just the literal names venv/.venv.
+	if strings.Contains(lower, "venv") {
+		return true
+	}
+
 	return false
 }
 

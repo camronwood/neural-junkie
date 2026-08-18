@@ -23,6 +23,9 @@ var legacySemanticRecognizerFiles = map[string]bool{
 	"internal/agent/implementation_intent.go":    true, // unused RE vars pending delete
 	"internal/agent/implementation_session.go":   true, // export continuation RE
 	"internal/routing/knowledge_router.go":       true,
+	"internal/routing/keywords.go":               true, // legacy task-router cues; stamp consumers preferred
+	"desktop/src/utils/inferContextScope.ts":     true, // residual scan/visibility helpers; scope is structural
+	"desktop/src/utils/ambientState.ts":          true, // structural ambient only; path sanitizers remain
 }
 
 func TestSemanticPhraseRecognizersStayQuarantined(t *testing.T) {

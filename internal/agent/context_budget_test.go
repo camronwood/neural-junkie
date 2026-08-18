@@ -91,6 +91,29 @@ func TestApplyContextBudget_sectionExcerptWithoutRetrieveCapability(t *testing.T
 	}
 }
 
+func TestApplyContextBudgetForMessage_constrainedIDEUsesProfileCap(t *testing.T) {
+	filler := strings.Repeat("workspace ", 20000)
+	prompt := "=== WORKSPACE CONTEXT ===\n" + filler + "\n" +
+		ai.SystemPromptSeparator + "USER MESSAGE:\nadd HelloWorld"
+	msg := &protocol.Message{
+		Metadata: map[string]interface{}{
+			"editor_mode":   "agent",
+			"composer_mode": "agent",
+			contextProfileMetadata: map[string]interface{}{
+				"constrained":      true,
+				"max_prompt_bytes": 12 * 1024,
+			},
+		},
+	}
+	out, stats := applyContextBudgetForMessage(msg, prompt)
+	if !stats.Truncated {
+		t.Fatal("expected truncation under constrained cap")
+	}
+	if len(out) > 16*1024 {
+		t.Fatalf("constrained budget leaked IDE 16KB+ outline path: %d bytes", len(out))
+	}
+}
+
 func TestCacheStableSystemOrder_sharedPrefix(t *testing.T) {
 	summary := "=== SESSION SUMMARY ===\nUser prefers tabs.\n"
 	wsA := "=== WORKSPACE CONTEXT ===\n" + strings.Repeat("alpha ", 200) + "\n"

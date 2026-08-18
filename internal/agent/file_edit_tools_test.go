@@ -90,6 +90,46 @@ func TestAgentToolDefinitions_askModeOmitsPatchTools(t *testing.T) {
 	}
 }
 
+func TestAgentToolDefinitions_constrainedAgentHasPatchOmitsWebSearch(t *testing.T) {
+	t.Parallel()
+	srv := workspaceMCPServer(t)
+	srv.AddTool(mcpgo.Tool{
+		Name:        "web_search",
+		Description: "search the web",
+		InputSchema: mcpgo.ToolInputSchema{Type: "object"},
+	}, func(ctx context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		return &mcpgo.CallToolResult{
+			Content: []mcpgo.Content{mcpgo.TextContent{Type: "text", Text: "ok"}},
+		}, nil
+	})
+	a := &Agent{
+		Info: protocol.AgentInfo{
+			ID:         "be-1",
+			Type:       protocol.AgentTypeBackend,
+			AIProvider: "ollama",
+			AIModel:    "qwen3.5:9b",
+		},
+		MCPServer: &stubMCP{srv: srv},
+	}
+	msg := &protocol.Message{
+		Metadata: map[string]interface{}{
+			"editor_mode":            "agent",
+			"composer_mode":          "agent",
+			"implementation_session": true,
+		},
+	}
+	names := map[string]bool{}
+	for _, td := range a.agentToolDefinitions(msg) {
+		names[td.Name] = true
+	}
+	if !names["read_file"] || !names[searchReplaceToolName] {
+		t.Fatalf("constrained agent should expose read_file and search_replace, got %v", names)
+	}
+	if names["web_search"] || names["generate_image"] || names["ask_user"] {
+		t.Fatalf("constrained agent must omit web/image/ask_user, got %v", names)
+	}
+}
+
 func TestExecuteSearchReplaceTool_proposesEdit(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

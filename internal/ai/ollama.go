@@ -104,6 +104,7 @@ type OllamaResponse struct {
 	Model              string        `json:"model"`
 	Message            OllamaMessage `json:"message"`
 	Done               bool          `json:"done"`
+	DoneReason         string        `json:"done_reason,omitempty"`
 	Error              string        `json:"error,omitempty"`
 	TotalDuration      int64         `json:"total_duration,omitempty"`
 	LoadDuration       int64         `json:"load_duration,omitempty"`
@@ -259,7 +260,7 @@ func ollamaChatOptions(model string) map[string]interface{} {
 	}
 	numPredict := runtime.NumPredict
 	// NJ_OLLAMA_NUM_PREDICT overrides config (used by regression/user-flow gates
-	// so greenfield implement turns are not starved by the 512 default).
+	// so greenfield implement turns are not starved by a low default).
 	if raw := strings.TrimSpace(os.Getenv("NJ_OLLAMA_NUM_PREDICT")); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
 			numPredict = n
@@ -268,11 +269,10 @@ func ollamaChatOptions(model string) map[string]interface{} {
 	if numPredict > 0 {
 		opts["num_predict"] = numPredict
 	} else {
-		// Keep local-agent turns bounded by default. Native-tool models can
-		// otherwise stream thousands of tiny chunks during simple collab
-		// planning, filling agent subscription queues before the handoff.
+		// Bound local turns, but leave room for thorough reviews / long summaries.
+		// (512 was clipping executive-style answers mid-sentence.)
 		opts["temperature"] = 0.7
-		opts["num_predict"] = 512
+		opts["num_predict"] = 4096
 	}
 	if len(opts) == 0 {
 		return nil
@@ -555,7 +555,12 @@ func (o *OllamaProvider) GenerateResponseStream(ctx context.Context, prompt stri
 					ch <- StreamToken{Error: errOllamaNoContent, Done: true}
 					return
 				}
-				ch <- StreamToken{Done: true}
+				providerReason := strings.TrimSpace(chunk.DoneReason)
+				ch <- StreamToken{
+					Done:                   true,
+					TerminalReason:         NormalizeTerminalReason(providerReason),
+					ProviderTerminalReason: providerReason,
+				}
 				return
 			}
 		}

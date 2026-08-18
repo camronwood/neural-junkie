@@ -23,6 +23,8 @@ func TestIsIndexableRelPath(t *testing.T) {
 		{"yarn.lock", false},
 		{"bin/tool", false},
 		{"node_modules/pkg/index.js", false},
+		{".venv-icon/lib/python3.14/site-packages/PIL/TiffImagePlugin.py", false},
+		{"lib/python3.12/site-packages/foo.py", false},
 		{"Lfa-Reader-Gui.arm64", false},
 	}
 	for _, tt := range tests {

@@ -29,7 +29,19 @@ type RoutingConfig struct {
 	// SemanticRoutingLegacyRollback disables the canonical server semantic
 	// router and restores legacy distributed inference for emergency rollback.
 	SemanticRoutingLegacyRollback bool `json:"semantic_routing_legacy_rollback"`
+	// SemanticPrepareDispatchEnabled enables /api/turn/prepare + dispatch.
+	// Defaults to true; set false to force single-shot /api/send only.
+	SemanticPrepareDispatchEnabled *bool `json:"semantic_prepare_dispatch_enabled,omitempty"`
+	// SemanticTextGatesDisabled disables LooksLike* ResolvePolicy overrides for
+	// dual-gate shadow evaluation (prefer NJ_SEMANTIC_TEXT_GATES=0).
+	SemanticTextGatesDisabled bool `json:"semantic_text_gates_disabled,omitempty"`
 }
+
+// Cutover rollout (semantic intent):
+// 1) Shadow: prepare/dispatch on by default; dual-gate via NJ_SEMANTIC_TEXT_GATES=0.
+// 2) Measure: make semantic-eval + corpus_policy dual-gate disagreements.
+// 3) Promote: keep SemanticPrepareDispatchEnabled unset/true.
+// 4) Remove: SemanticRoutingLegacyRollback + gated LooksLike* after gates stay green.
 
 // DefaultRoutingConfig returns LLM-first routing defaults.
 func DefaultRoutingConfig() RoutingConfig {

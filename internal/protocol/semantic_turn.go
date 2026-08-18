@@ -14,6 +14,7 @@ func StampTurnDecision(msg *Message, decision intent.TurnDecision) error {
 	if msg == nil {
 		return fmt.Errorf("stamp turn decision: nil message")
 	}
+	intent.EnsureContextPlan(&decision, intent.TurnFeatures{})
 	if err := decision.Validate(); err != nil {
 		return err
 	}

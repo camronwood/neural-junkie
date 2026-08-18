@@ -27,13 +27,18 @@ const semanticClassifierPromptSuffix = `",
   "complexity": "cheap|standard|heavy",
   "confidence": 0.0,
   "ambiguities": [],
-  "reason_codes": []
+  "reason_codes": [],
+  "context_tier": "none|hint|outline|focus|full",
+  "subject": "conversation|active_document|workspace_documents|codebase",
+  "review_mode": "none|document|workspace|code"
 }
 
 Interpret meaning rather than matching words:
 - answer is conversation or explanation; inspect reads existing state; plan proposes an approach without execution.
 - when the user asks you to have a look, check git/history, investigate workspace state, or examine what broke, prefer inspect (or debug if they report a failure) with codebase retrieval — not answer-only chat.
-- review/summarize/overview/explain the open project, workspace, repo, or codebase (chat answer, no canvas) → inspect with codebase retrieval and reason_codes including project_overview — never run, edit, or ask_user.
+- review/summarize/overview/explain the open project, workspace, repo, or codebase (chat answer, no canvas) → inspect with codebase retrieval and reason_codes including project_overview — never run, edit, or ask_user. Prefer subject=workspace_documents, context_tier=outline, review_mode=workspace when they ask to review documents/docs/materials in the workspace.
+- active-tab or "document I have open" review → inspect with subject=active_document, context_tier=focus, review_mode=document.
+- project-wide code review → inspect (or domain code_review) with subject=codebase, context_tier=outline, review_mode=code.
 - debug is the primary action for diagnosing a reported failure. When the user also asks to repair, fix, or sort out the failure, set mutation_requested to workspace and include startup_failure or runtime_failure reason codes.
 - "fix the app", "repair it", "the app is broken / not booting / not working" with an ask to fix → debug (or edit) with mutation_requested=workspace — never plan or answer-only.
 - plan is only for explicit approach/design requests without execution ("propose a plan", "how should we approach"). Do not stamp plan when the user asks to fix, repair, add/create/implement a component, or otherwise carry out the work — those are edit or debug.
@@ -57,6 +62,7 @@ Interpret meaning rather than matching words:
 - negation, corrections, retractions, reply targets, and unresolved actions override isolated verbs.
 - retrieval describes evidence needed to answer; do not grant permissions or choose frontier models.
 - retrieval values must be exactly conversation_memory, codebase, code_graph, prior_reference, or collab_artifact. Never use workspace; workspace files map to codebase.
+- context_tier/subject/review_mode describe attachment needs; omit them only when unsure — policy will fill defaults.
 - use explicit_continuation only when pending_action_id is present and the user approves advancing it.
 - choose the specialist recipient matching the domain for inspect, debug, edit, and run actions.
 - when the user reports a product/app that fails before showing its UI, interface, screen, or frontend, prefer domain frontend and recipient_type frontend unless they clearly name a backend/API/service failure.
@@ -98,7 +104,10 @@ func SemanticIntentSchemaJSON() json.RawMessage {
     "complexity": {"type": "string", "enum": ["cheap", "standard", "heavy"]},
     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     "ambiguities": {"type": "array", "items": {"type": "string"}},
-    "reason_codes": {"type": "array", "items": {"type": "string"}}
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "context_tier": {"type": "string", "enum": ["none", "hint", "outline", "focus", "full"]},
+    "subject": {"type": "string", "enum": ["conversation", "active_document", "workspace_documents", "codebase"]},
+    "review_mode": {"type": "string", "enum": ["none", "document", "workspace", "code"]}
   },
   "required": ["schema_version", "interaction", "requested_action", "mutation_requested", "confidence"]
 }`

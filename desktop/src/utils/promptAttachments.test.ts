@@ -40,6 +40,16 @@ describe('promptAttachments', () => {
 
   it('does not try to attach scan-summary well TIFFs as text', async () => {
     const out = await attachmentsFromWorkspaceRefs([{ workspaceId: 'ws-1', path: 'run/A1' }], []);
-    expect(out).toEqual([]);
+    expect(out.attachments).toEqual([]);
+    expect(out.errors).toEqual([]);
+  });
+
+  it('reports binary attach errors instead of silently skipping', async () => {
+    const out = await attachmentsFromWorkspaceRefs(
+      [{ workspaceId: 'ws-1', path: 'docs/policy.pdf' }],
+      []
+    );
+    expect(out.attachments).toEqual([]);
+    expect(out.errors[0]).toMatch(/binary file/i);
   });
 });

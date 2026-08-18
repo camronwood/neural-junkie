@@ -111,6 +111,7 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Verify/repair loop | `implementation_session_outcome` metadata | `verify-failure-one-repair` |
 | Destructive command denial | `assert_suggested_commands` + no writes | `deny-destructive-command` |
 | Plan mode no-write | Plan composer + read-only gates | `plan-mode-no-write` |
+| Plan mode structure | YAML todos + Out of scope, still no writes | `plan-mode-structure` |
 | **Implement wait gates** | `until_file_match` / `until_file_absent` / `until_metadata_keys` (chat phrases optional) | `make implement-scenarios` |
 | **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (non-optional ~14) |
 | **Agent Runtime v2 (open loop)** | [CURSOR_PARITY.md](CURSOR_PARITY.md), `features.agent_runtime_v2` | `make parity-scenarios`; model-aware budgets |

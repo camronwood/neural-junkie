@@ -131,18 +131,33 @@ export async function attachmentsFromFileList(
   return mergePromptAttachments(existing, added);
 }
 
+export type WorkspaceAttachResult = {
+  attachments: PromptAttachmentPayload[];
+  errors: string[];
+};
+
+function shortAttachPath(path: string): string {
+  const parts = path.split(/[/\\]/);
+  return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : path;
+}
+
 /** Load text file content from workspace refs (file explorer → chat drag). */
 export async function attachmentsFromWorkspaceRefs(
   refs: WorkspaceFileDragPayload[],
   existing: PromptAttachmentPayload[]
-): Promise<PromptAttachmentPayload[]> {
-  if (!refs.length) return existing;
+): Promise<WorkspaceAttachResult> {
+  if (!refs.length) return { attachments: existing, errors: [] };
   const { ChatAPI } = await import('../api/chatAPI');
   const { getHubBaseURL } = await import('../config/hubUrl');
   const api = new ChatAPI(getHubBaseURL());
   const added: PromptAttachmentPayload[] = [];
+  const errors: string[] = [];
   for (const ref of refs) {
-    if (isScanSummaryWellPath(ref.path) || isImagePreviewPath(ref.path) || isBinaryPath(ref.path)) continue;
+    if (isScanSummaryWellPath(ref.path) || isImagePreviewPath(ref.path)) continue;
+    if (isBinaryPath(ref.path)) {
+      errors.push(`Cannot attach binary file ${shortAttachPath(ref.path)} as text.`);
+      continue;
+    }
     try {
       const content = await api.fetchFileContent(ref.workspaceId, ref.path);
       added.push({
@@ -152,9 +167,14 @@ export async function attachmentsFromWorkspaceRefs(
       });
     } catch (e) {
       console.error('[attachmentsFromWorkspaceRefs]', ref.path, e);
+      const detail = e instanceof Error ? e.message : 'failed to read';
+      errors.push(`Could not attach ${shortAttachPath(ref.path)}: ${detail}`);
     }
   }
-  return mergePromptAttachments(existing, added);
+  return {
+    attachments: mergePromptAttachments(existing, added),
+    errors,
+  };
 }
 
 /** Read attachments from absolute paths via Tauri (Finder / desktop drops). */

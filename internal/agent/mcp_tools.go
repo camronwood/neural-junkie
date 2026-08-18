@@ -241,7 +241,7 @@ func (a *Agent) generateWithMCPTools(
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}
 
-	tools := claudeToolsFromMCPServer(mcpServer, effectiveMCPToolAllowlist(a, nil))
+	tools := claudeToolsFromMCPServer(mcpServer, effectiveMCPToolAllowlist(a, lastHistoryMessage(history)))
 	if len(tools) == 0 {
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}
@@ -336,6 +336,15 @@ func (a *Agent) generateWithMCPTools(
 			}
 			return result, nil
 		})
+}
+
+func lastHistoryMessage(history []*protocol.Message) *protocol.Message {
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i] != nil {
+			return history[i]
+		}
+	}
+	return nil
 }
 
 func mcpAppConfig() *config.Config {

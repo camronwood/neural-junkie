@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/repo"
 )
 
 // Metadata keys for client-supplied prompt context (must match desktop).
@@ -119,14 +120,36 @@ func AppendPromptAttachments(user *strings.Builder, msg *protocol.Message) {
 		return
 	}
 
+	kept := make([]interface{}, 0, len(arr))
+	for _, item := range arr {
+		fm, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		path, _ := fm["path"].(string)
+		if repo.IsDependencyPath(path) {
+			continue
+		}
+		kept = append(kept, item)
+	}
+	if len(kept) == 0 {
+		return
+	}
+
 	user.WriteString("\n=== ATTACHED FILES (USER UPLOAD) ===\n")
-	user.WriteString("The user attached the following files for this message. Use them as primary context when relevant.\n")
-	if codebaseMentionRE.MatchString(msg.Content) {
-		user.WriteString("This is an @codebase lookup: answer from the attached source chunks below. Do not ask the user to clarify symbol definitions that appear in these files.\n")
+	if msg.IdeEditorModeIsPlan() {
+		user.WriteString("These are candidate search hits, not the plan. Discard unrelated or third-party files (site-packages, node_modules, vendored deps). Ground the plan in paths the user named; verify with grep/read_file.\n")
+	} else {
+		user.WriteString("The user attached the following files for this message. Use them as primary context when relevant.\n")
+		if codebaseMentionRE.MatchString(msg.Content) {
+			user.WriteString("This is an @codebase lookup: answer from the attached source chunks below. Do not ask the user to clarify symbol definitions that appear in these files.\n")
+		} else {
+			user.WriteString("Search hits may be unrelated in a large repo. Ignore third-party libraries.\n")
+		}
 	}
 	user.WriteString("Each line is prefixed with its line number.\n\n")
 
-	for _, item := range arr {
+	for _, item := range kept {
 		fm, ok := item.(map[string]interface{})
 		if !ok {
 			continue

@@ -1,3 +1,6 @@
+// Package routing owns legacy keyword/task-router helpers.
+// Prefer stamped TurnDecision domain/recipient/retrieval. These phrase cues remain
+// for emergency SemanticRoutingLegacyRollback and rules-classifier fallback only.
 package routing
 
 import "strings"
