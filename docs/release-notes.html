@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.22">v1.2.0-beta.22</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.23">v1.2.0-beta.23</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.23">1.2.0-beta.23</a>
+      ·
       <a href="#v1.2.0-beta.22">1.2.0-beta.22</a>
       ·
       <a href="#v1.2.0-beta.21">1.2.0-beta.21</a>
@@ -233,6 +235,24 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1.2.0-beta.23" class="release-version-heading">1.2.0-beta.23 <span class="release-date">— 2026-08-21</span></h2>
+
+      <p><strong>Plan mode, document canvas, and leaner small-model IDE turns.</strong> Composer Plan mode persists structured plans (with normalize/retry for local models), document artifacts open in Neural Canvas, empty chat gets a first-win coach, and 9B Ask/Plan/Agent turns stop dumping full context. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.23">GitHub Releases</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Plan mode</strong> — structured plan markdown, Build from plan, canvas document artifacts, normalize/retry, and invalid-format UX.</li>
+        <li><strong>Document canvas</strong> — first-class <code>nj.document</code> renderer with tighter artifact routing.</li>
+        <li><strong>First-win coach</strong> — empty-chat coach for the first productive turn.</li>
+        <li><strong>Maps device location</strong> — share device location into Maps canvas turns.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Small-Ollama IDE turns</strong> — short contract, native-tool allowlists, and pull retrieval instead of full-context dumps.</li>
+        <li><strong>Default room</strong> — Assistant + BackendEngineer on 9B.</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.22" class="release-version-heading">1.2.0-beta.22 <span class="release-date">— 2026-07-31</span></h2>
 
       <p><strong>Smarter turn stamps and better conversation memory.</strong> Semantic routing stamps graduate under dual-gate eval, continuity follow-ups hold corrections and “second option” threads, and past findings/collabs retrieve into relevant context without a new vector store. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.22">GitHub Releases</a>.</p>

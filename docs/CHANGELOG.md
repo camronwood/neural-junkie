@@ -6,6 +6,21 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.23] - 2026-08-21
+
+Plan mode, document canvas, first-win coach, and tighter small-model IDE turns.
+
+### Added
+- **Plan mode** — structured plan markdown with persist, Build from plan, normalize/retry for local models, canvas document artifacts, and an invalid-format card when parse still fails.
+- **Document canvas** — first-class `nj.document` renderer with tighter artifact open/routing in Neural Canvas.
+- **First-win coach** — in-app empty-chat coach for the first productive turn.
+- **Maps device location** — share device location into Maps canvas turns (surface-reliability gates included).
+- **Campaign creatives** — Walk into a Room and The Habit LinkedIn plates/creatives.
+
+### Changed
+- **Small-Ollama IDE turns** — Ask/Plan/Agent prompts use a short contract, native-tool allowlists, and pull retrieval instead of dumping full context.
+- **Default room** — slimmed to Assistant + BackendEngineer on 9B.
+
 ## [1.2.0-beta.22] - 2026-07-31
 
 Semantic turn stamps graduated under dual-gate eval, continuity dialogue coverage grown, and conversation-memory retrieval tightened (findings/collab backfill + live embed gate).
