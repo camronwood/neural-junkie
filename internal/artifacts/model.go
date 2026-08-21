@@ -17,6 +17,7 @@ type Artifact struct {
 	Kind          string            `json:"kind,omitempty"`
 	Title         string            `json:"title,omitempty"`
 	Description   string            `json:"description,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
 	Provenance    []SourceReference `json:"provenance,omitempty"`
 	Links         ArtifactLinks     `json:"links,omitempty"`
 	Renderer      Renderer          `json:"renderer"`

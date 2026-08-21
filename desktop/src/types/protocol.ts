@@ -351,6 +351,7 @@ export interface StoredArtifact {
   kind?: string;
   title?: string;
   description?: string;
+  metadata?: Record<string, string>;
   provenance?: StoredArtifactSource[];
   links?: {
     workspaceId?: string;

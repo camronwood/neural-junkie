@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ChatAPI } from '../../api/chatAPI';
 import { useChatStore } from '../../stores/chatStore';
 import { getArtifactReference, type StoredArtifact } from '../../types/protocol';
+import { dispatchBuildPlan } from '../../utils/planCard';
 import { ArtifactCard } from './ArtifactCard';
 import { NeuralCanvasWorkbench } from './NeuralCanvasWorkbench';
 import { storedArtifactToCanvas } from './types';
@@ -157,9 +158,32 @@ export function NeuralCanvasTab({
   }
   if (!artifact) return null;
   const canvas = storedArtifactToCanvas(artifact, revisionCount);
+  const planId = artifact.metadata?.plan_id ?? '';
+  const isPlanArtifact = artifact.kind === 'plan' || Boolean(planId);
+  const planMarkdown = isPlanArtifact
+    ? (() => {
+        try {
+          const raw = artifact.fallback?.data;
+          if (typeof raw === 'string') return JSON.parse(raw) as string;
+          if (typeof raw === 'object' && raw !== null) return JSON.stringify(raw);
+          return '';
+        } catch {
+          return '';
+        }
+      })()
+    : '';
   return (
     <div className="relative h-full">
       <div className="absolute right-4 top-16 z-10 flex gap-2">
+        {isPlanArtifact && (
+          <button
+            type="button"
+            className="rounded bg-teal-700 hover:bg-teal-600 px-3 py-1 text-xs font-semibold text-white"
+            onClick={() => dispatchBuildPlan({ markdown: planMarkdown, planId })}
+          >
+            Build
+          </button>
+        )}
         <button
           type="button"
           className="rounded border border-slack-border bg-slack-bg px-2 py-1 text-xs"

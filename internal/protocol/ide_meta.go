@@ -14,6 +14,7 @@ const (
 	MetadataDispatchToken          = "dispatch_token"
 	MetaPlanID                     = "plan_id"
 	MetaPlanName                   = "plan_name"
+	MetaPlanFormatInvalid          = "plan_format_invalid"
 )
 
 // IdeRouteAgentType returns the specialist type slug routed for an IDE-scoped message (e.g. backend, frontend).

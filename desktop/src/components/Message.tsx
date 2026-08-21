@@ -41,6 +41,7 @@ import { ChatClickableImage } from './ImageLightboxModal';
 import { ArtifactCard } from './neural-canvas';
 import { ChangeProposalMessageCard } from './ChangeProposalCard';
 import { PlanCard } from './PlanCard';
+import { PlanInvalidCard, shouldShowPlanInvalidCard } from './PlanInvalidCard';
 
 function artifactOpenStub(ref: { title?: string; media_type?: string; renderer_id?: string }): string {
   const kind =
@@ -463,6 +464,21 @@ function MessageImpl({
     }
   };
 
+  // Auto-open the canvas tab when a plan artifact lands for the first time.
+  const planId = typeof message.metadata?.plan_id === 'string' ? message.metadata.plan_id : '';
+  useEffect(() => {
+    if (!artifactRef || !planId) return;
+    const explorer = useFileExplorerStore.getState();
+    useEditorStore.getState().openArtifact(
+      artifactRef.workspace_id || explorer.activeWorkspaceId || '',
+      artifactRef.id,
+      artifactRef.title,
+      artifactRef.renderer_id || undefined,
+    );
+    void useSettingsStore.getState().updateLayoutSettings({ editorPanelVisible: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artifactRef?.id, planId]);
+
   // Format last reply time for thread indicator
   const formatLastReplyTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -657,8 +673,11 @@ function MessageImpl({
             {implOutcome && !isStreaming && (
               <ImplementationSessionOutcomeCard outcome={implOutcome} />
             )}
-            {!isStreaming && message.from?.type !== 'human' && (
+            {!isStreaming && message.from?.type !== 'human' && !artifactRef && !shouldShowPlanInvalidCard(message.metadata as Record<string, unknown> | undefined) && (
               <PlanCard content={message.content} metadata={message.metadata} />
+            )}
+            {!isStreaming && shouldShowPlanInvalidCard(message.metadata as Record<string, unknown> | undefined) && (
+              <PlanInvalidCard />
             )}
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />

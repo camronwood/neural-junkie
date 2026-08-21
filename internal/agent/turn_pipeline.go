@@ -598,8 +598,9 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 	if isAskModeReadOnly(msg) {
 		response = sanitizeAskModeResponse(response)
 	}
+	var planParseOK bool
 	if msg.IdeEditorModeIsPlan() {
-		response = ensurePlanModeStructure(response)
+		response, planParseOK = a.finalizePlanResponse(ctx, msg, st.eff, response)
 	}
 
 	st.response = response
@@ -666,6 +667,9 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 		responseMsg.Metadata[protocol.IdeMetaCADFilesWritten] = paths
 	}
 	stampPersistedPlan(msg, responseMsg, response)
+	if msg.IdeEditorModeIsPlan() && !planParseOK {
+		stampPlanFormatInvalid(responseMsg)
+	}
 	responseMsg.ReplyTo = msg.ID
 	if msg.IsInThread() {
 		responseMsg.ThreadID = msg.ThreadID
