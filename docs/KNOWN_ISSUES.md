@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-07-31 · **Current beta:** [v1.2.0-beta.22](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.22) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
+**Last updated:** 2026-08-21 · **Current beta:** [v1.2.0-beta.23](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.23) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -16,7 +16,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | GitHub | Summary |
 |----|--------|--------|---------|
-| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off (macOS arm64 + Windows or Linux) on a current beta installer (beta.22+). Deferred 2026-07-20 (Mac-only soak day). Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md). |
+| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off (macOS arm64 + Windows or Linux) on a current beta installer (beta.23+). Deferred 2026-07-20 (Mac-only soak day). Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md). |
 
 ### Cleared for cut (tracker hygiene 2026-07-20)
 

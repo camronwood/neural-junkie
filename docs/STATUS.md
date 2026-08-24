@@ -1,10 +1,10 @@
 # Project Status
 
-**Last Updated:** July 2026
+**Last Updated:** August 2026
 
 ## Current State: Open Beta (v1.2.x)
 
-Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.2.0-beta.22](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.22) (semantic stamp dual-gate graduation, continuity dialogue, conversation-memory retrieval gates). **Stable cut:** follow [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and [STABLE_SCOPE.md](STABLE_SCOPE.md).
+Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.2.0-beta.23](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.23) (Plan mode, document canvas, first-win coach, leaner small-model IDE turns). **Stable cut:** follow [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and [STABLE_SCOPE.md](STABLE_SCOPE.md).
 
 **Marketing site:** [camronwood.github.io/neural-junkie](https://camronwood.github.io/neural-junkie/)
 
@@ -21,6 +21,8 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - Workspace management with quick switcher (beta.17+)
 - Context model v2 — Chat/Code composer, turn intent, thread-scoped history (beta.21+)
 - Semantic turn stamps + dual-gate live eval; conversation memory retrieval corpus/eval (beta.22)
+- Plan mode with normalize/retry, canvas plan artifacts, and Build-from-plan (beta.23)
+- Document canvas (`nj.document`) and first-win empty-chat coach (beta.23)
 - In-channel message find bar (beta.21+)
 - User rules API (`GET`/`PUT` `/api/user-rules`)
 
@@ -95,7 +97,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - **Domain packs** — Multiple packs can be enabled; first enabled pack owns UI layout
 - **Collaboration variance** — Local models vary in plan quality; see known issues for active scenario gaps
 - **IDE v3/v4** — Cursor-like Ask/Agent routing; v4 adds full LSP, remote SSH, dev containers. See [IDE_V3.md](IDE_V3.md), [IDE_V4.md](IDE_V4.md)
-- **macOS releases** — GitHub Release builds are still **ad-hoc signed** when Apple Developer CI secrets are unset (beta.22 confirmed); Right-click → Open if Gatekeeper warns. Developer ID + notarization when Apple creds are configured; local dev builds remain ad-hoc
+- **macOS releases** — GitHub Release builds are still **ad-hoc signed** when Apple Developer CI secrets are unset (beta.23 confirmed); Right-click → Open if Gatekeeper warns. Developer ID + notarization when Apple creds are configured; local dev builds remain ad-hoc
 
 ## Documentation
 
