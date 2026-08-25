@@ -4,7 +4,7 @@ Thanks for helping improve Neural Junkie. This guide covers local setup, test ga
 
 ## Prerequisites
 
-- **Go 1.23+** — [go.dev/dl](https://go.dev/dl)
+- **Go 1.25+** — [go.dev/dl](https://go.dev/dl)
 - **Node.js 18+** — [nodejs.org](https://nodejs.org)
 - **Rust** — [rustup.rs](https://rustup.rs) (Tauri desktop app)
 - At least one AI provider (Ollama recommended for local dev)

@@ -150,6 +150,8 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 	if isDiscussionGenerationError(msg) {
 		agentID := msg.From.ID
 		errCount := planningGenerationErrorCount(d, agentID)
+		var notifyHandoff string
+		var nextAgentID string
 		// Keep the turn on the first failure so watchdog/handoff can re-prompt;
 		// after repeated failures advance so other participants are not stranded.
 		if errCount >= maxPlanningGenerationErrorsPerTurn &&
@@ -159,9 +161,18 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 			log.Printf("[Discussion %s] Advancing turn after %d generation_errors from %s",
 				d.ID[:8], errCount, agentID)
 			cm.advanceTurnAfterGenerationErrors(c)
+			if d.CurrentTurnIndex >= 0 && d.CurrentTurnIndex < len(d.Participants) {
+				nextAgentID = d.Participants[d.CurrentTurnIndex]
+				if nextAgentID != "" && nextAgentID != agentID {
+					notifyHandoff = collabID
+				}
+			}
 		}
 		c.UpdatedAt = time.Now()
 		cm.mu.Unlock()
+		if notifyHandoff != "" && nextAgentID != "" && cm.onPlanningTurnAdvanced != nil {
+			go cm.onPlanningTurnAdvanced(notifyHandoff, nextAgentID)
+		}
 		return nil
 	}
 	d.TotalMessageCount++
@@ -605,17 +616,19 @@ func (cm *CollaborationManager) advanceTurnAfterGenerationErrors(c *Collaboratio
 // Returns the new turn agent ID when a skip occurred.
 func (cm *CollaborationManager) SkipStuckSilentPlanningTurn(collabID string) (string, bool) {
 	cm.mu.Lock()
-	defer cm.mu.Unlock()
 
 	c, ok := cm.collaborations[collabID]
 	if !ok || c == nil || c.Discussion == nil || c.Phase != PhasePlanning {
+		cm.mu.Unlock()
 		return "", false
 	}
 	d := c.Discussion
 	if d.Status != DiscussionActive || !c.DiscussionBudgetEnforced() {
+		cm.mu.Unlock()
 		return "", false
 	}
 	if len(d.Participants) < 2 {
+		cm.mu.Unlock()
 		return "", false
 	}
 	silent := silentParticipantIDsLocked(d)
@@ -624,6 +637,7 @@ func (cm *CollaborationManager) SkipStuckSilentPlanningTurn(collabID string) (st
 		cur = d.Participants[d.CurrentTurnIndex]
 	}
 	if cur == "" {
+		cm.mu.Unlock()
 		return "", false
 	}
 	curSilent := false
@@ -634,6 +648,7 @@ func (cm *CollaborationManager) SkipStuckSilentPlanningTurn(collabID string) (st
 		}
 	}
 	if !curSilent {
+		cm.mu.Unlock()
 		return "", false
 	}
 	// Waiting peers that have not already been skipped past this discussion.
@@ -648,6 +663,7 @@ func (cm *CollaborationManager) SkipStuckSilentPlanningTurn(collabID string) (st
 		waiting++
 	}
 	if waiting == 0 {
+		cm.mu.Unlock()
 		return "", false
 	}
 	if d.SkippedSilentHolders == nil {
@@ -659,6 +675,11 @@ func (cm *CollaborationManager) SkipStuckSilentPlanningTurn(collabID string) (st
 	c.UpdatedAt = time.Now()
 	log.Printf("[Discussion %s] Skipping stuck silent turn holder %s → %s (silent=%d waiting=%d)",
 		d.ID[:8], cur, next, len(silent), waiting)
+	onAdvanced := cm.onPlanningTurnAdvanced
+	cm.mu.Unlock()
+	if next != "" && onAdvanced != nil {
+		go onAdvanced(collabID, next)
+	}
 	return next, true
 }
 

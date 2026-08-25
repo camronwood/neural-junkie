@@ -28,6 +28,22 @@ func (h *Hub) wireCollaborationRecaps() {
 		return
 	}
 	h.collabManager.SetOnEnterReviewing(h.onCollaborationEnterReviewing)
+	h.collabManager.SetOnPlanningTurnAdvanced(h.onCollaborationPlanningTurnAdvanced)
+}
+
+func (h *Hub) onCollaborationPlanningTurnAdvanced(collabID, nextAgentID string) {
+	if h == nil || h.collabManager == nil {
+		return
+	}
+	collabID = strings.TrimSpace(collabID)
+	nextAgentID = strings.TrimSpace(nextAgentID)
+	if collabID == "" || nextAgentID == "" {
+		return
+	}
+	if h.dispatchPlanningHandoff(collabID, nextAgentID) {
+		name := h.collabManager.ParticipantAgentName(collabID, nextAgentID)
+		log.Printf("[Collaboration] Planning turn advanced → handoff @%s (collab %s)", name, collabID[:8])
+	}
 }
 
 func (h *Hub) onCollaborationEnterReviewing(collabID string) {

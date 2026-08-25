@@ -3,10 +3,13 @@ package hub
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/confluence"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -181,7 +184,23 @@ func (ch *CommandHandler) handleTestConfluenceConnection(ctx context.Context, ms
 		return ch.systemResponse(msg.Channel, "❌ Invalid email format"), nil
 	}
 
-	return ch.systemResponse(msg.Channel, "ℹ️ Confluence credentials format look valid. A live API call is not implemented yet — verify by indexing a space or asking the Confluence agent."), nil
+	domain = strings.TrimPrefix(strings.TrimSpace(domain), "https://")
+	domain = strings.TrimPrefix(domain, "http://")
+	domain = strings.TrimSuffix(domain, "/")
+
+	client := &confluence.Client{
+		BaseURL:  fmt.Sprintf("https://%s/wiki/rest/api", domain),
+		Email:    email,
+		APIToken: apiToken,
+		HTTPClient: &http.Client{
+			Timeout: 15 * time.Second,
+		},
+	}
+	if err := client.TestConnection(); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Confluence connection failed: %v", err)), nil
+	}
+
+	return ch.systemResponse(msg.Channel, "✅ Confluence connection successful!"), nil
 }
 
 // handleMigrateAgentNames migrates existing agents with problematic names to @mention-compatible format

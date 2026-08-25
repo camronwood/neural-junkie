@@ -402,3 +402,65 @@ func TestScaledDiscussionConfigSolo(t *testing.T) {
 		t.Fatalf("unexpected solo caps: %+v", cfg)
 	}
 }
+
+func TestRecordMessage_generationErrorInvokesPlanningTurnAdvanced(t *testing.T) {
+	t.Parallel()
+	h := newRunbookMockHub()
+	h.addAgent("arch-id", "SoftwareArchitect", protocol.AgentTypeArchitecture, nil)
+	h.addAgent("be-id", "BackendEngineer", protocol.AgentTypeBackend, nil)
+	cm := NewCollaborationManager(h)
+	collab, err := cm.CreateCollaboration(
+		"plan",
+		[]string{"arch-id", "be-id"},
+		"collab-plan",
+		"tester",
+		DiscussionConfig{MaxRounds: 1, MaxTotalMessages: 4},
+		CreateOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		collab.Channel,
+		protocol.AgentInfo{ID: "arch-id", Name: "SoftwareArchitect"},
+		"plan",
+	)
+	if err := cm.RecordMessage(collab.ID, first); err != nil {
+		t.Fatal(err)
+	}
+
+	advanced := make(chan struct{}, 1)
+	var gotCollab, gotAgent string
+	cm.SetOnPlanningTurnAdvanced(func(collabID, nextAgentID string) {
+		gotCollab = collabID
+		gotAgent = nextAgentID
+		advanced <- struct{}{}
+	})
+
+	for i := 0; i < maxPlanningGenerationErrorsPerTurn; i++ {
+		errMsg := protocol.NewMessage(
+			protocol.MessageTypeCollabDiscussion,
+			collab.Channel,
+			protocol.AgentInfo{ID: "be-id", Name: "BackendEngineer"},
+			"**BackendEngineer** could not complete this turn: timeout",
+		)
+		errMsg.Metadata = map[string]interface{}{"generation_error": true}
+		if err := cm.RecordMessage(collab.ID, errMsg); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	select {
+	case <-advanced:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected onPlanningTurnAdvanced callback after repeated generation errors")
+	}
+	if gotCollab != collab.ID {
+		t.Fatalf("callback collabID = %q want %q", gotCollab, collab.ID)
+	}
+	if gotAgent != "arch-id" {
+		t.Fatalf("callback nextAgentID = %q want arch-id", gotAgent)
+	}
+}

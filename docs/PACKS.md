@@ -6,7 +6,7 @@ Official domain packs are listed in [`packs/catalog.json`](../packs/catalog.json
 
 ## Install flow
 
-1. Desktop **Settings → Domain packs → Pack store** → **Install**
+1. Desktop **Settings → Domain packs** (opens the Domain packs modal) → **Pack store** → **Install**
 2. Hub `POST /api/packs/{id}/install`
 3. Hub fetches catalog (`GET` remote JSON)
 4. Hub downloads the pack **zip** from `download_url` (HTTPS, GitHub hosts only)
@@ -44,6 +44,8 @@ Dev-linked and custom packs are excluded from automatic update prompts.
 | `web-browser` | `camronwood/neural-junkie-pack-web-browser` |
 | `music-creation` | `camronwood/neural-junkie-pack-music-creation` |
 | `model-arena` | `camronwood/neural-junkie-pack-model-arena` |
+| `maps` | `camronwood/neural-junkie-pack-maps` |
+| `room-chat` | `camronwood/neural-junkie-pack-room-chat` |
 
 Build and release from each pack repo:
 

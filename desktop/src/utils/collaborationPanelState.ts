@@ -1,4 +1,89 @@
-import type { Collaboration, CollaborationTask } from '../types/protocol';
+import type { Collaboration, CollaborationTask, Message } from '../types/protocol';
+import { getCollaborationId } from '../types/protocol';
+
+/** One agent's recent planning generation failure surfaced in the panel. */
+export interface PlanningGenerationErrorEntry {
+  agentId: string;
+  agentName: string;
+  errorCode: string;
+  count: number;
+  turnAdvanced: boolean;
+}
+
+const MAX_PLANNING_GENERATION_ERRORS_PER_TURN = 2;
+
+function isGenerationErrorMessage(msg: Message): boolean {
+  if (!msg.metadata) {
+    return false;
+  }
+  if (msg.metadata.generation_error === true) {
+    return true;
+  }
+  return typeof msg.metadata.error_code === 'string' && msg.metadata.error_code.length > 0;
+}
+
+/** Summarize recent planning generation_error lines for the active collaboration. */
+export function planningGenerationErrorSummary(
+  messages: Message[],
+  collaboration: Collaboration | null
+): PlanningGenerationErrorEntry[] {
+  if (!collaboration || collaboration.phase !== 'planning') {
+    return [];
+  }
+  const collabId = collaboration.id;
+  const byAgent = new Map<string, PlanningGenerationErrorEntry>();
+
+  for (const msg of messages) {
+    if (getCollaborationId(msg) !== collabId) {
+      continue;
+    }
+    if (msg.type !== 'collaboration_discussion' && msg.type !== 'system_info') {
+      continue;
+    }
+    if (!isGenerationErrorMessage(msg)) {
+      continue;
+    }
+    const agentId = msg.from?.id?.trim() || '';
+    if (!agentId || agentId === 'system') {
+      continue;
+    }
+    const agentName =
+      collaboration.agents?.find((a) => a.agent_id === agentId)?.agent_name?.trim() ||
+      msg.from?.name?.trim() ||
+      agentId.slice(0, 8);
+    const errorCode =
+      typeof msg.metadata?.error_code === 'string' ? msg.metadata.error_code : 'unknown';
+    const prev = byAgent.get(agentId);
+    const count = (prev?.count ?? 0) + 1;
+    byAgent.set(agentId, {
+      agentId,
+      agentName,
+      errorCode,
+      count,
+      turnAdvanced: count >= MAX_PLANNING_GENERATION_ERRORS_PER_TURN,
+    });
+  }
+
+  return [...byAgent.values()].sort((a, b) => b.count - a.count);
+}
+
+/** Label for the file/Git proposal queue (distinct from tool PendingApprovalsBar). */
+export const FILE_PROPOSAL_QUEUE_LABEL = 'Pending file changes';
+
+/** Executing-phase file tasks with no pending file proposals in chat. */
+export function executingFileTasksAwaitingProposal(
+  collaboration: Collaboration | null,
+  pendingFileProposalCount: number
+): CollaborationTask[] {
+  if (!collaboration || collaboration.phase !== 'executing' || pendingFileProposalCount > 0) {
+    return [];
+  }
+  return (
+    collaboration.tasks?.filter(
+      (t) => t.status === 'in_progress' && taskNeedsFileDeliverable(t)
+    ) ?? []
+  );
+}
 
 /** Panel uses the latest hub snapshot when the store map is ahead of activeCollab state. */
 export function resolvePanelCollaboration(

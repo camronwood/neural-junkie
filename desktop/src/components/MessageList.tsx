@@ -71,6 +71,7 @@ export function MessageList({
   onOpenAgentDM,
   onPrefillComposer,
   onOpenModelLibrary,
+  onOpenDomainPacks,
   onContinueGeneration,
 }: MessageListProps) {
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
@@ -398,6 +399,7 @@ export function MessageList({
               onOpenAgentDM={onOpenAgentDM}
               onPrefillComposer={onPrefillComposer}
               onOpenModelLibrary={onOpenModelLibrary}
+              onOpenDomainPacks={onOpenDomainPacks}
               onDismissed={() => setCoachDismissed(true)}
             />
           ) : (

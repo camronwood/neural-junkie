@@ -95,7 +95,8 @@ export function CollaborationWorkspaceGate({
             </p>
             <p className="text-xs text-gray-500 mb-4">
               After you continue, assignees receive <strong className="text-gray-400">collaboration_task</strong>{' '}
-              prompts. File deliverables must be approved in <strong className="text-gray-400">Pending changes</strong>.
+              prompts. File deliverables must be approved in{' '}
+              <strong className="text-gray-400">Pending file changes</strong> (toolbar — not tool approvals).
             </p>
             <p className="text-xs font-mono text-gray-400 break-all mb-6">{collaboration.working_directory}</p>
           </>

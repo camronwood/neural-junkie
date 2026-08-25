@@ -3,6 +3,8 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  /** When set, use a compact in-panel fallback instead of full-screen. */
+  panelName?: string;
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
@@ -50,6 +52,41 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
+      }
+
+      if (this.props.panelName) {
+        return (
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 8,
+              border: '1px solid #dc2626',
+              backgroundColor: 'rgba(220, 38, 38, 0.08)',
+            }}
+          >
+            <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: '#fca5a5' }}>
+              {this.props.panelName} failed to load
+            </p>
+            <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-secondary, #aaa)' }}>
+              {this.state.error?.message || 'Unknown error'}
+            </p>
+            <button
+              type="button"
+              onClick={this.handleRetry}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 6,
+                border: 'none',
+                backgroundColor: '#3b82f6',
+                color: '#fff',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              Try again
+            </button>
+          </div>
+        );
       }
 
       return (

@@ -1,8 +1,27 @@
-import mermaid from 'mermaid';
 import type { ColorTheme } from '../stores/settingsStore';
 import { normalizeMermaidSource } from './mermaidNormalize';
 
-function mermaidInitForTheme(theme: ColorTheme): void {
+type MermaidModule = typeof import('mermaid');
+
+let mermaidModule: MermaidModule['default'] | null = null;
+let mermaidLoadPromise: Promise<MermaidModule['default']> | null = null;
+let lastTheme: ColorTheme = 'slack';
+
+async function loadMermaid(): Promise<MermaidModule['default']> {
+  if (mermaidModule) {
+    return mermaidModule;
+  }
+  if (!mermaidLoadPromise) {
+    mermaidLoadPromise = import('mermaid').then((mod) => {
+      mermaidModule = mod.default;
+      mermaidInitForTheme(lastTheme, mermaidModule);
+      return mermaidModule;
+    });
+  }
+  return mermaidLoadPromise;
+}
+
+function mermaidInitForTheme(theme: ColorTheme, mermaid: MermaidModule['default']): void {
   if (theme === 'flat') {
     mermaid.initialize({
       startOnLoad: false,
@@ -111,27 +130,24 @@ function mermaidInitForTheme(theme: ColorTheme): void {
   });
 }
 
-mermaidInitForTheme('slack');
-
-/** Re-initialize Mermaid when the user switches color theme. */
+/** Re-initialize Mermaid when the user switches color theme (lazy-loads mermaid on first use). */
 export function applyMermaidTheme(theme: ColorTheme): void {
-  mermaidInitForTheme(theme);
+  lastTheme = theme;
+  if (mermaidModule) {
+    mermaidInitForTheme(theme, mermaidModule);
+  }
 }
 
 let renderCounter = 0;
 
-// Serialize mermaid.render() calls -- it manipulates document.body globally
-// and concurrent calls corrupt each other's temp containers.
 let renderQueue: Promise<string> = Promise.resolve('');
 
-/**
- * Render a mermaid diagram with a guaranteed-unique ID.
- * Calls are serialized so concurrent invocations don't collide.
- */
+/** Render a mermaid diagram with a guaranteed-unique ID. */
 export function renderMermaidSvg(content: string): Promise<string> {
   renderQueue = renderQueue
     .catch(() => {})
     .then(async () => {
+      const mermaid = await loadMermaid();
       const id = `mermaid-${++renderCounter}-${Math.random().toString(36).slice(2, 7)}`;
       document.getElementById('d' + id)?.remove();
       const { svg } = await mermaid.render(id, normalizeMermaidSource(content));
@@ -139,5 +155,3 @@ export function renderMermaidSvg(content: string): Promise<string> {
     });
   return renderQueue;
 }
-
-export default mermaid;

@@ -23,12 +23,18 @@ const {
 }));
 
 vi.mock('../stores/chatStore', () => ({
-  useChatStore: (selector: (s: Record<string, string>) => unknown) =>
+  useChatStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector({
       serverAddr: 'http://127.0.0.1:9',
       channel: 'collab-test-channel',
       username: 'PanelTester',
+      messages: [],
     }),
+}));
+
+vi.mock('../stores/fileChangeStore', () => ({
+  useFileChangeStore: (selector: (s: { pendingChanges: unknown[] }) => unknown) =>
+    selector({ pendingChanges: [] }),
 }));
 
 vi.mock('../api/chatAPI', () => ({

@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
+import { useFileChangeStore } from '../stores/fileChangeStore';
 import { ChatAPI } from '../api/chatAPI';
 import { RichMarkdownView } from './RichMarkdownView';
 import type {
@@ -19,6 +20,9 @@ import {
   isApprovedAwaitingDispatch,
   isAwaitingWorkspaceConfirmation,
   isPlanningAwaitingFirstTurn,
+  executingFileTasksAwaitingProposal,
+  FILE_PROPOSAL_QUEUE_LABEL,
+  planningGenerationErrorSummary,
   planningStalledParticipantNames,
   taskNeedsFileDeliverable,
 } from '../utils/collaborationPanelState';
@@ -82,10 +86,16 @@ export function CollaborationPanel({
   onConfirmWorkspace,
   onOpenRunbookRun,
 }: CollaborationPanelProps) {
-  const { serverAddr, channel, username } = useChatStore(
-    (s) => ({ serverAddr: s.serverAddr, channel: s.channel, username: s.username }),
+  const { serverAddr, channel, username, messages } = useChatStore(
+    (s) => ({
+      serverAddr: s.serverAddr,
+      channel: s.channel,
+      username: s.username,
+      messages: s.messages,
+    }),
     shallow
   );
+  const pendingFileProposalCount = useFileChangeStore((s) => s.pendingChanges.length);
   const [api] = useState(() => new ChatAPI(serverAddr));
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -165,6 +175,8 @@ export function CollaborationPanel({
   const approveBlocked = c.phase === 'reviewing' && planningRecapPending;
   const planningAwaitingFirstTurn = isPlanningAwaitingFirstTurn(c);
   const planningStalled = planningStalledParticipantNames(c);
+  const planningGenErrors = planningGenerationErrorSummary(messages, c);
+  const fileTasksAwaitingProposal = executingFileTasksAwaitingProposal(c, pendingFileProposalCount);
   const approvedAwaitingDispatch = isApprovedAwaitingDispatch(c);
   const chatOnlyCompletedFileTasks =
     c.tasks?.filter(
@@ -527,7 +539,35 @@ export function CollaborationPanel({
           </div>
         )}
 
-        {c.phase === 'planning' && planningStalled.length > 0 && (
+        {c.phase === 'planning' && planningGenErrors.length > 0 && (
+          <div
+            data-testid="collaboration-generation-error-banner"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #dc2626',
+              backgroundColor: 'rgba(220, 38, 38, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#fca5a5', marginBottom: 6 }}>
+              Model generation failed during planning
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.5 }}>
+              {planningGenErrors.map((entry) => (
+                <li key={entry.agentId}>
+                  <strong>@{entry.agentName}</strong>: {entry.errorCode}
+                  {entry.count > 1 ? ` (${entry.count}×)` : ''}
+                  {entry.turnAdvanced
+                    ? ' — turn skipped; next participant prompted.'
+                    : ' — retrying this turn. Check Settings → Collaboration planning provider or model availability.'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {c.phase === 'planning' && planningStalled.length > 0 && planningGenErrors.length === 0 && (
           <div
             data-testid="collaboration-planning-stall-banner"
             style={{
@@ -607,9 +647,31 @@ export function CollaborationPanel({
               File deliverable may be missing
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              {chatOnlyCompletedFileTasks.length} task(s) marked completed without file output. Approve pending
-              file changes in chat or ask the assignee to emit a [FILE_CHANGE] block. See{' '}
-              <code style={{ fontSize: 11 }}>docs/COLLABORATION.md</code> troubleshooting.
+              {chatOnlyCompletedFileTasks.length} task(s) marked completed without file output. Approve{' '}
+              <strong>{FILE_PROPOSAL_QUEUE_LABEL}</strong> in the toolbar or chat proposal cards — not tool
+              approvals. Ask the assignee to emit a [FILE_CHANGE] block if none appear.
+            </p>
+          </div>
+        )}
+
+        {c.phase === 'executing' && fileTasksAwaitingProposal.length > 0 && (
+          <div
+            data-testid="collaboration-file-awaiting-proposal-banner"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #b45309',
+              backgroundColor: 'rgba(180, 83, 9, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
+              Waiting for file proposals
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
+              {fileTasksAwaitingProposal.length} in-progress task(s) need a <strong>[FILE_CHANGE]</strong> proposal.
+              Chat markdown does not write to disk — approve proposals in{' '}
+              <strong>{FILE_PROPOSAL_QUEUE_LABEL}</strong> (toolbar) when they appear.
             </p>
           </div>
         )}
@@ -806,8 +868,8 @@ export function CollaborationPanel({
                     task.status === 'in_progress' &&
                     taskNeedsFileDeliverable(task) ? (
                       <div style={{ fontSize: 11, color: '#fbbf24', marginTop: 4, lineHeight: 1.4 }}>
-                        File deliverable: assignee must emit a <strong>[FILE_CHANGE]</strong> proposal — approve it in{' '}
-                        <strong>Pending changes</strong>. Chat-only replies do not write to disk.
+                        File deliverable: assignee must emit a <strong>[FILE_CHANGE]</strong> proposal — approve in{' '}
+                        <strong>{FILE_PROPOSAL_QUEUE_LABEL}</strong> (toolbar). Chat-only replies do not write to disk.
                       </div>
                     ) : null}
                     {!isTerminal && task.status !== 'completed' && c.phase === 'executing' && (

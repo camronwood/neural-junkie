@@ -18,6 +18,9 @@ import { applyMermaidTheme } from './utils/mermaidConfig';
 import { isTauriRuntime } from './utils/promptAttachments';
 import { DesktopOnlyGate } from './components/DesktopOnlyGate';
 import { installExternalLinkClickInterceptor } from './utils/openExternalLink';
+import { ToastContainer } from './components/Toast';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { useToastStore } from './stores/toastStore';
 
 type AppPhase = 'loading' | 'setup' | 'login' | 'chat';
 type SetupMode = 'first-run' | 'rerun';
@@ -140,6 +143,11 @@ function App() {
       }
     } catch (error) {
       console.error('[App] Auto-login failed:', error);
+      useToastStore.getState().addToast({
+        type: 'error',
+        title: 'Auto-login failed',
+        message: error instanceof Error ? error.message : 'Could not restore your saved session.',
+      });
     }
     setPhase('login');
   }
@@ -210,6 +218,7 @@ function App() {
   }
 
   return (
+    <ErrorBoundary>
     <div className="w-full h-screen overflow-hidden flex flex-col">
       <UpdateBanner />
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -229,7 +238,9 @@ function App() {
         initialTab={settingsInitialTab}
         onRerunSetup={handleRerunSetup}
       />
+      <ToastContainer />
     </div>
+    </ErrorBoundary>
   );
 }
 

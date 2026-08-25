@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { Editor } from '@monaco-editor/react';
+import { ensureMonacoSetup } from '../utils/ensureMonacoSetup';
 import { shallow } from 'zustand/shallow';
 import { useEditorStore } from '../stores/editorStore';
 import { useToastStore } from '../stores/toastStore';
@@ -14,20 +15,22 @@ import { useSettingsStore } from '../stores/settingsStore';
 import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
 import { ScanSummaryViewer } from './ScanSummaryViewer';
-import { CadWorkbench } from './CadWorkbench';
-import { StructureWorkbench } from './StructureWorkbench';
-import { HtmlBrowserWorkbench } from './HtmlBrowserWorkbench';
-import { MusicWorkbench } from './MusicWorkbench';
-import { ArenaWorkbench } from './ArenaWorkbench';
-import { KnowledgeGraphWorkbench } from './knowledge-graph/KnowledgeGraphWorkbench';
-import { ScanAnalysisViewer } from './ScanAnalysisViewer';
-import { ComparatorAnalysisViewer } from './ComparatorAnalysisViewer';
+import {
+  LazyArenaWorkbench,
+  LazyCadWorkbench,
+  LazyComparatorAnalysisViewer,
+  LazyHtmlBrowserWorkbench,
+  LazyKnowledgeGraphWorkbench,
+  LazyMusicWorkbench,
+  LazyNeuralCanvasTab,
+  LazyScanAnalysisViewer,
+  LazyStructureWorkbench,
+} from './lazyWorkbenches';
 import { ErrorBoundary } from './ErrorBoundary';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { getMonacoThemeId, registerMonacoThemes } from '../utils/editorThemes';
 import { CsvTableViewer } from './CsvTableViewer';
 import { EditorMarkdownPreview } from './EditorMarkdownPreview';
-import { NeuralCanvasTab } from './neural-canvas';
 import { isEditableCsvPath } from '../utils/csvTable';
 import { isMarkdownPath } from '../utils/markdownFile';
 
@@ -38,6 +41,14 @@ function tabLabel(tab: EditorTab): string {
   if (!path) return 'Untitled';
   const parts = path.split('/');
   return parts[parts.length - 1] || path;
+}
+
+function workbenchFallback(label: string) {
+  return (
+    <div className="flex items-center justify-center h-full text-slack-textMuted text-sm p-4">
+      Loading {label}…
+    </div>
+  );
 }
 
 interface CodeEditorPanelProps {
@@ -95,6 +106,19 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   );
 
   const { addToast } = useToastStore();
+
+  const [monacoReady, setMonacoReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void ensureMonacoSetup().then(() => {
+      if (!cancelled) {
+        setMonacoReady(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -640,7 +664,8 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
       <div className="flex-1 min-h-0">
         {activeTab ? (
           activeTab.viewMode === 'neural-canvas' && activeTab.artifactId ? (
-            <NeuralCanvasTab
+            <Suspense fallback={workbenchFallback('Neural Canvas')}>
+              <LazyNeuralCanvasTab
               artifactId={activeTab.artifactId}
               workspaceId={activeTab.workspaceId}
               onOpenArtifact={(artifact) =>
@@ -652,6 +677,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
                 )
               }
             />
+            </Suspense>
           ) : activeTab.viewMode === 'scan-analysis' && activeTab.scanAnalysisData != null ? (
             <ErrorBoundary
               fallback={
@@ -660,7 +686,8 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
                 </div>
               }
             >
-              <ScanAnalysisViewer
+              <Suspense fallback={workbenchFallback('scan analysis')}>
+              <LazyScanAnalysisViewer
                 workspaceId={activeTab.workspaceId}
                 analysisDir={activeTab.scanAnalysisDir ?? ''}
                 data={activeTab.scanAnalysisData}
@@ -669,6 +696,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
                 linkedScanDir={activeTab.linkedScanDir}
                 tabId={activeTab.id}
               />
+              </Suspense>
             </ErrorBoundary>
           ) : activeTab.viewMode === 'comparator-analysis' ? (
             <ErrorBoundary
@@ -678,10 +706,12 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
                 </div>
               }
             >
-              <ComparatorAnalysisViewer
+              <Suspense fallback={workbenchFallback('comparator analysis')}>
+              <LazyComparatorAnalysisViewer
                 workspaceId={activeTab.workspaceId}
                 analysisDir={activeTab.comparatorAnalysisDir ?? ''}
               />
+              </Suspense>
             </ErrorBoundary>
           ) : activeTab.viewMode === 'scan-summary' && activeTab.scanSummaryData != null ? (
             <ScanSummaryViewer
@@ -692,28 +722,35 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               linkedAnalysisDir={activeTab.linkedAnalysisDir}
             />
           ) : activeTab.viewMode === 'music-workbench' ? (
-            <MusicWorkbench
+            <Suspense fallback={workbenchFallback('music workbench')}>
+            <LazyMusicWorkbench
               key={`${activeTab.id}:${activeTab.musicPath ?? activeTab.musicProjectPath ?? activeTab.path}`}
               workspaceId={activeTab.workspaceId}
               audioPath={activeTab.musicPath}
               projectPath={activeTab.musicProjectPath}
               tabId={activeTab.id}
             />
+            </Suspense>
           ) : activeTab.viewMode === 'arena-workbench' ? (
-            <ArenaWorkbench
+            <Suspense fallback={workbenchFallback('model arena')}>
+            <LazyArenaWorkbench
               key={`${activeTab.id}:${activeTab.arenaPath ?? activeTab.path}`}
               workspaceId={activeTab.workspaceId}
               sessionPath={activeTab.arenaPath ?? activeTab.path}
               tabId={activeTab.id}
             />
+            </Suspense>
           ) : activeTab.viewMode === 'knowledge-graph-workbench' && activeTab.knowledgeGraphRepoPath ? (
-            <KnowledgeGraphWorkbench
+            <Suspense fallback={workbenchFallback('knowledge graph')}>
+            <LazyKnowledgeGraphWorkbench
               key={`${activeTab.id}:${activeTab.knowledgeGraphRepoPath}`}
               workspaceId={activeTab.workspaceId}
               repoPath={activeTab.knowledgeGraphRepoPath}
             />
+            </Suspense>
           ) : activeTab.viewMode === 'html-preview' && activeTab.htmlPath ? (
-            <HtmlBrowserWorkbench
+            <Suspense fallback={workbenchFallback('HTML preview')}>
+            <LazyHtmlBrowserWorkbench
               key={`${activeTab.id}:${activeTab.htmlPath}`}
               workspaceId={activeTab.workspaceId}
               htmlPath={activeTab.htmlPath}
@@ -721,8 +758,10 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               initialUrl={activeTab.htmlPreviewUrl}
               tabId={activeTab.id}
             />
+            </Suspense>
           ) : activeTab.viewMode === 'cad-workbench' && activeTab.cadScadPath ? (
-            <CadWorkbench
+            <Suspense fallback={workbenchFallback('CAD workbench')}>
+            <LazyCadWorkbench
               key={`${activeTab.id}:${activeTab.cadScadPath}`}
               workspaceId={activeTab.workspaceId}
               scadPath={activeTab.cadScadPath}
@@ -730,14 +769,17 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               projectId={activeTab.cadProjectId}
               tabId={activeTab.id}
             />
+            </Suspense>
           ) : activeTab.viewMode === 'structure-workbench' && activeTab.structurePath ? (
-            <StructureWorkbench
+            <Suspense fallback={workbenchFallback('structure workbench')}>
+            <LazyStructureWorkbench
               key={`${activeTab.id}:${activeTab.structurePath}`}
               workspaceId={activeTab.workspaceId}
               structurePath={activeTab.structurePath}
               initialContent={activeTab.content}
               tabId={activeTab.id}
             />
+            </Suspense>
           ) : activeTab.viewMode === 'csv-table' ? (
             <CsvTableViewer
               content={activeTab.content}
@@ -757,7 +799,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
                 <div className="text-center text-sm">Image preview unavailable</div>
               </div>
             )
-          ) : (
+          ) : monacoReady ? (
             <Editor
               key={activeTabId ?? 'none'}
               height="100%"
@@ -768,6 +810,10 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               onMount={handleEditorDidMount}
               options={editorOptions}
             />
+          ) : (
+            <div className="flex items-center justify-center h-full text-slack-textMuted text-sm">
+              Loading editor…
+            </div>
           )
         ) : (
           <div className="flex items-center justify-center h-full min-w-0 overflow-hidden px-4 text-slack-textMuted">

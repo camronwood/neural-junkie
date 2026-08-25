@@ -35,7 +35,8 @@ type CollaborationManager struct {
 	collaborations   map[string]*Collaboration // id -> collaboration
 	assetsRootFn     func() string             // parent dir for per-collab sandboxes; optional
 	worktreeBackendFn func(repoPath string) workspacebackend.Backend
-	onEnterReviewing func(collabID string)     // optional; hub dispatches pre-approval recap
+	onEnterReviewing        func(collabID string)              // optional; hub dispatches pre-approval recap
+	onPlanningTurnAdvanced  func(collabID, nextAgentID string) // optional; hub dispatches planning handoff
 	// reconcileMissingLogged suppresses repeated "no live hub agent" warnings per collab+name.
 	reconcileMissingLogged map[string]struct{}
 	mu                     sync.RWMutex
@@ -47,6 +48,14 @@ func (cm *CollaborationManager) SetOnEnterReviewing(fn func(collabID string)) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.onEnterReviewing = fn
+}
+
+// SetOnPlanningTurnAdvanced registers a callback when planning advances past a turn holder
+// after repeated generation failures or a silent-turn skip. Called without holding cm.mu.
+func (cm *CollaborationManager) SetOnPlanningTurnAdvanced(fn func(collabID, nextAgentID string)) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.onPlanningTurnAdvanced = fn
 }
 
 // NewCollaborationManager creates a new manager attached to the hub.

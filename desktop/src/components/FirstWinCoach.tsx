@@ -18,6 +18,7 @@ export interface FirstWinCoachActions {
   onOpenAgentDM?: (agentId: string) => void;
   onPrefillComposer?: (text: string) => void;
   onOpenModelLibrary?: () => void;
+  onOpenDomainPacks?: () => void;
 }
 
 export interface FirstWinCoachProps extends FirstWinCoachActions {
@@ -92,6 +93,10 @@ export function FirstWinCoach(props: FirstWinCoachProps) {
     [packsEnabled, props.track, props.hasWorkspace, props.agents, props.myAgents, props.hasCollaboration],
   );
   const copy = firstWinCopyForTrack(props.track);
+  const enabledPackCount = useMemo(
+    () => Object.values(packsEnabled).filter(Boolean).length,
+    [packsEnabled],
+  );
   const completeById = useMemo(
     () => new Map(progress.steps.map((s) => [s.id, s.complete])),
     [progress.steps],
@@ -122,6 +127,19 @@ export function FirstWinCoach(props: FirstWinCoachProps) {
           />
         ))}
       </ol>
+      {enabledPackCount >= 2 && (
+        <p className="text-xs text-slack-textMuted mb-4">
+          With multiple packs enabled, open{' '}
+          <button
+            type="button"
+            className="text-slack-accent hover:underline"
+            onClick={() => props.onOpenDomainPacks?.()}
+          >
+            Domain packs
+          </button>{' '}
+          to pick the UI layout owner (IDE vs team).
+        </p>
+      )}
       <div className="flex items-center justify-between gap-3">
         {nextStep ? (
           <button

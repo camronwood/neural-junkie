@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -130,6 +131,26 @@ type SpaceResponse struct {
 			Value string `json:"value"`
 		} `json:"plain"`
 	} `json:"description"`
+}
+
+// TestConnection verifies Confluence Cloud credentials with a live API call.
+func (c *Client) TestConnection() error {
+	if c == nil || c.BaseURL == "" || c.Email == "" || c.APIToken == "" {
+		return fmt.Errorf("incomplete Confluence credentials")
+	}
+	resp, err := c.doRequest("GET", "/user/current", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return fmt.Errorf("authentication failed (HTTP %d)", resp.StatusCode)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("Confluence API returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return nil
 }
 
 // GetSpace retrieves information about a space

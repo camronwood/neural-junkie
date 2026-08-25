@@ -93,4 +93,4 @@ LinkedIn articles, ads, and creatives organized by campaign — see [campaigns/R
 
 ## Examples
 
-Scenario write-ups live under [examples/](examples/).
+Scenario write-ups live under [docs/archive/examples/](docs/archive/examples/).

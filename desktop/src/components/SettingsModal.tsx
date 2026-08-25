@@ -4,9 +4,12 @@ import { useChatStore } from '../stores/chatStore';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 import {
   type SettingsTab,
-  SETTINGS_NAV_GROUPS,
+  SETTINGS_ESSENTIALS_GROUP,
+  SETTINGS_ADVANCED_GROUPS,
   resolveSettingsTab,
+  isDomainPacksSettingsAction,
 } from './settings/settingsNav';
+import { requestOpenDomainPacksModal } from '../utils/domainPacksModal';
 import { AppearanceSettingsTab } from './settings/AppearanceSettingsTab';
 import { LayoutSettingsTab } from './settings/LayoutSettingsTab';
 import { KeyboardSettingsTab } from './settings/KeyboardSettingsTab';
@@ -45,13 +48,25 @@ export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: Set
   const hubHttp =
     chatServerAddr.startsWith('http') ? chatServerAddr : `http://${chatServerAddr}`;
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen && initialTab) {
+      if (isDomainPacksSettingsAction(initialTab)) {
+        requestOpenDomainPacksModal();
+        onClose();
+        return;
+      }
       const resolved = resolveSettingsTab(initialTab) ?? 'appearance';
       setActiveTab(resolved);
+      const isAdvanced = SETTINGS_ADVANCED_GROUPS.some((g) =>
+        g.items.some((item) => item.id === resolved)
+      );
+      if (isAdvanced) {
+        setAdvancedOpen(true);
+      }
     }
-  }, [isOpen, initialTab]);
+  }, [isOpen, initialTab, onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -94,7 +109,7 @@ export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: Set
             className="flex w-[220px] shrink-0 flex-col overflow-y-auto border-r border-slack-border bg-slack-bgHover/20 py-2"
             aria-label="Settings sections"
           >
-            {SETTINGS_NAV_GROUPS.map((group) => (
+            {[SETTINGS_ESSENTIALS_GROUP].map((group) => (
               <div key={group.title} className="mb-2">
                 <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slack-textMuted">
                   {group.title}
@@ -103,7 +118,14 @@ export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: Set
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => {
+                      if (tab.action === 'open-domain-packs') {
+                        requestOpenDomainPacksModal();
+                        onClose();
+                        return;
+                      }
+                      setActiveTab(tab.id);
+                    }}
                     className={`w-full border-l-2 px-4 py-2.5 text-left text-sm font-medium transition-colors ${
                       activeTab === tab.id
                         ? 'border-slack-accent bg-slack-bgHover text-slack-text'
@@ -115,6 +137,39 @@ export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: Set
                 ))}
               </div>
             ))}
+            <div className="mb-2">
+              <button
+                type="button"
+                onClick={() => setAdvancedOpen((v) => !v)}
+                className="flex w-full items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slack-textMuted hover:text-slack-text"
+                aria-expanded={advancedOpen}
+              >
+                Advanced
+                <span aria-hidden>{advancedOpen ? '▾' : '▸'}</span>
+              </button>
+              {advancedOpen &&
+                SETTINGS_ADVANCED_GROUPS.map((group) => (
+                  <div key={group.title} className="mb-2">
+                    <div className="px-4 py-1.5 text-[11px] font-medium uppercase tracking-wide text-slack-textMuted/80">
+                      {group.title}
+                    </div>
+                    {group.items.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`w-full border-l-2 px-4 py-2.5 text-left text-sm font-medium transition-colors ${
+                          activeTab === tab.id
+                            ? 'border-slack-accent bg-slack-bgHover text-slack-text'
+                            : 'border-transparent text-slack-textMuted hover:bg-slack-bgHover/50 hover:text-slack-text'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+            </div>
           </nav>
 
           <div className="min-w-0 flex-1 overflow-y-auto p-6">

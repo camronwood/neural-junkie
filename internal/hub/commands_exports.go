@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -439,10 +440,27 @@ func (ch *CommandHandler) handleTestGitHubConnection(ctx context.Context, msg *p
 		return ch.systemResponse(msg.Channel, "❌ Invalid GitHub token format"), nil
 	}
 
-	// TODO: Implement actual GitHub API test
-	// This would involve making a request to https://api.github.com/user with the token
-	// For now, we'll just validate the format
-	return ch.systemResponse(msg.Channel, "ℹ️ GitHub token format looks valid. A live API call is not implemented yet — verify access by running a GitHub-related command."), nil
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Connection failed: %v", err)), nil
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Connection failed: %v", err)), nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return ch.systemResponse(msg.Channel, "❌ GitHub connection failed: invalid or expired token"), nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ GitHub API returned HTTP %d", resp.StatusCode)), nil
+	}
+
+	return ch.systemResponse(msg.Channel, "✅ GitHub connection successful!"), nil
 }
 
 // handleTestConfluenceConnection tests Confluence API connection

@@ -8,6 +8,8 @@ import {
   setHubSessionToken,
 } from '../config/hubUrl';
 import { buildChannelWebSocketURL, buildThreadWebSocketURL } from './chatAPI/wsUrl';
+import { PacksApi } from './domains/packsApi';
+import { ChannelsApi } from './domains/channelsApi';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
 export interface SendMessageResponse {
@@ -420,9 +422,14 @@ export type CadParam = {
 export class ChatAPI {
   private baseURL: string;
   private commandsCache: CommandDefinition[] | null = null;
+  private readonly packsApi: PacksApi;
+  private readonly channelsApi: ChannelsApi;
 
   constructor(serverAddr: string = getHubBaseURL()) {
     this.baseURL = normalizeHubBaseURL(serverAddr);
+    const hubFetch = (path: string, init?: RequestInit) => this.hubFetch(path, init);
+    this.packsApi = new PacksApi(hubFetch);
+    this.channelsApi = new ChannelsApi(hubFetch);
   }
 
   /** JSON + hub token + session for authenticated hub calls. */
@@ -1458,13 +1465,7 @@ export class ChatAPI {
 
   // Fetch list of channels
   async fetchChannels(): Promise<Channel[]> {
-    const response = await this.hubFetch(`/api/channels`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch channels: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.channelsApi.fetchChannels();
   }
 
   // Fetch command definitions (cached unless forceRefresh is true)
@@ -3717,60 +3718,27 @@ export class ChatAPI {
   }
 
   async fetchPacks(): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch packs: ${response.statusText}`);
-    }
-    return response.json();
+    return this.packsApi.fetchPacks();
   }
 
   async fetchPackCatalog(): Promise<PackCatalogEntry[]> {
-    const response = await this.hubFetch(`/api/packs/catalog`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch pack catalog: ${response.statusText}`);
-    }
-    const data = await response.json();
-    return (data.packs as PackCatalogEntry[]) ?? [];
+    return this.packsApi.fetchPackCatalog();
   }
 
   async refreshPackCatalog(): Promise<PackCatalogEntry[]> {
-    const response = await this.hubFetch(`/api/packs/catalog/refresh`, { method: 'POST' });
-    if (!response.ok) {
-      throw new Error(`Failed to refresh pack catalog: ${response.statusText}`);
-    }
-    const data = await response.json();
-    return (data.packs as PackCatalogEntry[]) ?? [];
+    return this.packsApi.refreshPackCatalog();
   }
 
   async fetchPackUpdates(): Promise<PackUpdatesResponse> {
-    const response = await this.hubFetch(`/api/packs/updates`);
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packsApi.fetchPackUpdates();
   }
 
   async upgradePack(packId: string): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}/upgrade`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return this.parsePacksMutationResponse(await response.json());
+    return this.packsApi.upgradePack(packId);
   }
 
   async installPack(packId: string): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}/install`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return this.parsePacksMutationResponse(await response.json());
+    return this.packsApi.installPack(packId);
   }
 
   async installPackFromZip(packZipBase64: string): Promise<PacksAPIResponse> {
@@ -3787,14 +3755,7 @@ export class ChatAPI {
   }
 
   async installPackLoRAs(packId: string): Promise<InstallPackLoRAsResponse> {
-    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}/install-loras`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packsApi.installPackLoRAs(packId);
   }
 
   async fetchACEStepStatus(packId = 'music-creation'): Promise<ACEStepStatus> {
@@ -3977,16 +3938,7 @@ export class ChatAPI {
   }
 
   async setLayoutOwner(packId: string): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs/layout-owner`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ layout_owner: packId }),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return this.parsePacksMutationResponse(await response.json());
+    return this.packsApi.setLayoutOwner(packId);
   }
 
   async validatePack(body: {

@@ -1,168 +1,58 @@
-# Neural Junkie - Desktop App
+# Neural Junkie — Desktop App
 
-A modern Tauri-based desktop application for the Neural Junkie with React and TypeScript.
+Tauri + React desktop client for Neural Junkie (v1.2.x). Talks to the **sidecar Go hub** on `localhost:18765` (bundled in macOS/Windows installers; started automatically in release builds).
 
 ## Features
 
-- Slack-inspired dark theme with modern styling
 - Real-time chat with AI agents via WebSocket
-- Command palette for discovering and executing 50+ slash commands
-- @mention autocomplete for targeting specific agents
-- Threaded conversations with reply support
-- File explorer, code editor, and terminal panels
-- Pending changes panel with diff preview for agent file proposals
-- Settings modal: appearance, layout, integrations, AI providers
-- Agent list with status indicators and expertise display
-- Mermaid diagram rendering in messages
-- Rich text input with markdown support
-- Auto-reconnection and session persistence
-- Native desktop experience (~10-15MB bundle)
+- Command palette (50+ slash commands) and @mention autocomplete
+- File explorer, code editor (Monaco), terminal, pending file changes
+- **Domain packs** modal (toolbar or **Settings → Domain packs**) — install IDE, software-dev, life sciences, and 9 other official packs
+- Collaboration panel, runbooks, task management
+- Settings: **Essentials** (appearance, connection, providers, collab routing) + collapsible **Advanced**
+- Mermaid diagrams, threads, session persistence, auto-update (macOS/Windows)
+
+Heavy panels (editor, packs, collab, workbenches) load on demand via code-splitting.
 
 ## Prerequisites
 
-- **Node.js** (v18 or higher)
-- **npm** or **yarn**
-- **Rust** (for Tauri builds)
-  - Install via: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- **Go** (for running the backend server)
-
-## Installation
-
-```bash
-# Install dependencies
-npm install
-```
+- **Node.js** 18+
+- **Rust** (Tauri builds): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Go 1.25+** (only when running the hub separately during dev)
 
 ## Development
 
-### 1. Start the Go backend server
-
-In the project root:
-
-```bash
-make server
-```
-
-### 2. Start the desktop app
-
-From the project root:
+From the repo root (starts hub + desktop):
 
 ```bash
 make gui
 ```
 
-Or manually from desktop directory:
+Or hub separately:
 
 ```bash
-cd desktop
-npm run tauri:dev
+make server   # terminal 1
+cd desktop && npm run tauri:dev   # terminal 2
 ```
 
-This will:
-- Start Vite dev server on port 1420
-- Launch the Tauri window
-- Enable hot module reloading
-
-## Building for Production
-
-From project root:
+## Production build
 
 ```bash
 make gui-build
+# → src-tauri/target/release/bundle/
 ```
 
-Or manually from desktop directory:
+## Tech stack
 
-```bash
-npm run tauri:build
-```
-
-This creates platform-specific installers in `src-tauri/target/release/bundle/`:
-- **macOS**: `.dmg` and `.app` bundle
-- **Windows**: `.msi` installer
-- **Linux**: `.deb` and `.AppImage`
-
-## Project Structure
-
-```
-desktop/
-├── src/
-│   ├── api/              # HTTP API client
-│   ├── components/       # React components
-│   ├── hooks/            # Custom React hooks
-│   ├── stores/           # Zustand state management
-│   ├── types/            # TypeScript type definitions
-│   ├── App.tsx           # Main app component
-│   ├── main.tsx          # Entry point
-│   └── styles.css        # Global styles
-├── src-tauri/            # Tauri Rust backend
-│   ├── src/
-│   │   └── main.rs       # Minimal Rust code
-│   ├── icons/            # App icons
-│   ├── Cargo.toml        # Rust dependencies
-│   └── tauri.conf.json   # Tauri configuration
-├── public/               # Static assets
-├── index.html            # HTML template
-├── package.json          # Node dependencies
-├── vite.config.ts        # Vite configuration
-├── tailwind.config.js    # Tailwind CSS config
-└── tsconfig.json         # TypeScript config
-```
-
-## Tech Stack
-
-- **Tauri**: Rust-based desktop framework
-- **React 18**: UI framework
-- **TypeScript**: Type safety
-- **Vite**: Build tool and dev server
-- **Tailwind CSS**: Utility-first CSS
-- **Zustand**: State management
-- **WebSocket**: Real-time communication
+Tauri 2 · React 18 · TypeScript · Vite · Zustand · Tailwind · WebSocket
 
 ## Configuration
 
-### Server Address
-
-Default: `localhost:18765`
-
-You can change this in the login screen or update the default in `src/stores/chatStore.ts`.
-
-### Window Size
-
-Configured in `src-tauri/tauri.conf.json`:
-- Default: 1000x700
-- Minimum: 800x600
+- Hub URL: **Settings → Connection** (default `http://127.0.0.1:18765`)
+- Window size: `src-tauri/tauri.conf.json`
 
 ## Troubleshooting
 
-### Rust not found
-```bash
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
+**WebSocket fails:** ensure the hub is running (`make server` in dev, or restart the desktop app in release).
 
-### WebSocket connection fails
-Make sure the Go backend server is running on `localhost:18765`:
-```bash
-make server
-```
-
-### Port 1420 already in use
-Kill the process using port 1420 or change the port in `vite.config.ts`.
-
-## Comparison: Tauri vs Fyne
-
-| Feature | Tauri (This) | Fyne (Previous) |
-|---------|--------------|-----------------|
-| Bundle Size | ~10-15MB | ~30MB |
-| Tech Stack | Rust + Web | Pure Go |
-| Styling | Full CSS/Tailwind | Limited theming |
-| UI Libraries | Entire npm ecosystem | Fyne widgets only |
-| Rich Text | Native support | Limited |
-| Development | Hot reload | Rebuild required |
-| Performance | Fast (system webview) | Fast (native) |
-
-## License
-
-Same as parent project.
-
+**Port 1420 in use:** change `vite.config.ts` or stop the other Vite process.

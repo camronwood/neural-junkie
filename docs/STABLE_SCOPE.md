@@ -30,8 +30,8 @@ See also: [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md), [KNOWN_ISS
 |------|--------|-------|
 | Multi-tenant / shared hub SaaS | Out | Single-server local-first |
 | Distributed / horizontal scale | Phase 3 | [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md) |
-| JWT / API-key auth for all routes | Phase 3 | Session + hub token today — [SECURITY.md](SECURITY.md) |
-| User roles (admin/member/viewer) | Phase 3 | Username slug ACLs only |
+| Per-route API keys & user roles | Shipped (v1.2.x) | `nj_…` keys + admin/member/viewer — see [SECURITY.md](SECURITY.md) |
+| SSO / JWT for enterprise deployments | Phase 3 | Session + hub token + API keys today |
 | Full in-app searchable archive | Phase 2+ | Export + find bar; optional search API later |
 | Web UI parity with desktop | Limitation | Browser chat at `/` stays thin |
 | IDE v4 (remote SSH, full Monaco LSP) | Shipped v1.2 | [IDE_V4.md](IDE_V4.md) |

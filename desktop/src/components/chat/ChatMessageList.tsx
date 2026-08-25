@@ -35,6 +35,7 @@ export function ChatMessageList({
   onOpenAgentDM,
   onPrefillComposer,
   onOpenModelLibrary,
+  onOpenDomainPacks,
   onContinueGeneration,
 }: ChatMessageListProps) {
   const showRoutingOnMessages = useSettingsStore(
@@ -116,6 +117,7 @@ export function ChatMessageList({
         onOpenAgentDM={onOpenAgentDM}
         onPrefillComposer={onPrefillComposer}
         onOpenModelLibrary={onOpenModelLibrary}
+        onOpenDomainPacks={onOpenDomainPacks}
         onContinueGeneration={onContinueGeneration}
       />
     </>

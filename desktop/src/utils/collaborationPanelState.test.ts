@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Collaboration } from '../types/protocol';
 import {
+  executingFileTasksAwaitingProposal,
   isApprovedAwaitingDispatch,
   isPlanningAwaitingFirstTurn,
+  planningGenerationErrorSummary,
   planningStalledParticipantNames,
   resolvePanelCollaboration,
   shouldAutoAckWorkspaceOnApprove,
   taskNeedsFileDeliverable,
 } from './collaborationPanelState';
+import type { Message } from '../types/protocol';
 
 function collab(overrides: Partial<Collaboration> = {}): Collaboration {
   return {
@@ -143,5 +146,49 @@ describe('isApprovedAwaitingDispatch', () => {
         })
       )
     ).toBe(true);
+  });
+});
+
+describe('planningGenerationErrorSummary', () => {
+  it('groups generation errors by agent for active planning collab', () => {
+    const c = collab({ phase: 'planning', id: 'cid-1' });
+    const messages: Message[] = [
+      {
+        id: 'm1',
+        type: 'collaboration_discussion',
+        channel: 'ch',
+        from: { id: 'be-id', name: 'BackendEngineer', type: 'backend' },
+        content: 'failed',
+        timestamp: '',
+        metadata: { collaboration_id: 'cid-1', generation_error: true, error_code: 'timeout' },
+      },
+    ];
+    const summary = planningGenerationErrorSummary(messages, c);
+    expect(summary).toHaveLength(1);
+    expect(summary[0]?.agentName).toBe('BackendEngineer');
+    expect(summary[0]?.errorCode).toBe('timeout');
+    expect(summary[0]?.turnAdvanced).toBe(false);
+  });
+});
+
+describe('executingFileTasksAwaitingProposal', () => {
+  it('returns in-progress file tasks when no pending proposals', () => {
+    const tasks = executingFileTasksAwaitingProposal(
+      collab({
+        phase: 'executing',
+        tasks: [
+          {
+            id: 't1',
+            title: 'Write report.md',
+            description: 'create report.md',
+            status: 'in_progress',
+            assigned_id: 'a1',
+            assigned_name: 'Agent',
+          },
+        ],
+      }),
+      0
+    );
+    expect(tasks).toHaveLength(1);
   });
 });

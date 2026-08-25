@@ -22,6 +22,7 @@ import {
 } from '../utils/hardwareRecommendations';
 import { installOllamaRuntime } from '../utils/ollamaRuntime';
 import { hubMutationPut } from '../utils/hubMutation';
+import { useToastStore } from '../stores/toastStore';
 
 interface ProviderChoice {
   id: string;
@@ -107,6 +108,7 @@ export function SetupWizard({
   serverAddr,
   mode = 'first-run',
 }: SetupWizardProps) {
+  const addToast = useToastStore((s) => s.addToast);
   const isRerun = mode === 'rerun';
   const [step, setStep] = useState(0);
   const [wizardTrack, setWizardTrack] = useState<WizardTrack>('developer');
@@ -364,11 +366,12 @@ export function SetupWizard({
     } catch (e) {
       console.error('Failed to save config:', e);
       setSaving(false);
-      window.alert(
+      const message =
         e instanceof Error
-          ? `Could not save setup: ${e.message}`
-          : 'Could not save setup. Check that the hub is running and try again.',
-      );
+          ? e.message
+          : 'Could not save setup. Check that the hub is running and try again.';
+      addToast({ type: 'error', title: 'Setup failed', message });
+      window.alert(`Could not save setup: ${message}`);
     }
   }
 
@@ -856,6 +859,13 @@ export function SetupWizard({
                 {agents.filter((a) => a.enabled).length} configured agent(s) in settings.
                 {wizardTrack === 'lifeSciences' && ' Research use only — not for clinical diagnosis.'}
               </p>
+              {Object.values(packsEnabledForTrack(wizardTrack)).filter(Boolean).length >= 2 && (
+                <p className="text-gray-500 text-xs">
+                  Multiple domain packs are enabled. After launch, open{' '}
+                  <strong className="text-gray-300">Settings → Domain packs</strong> to choose the{' '}
+                  <strong className="text-gray-300">UI layout owner</strong> (IDE vs team).
+                </p>
+              )}
             </div>
 
             <div className="text-left max-h-[50vh] overflow-y-auto pr-1">

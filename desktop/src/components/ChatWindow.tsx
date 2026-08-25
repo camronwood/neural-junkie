@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect, useMemo, startTransition } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
-import { useTerminalStore, createNewTab } from '../stores/terminalStore';
+import { useTerminalStore } from '../stores/terminalStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { usePacksStore } from '../stores/packsStore';
 import { GitModal } from './GitPanel';
@@ -17,7 +17,6 @@ import { useApprovalStore } from '../stores/approvalStore';
 import { formatToolApprovalSummary } from '../utils/approvalDisplay';
 import { PendingApprovalsBar } from './PendingApprovalsBar';
 import { LocationRequestModal } from './LocationRequestModal';
-import { useLocationShareStore } from '../stores/locationShareStore';
 import { useComposerPrefillStore } from '../stores/composerPrefillStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
@@ -34,7 +33,6 @@ import { applyContextRequestToMetadata } from '../utils/contextRequestAttach';
 import {
   clearPendingSendThinking,
   markPendingSendThinking,
-  NJ_PENDING_SEND_AGENT_ID,
 } from '../utils/pendingSendThinking';
 import {
   formatContextIndicator,
@@ -43,20 +41,21 @@ import {
 } from '../utils/conversationMode';
 import { channelNameToKind, resolveContextScope } from '../utils/inferContextScope';
 import type { ConversationModeSetting, WorkspaceContextMode } from '../constants/promptMetadata';
-import { METADATA_CHANNEL_HOLD } from '../types/protocol';
-import { GRANTED_HUB_DATA_ACCESS_KEY, IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_COMPLETE_KEY, IMPLEMENTATION_SESSION_OUTCOME_KEY, CAD_FILES_WRITTEN_KEY } from '../constants/promptMetadata';
+import { GRANTED_HUB_DATA_ACCESS_KEY, IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_OUTCOME_KEY, CAD_FILES_WRITTEN_KEY } from '../constants/promptMetadata';
 import {
   detectHubDataAccessNeeds,
   hasGrantedHubDataAccess,
   type HubDataAccessOption,
 } from '../utils/hubDataAccess';
 import { HubDataAccessModal } from './HubDataAccessModal';
-import { shouldSendChannelJoinMessage } from '../utils/joinMessage';
-import { devLog } from '../utils/devLog';
+import { onOpenDomainPacksModal } from '../utils/domainPacksModal';
 import {
   fileChangeProposalPaths,
   refreshFileExplorerForPaths,
 } from '../utils/refreshFileExplorer';
+import { loadAgentsFromHub, loadChannelsFromHub, loadChatWindowInitialData } from '../hooks/useChatWindowData';
+import { devLog } from '../utils/devLog';
+import { useChatInboundMessages } from '../hooks/useChatInboundMessages';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useSidebarAutoUnhide } from '../hooks/useSidebarAutoUnhide';
 import { agentSidebarHideKey, dmChannelNamesForAgent, predictedDmChannelName } from '../utils/dmChannelDisplay';
@@ -77,42 +76,39 @@ import { isSlackHubChannelName } from '../utils/slackChannelDisplay';
 import { ThreadPanel } from './ThreadPanel';
 import { MyAgentsPanel } from './MyAgentsPanel';
 import { TerminalPanel } from './TerminalPanel';
-import { FileExplorerPanel } from './FileExplorerPanel';
-import { CodeEditorPanel } from './CodeEditorPanel';
 import { ToastContainer } from './Toast';
 import { ErrorBoundary } from './ErrorBoundary';
+import {
+  LazyAIInterviewPrepModal,
+  LazyCodeEditorPanel,
+  LazyCollaborationPanel,
+  LazyDomainPacksModal,
+  LazyFileExplorerPanel,
+  LazyModelArenaModal,
+  LazyModelLibraryModal,
+  LazyPanelShell,
+  LazyPhoenixBrowserModal,
+  LazyRoomChatModal,
+  LazyRunbookBuilderPanel,
+  LazyRunbookLibraryModal,
+  LazySecondaryAnalysisPanel,
+  LazyTaskManagementPanel,
+} from './lazyPanels';
 import { CommandPalette } from './CommandPalette';
 import { ChannelSidebar } from './ChannelSidebar';
 import { CreateChannelModal } from './CreateChannelModal';
 import { ChannelInfoModal } from './ChannelInfoModal';
 import { CreateNewDMModal } from './CreateNewDMModal';
-import { CollaborationPanel } from './CollaborationPanel';
+import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
+import { useSecondaryAnalysisStore } from '../stores/secondaryAnalysisStore';
+import { useCollaborationsStore, collaborationsByIDSnapshot } from '../stores/collaborationsStore';
+import { useIdeOverlayStore } from '../stores/ideOverlayStore';
 import {
   isAwaitingWorkspaceConfirmation,
   isNonTerminalCollaborationPhase,
   resolvePanelCollaboration,
 } from '../utils/collaborationPanelState';
-import {
-  collaboratorsAddedSince,
-  decideCollabPanelOpen,
-  isTerminalCollaborationPhase as isTerminalCollabPhaseHelper,
-  parseCollabParticipantAddRequest,
-  shouldToastCollaboratorAdds,
-} from '../utils/chatInboundCollab';
-import { RunbookBuilderPanel } from './RunbookBuilderPanel';
-import { RunbookLibraryModal } from './runbook/RunbookLibraryModal';
-import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
-import { TaskManagementPanel } from './TaskManagementPanel';
-import { SecondaryAnalysisPanel } from './SecondaryAnalysisPanel';
-import { useSecondaryAnalysisStore } from '../stores/secondaryAnalysisStore';
-import { useCollaborationsStore, collaborationsByIDSnapshot } from '../stores/collaborationsStore';
-import { useIdeOverlayStore } from '../stores/ideOverlayStore';
-import { ModelLibraryModal } from './ModelLibraryModal';
-import { DomainPacksModal } from './DomainPacksModal';
-import { PhoenixBrowserModal } from './PhoenixBrowserModal';
-import { RoomChatModal } from './RoomChatModal';
-import { ModelArenaModal } from './ModelArenaModal';
-import { AIInterviewPrepModal } from './AIInterviewPrepModal';
+import { isTerminalCollaborationPhase as isTerminalCollabPhaseHelper } from '../utils/chatInboundCollab';
 import { LearningProposalModal } from './LearningProposalModal';
 import type { LearningProposalAction } from '../api/chatAPI';
 import type { LoraTrainPrefill } from './LoraTrainingPanel';
@@ -127,29 +123,22 @@ import type {
   CommandDefinition,
   Message,
   ThinkingAgent,
-  ThinkingStatusMetadata,
 } from '../types/protocol';
 import {
   CONTINUATION_OF_METADATA_KEY,
   CONTINUATION_REASON_METADATA_KEY,
   OUTPUT_LENGTH_CONTINUATION_PROMPT,
 } from '../types/protocol';
-import { isCollaborationMessage, getCollaborationId, getChangeProposalCard, showThreadReplyInMainTimeline, isToolStepStreamDelta, isReasoningStreamDelta, THINKING_ACTIVITY_DETAIL_KEY, THINKING_ACTIVITY_REASONING, THINKING_ACTIVITY_USING_TOOL, THINKING_ACTIVITY_WRITING } from '../types/protocol';
+import { getChangeProposalCard } from '../types/protocol';
 import { findThreadParentMessage } from '../utils/slackThread';
 import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
-import {
-  appendTurnTelemetryFromAgentStatus,
-  appendTurnTelemetryFromToolStep,
-} from '../utils/turnTelemetry';
-import { mirrorAgentCommandInTerminal } from '../utils/mirrorAgentCommandInTerminal';
 import { resolveTerminalCwd } from '../utils/terminalCwd';
 import { useSuggestedCommands } from '../hooks/useSuggestedCommands';
 import {
   ensureRepoAgentWorkspace,
-  isRepoAgentWorkspaceAction,
   parseCreateRepoAgentCommand,
 } from '../utils/repoAgentWorkspace';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
@@ -199,7 +188,6 @@ import {
   pendingUserQuestionIds,
   pendingUserQuestionMessages,
 } from '../utils/pendingUserQuestions';
-import { handoffNavigationTarget } from '../utils/capabilityPolicy';
 
 const EMPTY_THINKING_AGENTS: ThinkingAgent[] = [];
 
@@ -277,6 +265,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const addToast = useToastStore(s => s.addToast);
 
   useSidebarAutoUnhide(agents, channels);
+
+  useEffect(() => onOpenDomainPacksModal(() => setDomainPacksOpen(true)), []);
 
   useEffect(() => {
     if (roomMode !== 'guest' || !activeRoomId) return;
@@ -935,18 +925,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // Load agents function
   const loadAgents = useCallback(async () => {
     try {
-      const agentList = await api.fetchAgents({ includeToolCounts: true });
-      useChatStore.getState().setAgents(agentList);
-
-      // Remove agents from loading state if they're now active
-      const { loadingAgents, removeLoadingAgent } = useChatStore.getState();
-      const activeAgentNames = new Set(agentList.map((agent) => agent.name));
-
-      loadingAgents.forEach((agentName) => {
-        if (activeAgentNames.has(agentName)) {
-          removeLoadingAgent(agentName);
-        }
-      });
+      await loadAgentsFromHub(api);
     } catch (error) {
       console.error('Failed to load agents:', error);
     }
@@ -968,14 +947,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // Load channels
   const loadChannels = useCallback(async () => {
     try {
-      const channelList = await new ChatAPI(getHubBaseURL()).fetchChannels();
-      useChatStore.getState().setChannels(channelList);
-      return channelList;
+      return await loadChannelsFromHub(api);
     } catch (error) {
       console.error('Failed to load channels:', error);
       return null;
     }
-  }, []);
+  }, [api]);
 
   // Pick up new Slack inbox peer channels for background WS watch.
   useEffect(() => {
@@ -1359,8 +1336,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       await handleSwitchChannel(name);
     } catch (error) {
       console.error('Failed to create channel:', error);
+      addToast({
+        type: 'error',
+        title: 'Could not create channel',
+        message: error instanceof Error ? error.message : 'Channel creation failed.',
+      });
     }
-  }, [api, username, loadChannels, handleSwitchChannel]);
+  }, [api, username, loadChannels, handleSwitchChannel, addToast]);
 
   const handleDeleteChannel = useCallback(
     async (name: string) => {
@@ -1755,408 +1737,37 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const handledHandoffMessagesRef = useRef(new Set<string>());
 
+  const onInboundMessage = useChatInboundMessages({
+    api,
+    channel,
+    handledHandoffMessagesRef,
+    handledParticipantRequestPromptsRef,
+    handledRepoWorkspaceActionsRef,
+    handledLearningProposalsRef,
+    collaborationsByIDRef,
+    activeCollabRef,
+    inputRef,
+    loadChannels,
+    handleSwitchChannel,
+    debouncedRefreshAgents,
+    mergeCollaborationSnapshot,
+    setActiveCollab,
+    addToast,
+    surfaceSlackInboundNotification,
+    surfaceChangeProposal,
+    surfaceToolApproval,
+    handleImplementationSessionComplete,
+    handleCADFilesWritten,
+    handleSuggestedCommands,
+    setFileExplorerOpen,
+    setLearningProposal,
+    setLearningProposalOpen,
+  });
+
   // WebSocket connection
   const { status, connect: reconnectHub } = useWebSocket({
     url: wsURL,
-    onMessage: async (message: Message) => {
-      try {
-        const st = useChatStore.getState();
-        const activeChannel = st.channel;
-
-      if (
-        message.type === 'system_info' &&
-        !handledHandoffMessagesRef.current.has(message.id)
-      ) {
-        const target = handoffNavigationTarget(message.metadata);
-        if (target) {
-          handledHandoffMessagesRef.current.add(message.id);
-          const channels = await loadChannels();
-          if (
-            channels?.some((candidate) => candidate.name === target) &&
-            useChatStore.getState().channel !== target
-          ) {
-            await handleSwitchChannel(target);
-            return;
-          }
-        }
-      }
-
-      // Handle all agent_status messages - never add them to chat
-      if (message.type === 'agent_status') {
-        const msgChannel = message.channel || activeChannel;
-        if (message.metadata?.history_resync === true) {
-          const ch = message.channel || channel;
-          try {
-            const msgs = await api.fetchMessages(ch, 50);
-            const st = useChatStore.getState();
-            st.replaceChannelMessagesCache(ch, msgs);
-            if (ch === st.channel) {
-              st.setMessages(msgs);
-              st.cleanupStaleThinking(ch, msgs);
-            }
-          } catch (e) {
-            console.error('[ChatWindow] history_resync refetch failed:', e);
-          }
-          return;
-        }
-        // Handle thinking status -> typing indicator
-        if (message.metadata?.thinking_status) {
-          const thinkingStatus = message.metadata.thinking_status as ThinkingStatusMetadata['thinking_status'];
-          const pendingAsks = pendingUserQuestionMessages(st.messages).length > 0;
-          if (thinkingStatus === 'started') {
-            // Ignore "responding" while the channel is waiting on ask_user.
-            if (!(pendingAsks && msgChannel === st.channel)) {
-            const activity =
-              typeof message.metadata.thinking_activity === 'string'
-                ? message.metadata.thinking_activity
-                : undefined;
-            const activityDetail =
-              typeof message.metadata[THINKING_ACTIVITY_DETAIL_KEY] === 'string'
-                ? (message.metadata[THINKING_ACTIVITY_DETAIL_KEY] as string)
-                : typeof message.metadata.thinking_activity_detail === 'string'
-                  ? message.metadata.thinking_activity_detail
-                  : undefined;
-            st.addThinkingAgent(
-              msgChannel,
-              message.from.id,
-              message.from.name,
-              message.from.type,
-              activity,
-              activityDetail
-            );
-            if (message.from.id !== NJ_PENDING_SEND_AGENT_ID) {
-              clearPendingSendThinking(msgChannel);
-            }
-            if (
-              msgChannel !== activeChannel &&
-              msgChannel.startsWith('collab-')
-            ) {
-              st.addThinkingAgent(
-                activeChannel,
-                message.from.id,
-                message.from.name,
-                message.from.type,
-                activity,
-                activityDetail
-              );
-              if (message.from.id !== NJ_PENDING_SEND_AGENT_ID) {
-                clearPendingSendThinking(activeChannel);
-              }
-            }
-            appendTurnTelemetryFromAgentStatus(msgChannel, message);
-            }
-          } else if (
-            thinkingStatus === 'completed' ||
-            thinkingStatus === 'error' ||
-            thinkingStatus === 'aborted'
-          ) {
-            st.removeThinkingAgent(msgChannel, message.from.id);
-            if (msgChannel !== activeChannel) {
-              st.removeThinkingAgent(activeChannel, message.from.id);
-            }
-          }
-        }
-
-        if (message.metadata && METADATA_CHANNEL_HOLD in message.metadata) {
-          const held = message.metadata[METADATA_CHANNEL_HOLD] === true;
-          st.setChannelHold(msgChannel, held);
-        }
-        
-        // Handle status updates - update agent info immediately
-        if (message.metadata?.indexing_status !== undefined || 
-            message.metadata?.index_progress !== undefined ||
-            message.metadata?.status !== undefined ||
-            message.from.is_paused !== undefined) {
-          const statusUpdates: Partial<typeof message.from> = {};
-          
-          if (message.metadata?.indexing_status !== undefined) {
-            statusUpdates.indexing_status = message.metadata.indexing_status as string;
-          }
-          if (message.metadata?.index_progress !== undefined) {
-            statusUpdates.index_progress = message.metadata.index_progress as number;
-          }
-          if (message.metadata?.status !== undefined) {
-            statusUpdates.status = message.metadata.status as string;
-          }
-          if (message.from.is_paused !== undefined) {
-            statusUpdates.is_paused = message.from.is_paused;
-          }
-          
-          st.updateAgentStatus(message.from.id, statusUpdates);
-        }
-        
-        return; // Never add agent_status to message list
-      }
-      
-      // Handle streaming tokens -- accumulate deltas, finalize on stream_end
-      const streamChannel = message.channel || activeChannel;
-      const streamOnMainTimeline =
-        (!message.channel || message.channel === activeChannel) &&
-        (!message.is_thread_reply || showThreadReplyInMainTimeline(streamChannel));
-      if (message.type === 'stream_delta') {
-        const streamMeta = message.metadata ?? {};
-        const agentChannel = message.channel || activeChannel;
-        if (isToolStepStreamDelta(streamMeta)) {
-          st.updateThinkingAgentActivity(agentChannel, message.from.id, {
-            activity: THINKING_ACTIVITY_USING_TOOL,
-            activityDetail:
-              typeof streamMeta.tool_preview === 'string' ? streamMeta.tool_preview : undefined,
-            toolStep: {
-              kind: String(streamMeta.tool_step ?? ''),
-              name: String(streamMeta.tool_name ?? ''),
-              iteration:
-                typeof streamMeta.tool_iteration === 'number' ? streamMeta.tool_iteration : undefined,
-              preview:
-                typeof streamMeta.tool_preview === 'string' ? streamMeta.tool_preview : undefined,
-            },
-          });
-          appendTurnTelemetryFromToolStep(agentChannel, message);
-        } else if (isReasoningStreamDelta(streamMeta)) {
-          st.updateThinkingAgentActivity(agentChannel, message.from.id, {
-            activity: THINKING_ACTIVITY_REASONING,
-          });
-        } else if ((message.content ?? '').length > 0) {
-          st.updateThinkingAgentActivity(agentChannel, message.from.id, {
-            activity: THINKING_ACTIVITY_WRITING,
-          });
-        }
-        if (streamOnMainTimeline) {
-          st.appendStreamDelta(message);
-        }
-        return;
-      }
-      if (message.type === 'stream_end') {
-        if (streamOnMainTimeline) {
-          st.finalizeStream(message.id, message.metadata as Record<string, unknown> | undefined);
-        }
-        st.removeThinkingAgent(message.channel || activeChannel, message.from.id);
-        return;
-      }
-
-      const collabData = message.metadata?.collaboration_data as Collaboration | undefined;
-      if (collabData?.id) {
-        startTransition(() => {
-          const collabChannel = collabData.channel || message.channel;
-          const isActiveChannelCollab = !collabChannel || collabChannel === activeChannel;
-          const previousSnapshot = collaborationsByIDRef.current[collabData.id];
-          if (
-            shouldToastCollaboratorAdds({
-              previous: previousSnapshot,
-              snapshot: collabData,
-              isActiveChannelCollab,
-            })
-          ) {
-            const addedAgents = collaboratorsAddedSince(previousSnapshot, collabData);
-            const names = addedAgents.map((a) => `@${a.agent_name}`).join(', ');
-            addToast({
-              type: 'info',
-              title: 'Collaborator added',
-              message: `${names} joined "${collabData.title}".`,
-            });
-          }
-          mergeCollaborationSnapshot(collabData);
-          const decision = decideCollabPanelOpen({
-            snapshot: collabData,
-            activeChannel,
-            currentlyOpen: activeCollabRef.current,
-            message,
-          });
-          if (decision.action === 'open' || decision.action === 'update_open') {
-            setActiveCollab(decision.snapshot);
-          }
-        });
-      }
-
-      const participantReq = parseCollabParticipantAddRequest(message);
-      if (participantReq) {
-        const { collabID, agentID, agentName, requestedBy } = participantReq;
-        const key = `${collabID}:${agentID}:${message.id}`;
-        if (!handledParticipantRequestPromptsRef.current.has(key)) {
-          handledParticipantRequestPromptsRef.current.add(key);
-          void (async () => {
-            const approved = window.confirm(
-              `${requestedBy} wants to add ${agentName} to this collaboration. Allow?`
-            );
-            try {
-              const updated = approved
-                ? await api.approveCollabParticipantRequest(collabID, agentID)
-                : await api.denyCollabParticipantRequest(collabID, agentID);
-              mergeCollaborationSnapshot(updated);
-              if (activeCollabRef.current?.id === updated.id) {
-                setActiveCollab(updated);
-              }
-              addToast({
-                type: approved ? 'success' : 'info',
-                title: approved ? 'Agent added' : 'Agent add denied',
-                message: approved
-                  ? `@${agentName} joined "${updated.title}".`
-                  : `@${agentName} was not added to "${updated.title}".`,
-              });
-            } catch (error) {
-              addToast({
-                type: 'error',
-                title: 'Participant request failed',
-                message: error instanceof Error ? error.message : 'Could not update collaboration participants.',
-              });
-            }
-          })();
-        }
-      }
-
-      // Thread replies: NJ channels use ThreadPanel only; Slack mirrors also show in main timeline.
-      if (message.is_thread_reply && message.thread_id) {
-        const threadChannel = message.channel || activeChannel;
-        void api
-          .fetchThreadMetadata(message.thread_id)
-          .then(metadata => useChatStore.getState().updateThreadMetadata(message.thread_id!, metadata))
-          .catch(error => console.error('Failed to fetch thread metadata:', error));
-        if (showThreadReplyInMainTimeline(threadChannel)) {
-          if (threadChannel === activeChannel) {
-            st.addMessage(message);
-          } else if (message.channel) {
-            st.addMessageToCache(message.channel, message);
-            st.markChannelUnread(message.channel);
-            if (shouldNotifySlackInbound(message)) {
-              surfaceSlackInboundNotification(message);
-            }
-          }
-        }
-        return;
-      } else if (message.channel && message.channel !== activeChannel) {
-        // Message belongs to a different channel -- cache it and mark unread
-        st.addMessageToCache(message.channel, message);
-        st.markChannelUnread(message.channel);
-        if (shouldNotifySlackInbound(message)) {
-          surfaceSlackInboundNotification(message);
-        }
-        if (isCollaborationMessage(message) || getCollaborationId(message)) {
-          addToast({
-            type: 'info',
-            title: 'Collaboration update',
-            message: `Activity in #${message.channel} — switch there to see messages.`,
-          });
-        }
-        if (getChangeProposalCard(message)) {
-          surfaceChangeProposal(message, false);
-        }
-        if (message.type === 'tool_approval') {
-          surfaceToolApproval(message, false);
-          st.addMessageToCache(message.channel, message);
-        }
-        if (message.type === 'user_question') {
-          st.addMessageToCache(message.channel, message);
-          if (message.metadata?.status === 'pending') {
-            st.clearThinkingAgents(message.channel);
-            st.stopAllStreamsForChannel(message.channel);
-          }
-        }
-        if (message.type === 'command_output') {
-          mirrorAgentCommandInTerminal(message);
-        }
-      } else {
-        if (message.type === 'tool_approval') {
-          surfaceToolApproval(message, true);
-          st.upsertToolApprovalMessage(message);
-        } else if (message.type === 'user_question') {
-          st.upsertUserQuestionMessage(message);
-          if (message.metadata?.status === 'pending') {
-            const qChannel = message.channel || activeChannel;
-            st.clearThinkingAgents(qChannel);
-            st.stopAllStreamsForChannel(qChannel);
-            window.setTimeout(() => inputRef.current?.focus(), 0);
-          }
-        } else {
-        // Message belongs to the active channel (never wrap addMessage in startTransition —
-        // high-frequency agent_status updates can starve transitions and leave the chat empty).
-        st.addMessage(message);
-        }
-
-        if (message.metadata?.[IMPLEMENTATION_SESSION_COMPLETE_KEY] === true) {
-          void handleImplementationSessionComplete(
-            message.metadata as Record<string, unknown> | undefined
-          );
-        }
-
-        if (message.metadata?.[CAD_FILES_WRITTEN_KEY]) {
-          void handleCADFilesWritten(message.metadata as Record<string, unknown> | undefined);
-        }
-
-        handleSuggestedCommands(message, activeChannel);
-
-        if (message.type === 'command_output') {
-          mirrorAgentCommandInTerminal(message);
-        }
-
-        if (message.metadata?.event === 'agent-open-terminal') {
-          const agentName = message.metadata.agent_name as string || 'Agent';
-          const msgCh = message.channel || activeChannel;
-          const collabCtx = Object.values(collaborationsByIDRef.current).find(
-            (c) => c.channel === msgCh
-          );
-          const cwd =
-            (message.metadata.cwd as string | undefined)?.trim() ||
-            resolveTerminalCwd({ collaboration: collabCtx ?? null });
-          const tab = createNewTab('agent', agentName, cwd);
-          useTerminalStore.getState().addTab(tab);
-          useTerminalStore.getState().setPanelOpen(true);
-        }
-
-        const clientAction = message.metadata?.client_action;
-        if (
-          clientAction &&
-          isRepoAgentWorkspaceAction(clientAction) &&
-          !handledRepoWorkspaceActionsRef.current.has(message.id)
-        ) {
-          handledRepoWorkspaceActionsRef.current.add(message.id);
-          void ensureRepoAgentWorkspace(clientAction.path, {
-            preferredName: clientAction.name,
-          }).then((workspaceId) => {
-            if (workspaceId) {
-              setFileExplorerOpen(true);
-            }
-          });
-        }
-
-        if (
-          clientAction &&
-          typeof clientAction === 'object' &&
-          clientAction.type === 'learning_proposal' &&
-          !handledLearningProposalsRef.current.has(message.id)
-        ) {
-          handledLearningProposalsRef.current.add(message.id);
-          setLearningProposal(clientAction as LearningProposalAction);
-          setLearningProposalOpen(true);
-        }
-
-        if (getChangeProposalCard(message)) {
-          surfaceChangeProposal(message, true);
-        }
-      }
-      
-      // Clear thinking indicator when agent sends actual message
-      if (
-        message.type === 'chat' ||
-        message.type === 'answer' ||
-        message.type === 'collaboration_discussion'
-      ) {
-        const ch = message.channel || activeChannel;
-        st.removeThinkingAgent(ch, message.from.id);
-        clearPendingSendThinking(ch);
-        if (ch !== activeChannel) {
-          st.removeThinkingAgent(activeChannel, message.from.id);
-          clearPendingSendThinking(activeChannel);
-        }
-      }
-      
-      // Auto-refresh agents and channels for join/leave events
-      if (message.type === 'agent_join' || message.type === 'agent_leave') {
-        debouncedRefreshAgents();
-        loadChannels();
-      }
-      } catch (err) {
-        console.error('[ChatWindow] WebSocket message handler error:', err);
-      }
-    },
+    onMessage: onInboundMessage,
     onConnect: () => {
       devLog('Connected to chat');
       useChatStore.getState().setConnectionStatus('connected');
@@ -2169,52 +1780,33 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     onError: (error) => {
       console.error('WebSocket error:', error);
       useChatStore.getState().setConnectionStatus('error');
+      addToast({
+        type: 'error',
+        title: 'Connection lost',
+        message: 'WebSocket disconnected. Reconnecting…',
+      });
     },
   });
 
-  // Load initial data when connected (parallelize; never skip channels because another request failed)
-  const loadInitialData = async () => {
-    const activeCh = useChatStore.getState().channel;
-    const results = await Promise.allSettled([
-      api.fetchMessages(activeCh, 50).then((msgs) => useChatStore.getState().setMessages(msgs)),
-      loadCollaborations(activeCh),
-      loadAgents(),
-      loadCounts(),
-      loadChannels(),
-      useFileExplorerStore.getState().loadWorkspaces(),
-    ]);
-
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        const label = ['messages', 'collaborations', 'agents', 'counts', 'channels', 'workspaces'][i];
-        console.error(`[loadInitialData] ${label} failed:`, r.reason);
-      }
+  const loadInitialData = useCallback(async () => {
+    await loadChatWindowInitialData({
+      api,
+      loadCollaborations,
+      loadAgents,
+      loadCounts,
+      loadChannels,
+      addToast,
+      loadCommands: async () => {
+        try {
+          const defs = await api.fetchCommands();
+          setCommandDefs(withClientPaletteCommands(defs));
+        } catch (err) {
+          console.error('Failed to load command definitions:', err);
+          setCommandDefs(withClientPaletteCommands([]));
+        }
+      },
     });
-
-    try {
-      const defs = await api.fetchCommands();
-      setCommandDefs(withClientPaletteCommands(defs));
-    } catch (err) {
-      console.error('Failed to load command definitions:', err);
-      setCommandDefs(withClientPaletteCommands([]));
-    }
-
-    void useApprovalStore.getState().syncPendingFromHub(api);
-    void useLocationShareStore.getState().syncPending(api);
-
-    const { channel: joinCh, username: joinUser } = useChatStore.getState();
-    const joinName = joinUser?.trim() || 'User';
-    if (shouldSendChannelJoinMessage(joinCh, joinName)) {
-      void api
-        .sendMessage(
-          joinCh,
-          `${joinName} has joined the chat`,
-          { name: joinName, type: 'human' },
-          'system_info'
-        )
-        .catch((e) => console.error('[loadInitialData] join message failed:', e));
-    }
-  };
+  }, [api, loadCollaborations, loadAgents, loadCounts, loadChannels, addToast]);
 
   const dispatchThreadReply = useCallback(
     async (threadId: string, content: string, metadata?: Record<string, unknown>) => {
@@ -3288,15 +2880,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
         {/* File Explorer */}
         {fileExplorerOpen && (
-          <FileExplorerPanel
-            variant={ideLayout ? 'embedded' : 'overlay'}
-            onClose={() => {
-              setFileExplorerOpen(false);
-              if (ideLayout) {
-                void updateLayoutSettings({ filesPanelVisible: false });
-              }
+          <LazyPanelShell
+            panelName="File explorer"
+            Component={LazyFileExplorerPanel}
+            props={{
+              variant: ideLayout ? 'embedded' : 'overlay',
+              onClose: () => {
+                setFileExplorerOpen(false);
+                if (ideLayout) {
+                  void updateLayoutSettings({ filesPanelVisible: false });
+                }
+              },
+              onFileOpen: () => setCodeEditorOpen(true),
             }}
-            onFileOpen={() => setCodeEditorOpen(true)}
           />
         )}
 
@@ -3308,11 +2904,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             className="flex flex-1 min-w-0 min-h-0 flex-col h-full border-r border-slack-border"
           >
             {codeEditorOpen ? (
-              <CodeEditorPanel
-                variant="embedded"
-                onClose={() => {
-                  setCodeEditorOpen(false);
-                  void updateLayoutSettings({ editorPanelVisible: false });
+              <LazyPanelShell
+                panelName="Code editor"
+                Component={LazyCodeEditorPanel}
+                props={{
+                  variant: 'embedded',
+                  onClose: () => {
+                    setCodeEditorOpen(false);
+                    void updateLayoutSettings({ editorPanelVisible: false });
+                  },
                 }}
               />
             ) : ideLayout ? (
@@ -3327,11 +2927,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
         {/* Code Editor — overlay when chat is not docked (narrow viewport) */}
         {codeEditorOpen && !ideLayout && !chatResizable && (
-          <CodeEditorPanel
-            variant="overlay"
-            onClose={() => {
-              setCodeEditorOpen(false);
-              void updateLayoutSettings({ editorPanelVisible: false });
+          <LazyPanelShell
+            panelName="Code editor"
+            Component={LazyCodeEditorPanel}
+            props={{
+              variant: 'overlay',
+              onClose: () => {
+                setCodeEditorOpen(false);
+                void updateLayoutSettings({ editorPanelVisible: false });
+              },
             }}
           />
         )}
@@ -3401,6 +3005,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           onOpenAgentDM={handleCreateDM}
           onPrefillComposer={handleFirstWinPrefill}
           onOpenModelLibrary={handleFirstWinOpenModelLibrary}
+          onOpenDomainPacks={() => setDomainPacksOpen(true)}
           onContinueGeneration={handleContinueGeneration}
         />
 
@@ -3462,58 +3067,69 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
         {/* Collaboration / Runbook Panel */}
         {panelCollaboration && showRunbookBuilderForCollab(panelCollaboration) ? (
-          <RunbookBuilderPanel
-            collaboration={panelCollaboration}
-            hubAgents={agentsToCollaborationAgents(agents)}
-            onClose={() => {
-              setRunbookBuilderDirty(false);
-              setActiveCollab(null);
+          <LazyPanelShell
+            panelName="Runbook builder"
+            Component={LazyRunbookBuilderPanel}
+            props={{
+              collaboration: panelCollaboration,
+              hubAgents: agentsToCollaborationAgents(agents),
+              onClose: () => {
+                setRunbookBuilderDirty(false);
+                setActiveCollab(null);
+              },
+              onDirtyChange: setRunbookBuilderDirty,
+              onSaved: (snap) => {
+                mergeCollaborationSnapshot(snap);
+                setActiveCollab(snap);
+                void loadCollaborations(snap.channel || channel);
+              },
+              onStarted: (snap) => {
+                mergeCollaborationSnapshot(snap);
+                setActiveCollab(snap);
+                void loadCollaborations(snap.channel || channel);
+              },
+              onWorkspaceGateRequest: openWorkspaceGateForCollab,
             }}
-            onDirtyChange={setRunbookBuilderDirty}
-            onSaved={(snap) => {
-              mergeCollaborationSnapshot(snap);
-              setActiveCollab(snap);
-              void loadCollaborations(snap.channel || channel);
-            }}
-            onStarted={(snap) => {
-              mergeCollaborationSnapshot(snap);
-              setActiveCollab(snap);
-              void loadCollaborations(snap.channel || channel);
-            }}
-            onWorkspaceGateRequest={openWorkspaceGateForCollab}
           />
         ) : panelCollaboration ? (
-          <CollaborationPanel
-            collaboration={panelCollaboration}
-            extendableCollaborations={extendableCollaborations}
-            executingCollaboration={executingCollaborationForChannel}
-            onClose={() => setActiveCollab(null)}
-            onConfirmWorkspace={openWorkspaceGate}
-            onAfterCollaborationCommand={async () => {
-              await loadCollaborations(panelCollaboration.channel || channel);
-            }}
-            onOpenRunbookRun={async (collabId, collabChannel) => {
-              if (collabChannel && collabChannel !== channel) {
-                await handleSwitchChannel(collabChannel);
-              }
-              try {
-                setActiveCollab(await api.getRunbook(collabId));
-              } catch {
-                /* optional snapshot */
-              }
-              await loadCollaborations(collabChannel || channel);
+          <LazyPanelShell
+            panelName="Collaboration"
+            Component={LazyCollaborationPanel}
+            props={{
+              collaboration: panelCollaboration,
+              extendableCollaborations: extendableCollaborations,
+              executingCollaboration: executingCollaborationForChannel,
+              onClose: () => setActiveCollab(null),
+              onConfirmWorkspace: openWorkspaceGate,
+              onAfterCollaborationCommand: async () => {
+                await loadCollaborations(panelCollaboration.channel || channel);
+              },
+              onOpenRunbookRun: async (collabId, collabChannel) => {
+                if (collabChannel && collabChannel !== channel) {
+                  await handleSwitchChannel(collabChannel);
+                }
+                try {
+                  setActiveCollab(await api.getRunbook(collabId));
+                } catch {
+                  /* optional snapshot */
+                }
+                await loadCollaborations(collabChannel || channel);
+              },
             }}
           />
         ) : null}
 
         {/* Task Management Panel */}
         {taskManagementOpen && (
-          <TaskManagementPanel
-            collaborations={trackedCollaborations}
-            assistantTasks={assistantTasks}
-            assistantReminders={assistantReminders}
-            onClose={() => setTaskManagementOpen(false)}
-            onOpenCollaboration={async (collab) => {
+          <LazyPanelShell
+            panelName="Tasks"
+            Component={LazyTaskManagementPanel}
+            props={{
+            collaborations: trackedCollaborations,
+            assistantTasks,
+            assistantReminders,
+            onClose: () => setTaskManagementOpen(false),
+            onOpenCollaboration: async (collab) => {
               if (collab.channel && collab.channel !== channel) {
                 try {
                   await handleSwitchChannel(collab.channel);
@@ -3523,8 +3139,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
               }
               setActiveCollab(collab);
               setTaskManagementOpen(false);
-            }}
-            onAssistantTaskDone={async (taskID) => {
+            },
+            onAssistantTaskDone: async (taskID) => {
               const previousTasks = assistantTasks;
               const targetTask = previousTasks.find(task => task.id === taskID);
               setAssistantTasks(prev =>
@@ -3547,8 +3163,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                   message: error instanceof Error ? error.message : 'Failed to mark assistant task done.',
                 });
               }
-            }}
-            onAssistantReminderDismiss={async (reminderID) => {
+            },
+            onAssistantReminderDismiss: async (reminderID) => {
               const previousReminders = assistantReminders;
               const targetReminder = previousReminders.find(reminder => reminder.id === reminderID);
               setAssistantReminders(prev => prev.filter(reminder => reminder.id !== reminderID));
@@ -3569,8 +3185,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                   message: error instanceof Error ? error.message : 'Failed to dismiss assistant reminder.',
                 });
               }
-            }}
-            onCollaborationCommand={async (command, collaborationID, feedbackText, taskIndex) => {
+            },
+            onCollaborationCommand: async (command, collaborationID, feedbackText, taskIndex) => {
               const from = { name: username || 'User', type: 'human' };
               const shortID = collaborationID.slice(0, 8);
               const collab =
@@ -3615,20 +3231,27 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 });
                 throw e;
               }
+            },
             }}
           />
         )}
 
         {secondaryAnalysisOpen && (
-          <SecondaryAnalysisPanel onClose={() => setSecondaryAnalysisOpen(false)} />
+          <LazyPanelShell
+            panelName="Secondary analysis"
+            Component={LazySecondaryAnalysisPanel}
+            props={{ onClose: () => setSecondaryAnalysisOpen(false) }}
+          />
         )}
 
         {/* My Agents Panel - slides in from right */}
         {myAgentsPanelOpen && (
-          <MyAgentsPanel
-            onClose={() => setMyAgentsPanelOpen(false)}
-            onTrainLoRA={handleTrainLoRAForAgent}
-          />
+          <ErrorBoundary panelName="My agents">
+            <MyAgentsPanel
+              onClose={() => setMyAgentsPanelOpen(false)}
+              onTrainLoRA={handleTrainLoRAForAgent}
+            />
+          </ErrorBoundary>
         )}
 
         </div>
@@ -3650,11 +3273,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           maxHeight: isPanelOpen ? 'calc(100% - 2.75rem)' : '0px',
         }}
       >
-        <TerminalPanel
-          channel={channel}
-          api={api}
-          collaboration={collaborationForChannel}
-        />
+        <ErrorBoundary panelName="Terminal">
+          <TerminalPanel
+            channel={channel}
+            api={api}
+            collaboration={collaborationForChannel}
+          />
+        </ErrorBoundary>
       </div>
       
       <GitModal isOpen={gitModalOpen && ideEnabled} onClose={() => setGitModalOpen(false)} />
@@ -3746,39 +3371,72 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         onCreated={handleNewDmCreated}
       />
 
-      <ModelLibraryModal
-        isOpen={modelLibraryOpen}
-        onClose={closeModelLibrary}
-        serverAddr={hubHttp}
-        switchAllAgentProviders={switchAllAgentProviders}
-        switchAgentProvider={switchAgentProvider}
-        runtimeAgents={agents.map((a) => ({ id: a.id, name: a.name, type: a.type }))}
-        defaultChannel={channel}
-        initialTab={modelLibraryInitialTab}
-        loraTrainPrefill={loraTrainPrefill}
-      />
+      {modelLibraryOpen && (
+        <LazyPanelShell
+          panelName="Model library"
+          Component={LazyModelLibraryModal}
+          props={{
+            isOpen: modelLibraryOpen,
+            onClose: closeModelLibrary,
+            serverAddr: hubHttp,
+            switchAllAgentProviders,
+            switchAgentProvider,
+            runtimeAgents: agents.map((a) => ({ id: a.id, name: a.name, type: a.type })),
+            defaultChannel: channel,
+            initialTab: modelLibraryInitialTab,
+            loraTrainPrefill,
+          }}
+        />
+      )}
 
-      <DomainPacksModal
-        isOpen={domainPacksOpen}
-        onClose={closeDomainPacks}
-        serverAddr={hubHttp}
-      />
+      {domainPacksOpen && (
+        <LazyPanelShell
+          panelName="Domain packs"
+          Component={LazyDomainPacksModal}
+          props={{
+            isOpen: domainPacksOpen,
+            onClose: closeDomainPacks,
+            serverAddr: hubHttp,
+          }}
+        />
+      )}
 
-      <PhoenixBrowserModal isOpen={phoenixModalOpen} onClose={() => setActivePackModal(null)} />
-      <RoomChatModal isOpen={roomChatModalOpen} onClose={() => setActivePackModal(null)} />
-      <ModelArenaModal
-        isOpen={modelArenaModalOpen}
-        onClose={() => setActivePackModal(null)}
-        onOpenInEditor={(workspaceId) => {
-          openArenaWorkbench(workspaceId, 'arena/model-arena.nj-arena.json');
-          setCodeEditorOpen(true);
-          void updateLayoutSettings({ editorPanelVisible: true });
-        }}
-      />
-      <AIInterviewPrepModal
-        isOpen={aiInterviewModalOpen}
-        onClose={() => setActivePackModal(null)}
-      />
+      {phoenixModalOpen && (
+        <LazyPanelShell
+          panelName="Web browser"
+          Component={LazyPhoenixBrowserModal}
+          props={{ isOpen: phoenixModalOpen, onClose: () => setActivePackModal(null) }}
+        />
+      )}
+      {roomChatModalOpen && (
+        <LazyPanelShell
+          panelName="Room chat"
+          Component={LazyRoomChatModal}
+          props={{ isOpen: roomChatModalOpen, onClose: () => setActivePackModal(null) }}
+        />
+      )}
+      {modelArenaModalOpen && (
+        <LazyPanelShell
+          panelName="Model arena"
+          Component={LazyModelArenaModal}
+          props={{
+            isOpen: modelArenaModalOpen,
+            onClose: () => setActivePackModal(null),
+            onOpenInEditor: (workspaceId) => {
+              openArenaWorkbench(workspaceId, 'arena/model-arena.nj-arena.json');
+              setCodeEditorOpen(true);
+              void updateLayoutSettings({ editorPanelVisible: true });
+            },
+          }}
+        />
+      )}
+      {aiInterviewModalOpen && (
+        <LazyPanelShell
+          panelName="AI interview prep"
+          Component={LazyAIInterviewPrepModal}
+          props={{ isOpen: aiInterviewModalOpen, onClose: () => setActivePackModal(null) }}
+        />
+      )}
 
       <LearningProposalModal
         isOpen={learningProposalOpen}
@@ -3823,28 +3481,34 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         />
       )}
 
-      <RunbookLibraryModal
-        isOpen={runbookLibraryOpen}
-        api={api}
-        hubAgents={agentsToCollaborationAgents(agents)}
-        channel={channel}
-        username={username || 'User'}
-        onClose={() => setRunbookLibraryOpen(false)}
-        onInstantiated={(collabId, collabChannel) => {
-          void (async () => {
-            if (collabChannel && collabChannel !== channel) {
-              await handleSwitchChannel(collabChannel);
-            }
-            try {
-              setActiveCollab(await api.getRunbook(collabId));
-            } catch {
-              /* snapshot optional */
-            }
-            void loadCollaborations(channel);
-          })();
-        }}
-        onNewBlank={() => void handleCreateBlankRunbook()}
-      />
+      {runbookLibraryOpen && (
+        <LazyPanelShell
+          panelName="Runbook library"
+          Component={LazyRunbookLibraryModal}
+          props={{
+            isOpen: runbookLibraryOpen,
+            api,
+            hubAgents: agentsToCollaborationAgents(agents),
+            channel,
+            username: username || 'User',
+            onClose: () => setRunbookLibraryOpen(false),
+            onInstantiated: (collabId, collabChannel) => {
+              void (async () => {
+                if (collabChannel && collabChannel !== channel) {
+                  await handleSwitchChannel(collabChannel);
+                }
+                try {
+                  setActiveCollab(await api.getRunbook(collabId));
+                } catch {
+                  /* snapshot optional */
+                }
+                void loadCollaborations(channel);
+              })();
+            },
+            onNewBlank: () => void handleCreateBlankRunbook(),
+          }}
+        />
+      )}
 
       {/* Toast Notifications */}
       <ToastContainer />
