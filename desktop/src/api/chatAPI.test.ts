@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatAPI } from './chatAPI';
 import { PacksApi } from './domains/packsApi';
+import { MessagesApi } from './domains/messagesApi';
+import { CollabApi } from './domains/collabApi';
+import { AgentsApi } from './domains/agentsApi';
 import { getHubBaseURL, hubAuthHeaders, hubSessionHeaders, normalizeHubBaseURL, setHubSessionToken, getHubSessionToken } from '../config/hubUrl';
 
 describe('PacksApi', () => {
@@ -29,6 +32,56 @@ describe('PacksApi', () => {
         body: JSON.stringify({ layout_owner: 'software-development' }),
       })
     );
+  });
+});
+
+describe('MessagesApi', () => {
+  it('sendMessage posts to /api/send', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ status: 'ok' }),
+    });
+    const api = new MessagesApi(hubFetch);
+    const result = await api.sendMessage('general', 'hello', { name: 'User', type: 'human' });
+    expect(hubFetch).toHaveBeenCalledWith(
+      '/api/send',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          channel: 'general',
+          content: 'hello',
+          type: 'question',
+          from: { name: 'User', type: 'human' },
+        }),
+      })
+    );
+    expect(result.status).toBe('ok');
+  });
+});
+
+describe('CollabApi', () => {
+  it('fetchCollaborations calls /api/collaborations', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    });
+    const api = new CollabApi(hubFetch);
+    const data = await api.fetchCollaborations('general');
+    expect(hubFetch).toHaveBeenCalledWith('/api/collaborations?channel=general');
+    expect(data).toEqual([]);
+  });
+});
+
+describe('AgentsApi', () => {
+  it('fetchAgents calls /api/agents', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 'a1', name: 'Agent' }],
+    });
+    const api = new AgentsApi(hubFetch);
+    const agents = await api.fetchAgents();
+    expect(hubFetch).toHaveBeenCalledWith('/api/agents');
+    expect(agents).toHaveLength(1);
   });
 });
 

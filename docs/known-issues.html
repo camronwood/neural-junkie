@@ -123,8 +123,8 @@
     <header class="feature-deep-hero">
       <h1>Known issues &amp; limitations</h1>
       <p class="feature-deep-lead">
-        Open beta means real gaps — and real progress. This page lists what we know is wrong, flaky, or intentionally scoped for <strong>v1.2.0-beta.23</strong>. We <strong>remove items when they are fixed</strong>; what remains is honest scope, not a backlog we forgot.
-        Last updated <time datetime="2026-08-21">August 21, 2026</time>.
+        Open beta means real gaps — and real progress. This page lists what we know is wrong, flaky, or intentionally scoped for <strong>v1.2.0-beta.24</strong>. We <strong>remove items when they are fixed</strong>; what remains is honest scope, not a backlog we forgot.
+        Last updated <time datetime="2026-08-25">August 25, 2026</time>.
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
         GitHub tracker: <a href="https://github.com/camronwood/neural-junkie/issues">all issues</a>.
         Stable cut checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>.
@@ -132,8 +132,8 @@
     </header>
 
     <div class="release-landing-preview" style="margin-bottom: 2rem;">
-      <p class="release-landing-label">Latest: beta.23</p>
-      <p class="release-landing-summary">Plan mode, document canvas, first-win coach, and leaner small-model IDE turns — plus semantic stamp / memory gates from beta.22. See <a href="release-notes.html#v1.2.0-beta.23">beta.23 release notes</a>.</p>
+      <p class="release-landing-label">Latest: beta.24</p>
+      <p class="release-landing-summary">P0–P4 polish — collab proof, cold-start chunk tuning, ChatWindow/chatAPI decomposition, beta.24 release prep. See <a href="release-notes.html#v1.2.0-beta.24">beta.24 release notes</a>.</p>
     </div>
 
     <nav class="release-jump issues-jump" aria-label="Jump to section">
@@ -177,7 +177,7 @@
           <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
           <strong>Platform smoke pending sign-off</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/18">#18</a>
-          <p>Gate 5 platform smoke on a current beta installer (beta.23+) — minimum macOS arm64 + one of Windows x64 or Linux x64. Deferred 2026-07-20 (Mac-only soak day); still pending operator sign-off. Checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/stable-platform-smoke.md">stable-platform-smoke.md</a>.</p>
+          <p>Gate 5 platform smoke on <strong>v1.2.0-beta.24</strong> — minimum macOS arm64 + one of Windows x64 or Linux x64. Checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/stable-platform-smoke.md">stable-platform-smoke.md</a>, matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/platform-smoke-beta24.md">platform-smoke-beta24.md</a>.</p>
         </li>
       </ul>
 
@@ -214,16 +214,16 @@
           <p>Harness now passes <code>VERBOSE=1</code> as env (not <code>--verbose</code> to BSD make). Latest collab-core climb ran ~23m. Keep closed unless regression returns.</p>
         </li>
         <li class="issue-item" id="collab-agent-silence">
-          <span class="issue-badge issue-badge--investigating">Investigating</span>
+          <span class="issue-badge issue-badge--limitation">Mitigated (closed)</span>
           <strong>Collab agents silent during planning discussions</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/20">#20</a>
-          <p>Agents blocked or silent — <code>discussion timeout</code>, <code>shouldRespond blocked</code>, <code>msgs=0/3</code>. Scenarios: <code>document-findings-execution</code>, <code>collab-participation-three-agent</code>, <code>planning-two-agent</code>, and others.</p>
+          <p>P0 handoff (<code>maxPlanningGenerationErrorsPerTurn=2</code>), watchdog nudges, panel visibility. <strong>2026-08-25:</strong> <code>collab-scenarios-core</code> green ×2; <code>document-findings-execution</code> PASS (one harness nudge). Residual variance under <a href="#collab-model-variance">#5</a>. Evidence: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/p4-collab-proof-2026-08-25.md">p4-collab-proof-2026-08-25</a>.</p>
         </li>
         <li class="issue-item" id="collab-generation-error">
-          <span class="issue-badge issue-badge--investigating">Investigating</span>
+          <span class="issue-badge issue-badge--investigating">Mitigated (Ollama)</span>
           <strong>Cloud provider generation_error loops in collab planning</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/21">#21</a>
-          <p>Claude, Gemini, and Assistant loop <code>generation_error</code> during planning — high error counts, partial agent participation, planning phase stuck.</p>
+          <p>P0 turn handoff + CollaborationPanel gen-error banner. <strong>2026-08-25:</strong> Ollama core + <code>collab-generation-error-resilience</code> PASS; cloud repro not run (no Anthropic creds). Re-smoke with cloud before closing.</p>
         </li>
       </ul>
 
@@ -377,7 +377,7 @@
         <a class="btn btn-ghost btn-sm" href="mailto:neuraljunkie.app@gmail.com">Contact</a>
     </nav>
 <!-- NJ-SITE-FOOTER-NAV:END -->
-      <p><a href="index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT) · v1.2.0-beta.23 open beta</p>
+      <p><a href="index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT) · v1.2.0-beta.24 open beta</p>
     </div>
   </footer>
 

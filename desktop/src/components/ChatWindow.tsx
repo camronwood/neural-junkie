@@ -21,19 +21,11 @@ import { useComposerPrefillStore } from '../stores/composerPrefillStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
 import {
-  buildHumanOutboundMetadata,
   cycleWorkspaceContextMode,
   loadWorkspaceContextMode,
-  loadScopedWorkspaceContext,
   workspaceContextModeLabel,
   WORKSPACE_CONTEXT_MODE_KEY,
 } from '../utils/outboundChatMetadata';
-import { attachAmbientStateMetadata } from '../utils/ambientState';
-import { applyContextRequestToMetadata } from '../utils/contextRequestAttach';
-import {
-  clearPendingSendThinking,
-  markPendingSendThinking,
-} from '../utils/pendingSendThinking';
 import {
   formatContextIndicator,
   loadConversationModeSetting,
@@ -132,7 +124,6 @@ import {
 import { getChangeProposalCard } from '../types/protocol';
 import { findThreadParentMessage } from '../utils/slackThread';
 import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
-import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
 import { resolveTerminalCwd } from '../utils/terminalCwd';
@@ -165,12 +156,11 @@ import {
   COMPOSER_MODE_STORAGE_KEY,
   type ComposerMode,
 } from '../constants/composerMode';
-import { prepareOutboundPayload } from '../utils/prepareOutboundPayload';
 import { NJ_BUILD_PLAN_EVENT, buildPlanBuildMessage } from '../utils/planCard';
 import { resolveWorkspaceScope, scopedRepoPaths } from '../utils/workspaceScope';
 import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
-import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
+import { useChatOutboundDispatch } from '../hooks/useChatOutboundDispatch';
 import { registerRestartBlocker } from '../utils/restartSafety';
 import {
   messageForPendingChangeId,
@@ -1808,359 +1798,39 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     });
   }, [api, loadCollaborations, loadAgents, loadCounts, loadChannels, addToast]);
 
-  const dispatchThreadReply = useCallback(
-    async (threadId: string, content: string, metadata?: Record<string, unknown>) => {
-      const ws =
-        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
-        explorerWorkspaces[0];
-      const payload = await prepareOutboundPayload({
-        content,
-        composerMode,
-        agents,
-        activeTab: activeEditorTab,
-        editorAgentTrust: resolveEditorAgentTrust(layoutSettings, composerMode),
-        composerMetadata: metadata,
-        api: ideEnabled ? api : undefined,
-        repoPath: ideEnabled ? ws?.path : undefined,
-        repoPaths: ideEnabled ? resolveScopedRepoPaths() : undefined,
-        ideEnabled,
-        channel,
-        channelMeta: activeChannelMeta,
-      });
-      const baseMetadata = buildHumanOutboundMetadata({
-        contextMode: workspaceContextMode,
-        conversationMode: conversationModeSetting,
-        message: payload.content,
-        channel,
-        channelType: activeChannelMeta?.type,
-        composerMetadata: payload.metadata,
-        ideCoding: ideLayout && hasIdeComposer,
-        recentChannelMessages: useChatStore.getState().messages,
-      });
-      const mergedMetadata =
-        workspaceContextMode === 'off'
-          ? baseMetadata
-          : await attachAmbientStateMetadata(
-              baseMetadata,
-              payload.content,
-              ideLayout && hasIdeComposer,
-            );
-      await api.sendThreadReply(
-        threadId,
-        channel,
-        payload.content,
-        { name: username, type: 'human' },
-        mergedMetadata
-      );
-    },
-    [
-      api,
-      channel,
-      username,
-      workspaceContextMode,
-      conversationModeSetting,
-      activeChannelMeta?.type,
-      composerMode,
-      agents,
-      activeEditorTab,
-      layoutSettings,
-      ideEnabled,
-      explorerWorkspaces,
-      activeWorkspaceId,
-      resolveScopedRepoPaths,
-      ideLayout,
-      hasIdeComposer,
-    ]
-  );
-
-  const handleChannelInterject = useCallback(async () => {
-    try {
-      await api.channelInterject(channel, username);
-      const st = useChatStore.getState();
-      st.setChannelHold(channel, true);
-      st.clearThinkingAgents(channel);
-      st.stopAllStreamsForChannel(channel);
-    } catch (error) {
-      console.error('Channel interject failed:', error);
-      addToast({
-        type: 'error',
-        title: 'Stop failed',
-        message: error instanceof Error ? error.message : 'Could not stop agents.',
-      });
-    }
-  }, [api, channel, username, addToast]);
-
-  const appendLocalSlashCommand = useCallback(
-    (commandText: string) => {
-      const now = new Date().toISOString();
-      useChatStore.getState().addMessage({
-        id: `local-cmd-${Date.now()}`,
-        type: 'question',
-        channel,
-        from: {
-          id: username || 'user',
-          name: username || 'You',
-          type: 'human',
-          expertise: [],
-          status: 'active',
-          model: '',
-          is_paused: false,
-        },
-        content: commandText,
-        timestamp: now,
-        metadata: { slash_command: true, client_only: true },
-      });
-    },
-    [channel, username],
-  );
-
-  const dispatchMessage = useCallback(
-    async (
-      content: string,
-      metadata?: Record<string, unknown>,
-      modeOverride?: ComposerMode,
-    ): Promise<boolean> => {
-      useChatStore.getState().setChannelHold(channel, false);
-
-      let sendContent = content;
-      let composerMeta = metadata ?? {};
-      const effectiveComposerMode = modeOverride ?? composerMode;
-      const ws =
-        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
-        explorerWorkspaces[0];
-      const payload = await prepareOutboundPayload({
-        content,
-        composerMode: effectiveComposerMode,
-        agents,
-        activeTab: activeEditorTab,
-        editorAgentTrust: resolveEditorAgentTrust(layoutSettings, effectiveComposerMode),
-        composerMetadata: composerMeta,
-        api: ideEnabled ? api : undefined,
-        repoPath: ideEnabled ? ws?.path : undefined,
-        repoPaths: ideEnabled ? resolveScopedRepoPaths() : undefined,
-        ideEnabled,
-        channel,
-        channelMeta: activeChannelMeta,
-      });
-      sendContent = payload.content;
-      composerMeta = payload.metadata;
-
-      const baseMetadata = buildHumanOutboundMetadata({
-        contextMode: workspaceContextMode,
-        conversationMode: conversationModeSetting,
-        message: sendContent,
-        channel,
-        channelType: activeChannelMeta?.type,
-        composerMetadata: composerMeta,
-        ideCoding: ideLayout && hasIdeComposer,
-        recentChannelMessages: useChatStore.getState().messages,
-      });
-      const mergedMetadata =
-        workspaceContextMode === 'off'
-          ? baseMetadata
-          : await attachAmbientStateMetadata(
-              baseMetadata,
-              sendContent,
-              ideLayout && hasIdeComposer,
-            );
-
-      useChatStore.getState().setIsTyping(true);
-      markPendingSendThinking(channel);
-      try {
-        const trimmed = sendContent.trimStart();
-        const slashCommand = trimmed.startsWith('/');
-        if (trimmed.startsWith('/collaborate')) {
-          if (!confirmStartCollaborationWhileExecuting(executingCollaborationForChannel)) {
-            clearPendingSendThinking(channel);
-            return false;
-          }
-        }
-        if (slashCommand) {
-          appendLocalSlashCommand(sendContent.trim());
-        }
-
-        let sendResult;
-        const from = { name: username, type: 'human' };
-        // Slash commands stay on /api/send; semantic turns use prepare/fetch/dispatch.
-        if (slashCommand || workspaceContextMode === 'off') {
-          sendResult = await api.sendMessage(channel, sendContent, from, 'question', mergedMetadata);
-        } else {
-          try {
-            const prepareMeta = { ...mergedMetadata };
-            // Prepare envelope: identity + tree only; bodies come after context_request.
-            if (prepareMeta.workspace_context && typeof prepareMeta.workspace_context === 'object') {
-              const ws = { ...(prepareMeta.workspace_context as Record<string, unknown>) };
-              ws.open_files = [];
-              prepareMeta.workspace_context = ws;
-              prepareMeta.context_scope = 'hint';
-              prepareMeta.context_scope_reason = 'prepare envelope — structural availability';
-            }
-            const prepared = await api.prepareTurn(
-              channel,
-              sendContent,
-              from,
-              'question',
-              prepareMeta,
-            );
-            const { primary } = loadScopedWorkspaceContext();
-            const activePath = useEditorStore.getState().tabs.find(
-              (t) => t.id === useEditorStore.getState().activeTabId,
-            )?.path;
-            const dispatchMeta = await applyContextRequestToMetadata({
-              api,
-              metadata: mergedMetadata ?? {},
-              message: sendContent,
-              contextRequest: prepared.context_request ?? {},
-              prepareToken: prepared.prepare_token,
-              fullWorkspace: primary,
-              activeTabPath: activePath,
-            });
-            const req = prepared.context_request ?? {};
-            const withAmbient =
-              req.include_git_status || req.include_diagnostics
-                ? await attachAmbientStateMetadata(
-                    dispatchMeta,
-                    sendContent,
-                    ideLayout && hasIdeComposer,
-                    {
-                      force: true,
-                      includeGit: Boolean(req.include_git_status),
-                      includeDiagnostics: Boolean(req.include_diagnostics),
-                    },
-                  )
-                : dispatchMeta;
-            sendResult = await api.dispatchTurn(
-              channel,
-              sendContent,
-              from,
-              'question',
-              withAmbient,
-            );
-          } catch (prepareErr) {
-            console.warn('[dispatchMessage] prepare/dispatch fallback to /api/send', prepareErr);
-            sendResult = await api.sendMessage(
-              channel,
-              sendContent,
-              from,
-              'question',
-              mergedMetadata,
-            );
-          }
-        }
-        let timelineChannel = channel;
-        if (sendResult.collaboration_channel) {
-          clearPendingSendThinking(channel);
-          markPendingSendThinking(sendResult.collaboration_channel);
-          await loadChannels();
-          await handleSwitchChannel(sendResult.collaboration_channel);
-          timelineChannel = sendResult.collaboration_channel;
-          await loadCollaborations(timelineChannel);
-          let collab =
-            (sendResult.collaboration_id
-              ? collaborationsByIDRef.current[sendResult.collaboration_id]
-              : undefined) ??
-            Object.values(collaborationsByIDRef.current).find(
-              (c) => c.channel === sendResult.collaboration_channel
-            );
-          if (!collab && sendResult.collaboration_id) {
-            try {
-              collab = await api.getRunbook(sendResult.collaboration_id);
-            } catch (e) {
-              console.error('[dispatchMessage] failed to load runbook after redirect:', e);
-            }
-          }
-          await loadCollaborations(timelineChannel);
-          if (collab) {
-            mergeCollaborationSnapshot(collab);
-            setActiveCollab(collab);
-            syncCollabTurnThinking(collab, sendResult.collaboration_channel);
-          }
-        }
-        if (sendResult.dm_channel) {
-          clearPendingSendThinking(channel);
-          const dmName = sendResult.dm_channel;
-          markPendingSendThinking(dmName);
-          await loadAgents();
-          await loadChannels();
-          const channelList = useChatStore.getState().channels;
-          const { settings, isLoaded } = useSettingsStore.getState();
-          if (isLoaded) {
-            const patch = patchRevealForChannel(
-              settings,
-              dmName,
-              channelList,
-              useChatStore.getState().agents
-            );
-            if (patch) {
-              void updateSettings(patch);
-            }
-          }
-          await handleSwitchChannel(dmName);
-          timelineChannel = dmName;
-          addToast({
-            type: 'success',
-            title: 'Expert ready',
-            message: 'Opened the new expert direct message.',
-          });
-        }
-        if (sendContent.trimStart().startsWith('/')) {
-          try {
-            const msgs = await api.fetchMessages(timelineChannel, 50);
-            useChatStore.getState().setMessages(msgs);
-            await loadCollaborations(timelineChannel);
-          } catch (e) {
-            console.error('[dispatchMessage] post-command refresh failed:', e);
-          }
-        }
-        // Keep the pending row briefly after HTTP returns — classify may finish before
-        // the agent emits thinking_status. Clear when real thinking arrives (below) or
-        // after this safety timeout.
-        // Keep the pending row briefly after HTTP returns — classify may finish before
-        // the agent emits thinking_status. Clear when real thinking arrives or timeout.
-        window.setTimeout(() => {
-          clearPendingSendThinking(timelineChannel);
-        }, 20_000);
-        return true;
-      } catch (error) {
-        console.error('Failed to send message:', error);
-        clearPendingSendThinking(channel);
-        addToast({
-          type: 'error',
-          title: 'Message not sent',
-          message: error instanceof Error ? error.message : 'Failed to send message.',
-        });
-        return false;
-      } finally {
-        useChatStore.getState().setIsTyping(false);
-      }
-    },
-    [
-      api,
-      channel,
-      username,
-      appendLocalSlashCommand,
-      workspaceContextMode,
-      conversationModeSetting,
-      activeChannelMeta?.type,
-      loadChannels,
-      loadAgents,
-      handleSwitchChannel,
-      loadCollaborations,
-      mergeCollaborationSnapshot,
-      executingCollaborationForChannel,
-      addToast,
-      updateSettings,
-      ideLayout,
-      ideEnabled,
-      agents,
-      activeEditorTab,
-      composerMode,
-      hasIdeComposer,
-      explorerWorkspaces,
-      activeWorkspaceId,
-      resolveScopedRepoPaths,
-    ]
-  );
+  const {
+    dispatchThreadReply,
+    dispatchMessage,
+    handleChannelInterject,
+    appendLocalSlashCommand,
+  } = useChatOutboundDispatch({
+    api,
+    channel,
+    username,
+    workspaceContextMode,
+    conversationModeSetting,
+    activeChannelMeta,
+    composerMode,
+    agents,
+    activeEditorTab,
+    layoutSettings,
+    ideEnabled,
+    explorerWorkspaces,
+    activeWorkspaceId,
+    resolveScopedRepoPaths,
+    ideLayout,
+    hasIdeComposer,
+    addToast,
+    loadChannels,
+    loadAgents,
+    handleSwitchChannel,
+    loadCollaborations,
+    mergeCollaborationSnapshot,
+    setActiveCollab,
+    executingCollaborationForChannel,
+    updateSettings,
+    collaborationsByIDRef,
+  });
 
   const handleBuildPlan = useCallback(
     async (req: { markdown: string; planId: string }) => {

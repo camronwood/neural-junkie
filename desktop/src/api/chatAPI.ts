@@ -10,6 +10,9 @@ import {
 import { buildChannelWebSocketURL, buildThreadWebSocketURL } from './chatAPI/wsUrl';
 import { PacksApi } from './domains/packsApi';
 import { ChannelsApi } from './domains/channelsApi';
+import { MessagesApi } from './domains/messagesApi';
+import { CollabApi } from './domains/collabApi';
+import { AgentsApi } from './domains/agentsApi';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
 export interface SendMessageResponse {
@@ -424,12 +427,18 @@ export class ChatAPI {
   private commandsCache: CommandDefinition[] | null = null;
   private readonly packsApi: PacksApi;
   private readonly channelsApi: ChannelsApi;
+  private readonly messagesApi: MessagesApi;
+  private readonly collabApi: CollabApi;
+  private readonly agentsApi: AgentsApi;
 
   constructor(serverAddr: string = getHubBaseURL()) {
     this.baseURL = normalizeHubBaseURL(serverAddr);
     const hubFetch = (path: string, init?: RequestInit) => this.hubFetch(path, init);
     this.packsApi = new PacksApi(hubFetch);
     this.channelsApi = new ChannelsApi(hubFetch);
+    this.messagesApi = new MessagesApi(hubFetch);
+    this.collabApi = new CollabApi(hubFetch);
+    this.agentsApi = new AgentsApi(hubFetch);
   }
 
   /** JSON + hub token + session for authenticated hub calls. */
@@ -587,17 +596,7 @@ export class ChatAPI {
 
   // Fetch existing messages for a channel
   async fetchMessages(channel: string, limit: number = 50, beforeId?: string): Promise<Message[]> {
-    const params = new URLSearchParams({ channel, limit: String(limit) });
-    if (beforeId?.trim()) {
-      params.set('before', beforeId.trim());
-    }
-    const response = await this.hubFetch(`/api/messages?${params}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch messages: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.messagesApi.fetchMessages(channel, limit, beforeId);
   }
 
   async searchMessages(channel: string, query: string, limit: number = 50): Promise<Message[]> {
@@ -680,23 +679,8 @@ export class ChatAPI {
     }
   }
 
-  // Fetch collaboration snapshots for task/collaboration management UIs
   async fetchCollaborations(channel?: string, includeTerminal: boolean = false): Promise<Collaboration[]> {
-    const params = new URLSearchParams();
-    if (channel) {
-      params.set('channel', channel);
-    }
-    if (includeTerminal) {
-      params.set('include_terminal', 'true');
-    }
-    const query = params.toString();
-    const response = await this.hubFetch(`/api/collaborations${query ? `?${query}` : ''}`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch collaborations: ${response.statusText}`);
-    }
-
-    return response.json();
+    return this.collabApi.fetchCollaborations(channel, includeTerminal);
   }
 
   async fetchArtifacts(filters: {
@@ -892,11 +876,7 @@ export class ChatAPI {
   }
 
   async getRunbook(collabId: string): Promise<Collaboration> {
-    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}`);
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.collabApi.getRunbook(collabId);
   }
 
   async suggestRunbookAssignee(
@@ -1250,41 +1230,20 @@ export class ChatAPI {
   }
 
   async approveCollabParticipantRequest(collabId: string, agentId: string): Promise<Collaboration> {
-    return this.collabParticipantRequestPost(collabId, agentId, 'approve');
+    return this.collabApi.approveCollabParticipantRequest(collabId, agentId);
   }
 
   async denyCollabParticipantRequest(collabId: string, agentId: string): Promise<Collaboration> {
-    return this.collabParticipantRequestPost(collabId, agentId, 'deny');
+    return this.collabApi.denyCollabParticipantRequest(collabId, agentId);
   }
 
   /** Cursor-style Stop: pause agents on a channel until the user sends a message. */
   async channelInterject(channel: string, heldBy?: string): Promise<{ channel: string; held: boolean }> {
-    const response = await this.hubFetch(
-      `/api/channels/${encodeURIComponent(channel)}/interject`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ held_by: heldBy ?? '' }),
-      }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.messagesApi.channelInterject(channel, heldBy);
   }
 
   private async collabTaskPost(collabId: string, taskId: string, action: string): Promise<Collaboration> {
     const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/${action}`,
-      { method: 'POST' }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
-  }
-
-  private async collabParticipantRequestPost(collabId: string, agentId: string, action: 'approve' | 'deny'): Promise<Collaboration> {
-    const response = await this.hubFetch(
-      `/api/collaborations/${encodeURIComponent(collabId)}/participant-requests/${encodeURIComponent(agentId)}/${action}`,
       { method: 'POST' }
     );
     if (!response.ok) {
@@ -1301,40 +1260,7 @@ export class ChatAPI {
     type: string = 'question',
     credentials?: Record<string, any>
   ): Promise<SendMessageResponse> {
-    const body: any = {
-      channel,
-      content,
-      type,
-      from,
-    };
-
-    // Add credentials to metadata if provided
-    if (credentials) {
-      body.metadata = { ...credentials };
-      const replyTo = credentials.reply_to;
-      if (typeof replyTo === 'string' && replyTo.trim()) {
-        body.reply_to = replyTo.trim();
-      }
-    }
-
-    const response = await this.hubFetch(`/api/send`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to send message: ${response.statusText}`);
-    }
-
-    const text = await response.text();
-    if (!text.trim()) {
-      return { status: 'ok' };
-    }
-    try {
-      return JSON.parse(text) as SendMessageResponse;
-    } catch {
-      return { status: 'ok' };
-    }
+    return this.messagesApi.sendMessage(channel, content, from, type, credentials);
   }
 
   /** Classify a turn and return a context_request before uploading payloads. */
@@ -1349,23 +1275,7 @@ export class ChatAPI {
     context_request: import('../utils/contextRequestAttach').ContextRequestPayload;
     decision?: Record<string, unknown>;
   }> {
-    const body: any = { channel, content, type, from };
-    if (metadata) {
-      body.metadata = { ...metadata };
-      const replyTo = metadata.reply_to;
-      if (typeof replyTo === 'string' && replyTo.trim()) {
-        body.reply_to = replyTo.trim();
-      }
-    }
-    const response = await this.hubFetch(`/api/turn/prepare`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(detail.trim() || `Failed to prepare turn: ${response.statusText}`);
-    }
-    return response.json();
+    return this.messagesApi.prepareTurn(channel, content, from, type, metadata);
   }
 
   /** Finalize a prepared turn after uploading requested context. */
@@ -1376,91 +1286,28 @@ export class ChatAPI {
     type: string = 'question',
     metadata?: Record<string, any>
   ): Promise<SendMessageResponse> {
-    const body: any = { channel, content, type, from };
-    if (metadata) {
-      body.metadata = { ...metadata };
-      const replyTo = metadata.reply_to;
-      if (typeof replyTo === 'string' && replyTo.trim()) {
-        body.reply_to = replyTo.trim();
-      }
-    }
-    const response = await this.hubFetch(`/api/turn/dispatch`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to dispatch turn: ${response.statusText}`);
-    }
-    const text = await response.text();
-    if (!text.trim()) {
-      return { status: 'ok' };
-    }
-    try {
-      return JSON.parse(text) as SendMessageResponse;
-    } catch {
-      return { status: 'ok' };
-    }
+    return this.messagesApi.dispatchTurn(channel, content, from, type, metadata);
   }
 
   // Fetch list of active agents
   async fetchAgents(options?: { includeToolCounts?: boolean }): Promise<AgentInfo[]> {
-    const params = new URLSearchParams();
-    if (options?.includeToolCounts) {
-      params.set('include_tool_counts', 'true');
-    }
-    const qs = params.toString();
-    const response = await this.hubFetch(`/api/agents${qs ? `?${qs}` : ''}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch agents: ${response.statusText}`);
-    }
-    
-    const agents = await response.json();
-    
-    
-    return agents;
+    return this.agentsApi.fetchAgents(options);
   }
 
   async fetchAgentTools(agentId: string): Promise<AgentToolCapabilities> {
-    const response = await this.hubFetch(`/api/agent-tools?agent_id=${encodeURIComponent(agentId)}`
-    );
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(detail.trim() || `Failed to fetch agent tools: ${response.statusText}`);
-    }
-    return response.json();
+    return this.agentsApi.fetchAgentTools(agentId);
   }
 
   async fetchChannelTools(channel: string): Promise<ChannelToolsResponse> {
-    const response = await this.hubFetch(`/api/channel-tools?channel=${encodeURIComponent(channel)}`
-    );
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(detail.trim() || `Failed to fetch channel tools: ${response.statusText}`);
-    }
-    return response.json();
+    return this.agentsApi.fetchChannelTools(channel);
   }
 
   async fetchCapabilityPolicy(): Promise<CapabilityPolicyResponse> {
-    const response = await this.hubFetch('/api/capability-policy');
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(detail.trim() || `Failed to fetch capability policy: ${response.statusText}`);
-    }
-    return response.json();
+    return this.agentsApi.fetchCapabilityPolicy();
   }
 
   async updateCapabilityPolicy(update: CapabilityPolicyUpdate): Promise<CapabilityPolicyResponse> {
-    const response = await this.hubFetch('/api/capability-policy', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(update),
-    });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(detail.trim() || `Failed to update capability policy: ${response.statusText}`);
-    }
-    return response.json();
+    return this.agentsApi.updateCapabilityPolicy(update);
   }
 
   // Fetch list of channels
@@ -2093,7 +1940,6 @@ export class ChatAPI {
     return response.json();
   }
 
-  // Send a reply to a thread
   async sendThreadReply(
     threadId: string,
     channel: string,
@@ -2101,52 +1947,17 @@ export class ChatAPI {
     from: { name: string; type: string },
     metadata?: Record<string, unknown>
   ): Promise<void> {
-    const body: Record<string, unknown> = {
-      channel,
-      content,
-      from,
-    };
-    if (metadata && Object.keys(metadata).length > 0) {
-      body.metadata = metadata;
-    }
-
-    const response = await this.hubFetch(`/api/threads/${encodeURIComponent(threadId)}/reply`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to send thread reply: ${response.statusText}`);
-    }
+    return this.messagesApi.sendThreadReply(threadId, channel, content, from, metadata);
   }
 
   // Fetch thread metadata
   async fetchThreadMetadata(threadId: string): Promise<ThreadMetadata> {
-    const response = await this.hubFetch(`/api/threads/${encodeURIComponent(threadId)}/metadata`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch thread metadata: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.messagesApi.fetchThreadMetadata(threadId);
   }
 
   // Fetch my agents
   async fetchMyAgents(): Promise<CachedAgentInfo[]> {
-    const response = await this.hubFetch(`/api/my-agents`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch my agents: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data.my_agents || [];
+    return this.agentsApi.fetchMyAgents();
   }
 
   /** Delete a cached agent entry (repo index, CLI record) without loading it. */
@@ -2170,14 +1981,7 @@ export class ChatAPI {
 
   // Fetch removed agents
   async fetchRemovedAgents(): Promise<AgentInfo[]> {
-    const response = await this.hubFetch(`/api/removed-agents`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch removed agents: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data.removed_agents || [];
+    return this.agentsApi.fetchRemovedAgents();
   }
 
   // Remove an agent from conversation
@@ -3506,14 +3310,7 @@ export class ChatAPI {
   }
 
   async answerUserQuestion(questionId: string, answer: string): Promise<void> {
-    const response = await this.hubFetch(`/api/user-questions/answer/${questionId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answer }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to answer question: ${response.statusText}`);
-    }
+    return this.messagesApi.answerUserQuestion(questionId, answer);
   }
 
   async setAgentApprovalMode(agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo'): Promise<void> {

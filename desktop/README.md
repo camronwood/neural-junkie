@@ -14,6 +14,17 @@ Tauri + React desktop client for Neural Junkie (v1.2.x). Talks to the **sidecar 
 
 Heavy panels (editor, packs, collab, workbenches) load on demand via code-splitting.
 
+### Bundle size baseline (post-P4, `npm run build`)
+
+| Chunk | Raw | Gzip |
+|-------|-----|------|
+| `index-*.js` (app) | ~2.79 MB | ~794 KB |
+| `vendor-react-*.js` | ~342 KB | ~110 KB |
+| `vendor-virtuoso-*.js` | ~55 KB | ~19 KB |
+| `monacoSetup-*.js` | ~3.7 MB | ~958 KB (lazy) |
+
+P1 lazy-loading dropped the main chunk from ~7.4 MB raw (~3.2 MB pre-P4). P4 `manualChunks` in `vite.config.ts` splits React/Zustand and Virtuoso for a further ~400 KB raw savings on the entry chunk.
+
 ## Prerequisites
 
 - **Node.js** 18+

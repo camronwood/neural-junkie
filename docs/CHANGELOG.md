@@ -6,6 +6,25 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.24] - 2026-08-25
+
+P0–P4 polish: collab reliability proof, cold-start chunk tuning, ChatWindow/chatAPI decomposition finish, beta.24 release prep.
+
+### Added
+- **Outbound dispatch hook** — `useChatOutboundDispatch` / `createChatOutboundDispatch` extracts send/command path from ChatWindow; `ChatWindow.send.test.tsx` coverage.
+- **chatAPI domain modules** — `messagesApi`, `collabApi`, `agentsApi` behind the existing ChatAPI façade (with packs/channels from P3).
+- **P4 collab proof artifact** — [p4-collab-proof-2026-08-25.md](testing/p4-collab-proof-2026-08-25.md).
+
+### Changed
+- **Collab gen-error handoff (P0)** — planning turn advances after two generation errors; CollaborationPanel banners for gen-error and pending-file states.
+- **Cold start (P1)** — lazy Monaco/Mermaid/panels; app toasts and panel ErrorBoundaries.
+- **Settings (P2)** — Essentials/Advanced split; Domain packs deep-link from Settings.
+- **Structure (P3/P4)** — WS inbound handler + initial loaders extracted; ChatWindow send path and five chatAPI domain modules.
+- **Vite manualChunks (P4-C)** — `vendor-react` and `vendor-virtuoso` splits; main chunk ~2.79 MB raw / ~794 KB gzip (was ~3.2 MB / ~924 KB pre-P4).
+
+### Fixed
+- **Collab agent silence (#20)** — mitigated: core matrix green ×2 on 2026-08-25; `document-findings-execution` passes with P0 handoff + harness nudge.
+
 ## [1.2.0-beta.23] - 2026-08-21
 
 Plan mode, document canvas, first-win coach, and tighter small-model IDE turns.
