@@ -124,9 +124,7 @@ import {
 import { getChangeProposalCard } from '../types/protocol';
 import { findThreadParentMessage } from '../utils/slackThread';
 import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
-import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
-import { resolveTerminalCwd } from '../utils/terminalCwd';
 import { useSuggestedCommands } from '../hooks/useSuggestedCommands';
 import {
   ensureRepoAgentWorkspace,
@@ -148,7 +146,6 @@ import { useChatShortcutHandlers } from '../hooks/useChatShortcutHandlers';
 import { useChatShortcutOverlays } from '../hooks/useChatShortcutOverlays';
 import { useShortcutDispatcher } from '../shortcuts/useShortcutDispatcher';
 import { formatChord } from '../shortcuts/format';
-import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 import type { LayoutPreset } from '../stores/settingsStore';
 import {
   loadComposerMode,
@@ -160,6 +157,7 @@ import { NJ_BUILD_PLAN_EVENT, buildPlanBuildMessage } from '../utils/planCard';
 import { resolveWorkspaceScope, scopedRepoPaths } from '../utils/workspaceScope';
 import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
+import { useChatChannelActions } from '../hooks/useChatChannelActions';
 import { useChatOutboundDispatch } from '../hooks/useChatOutboundDispatch';
 import { registerRestartBlocker } from '../utils/restartSafety';
 import {
@@ -1060,64 +1058,36 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   }, [api]);
 
-  const handleWorkspaceGateContinue = useCallback(async () => {
-    const c = workspaceGateCollab;
-    if (!c) return;
-    setWorkspaceGateBusy(true);
-    try {
-      let sourceRepoPath: string | undefined;
-      if (c.execution_mode === 'worktree' && !c.source_repo_path?.trim()) {
-        const active = useFileExplorerStore.getState().getActiveWorkspace();
-        if (!active?.path?.trim()) {
-          throw new Error('Select a git workspace in the file explorer before continuing.');
-        }
-        if (!active.is_git_repo) {
-          throw new Error('Active workspace is not a git repository.');
-        }
-        sourceRepoPath = active.path;
-      }
-      const deferWorktree = c.execution_mode === 'worktree' && !c.working_directory?.trim();
-      if (!deferWorktree) {
-        await ensureCollaborationExecutionWorkspace(c);
-      }
-      await api.acknowledgeCollaborationWorkspace(c.id, sourceRepoPath);
-      dismissedWorkspaceGateIdRef.current = null;
-      if (useChatStore.getState().channel === c.channel) {
-        setWorkspaceContextMode('always');
-        localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, 'always');
-      }
-      await loadCollaborations(channel);
-      if (deferWorktree) {
-        const refreshed = collaborationsByIDRef.current[c.id];
-        if (refreshed?.working_directory?.trim()) {
-          await ensureCollaborationExecutionWorkspace(refreshed);
-        }
-      }
-      setWorkspaceGateCollab(null);
-      workspaceGateToastIdRef.current = null;
-    } catch (e) {
-      console.error('[workspace gate]', e);
-      addToast({
-        type: 'error',
-        title: 'Workspace confirmation failed',
-        message: e instanceof Error ? e.message : 'Could not confirm workspace',
-      });
-    } finally {
-      setWorkspaceGateBusy(false);
-    }
-  }, [workspaceGateCollab, api, channel, loadCollaborations, addToast]);
-
-  const handleWorkspaceGateDismiss = useCallback(() => {
-    if (workspaceGateCollab) {
-      dismissedWorkspaceGateIdRef.current = workspaceGateCollab.id;
-    }
-    setWorkspaceGateCollab(null);
-    addToast({
-      type: 'info',
-      title: 'Workspace confirmation pending',
-      message: 'Use the banner in the collaboration panel or chat strip when you are ready.',
-    });
-  }, [workspaceGateCollab, addToast]);
+  const {
+    handleWorkspaceGateContinue,
+    handleWorkspaceGateDismiss,
+    handleSwitchChannel,
+    handleNewRunbook,
+    handleCreateBlankRunbook,
+    handleCreateChannel,
+    handleDeleteChannel,
+    handleOpenChannelInfo,
+  } = useChatChannelActions({
+    api,
+    channel,
+    username,
+    agents,
+    channels,
+    workspaceGateCollab,
+    setWorkspaceGateBusy,
+    setWorkspaceGateCollab,
+    setWorkspaceContextMode,
+    dismissedWorkspaceGateIdRef,
+    workspaceGateToastIdRef,
+    collaborationsByIDRef,
+    loadCollaborations,
+    loadChannels,
+    addToast,
+    setActiveCollab,
+    setRunbookLibraryOpen,
+    setChannelInfoModal,
+    updateSettings,
+  });
 
   const trackedCollaborations = useMemo(
     () =>
@@ -1189,64 +1159,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [trackedCollaborations]
   );
 
-  const revealSidebarForChannel = useCallback(
-    (channelName: string) => {
-      const { settings, isLoaded } = useSettingsStore.getState();
-      if (!isLoaded) return;
-      const patch = patchRevealForChannel(
-        settings,
-        channelName,
-        useChatStore.getState().channels,
-        useChatStore.getState().agents
-      );
-      if (patch) {
-        void updateSettings(patch);
-      }
-    },
-    [updateSettings]
-  );
-
-  // Handle switching channel: switch store state, then load fresh messages
-  const handleSwitchChannel = useCallback(
-    async (channelName: string) => {
-      const prevChannel = useChatStore.getState().channel;
-      if (channelName === prevChannel) return;
-      revealSidebarForChannel(channelName);
-      // Collaboration side panel is channel-scoped; clear when navigating.
-      setActiveCollab(null);
-      useChatStore.getState().switchChannel(channelName);
-      localStorage.setItem('last-channel', channelName);
-      void import('../stores/activityLogStore').then(({ logActivity }) => {
-        logActivity({
-          kind: 'channel',
-          title: 'Switched channel',
-          channel: channelName,
-          detail: prevChannel ? `from #${prevChannel}` : undefined,
-        });
-      });
-      if (prevChannel && prevChannel !== channelName) {
-        useChatStore.getState().clearThinkingAgents(prevChannel);
-      }
-      try {
-        const msgs = await api.fetchMessages(channelName, 50);
-        useChatStore.getState().setMessages(msgs);
-        useChatStore.getState().cleanupStaleThinking(channelName, msgs);
-        await loadCollaborations(channelName);
-        const collab = Object.values(collaborationsByIDRef.current).find(
-          (c) => c.channel === channelName && !isTerminalCollaborationPhase(c.phase)
-        );
-        if (collab) {
-          syncCollabTurnThinking(collab, channelName);
-        }
-        const cwd = resolveTerminalCwd({ collaboration: collab ?? null });
-        useTerminalStore.getState().alignActiveTabCwd(cwd);
-      } catch (error) {
-        console.error('Failed to load messages for channel:', error);
-      }
-    },
-    [api, loadCollaborations, revealSidebarForChannel]
-  );
-
   const navigateToMessage = useCallback(
     async (channelName: string, messageId: string) => {
       useChatStore.getState().setPendingScrollToMessageId(messageId);
@@ -1273,116 +1185,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       });
     },
     [addToast, navigateToMessage]
-  );
-
-  const handleNewRunbook = useCallback(async () => {
-    setRunbookLibraryOpen(true);
-  }, []);
-
-  const handleCreateBlankRunbook = useCallback(async () => {
-    const pool = agents.filter((a) => a.status === 'active' || a.status === 'idle');
-    if (pool.length < 1) {
-      addToast({ type: 'error', title: 'No agents', message: 'Add at least one active agent before creating a runbook.' });
-      return;
-    }
-    const currentChannel = channels.find((c) => c.name === channel);
-    const channelAgentIds = new Set(
-      currentChannel?.agents?.map((a) => a.id) ?? currentChannel?.members ?? []
-    );
-    const channelPool = pool.filter((a) => channelAgentIds.has(a.id));
-    const pickFrom = channelPool.length > 0 ? channelPool : pool;
-    const picked = pickFrom.slice(0, Math.min(MAX_COLLAB_AGENTS, pickFrom.length));
-    try {
-      const result = await api.createRunbook({
-        description: 'New runbook',
-        agent_ids: picked.map((a) => a.id),
-        channel,
-        created_by: username || 'User',
-      });
-      if (result.collaboration_channel && result.collaboration_channel !== channel) {
-        await handleSwitchChannel(result.collaboration_channel);
-      }
-      setActiveCollab(result.collaboration);
-      addToast({
-        type: 'success',
-        title: 'Runbook created',
-        message: 'Define tasks in the runbook builder panel.',
-      });
-      void loadCollaborations(channel);
-    } catch (e) {
-      addToast({
-        type: 'error',
-        title: 'Runbook failed',
-        message: e instanceof Error ? e.message : String(e),
-      });
-    }
-  }, [agents, api, channel, channels, username, addToast, loadCollaborations, handleSwitchChannel]);
-
-  // Create a custom channel
-  const handleCreateChannel = useCallback(async (name: string, description: string, agentIds: string[]) => {
-    try {
-      await api.createChannel(name, description, 'custom', agentIds, username);
-      await loadChannels();
-      await handleSwitchChannel(name);
-    } catch (error) {
-      console.error('Failed to create channel:', error);
-      addToast({
-        type: 'error',
-        title: 'Could not create channel',
-        message: error instanceof Error ? error.message : 'Channel creation failed.',
-      });
-    }
-  }, [api, username, loadChannels, handleSwitchChannel, addToast]);
-
-  const handleDeleteChannel = useCallback(
-    async (name: string) => {
-      const ch = useChatStore.getState().channels.find((c) => c.name === name);
-      const label = ch?.type === 'collaboration' ? 'collaboration' : 'channel';
-      if (!window.confirm(`Delete ${label} #${name}? This cannot be undone.`)) return;
-      try {
-        await api.deleteChannel(name);
-        const wasActive = useChatStore.getState().channel === name;
-        await loadChannels();
-        if (wasActive) {
-          await handleSwitchChannel('general');
-        }
-        setChannelInfoModal((cur) => (cur?.name === name ? null : cur));
-        const { logActivity } = await import('../stores/activityLogStore');
-        logActivity({
-          kind: 'channel',
-          title: `Deleted ${label}`,
-          detail: name,
-          channel: name,
-        });
-        addToast({
-          type: 'success',
-          title: 'Channel deleted',
-          message: `#${name} was removed.`,
-        });
-      } catch (error) {
-        console.error('Failed to delete channel:', error);
-        addToast({
-          type: 'error',
-          title: 'Could not delete channel',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
-      }
-    },
-    [api, loadChannels, handleSwitchChannel, addToast]
-  );
-
-  const handleOpenChannelInfo = useCallback(
-    async (ch: Channel) => {
-      try {
-        await loadChannels();
-        const list = useChatStore.getState().channels;
-        const fresh = list.find((c) => c.name === ch.name) ?? ch;
-        setChannelInfoModal(fresh);
-      } catch {
-        setChannelInfoModal(ch);
-      }
-    },
-    [loadChannels]
   );
 
   // Create a DM channel with an agent

@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.24">v1.2.0-beta.24</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.25">v1.2.0-beta.25</a> — macOS, Windows, and Linux (beta.24 installers also published). Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.25">1.2.0-beta.25</a>
+      ·
       <a href="#v1.2.0-beta.24">1.2.0-beta.24</a>
       ·
       <a href="#v1.2.0-beta.23">1.2.0-beta.23</a>
@@ -237,6 +239,22 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1.2.0-beta.25" class="release-version-heading">1.2.0-beta.25 <span class="release-date">— 2026-08-27</span></h2>
+
+      <p><strong>P5 — publish beta.24 + structure continue.</strong> beta.24 installers shipped after Actions recovery. chatAPI gains <code>artifactsApi</code>, <code>runbooksApi</code>, and <code>roomsApi</code>; ChatWindow channel switch / workspace gate / runbook create extract to <code>useChatChannelActions</code>. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.25">GitHub Releases</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>chatAPI domains</strong> — artifacts, runbooks, and rooms/session APIs behind the façade.</li>
+        <li><strong>Channel actions hook</strong> — <code>useChatChannelActions</code> / <code>createChatChannelActions</code> with channel tests.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Gate 5</strong> — beta.24 published; interactive macOS + Win/Linux smoke still open on #18.</li>
+        <li><strong>#21</strong> — cloud collab repro deferred (no Claude auth in regression env).</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.24" class="release-version-heading">1.2.0-beta.24 <span class="release-date">— 2026-08-25</span></h2>
 
       <p><strong>P0–P4 polish — collab proof, cold-start tuning, structure finish.</strong> Collab core matrix green ×2; #20 mitigated/closed. Outbound send path extracted from ChatWindow; <code>messagesApi</code>, <code>collabApi</code>, and <code>agentsApi</code> behind the chatAPI façade. Vite <code>manualChunks</code> drops the main bundle to ~794 KB gzip. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.24">GitHub Releases</a>.</p>

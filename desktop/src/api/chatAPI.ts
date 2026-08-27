@@ -13,6 +13,9 @@ import { ChannelsApi } from './domains/channelsApi';
 import { MessagesApi } from './domains/messagesApi';
 import { CollabApi } from './domains/collabApi';
 import { AgentsApi } from './domains/agentsApi';
+import { ArtifactsApi } from './domains/artifactsApi';
+import { RunbooksApi } from './domains/runbooksApi';
+import { RoomsApi } from './domains/roomsApi';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
 export interface SendMessageResponse {
@@ -430,6 +433,9 @@ export class ChatAPI {
   private readonly messagesApi: MessagesApi;
   private readonly collabApi: CollabApi;
   private readonly agentsApi: AgentsApi;
+  private readonly artifactsApi: ArtifactsApi;
+  private readonly runbooksApi: RunbooksApi;
+  private readonly roomsApi: RoomsApi;
 
   constructor(serverAddr: string = getHubBaseURL()) {
     this.baseURL = normalizeHubBaseURL(serverAddr);
@@ -439,6 +445,9 @@ export class ChatAPI {
     this.messagesApi = new MessagesApi(hubFetch);
     this.collabApi = new CollabApi(hubFetch);
     this.agentsApi = new AgentsApi(hubFetch);
+    this.artifactsApi = new ArtifactsApi(hubFetch);
+    this.runbooksApi = new RunbooksApi(hubFetch);
+    this.roomsApi = new RoomsApi(hubFetch, this.baseURL);
   }
 
   /** JSON + hub token + session for authenticated hub calls. */
@@ -468,18 +477,7 @@ export class ChatAPI {
 
   /** Create or refresh a hub user session (channel ACL). */
   async createSession(username: string): Promise<{ token: string; username: string; role?: string }> {
-    const response = await this.hubFetch('/api/auth/session', {
-      method: 'POST',
-      body: JSON.stringify({ username }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create session: ${response.statusText}`);
-    }
-    const data = (await response.json()) as { token: string; username: string; role?: string };
-    if (data.token) {
-      setHubSessionToken(data.token);
-    }
-    return data;
+    return this.roomsApi.createSession(username);
   }
 
   async createRoom(params?: {
@@ -487,59 +485,23 @@ export class ChatAPI {
     ttl_hours?: number;
     max_members?: number;
   }): Promise<{ room: any; channel: any }> {
-    const response = await this.hubFetch('/api/room/create', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: params?.name ?? '',
-        ttl_hours: params?.ttl_hours ?? 0,
-        max_members: params?.max_members ?? 0,
-      }),
-    });
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to create room: ${response.statusText}`);
-    }
-    return response.json();
+    return this.roomsApi.createRoom(params);
   }
 
   async leaveRoom(roomId: string): Promise<void> {
-    const response = await this.hubFetch('/api/room/leave', {
-      method: 'POST',
-      body: JSON.stringify({ room_id: roomId }),
-    });
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to leave room: ${response.statusText}`);
-    }
+    return this.roomsApi.leaveRoom(roomId);
   }
 
   async endRoom(roomId: string): Promise<void> {
-    const response = await this.hubFetch('/api/room/end', {
-      method: 'POST',
-      body: JSON.stringify({ room_id: roomId }),
-    });
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to end room: ${response.statusText}`);
-    }
+    return this.roomsApi.endRoom(roomId);
   }
 
   async getRoom(roomId: string): Promise<any> {
-    const response = await this.hubFetch(`/api/room/${encodeURIComponent(roomId)}`);
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to fetch room: ${response.statusText}`);
-    }
-    return response.json();
+    return this.roomsApi.getRoom(roomId);
   }
 
   async getRoomPresence(roomId: string): Promise<{ room_id: string; members: any[] }> {
-    const response = await this.hubFetch(`/api/room/${encodeURIComponent(roomId)}/presence`);
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to fetch room presence: ${response.statusText}`);
-    }
-    return response.json();
+    return this.roomsApi.getRoomPresence(roomId);
   }
 
   async joinRoom(
@@ -547,17 +509,7 @@ export class ChatAPI {
     joinCode: string,
     username: string
   ): Promise<{ room: any; session: { token: string; username: string }; hub_url: string; hub_token: string; room_channel: string }> {
-    const base = normalizeHubBaseURL(hostHubUrl);
-    const response = await fetch(`${base}/api/room/join`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ join_code: joinCode, username }),
-    });
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to join room: ${response.statusText}`);
-    }
-    return response.json();
+    return this.roomsApi.joinRoom(hostHubUrl, joinCode, username);
   }
 
   /** Mint an admin session using the hub bootstrap secret (API keys, ACL admin). */
@@ -565,33 +517,7 @@ export class ChatAPI {
     username: string,
     bootstrapToken: string
   ): Promise<{ token: string; username: string; role: string }> {
-    const boot = bootstrapToken.trim();
-    if (!boot) {
-      throw new Error('Bootstrap token is required for admin session');
-    }
-    const response = await fetch(`${this.baseURL}/api/auth/session`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...hubAuthHeaders(),
-        'X-NJ-Bootstrap': boot,
-      },
-      body: JSON.stringify({ username, role: 'admin' }),
-    });
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(
-        detail ? `Admin unlock failed: ${detail}` : `Admin unlock failed: ${response.statusText}`
-      );
-    }
-    const data = (await response.json()) as { token: string; username: string; role: string };
-    if (data.role !== 'admin') {
-      throw new Error('Hub did not grant admin role — check bootstrap token');
-    }
-    if (data.token) {
-      setHubSessionToken(data.token);
-    }
-    return data;
+    return this.roomsApi.createAdminSession(username, bootstrapToken);
   }
 
   // Fetch existing messages for a channel
@@ -651,32 +577,15 @@ export class ChatAPI {
   }
 
   async listAPIKeys(): Promise<Array<Record<string, unknown>>> {
-    const response = await this.hubFetch('/api/auth/api-keys');
-    if (!response.ok) {
-      throw new Error(`Failed to list API keys: ${response.statusText}`);
-    }
-    return response.json();
+    return this.roomsApi.listAPIKeys();
   }
 
   async createAPIKey(name: string, role: string): Promise<{ api_key: string; record: Record<string, unknown> }> {
-    const response = await this.hubFetch('/api/auth/api-keys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, role }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create API key: ${response.statusText}`);
-    }
-    return response.json();
+    return this.roomsApi.createAPIKey(name, role);
   }
 
   async revokeAPIKey(id: string): Promise<void> {
-    const response = await this.hubFetch(`/api/auth/api-keys/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to revoke API key: ${response.statusText}`);
-    }
+    return this.roomsApi.revokeAPIKey(id);
   }
 
   async fetchCollaborations(channel?: string, includeTerminal: boolean = false): Promise<Collaboration[]> {
@@ -691,104 +600,44 @@ export class ChatAPI {
     renderer_id?: string;
     kind?: string;
   } = {}): Promise<StoredArtifact[]> {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) params.set(key, value);
-    });
-    const response = await this.hubFetch(`/api/artifacts${params.size ? `?${params}` : ''}`);
-    if (!response.ok) throw new Error(await response.text() || response.statusText);
-    return response.json();
+    return this.artifactsApi.fetchArtifacts(filters);
   }
 
   async fetchArtifact(id: string): Promise<StoredArtifact> {
-    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}`);
-    if (!response.ok) throw new Error(await response.text() || response.statusText);
-    return response.json();
+    return this.artifactsApi.fetchArtifact(id);
   }
 
   async createArtifact(artifact: Partial<StoredArtifact>): Promise<StoredArtifact> {
-    const response = await this.hubFetch('/api/artifacts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(artifact),
-    });
-    if (!response.ok) throw new Error(await response.text() || response.statusText);
-    return response.json();
+    return this.artifactsApi.createArtifact(artifact);
   }
 
   async updateArtifact(artifact: StoredArtifact): Promise<StoredArtifact> {
-    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(artifact.id)}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'If-Match': String(artifact.revision),
-      },
-      body: JSON.stringify(artifact),
-    });
-    if (!response.ok) throw new Error(await response.text() || response.statusText);
-    return response.json();
+    return this.artifactsApi.updateArtifact(artifact);
   }
 
   async deleteArtifact(id: string, revision: number): Promise<void> {
-    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-      headers: { 'If-Match': String(revision) },
-    });
-    if (!response.ok) throw new Error(await response.text() || response.statusText);
+    return this.artifactsApi.deleteArtifact(id, revision);
   }
 
   async fetchArtifactRevisions(id: string): Promise<StoredArtifactRevision[]> {
-    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}/revisions`);
-    if (!response.ok) throw new Error(await response.text() || response.statusText);
-    return response.json();
+    return this.artifactsApi.fetchArtifactRevisions(id);
   }
 
   async fetchArtifactRevision(id: string, revision: number): Promise<StoredArtifactRevision> {
-    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}/revisions/${revision}`);
-    if (!response.ok) throw new Error(await response.text() || response.statusText);
-    return response.json();
+    return this.artifactsApi.fetchArtifactRevision(id, revision);
   }
 
   async duplicateArtifact(id: string, newId = ''): Promise<StoredArtifact> {
-    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}/duplicate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: newId }),
-    });
-    if (!response.ok) throw new Error(await response.text() || response.statusText);
-    return response.json();
+    return this.artifactsApi.duplicateArtifact(id, newId);
   }
 
   async exportArtifact(id: string, workspaceId: string, path: string, channel = ''): Promise<FileChange> {
-    const response = await this.hubFetch(`/api/artifacts/${encodeURIComponent(id)}/export`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspace_id: workspaceId, path, channel }),
-    });
-    if (!response.ok) throw new Error(await response.text() || response.statusText);
-    return response.json();
+    return this.artifactsApi.exportArtifact(id, workspaceId, path, channel);
   }
 
   /** Load a Neural Canvas artifact asset as a data URL (auth via hub session). */
   async fetchArtifactAssetDataUrl(artifactId: string, name: string): Promise<string> {
-    const response = await this.hubFetch(
-      `/api/artifacts/${encodeURIComponent(artifactId)}/assets/${encodeURIComponent(name)}`,
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    const buf = await response.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]!);
-    }
-    const b64 = btoa(binary);
-    const ct = response.headers.get('Content-Type') || 'application/octet-stream';
-    const mime = ct.includes('octet-stream')
-      ? guessImageMimeFromName(name)
-      : ct.split(';')[0]!.trim();
-    return `data:${mime};base64,${b64}`;
+    return this.artifactsApi.fetchArtifactAssetDataUrl(artifactId, name);
   }
 
   /** Read user-granted files/directories under ~/.neural-junkie for agent context. */
@@ -842,15 +691,7 @@ export class ChatAPI {
     execution_mode?: string;
     source_repo_path?: string;
   }): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
-    const response = await this.hubFetch(`/api/runbooks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.createRunbook(body);
   }
 
   async updateRunbook(
@@ -864,15 +705,7 @@ export class ChatAPI {
       graph_layout?: GraphLayout;
     }
   ): Promise<Collaboration> {
-    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.updateRunbook(collabId, body);
   }
 
   async getRunbook(collabId: string): Promise<Collaboration> {
@@ -884,163 +717,61 @@ export class ChatAPI {
     title: string,
     description: string
   ): Promise<AssignSuggestion | null> {
-    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}/suggest-assignee`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description }),
-      }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    const data = await response.json();
-    if (data.agent_id) {
-      return data as AssignSuggestion;
-    }
-    return null;
+    return this.runbooksApi.suggestRunbookAssignee(collabId, title, description);
   }
 
   async parseRunbookPlan(collabId: string, markdown: string): Promise<CollaborationTask[]> {
-    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}/parse-plan`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markdown }),
-      }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    const data = await response.json();
-    return data.tasks ?? [];
+    return this.runbooksApi.parseRunbookPlan(collabId, markdown);
   }
 
   async submitRunbook(collabId: string): Promise<Collaboration> {
-    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}/submit`,
-      { method: 'POST' }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.submitRunbook(collabId);
   }
 
   async startRunbook(collabId: string, inputs?: Record<string, string>): Promise<Collaboration> {
-    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}/start`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(inputs ? { inputs } : {}),
-      }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.startRunbook(collabId, inputs);
   }
 
   async listRunbookDefinitions(): Promise<RunbookDefinitionSummary[]> {
-    const response = await this.hubFetch(`/api/runbook-definitions`);
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
+    return this.runbooksApi.listRunbookDefinitions();
   }
 
   async getRunbookDefinition(id: string, version?: number): Promise<RunbookDefinition> {
-    const qs = version ? `?version=${version}` : '';
-    const response = await this.hubFetch(`/api/runbook-definitions/${encodeURIComponent(id)}${qs}`);
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.getRunbookDefinition(id, version);
   }
 
   async saveRunbookDefinition(def: RunbookDefinition): Promise<RunbookDefinition> {
-    const path = def.id
-      ? `/api/runbook-definitions/${encodeURIComponent(def.id)}`
-      : '/api/runbook-definitions';
-    const response = await this.hubFetch(path, {
-      method: def.id ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(def),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.saveRunbookDefinition(def);
   }
 
   async exportRunbookDefinition(id: string, version?: number): Promise<RunbookDefinitionBundle> {
-    const qs = version ? `?version=${version}` : '';
-    const response = await this.hubFetch(`/api/runbook-definitions/${encodeURIComponent(id)}/export${qs}`);
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.exportRunbookDefinition(id, version);
   }
 
   async importRunbookDefinition(
     bundleOrDefinition: RunbookDefinitionBundle | RunbookDefinition,
     options?: { keepId?: boolean }
   ): Promise<RunbookDefinition> {
-    const qs = options?.keepId ? '?keep_id=true' : '';
-    const response = await this.hubFetch(`/api/runbook-definitions/import${qs}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bundleOrDefinition),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.importRunbookDefinition(bundleOrDefinition, options);
   }
 
   async getRunbookRunProvenance(collaborationId: string): Promise<RunbookRunProvenance> {
-    const response = await this.hubFetch(`/api/runbook-runs/${encodeURIComponent(collaborationId)}/provenance`);
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.getRunbookRunProvenance(collaborationId);
   }
 
   async instantiateRunbookDefinition(
     definitionId: string,
     body: { channel: string; created_by: string; agent_ids: string[]; inputs?: Record<string, string> }
   ): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
-    const response = await this.hubFetch(
-      `/api/runbook-definitions/${encodeURIComponent(definitionId)}/instantiate`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.instantiateRunbookDefinition(definitionId, body);
   }
 
   async listRunbookRuns(definitionId?: string): Promise<RunbookRunRecord[]> {
-    const qs = definitionId ? `?definition_id=${encodeURIComponent(definitionId)}` : '';
-    const response = await this.hubFetch(`/api/runbook-runs${qs}`);
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.listRunbookRuns(definitionId);
   }
 
   async replayRunbookRun(collabId: string): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
-    const response = await this.hubFetch(`/api/runbook-runs/${encodeURIComponent(collabId)}/replay`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.replayRunbookRun(collabId);
   }
 
   async listConnectors(): Promise<ConnectorProfile[]> {
@@ -1138,49 +869,22 @@ export class ChatAPI {
   }
 
   async listPackRunbooks(): Promise<{ pack_id: string; path: string; title: string }[]> {
-    const response = await this.hubFetch('/api/packs/runbooks');
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    const data = await response.json();
-    return data.runbooks ?? [];
+    return this.runbooksApi.listPackRunbooks();
   }
 
   async importPackRunbook(packId: string, path: string): Promise<RunbookDefinition> {
-    const response = await this.hubFetch('/api/packs/runbooks/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pack_id: packId, path }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.importPackRunbook(packId, path);
   }
 
   async listRunbookTemplates(): Promise<RunbookDefinitionSummary[]> {
-    const response = await this.hubFetch(`/api/runbook-templates`);
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.listRunbookTemplates();
   }
 
   async createRunbookFromTemplate(
     templateName: string,
     body: { channel: string; created_by: string; agent_ids: string[] }
   ): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
-    const response = await this.hubFetch(`/api/runbook-templates/${encodeURIComponent(templateName)}/instantiate`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.runbooksApi.createRunbookFromTemplate(templateName, body);
   }
 
   async collabTaskComplete(collabId: string, taskId: string): Promise<Collaboration> {
@@ -4275,14 +3979,5 @@ export class ChatAPI {
     }
     return response.json();
   }
-}
-
-function guessImageMimeFromName(name: string): string {
-  const lower = name.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-  if (lower.endsWith('.webp')) return 'image/webp';
-  if (lower.endsWith('.gif')) return 'image/gif';
-  if (lower.endsWith('.svg')) return 'image/svg+xml';
-  return 'image/png';
 }
 

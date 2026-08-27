@@ -4,6 +4,9 @@ import { PacksApi } from './domains/packsApi';
 import { MessagesApi } from './domains/messagesApi';
 import { CollabApi } from './domains/collabApi';
 import { AgentsApi } from './domains/agentsApi';
+import { ArtifactsApi } from './domains/artifactsApi';
+import { RunbooksApi } from './domains/runbooksApi';
+import { RoomsApi } from './domains/roomsApi';
 import { getHubBaseURL, hubAuthHeaders, hubSessionHeaders, normalizeHubBaseURL, setHubSessionToken, getHubSessionToken } from '../config/hubUrl';
 
 describe('PacksApi', () => {
@@ -82,6 +85,57 @@ describe('AgentsApi', () => {
     const agents = await api.fetchAgents();
     expect(hubFetch).toHaveBeenCalledWith('/api/agents');
     expect(agents).toHaveLength(1);
+  });
+});
+
+describe('ArtifactsApi', () => {
+  it('fetchArtifacts calls /api/artifacts', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 'art-1' }],
+      text: async () => '',
+    });
+    const api = new ArtifactsApi(hubFetch);
+    const data = await api.fetchArtifacts({ workspace_id: 'ws-1' });
+    expect(hubFetch).toHaveBeenCalledWith('/api/artifacts?workspace_id=ws-1');
+    expect(data).toHaveLength(1);
+  });
+});
+
+describe('RunbooksApi', () => {
+  it('listRunbookDefinitions calls /api/runbook-definitions', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 'rb-1', title: 'Demo' }],
+      text: async () => '',
+    });
+    const api = new RunbooksApi(hubFetch);
+    const data = await api.listRunbookDefinitions();
+    expect(hubFetch).toHaveBeenCalledWith('/api/runbook-definitions');
+    expect(data).toHaveLength(1);
+  });
+});
+
+describe('RoomsApi', () => {
+  it('createSession posts to /api/auth/session and stores token', async () => {
+    setHubSessionToken(null);
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ token: 'sess-1', username: 'camron', role: 'user' }),
+      statusText: 'OK',
+    });
+    const api = new RoomsApi(hubFetch, 'http://127.0.0.1:18765');
+    const data = await api.createSession('camron');
+    expect(hubFetch).toHaveBeenCalledWith(
+      '/api/auth/session',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ username: 'camron' }),
+      })
+    );
+    expect(data.token).toBe('sess-1');
+    expect(getHubSessionToken()).toBe('sess-1');
+    setHubSessionToken(null);
   });
 });
 

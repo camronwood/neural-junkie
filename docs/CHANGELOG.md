@@ -6,6 +6,18 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.25] - 2026-08-27
+
+P5 polish: beta.24 published; continue chatAPI/ChatWindow decomposition.
+
+### Added
+- **chatAPI domains** — `artifactsApi`, `runbooksApi`, `roomsApi` behind the ChatAPI façade.
+- **Channel actions hook** — `useChatChannelActions` / `createChatChannelActions` extracts channel switch, workspace gate, and channel/runbook create/delete from ChatWindow; `ChatWindow.channel.test.tsx` coverage.
+
+### Changed
+- **KNOWN_ISSUES #21** — cloud collab repro deferred again (no Claude auth); Ollama mitigation unchanged.
+- **Gate 5** — beta.24 installers published; package verification recorded in platform-smoke matrix (full interactive Win/Linux still operator).
+
 ## [1.2.0-beta.24] - 2026-08-25
 
 P0–P4 polish: collab reliability proof, cold-start chunk tuning, ChatWindow/chatAPI decomposition finish, beta.24 release prep.
