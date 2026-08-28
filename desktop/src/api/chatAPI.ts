@@ -16,6 +16,9 @@ import { AgentsApi } from './domains/agentsApi';
 import { ArtifactsApi } from './domains/artifactsApi';
 import { RunbooksApi } from './domains/runbooksApi';
 import { RoomsApi } from './domains/roomsApi';
+import { ConnectorsApi } from './domains/connectorsApi';
+import { StreamsApi } from './domains/streamsApi';
+import { GitChangesApi } from './domains/gitChangesApi';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
 export interface SendMessageResponse {
@@ -436,6 +439,9 @@ export class ChatAPI {
   private readonly artifactsApi: ArtifactsApi;
   private readonly runbooksApi: RunbooksApi;
   private readonly roomsApi: RoomsApi;
+  private readonly connectorsApi: ConnectorsApi;
+  private readonly streamsApi: StreamsApi;
+  private readonly gitChangesApi: GitChangesApi;
 
   constructor(serverAddr: string = getHubBaseURL()) {
     this.baseURL = normalizeHubBaseURL(serverAddr);
@@ -448,6 +454,9 @@ export class ChatAPI {
     this.artifactsApi = new ArtifactsApi(hubFetch);
     this.runbooksApi = new RunbooksApi(hubFetch);
     this.roomsApi = new RoomsApi(hubFetch, this.baseURL);
+    this.connectorsApi = new ConnectorsApi(hubFetch);
+    this.streamsApi = new StreamsApi(hubFetch);
+    this.gitChangesApi = new GitChangesApi(hubFetch);
   }
 
   /** JSON + hub token + session for authenticated hub calls. */
@@ -535,35 +544,15 @@ export class ChatAPI {
   }
 
   async fetchGitChanges(userId: string): Promise<GitChangeProposal[]> {
-    const response = await this.hubFetch(`/api/git-changes?user_id=${encodeURIComponent(userId)}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch git changes: ${response.statusText}`);
-    }
-    return response.json();
+    return this.gitChangesApi.fetchGitChanges(userId);
   }
 
   async approveGitChange(changeId: string): Promise<GitChangeProposal> {
-    const response = await this.hubFetch(`/api/git-changes/approve/${encodeURIComponent(changeId)}`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to approve git change: ${response.statusText}`);
-    }
-    return response.json();
+    return this.gitChangesApi.approveGitChange(changeId);
   }
 
   async rejectGitChange(changeId: string, reason?: string): Promise<GitChangeProposal> {
-    const response = await this.hubFetch(`/api/git-changes/reject/${encodeURIComponent(changeId)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: reason ?? '' }),
-    });
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to reject git change: ${response.statusText}`);
-    }
-    return response.json();
+    return this.gitChangesApi.rejectGitChange(changeId, reason);
   }
 
   async fetchTurnTrace(channel: string, messageId: string, q?: string): Promise<Record<string, unknown>> {
@@ -665,21 +654,7 @@ export class ChatAPI {
     collaborationId: string,
     sourceRepoPath?: string
   ): Promise<void> {
-    const body: { collaboration_id: string; source_repo_path?: string } = {
-      collaboration_id: collaborationId,
-    };
-    if (sourceRepoPath?.trim()) {
-      body.source_repo_path = sourceRepoPath.trim();
-    }
-    const response = await this.hubFetch(`/api/collaboration-workspace-ack`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t || response.statusText);
-    }
+    return this.collabApi.acknowledgeCollaborationWorkspace(collaborationId, sourceRepoPath);
   }
 
   async createRunbook(body: {
@@ -775,81 +750,35 @@ export class ChatAPI {
   }
 
   async listConnectors(): Promise<ConnectorProfile[]> {
-    const response = await this.hubFetch('/api/connectors');
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.connectorsApi.listConnectors();
   }
 
   async saveConnector(profile: ConnectorProfile & { secret?: string }, isNew: boolean): Promise<ConnectorProfile> {
-    const response = await this.hubFetch(
-      isNew ? '/api/connectors' : `/api/connectors/${encodeURIComponent(profile.id)}`,
-      {
-        method: isNew ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile),
-      }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.connectorsApi.saveConnector(profile, isNew);
   }
 
   async deleteConnector(id: string): Promise<void> {
-    const response = await this.hubFetch(`/api/connectors/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
+    return this.connectorsApi.deleteConnector(id);
   }
 
   async getStreamStatus(): Promise<StreamManagerStatus> {
-    const response = await this.hubFetch('/api/stream/status');
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.streamsApi.getStreamStatus();
   }
 
   async restartStreamManager(): Promise<void> {
-    const response = await this.hubFetch('/api/stream/restart', { method: 'POST' });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
+    return this.streamsApi.restartStreamManager();
   }
 
   async listStreamSubscriptions(): Promise<StreamSubscription[]> {
-    const response = await this.hubFetch('/api/stream/subscriptions');
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
+    return this.streamsApi.listStreamSubscriptions();
   }
 
   async saveStreamSubscription(sub: StreamSubscription, isNew: boolean): Promise<StreamSubscription> {
-    const response = await this.hubFetch(
-      isNew ? '/api/stream/subscriptions' : `/api/stream/subscriptions/${encodeURIComponent(sub.id)}`,
-      {
-        method: isNew ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sub),
-      }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.streamsApi.saveStreamSubscription(sub, isNew);
   }
 
   async deleteStreamSubscription(id: string): Promise<void> {
-    const response = await this.hubFetch(`/api/stream/subscriptions/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
+    return this.streamsApi.deleteStreamSubscription(id);
   }
 
   async testStreamSubscription(
@@ -857,15 +786,7 @@ export class ChatAPI {
     payload: string,
     topic?: string
   ): Promise<StreamDispatchResult> {
-    const response = await this.hubFetch(`/api/stream/subscriptions/${encodeURIComponent(id)}/test`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payload, topic }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.streamsApi.testStreamSubscription(id, payload, topic);
   }
 
   async listPackRunbooks(): Promise<{ pack_id: string; path: string; title: string }[]> {
@@ -888,49 +809,27 @@ export class ChatAPI {
   }
 
   async collabTaskComplete(collabId: string, taskId: string): Promise<Collaboration> {
-    return this.collabTaskPost(collabId, taskId, 'complete');
+    return this.collabApi.collabTaskComplete(collabId, taskId);
   }
 
   async collabTaskSkip(collabId: string, taskId: string): Promise<Collaboration> {
-    return this.collabTaskPost(collabId, taskId, 'skip');
+    return this.collabApi.collabTaskSkip(collabId, taskId);
   }
 
   async collabTaskRedispatch(collabId: string, taskId: string): Promise<Collaboration> {
-    return this.collabTaskPost(collabId, taskId, 'redispatch');
+    return this.collabApi.collabTaskRedispatch(collabId, taskId);
   }
 
   async collabTaskReassign(collabId: string, taskId: string, agentId: string): Promise<Collaboration> {
-    const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/reassign`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId }),
-      }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.collabApi.collabTaskReassign(collabId, taskId, agentId);
   }
 
   async collabPause(collabId: string): Promise<Collaboration> {
-    const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/pause`,
-      { method: 'POST' }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.collabApi.collabPause(collabId);
   }
 
   async collabResume(collabId: string): Promise<Collaboration> {
-    const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/resume`,
-      { method: 'POST' }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
+    return this.collabApi.collabResume(collabId);
   }
 
   async approveCollabParticipantRequest(collabId: string, agentId: string): Promise<Collaboration> {
@@ -944,16 +843,6 @@ export class ChatAPI {
   /** Cursor-style Stop: pause agents on a channel until the user sends a message. */
   async channelInterject(channel: string, heldBy?: string): Promise<{ channel: string; held: boolean }> {
     return this.messagesApi.channelInterject(channel, heldBy);
-  }
-
-  private async collabTaskPost(collabId: string, taskId: string, action: string): Promise<Collaboration> {
-    const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/${action}`,
-      { method: 'POST' }
-    );
-    if (!response.ok) {
-      throw new Error(await response.text() || response.statusText);
-    }
-    return response.json();
   }
 
   // Send a message to the server

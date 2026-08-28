@@ -33,7 +33,7 @@ import {
 } from '../utils/conversationMode';
 import { channelNameToKind, resolveContextScope } from '../utils/inferContextScope';
 import type { ConversationModeSetting, WorkspaceContextMode } from '../constants/promptMetadata';
-import { GRANTED_HUB_DATA_ACCESS_KEY, IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_OUTCOME_KEY, CAD_FILES_WRITTEN_KEY } from '../constants/promptMetadata';
+import { IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_OUTCOME_KEY, CAD_FILES_WRITTEN_KEY } from '../constants/promptMetadata';
 import {
   detectHubDataAccessNeeds,
   hasGrantedHubDataAccess,
@@ -50,11 +50,6 @@ import { devLog } from '../utils/devLog';
 import { useChatInboundMessages } from '../hooks/useChatInboundMessages';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useSidebarAutoUnhide } from '../hooks/useSidebarAutoUnhide';
-import { agentSidebarHideKey, dmChannelNamesForAgent, predictedDmChannelName } from '../utils/dmChannelDisplay';
-import {
-  patchRevealForChannel,
-  patchRevealSidebarItems,
-} from '../utils/sidebarVisibility';
 import { chatScrollerElRef } from './MessageList';
 import { ChatMessageList } from './chat/ChatMessageList';
 import { ChatInputArea } from './chat/ChatInputArea';
@@ -158,6 +153,7 @@ import { resolveWorkspaceScope, scopedRepoPaths } from '../utils/workspaceScope'
 import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
 import { useChatChannelActions } from '../hooks/useChatChannelActions';
+import { useChatDmActions } from '../hooks/useChatDmActions';
 import { useChatOutboundDispatch } from '../hooks/useChatOutboundDispatch';
 import { registerRestartBlocker } from '../utils/restartSafety';
 import {
@@ -875,10 +871,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   
   // Debounce timeout ref for agent list refresh
   const agentRefreshTimeoutRef = useRef<number | null>(null);
-  /** Prevents rapid DM sidebar clicks from spamming POST /api/channels/create (HTTP 429). */
-  const dmCreateInFlightRef = useRef<Map<string, Promise<void>>>(new Map());
-  /** Serialize all DM opens so parallel agent clicks cannot burn the mutate budget. */
-  const dmOpenChainRef = useRef<Promise<void>>(Promise.resolve());
   
   // Load layout settings on mount
   useEffect(() => {
@@ -1089,6 +1081,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     updateSettings,
   });
 
+  const { handleCreateDM, handleNewDmCreated } = useChatDmActions({
+    api,
+    username,
+    loadChannels,
+    loadAgents,
+    handleSwitchChannel,
+    updateSettings,
+    addToast,
+  });
+
   const trackedCollaborations = useMemo(
     () =>
       Object.values(collaborationsByID).sort(
@@ -1185,126 +1187,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       });
     },
     [addToast, navigateToMessage]
-  );
-
-  // Create a DM channel with an agent
-  const handleCreateDM = useCallback(async (agentId: string) => {
-    const pending = dmCreateInFlightRef.current.get(agentId);
-    if (pending) {
-      await pending;
-      return;
-    }
-
-    const run = (async () => {
-      const openOne = async () => {
-        try {
-          const st = useChatStore.getState();
-          const agent = st.agents.find((a) => a.id === agentId);
-          if (agent) {
-            const predicted = predictedDmChannelName(username, agent.name);
-            const existingByName = st.channels.find((c) => c.name === predicted);
-            if (existingByName) {
-              await handleSwitchChannel(existingByName.name);
-              return;
-            }
-            const existingName = dmChannelNamesForAgent(st.channels, agent)[0];
-            if (existingName) {
-              await handleSwitchChannel(existingName);
-              return;
-            }
-            const byMembership = st.channels.find(
-              (c) =>
-                c.type === 'dm' &&
-                (c.agents?.some((a) => a.id === agentId) || c.members?.includes(agentId)),
-            );
-            if (byMembership) {
-              await handleSwitchChannel(byMembership.name);
-              return;
-            }
-          }
-
-          const ch = await api.openDM(agentId, username);
-          const prevChannels = useChatStore.getState().channels;
-          if (!prevChannels.some((c) => c.name === ch.name)) {
-            useChatStore.getState().setChannels([...prevChannels, ch]);
-          }
-          const { settings, isLoaded } = useSettingsStore.getState();
-          if (isLoaded) {
-            const patch = patchRevealSidebarItems(settings, {
-              agentIds: [agentId],
-              agentSidebarKeys: agent ? [agentSidebarHideKey(agent)] : undefined,
-              dmChannelNames: [ch.name],
-            });
-            if (patch) {
-              void updateSettings(patch);
-            }
-          }
-          void loadChannels();
-          await handleSwitchChannel(ch.name);
-        } catch (error) {
-          console.error('Failed to create DM channel:', error);
-          const msg = error instanceof Error ? error.message : 'Failed to create DM channel.';
-          addToast({
-            type: 'error',
-            title: 'Could not open direct message',
-            message: /too many requests/i.test(msg)
-              ? 'Too many channel requests — wait a few seconds and try again.'
-              : msg,
-          });
-        }
-      };
-
-      const chained = dmOpenChainRef.current.then(openOne, openOne);
-      dmOpenChainRef.current = chained.then(
-        () => undefined,
-        () => undefined,
-      );
-      await chained;
-    })();
-
-    dmCreateInFlightRef.current.set(agentId, run);
-    try {
-      await run;
-    } finally {
-      dmCreateInFlightRef.current.delete(agentId);
-    }
-  }, [api, username, loadChannels, handleSwitchChannel, updateSettings, addToast]);
-
-  const handleNewDmCreated = useCallback(
-    async (ch: Channel) => {
-      try {
-        addToast({
-          type: 'success',
-          title: 'Direct message ready',
-          message: `Opened ${ch.description || ch.name}`,
-        });
-        const channelList = await api.fetchChannels();
-        const merged = channelList.some((c) => c.name === ch.name) ? channelList : [...channelList, ch];
-        useChatStore.getState().setChannels(merged);
-        await loadAgents();
-        const { settings, isLoaded } = useSettingsStore.getState();
-        if (isLoaded) {
-          const patch = patchRevealForChannel(
-            settings,
-            ch.name,
-            merged,
-            useChatStore.getState().agents
-          );
-          if (patch) {
-            void updateSettings(patch);
-          }
-        }
-        await handleSwitchChannel(ch.name);
-      } catch (e) {
-        console.error('Failed after creating DM agent:', e);
-        addToast({
-          type: 'error',
-          title: 'Could not open DM',
-          message: e instanceof Error ? e.message : 'Unknown error',
-        });
-      }
-    },
-    [addToast, api, loadAgents, handleSwitchChannel, updateSettings]
   );
 
   // Debounced agent refresh (prevents excessive API calls).
@@ -1605,6 +1487,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     dispatchMessage,
     handleChannelInterject,
     appendLocalSlashCommand,
+    handleHubAccessConfirm,
   } = useChatOutboundDispatch({
     api,
     channel,
@@ -1632,6 +1515,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     executingCollaborationForChannel,
     updateSettings,
     collaborationsByIDRef,
+    hubAccessPending,
+    setHubAccessPending,
+    setHubAccessLoading,
+    setHubAccessError,
   });
 
   const handleBuildPlan = useCallback(
@@ -1799,31 +1686,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     },
     [openThreadId, dispatchThreadReply, isClosedCollaborationChannel, addToast]
   );
-
-  const handleHubAccessConfirm = async (selected: HubDataAccessOption[]) => {
-    if (!hubAccessPending) return;
-    setHubAccessLoading(true);
-    setHubAccessError(null);
-    try {
-      const result = await api.readHubDataAccess(
-        selected.map((s) => ({ kind: s.kind, relative_path: s.relativePath }))
-      );
-      const merged = {
-        ...(hubAccessPending.metadata ?? {}),
-        [GRANTED_HUB_DATA_ACCESS_KEY]: result,
-      };
-      if (hubAccessPending.mode === 'thread' && hubAccessPending.threadId) {
-        await dispatchThreadReply(hubAccessPending.threadId, hubAccessPending.content, merged);
-      } else {
-        await dispatchMessage(hubAccessPending.content, merged);
-      }
-      setHubAccessPending(null);
-    } catch (err) {
-      setHubAccessError(err instanceof Error ? err.message : 'Failed to read hub data');
-    } finally {
-      setHubAccessLoading(false);
-    }
-  };
 
   // Ensure command definitions are loaded, fetching them if needed
   const ensureCommandDefs = useCallback(async (forceRefresh: boolean = false) => {

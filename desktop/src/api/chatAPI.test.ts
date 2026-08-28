@@ -7,6 +7,9 @@ import { AgentsApi } from './domains/agentsApi';
 import { ArtifactsApi } from './domains/artifactsApi';
 import { RunbooksApi } from './domains/runbooksApi';
 import { RoomsApi } from './domains/roomsApi';
+import { ConnectorsApi } from './domains/connectorsApi';
+import { StreamsApi } from './domains/streamsApi';
+import { GitChangesApi } from './domains/gitChangesApi';
 import { getHubBaseURL, hubAuthHeaders, hubSessionHeaders, normalizeHubBaseURL, setHubSessionToken, getHubSessionToken } from '../config/hubUrl';
 
 describe('PacksApi', () => {
@@ -72,6 +75,61 @@ describe('CollabApi', () => {
     const data = await api.fetchCollaborations('general');
     expect(hubFetch).toHaveBeenCalledWith('/api/collaborations?channel=general');
     expect(data).toEqual([]);
+  });
+
+  it('collabTaskComplete posts to task complete endpoint', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'c1', phase: 'executing' }),
+      text: async () => '',
+    });
+    const api = new CollabApi(hubFetch);
+    await api.collabTaskComplete('c1', 't1');
+    expect(hubFetch).toHaveBeenCalledWith(
+      '/api/collaborations/c1/tasks/t1/complete',
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+});
+
+describe('ConnectorsApi', () => {
+  it('listConnectors calls /api/connectors', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 'conn-1' }],
+      text: async () => '',
+    });
+    const api = new ConnectorsApi(hubFetch);
+    const data = await api.listConnectors();
+    expect(hubFetch).toHaveBeenCalledWith('/api/connectors');
+    expect(data).toHaveLength(1);
+  });
+});
+
+describe('StreamsApi', () => {
+  it('getStreamStatus calls /api/stream/status', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ running: true }),
+      text: async () => '',
+    });
+    const api = new StreamsApi(hubFetch);
+    const data = await api.getStreamStatus();
+    expect(hubFetch).toHaveBeenCalledWith('/api/stream/status');
+    expect(data.running).toBe(true);
+  });
+});
+
+describe('GitChangesApi', () => {
+  it('fetchGitChanges calls /api/git-changes', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 'gc-1' }],
+    });
+    const api = new GitChangesApi(hubFetch);
+    const data = await api.fetchGitChanges('user-1');
+    expect(hubFetch).toHaveBeenCalledWith('/api/git-changes?user_id=user-1');
+    expect(data).toHaveLength(1);
   });
 });
 

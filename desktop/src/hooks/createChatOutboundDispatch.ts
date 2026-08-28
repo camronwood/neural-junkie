@@ -29,6 +29,16 @@ import { syncCollabTurnThinking } from '../utils/collabThinking';
 import { prepareOutboundPayload } from '../utils/prepareOutboundPayload';
 import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
 import { patchRevealForChannel } from '../utils/sidebarVisibility';
+import { GRANTED_HUB_DATA_ACCESS_KEY } from '../constants/promptMetadata';
+import type { HubDataAccessOption } from '../utils/hubDataAccess';
+
+export type HubAccessPendingState = {
+  mode: 'main' | 'thread';
+  threadId?: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+  options: HubDataAccessOption[];
+};
 
 export type ChatOutboundDispatchDeps = {
   api: ChatAPI;
@@ -57,6 +67,10 @@ export type ChatOutboundDispatchDeps = {
   executingCollaborationForChannel: Collaboration | null;
   updateSettings: (patch: Partial<import('../stores/settingsStore').Settings>) => Promise<void>;
   collaborationsByIDRef: MutableRefObject<Record<string, Collaboration>>;
+  hubAccessPending: HubAccessPendingState | null;
+  setHubAccessPending: React.Dispatch<React.SetStateAction<HubAccessPendingState | null>>;
+  setHubAccessLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  setHubAccessError: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
 /** Outbound send/interject handlers extracted from ChatWindow. */
@@ -367,10 +381,36 @@ export function createChatOutboundDispatch(deps: ChatOutboundDispatchDeps) {
     }
   };
 
+  const handleHubAccessConfirm = async (selected: HubDataAccessOption[]) => {
+    if (!deps.hubAccessPending) return;
+    deps.setHubAccessLoading(true);
+    deps.setHubAccessError(null);
+    try {
+      const result = await deps.api.readHubDataAccess(
+        selected.map((s) => ({ kind: s.kind, relative_path: s.relativePath }))
+      );
+      const merged = {
+        ...(deps.hubAccessPending.metadata ?? {}),
+        [GRANTED_HUB_DATA_ACCESS_KEY]: result,
+      };
+      if (deps.hubAccessPending.mode === 'thread' && deps.hubAccessPending.threadId) {
+        await dispatchThreadReply(deps.hubAccessPending.threadId, deps.hubAccessPending.content, merged);
+      } else {
+        await dispatchMessage(deps.hubAccessPending.content, merged);
+      }
+      deps.setHubAccessPending(null);
+    } catch (err) {
+      deps.setHubAccessError(err instanceof Error ? err.message : 'Failed to read hub data');
+    } finally {
+      deps.setHubAccessLoading(false);
+    }
+  };
+
   return {
     dispatchThreadReply,
     dispatchMessage,
     handleChannelInterject,
     appendLocalSlashCommand,
+    handleHubAccessConfirm,
   };
 }

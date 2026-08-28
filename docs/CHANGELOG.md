@@ -6,6 +6,18 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.26] - 2026-08-28
+
+P6 polish: Gate 5 beta.25 matrix; continue chatAPI/ChatWindow decomposition.
+
+### Added
+- **chatAPI domains** — `connectorsApi`, `streamsApi`, `gitChangesApi`; extended `collabApi` (task pause/resume/reassign + workspace ack).
+- **DM actions hook** — `useChatDmActions` / `createChatDmActions` extracts DM open/create from ChatWindow; hub-data confirm moved to outbound dispatch; `ChatWindow.dm.test.tsx` coverage.
+
+### Changed
+- **Gate 5** — beta.25 package verification recorded in [platform-smoke-beta25.md](testing/platform-smoke-beta25.md); interactive macOS + Win/Linux still operator ([#18](https://github.com/camronwood/neural-junkie/issues/18)).
+- **KNOWN_ISSUES #21** — cloud collab repro deferred again (no Claude auth).
+
 ## [1.2.0-beta.25] - 2026-08-27
 
 P5 polish: beta.24 published; continue chatAPI/ChatWindow decomposition.

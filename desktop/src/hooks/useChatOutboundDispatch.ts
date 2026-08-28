@@ -35,10 +35,17 @@ export function useChatOutboundDispatch(deps: ChatOutboundDispatchDeps) {
     [],
   );
 
+  const handleHubAccessConfirm = useCallback(
+    (selected: import('../utils/hubDataAccess').HubDataAccessOption[]) =>
+      createChatOutboundDispatch(depsRef.current).handleHubAccessConfirm(selected),
+    [],
+  );
+
   return {
     dispatchThreadReply,
     dispatchMessage,
     handleChannelInterject,
     appendLocalSlashCommand,
+    handleHubAccessConfirm,
   };
 }
