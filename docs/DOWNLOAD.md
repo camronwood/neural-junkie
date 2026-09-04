@@ -1,6 +1,6 @@
-# Download and first run (v1.2.0-beta.24)
+# Download and first run (v1.2.0-beta.27)
 
-Install Neural Junkie from [GitHub Releases — v1.2.0-beta.24](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.24) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) — no Go, Node, or Rust required for the desktop app.
+Install Neural Junkie from [GitHub Releases — v1.2.0-beta.27](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.27) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) — no Go, Node, or Rust required for the desktop app.
 
 **Auto-update:** macOS and Windows automatically check and download signed updates for their beta or stable channel. Neural Junkie installs the verified update on a safe restart; it will not relaunch over unsaved or active work. Linux `.deb` upgrades remain manual. See [RELEASE_UPDATES.md](RELEASE_UPDATES.md).
 
@@ -22,7 +22,7 @@ Details: [HOMEBREW.md](HOMEBREW.md). The cask installs the same signed `.dmg` as
 | Windows | `.msi` or setup `.exe` |
 | Linux | `.deb` (x86_64) |
 
-**macOS:** Official GitHub Release builds are **ad-hoc signed** until Apple Developer credentials are configured in CI (still true for v1.2.0-beta.23). If Gatekeeper blocks first launch, right-click → **Open**. Local builds from source use ad-hoc signing as well. Notarization is planned when Apple CI secrets are available.
+**macOS:** Official GitHub Release builds are **ad-hoc signed** until Apple Developer credentials are configured in CI (still true for v1.2.0-beta.27). If Gatekeeper blocks first launch, right-click → **Open**. Local builds from source use ad-hoc signing as well. Notarization is planned when Apple CI secrets are available.
 
 **Linux:** Releases ship **`.deb`** (x86_64). The app reports Linux as a manual-update platform until signed installed-package upgrades pass CI and platform smoke testing.
 
