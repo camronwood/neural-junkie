@@ -1711,9 +1711,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [openThreadId, dispatchThreadReply, isClosedCollaborationChannel, addToast]
   );
 
-  // Ensure command definitions are loaded, fetching them if needed
+  // Command palette + local /nj-open-* shortcuts (defs load inside openCommandPalette).
   const {
-    ensureCommandDefs,
     handleCommandExecute,
     openCommandPalette,
   } = useChatCommandActions({
