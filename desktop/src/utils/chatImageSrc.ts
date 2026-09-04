@@ -22,6 +22,17 @@ export async function resolveEditorImageSrc(options: {
   return api.fetchWorkspaceImageDataUrl(workspaceId, relativePath);
 }
 
+/** PDF preview src — same hub binary fetch as images. */
+export async function resolveEditorPdfSrc(options: {
+  workspaceId: string;
+  relativePath: string;
+  absolutePath: string;
+}): Promise<string> {
+  const { workspaceId, relativePath } = options;
+  const api = new ChatAPI(getHubBaseURL());
+  return api.fetchWorkspaceBinaryDataUrl(workspaceId, relativePath, 'application/pdf');
+}
+
 /**
  * Turn chat/markdown image URLs into something the WebView can load.
  * - data: and http(s) URLs pass through unchanged.

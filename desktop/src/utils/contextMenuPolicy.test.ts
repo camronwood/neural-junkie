@@ -23,6 +23,12 @@ describe('shouldAllowNativeContextMenu', () => {
     expect(shouldAllowNativeContextMenu(input)).toBe(true);
   });
 
+  it('allows Option/Alt + right-click for inspect', () => {
+    const div = document.createElement('div');
+    const event = { altKey: true } as MouseEvent;
+    expect(shouldAllowNativeContextMenu(div, event)).toBe(true);
+  });
+
   it('blocks generic app chrome', () => {
     const div = document.createElement('div');
     expect(shouldAllowNativeContextMenu(div)).toBe(false);

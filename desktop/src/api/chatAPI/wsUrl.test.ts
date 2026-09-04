@@ -10,7 +10,7 @@ describe('buildChannelWebSocketURL', () => {
     vi.stubEnv('VITE_NJ_HUB_TOKEN', 'secret-token');
     const url = buildChannelWebSocketURL('http://127.0.0.1:18765', 'general');
     expect(url).toContain('hub_token=secret-token');
-    expect(url).toMatch(/^ws:\/\/127\.0\.0\.1:18765\/ws\?/);
+    expect(url).toMatch(/^ws:\/\/localhost:18765\/ws\?/);
     expect(url).toContain('channel=general');
   });
 

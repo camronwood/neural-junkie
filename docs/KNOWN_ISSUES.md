@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-08-28 · **Current beta:** [v1.2.0-beta.25](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.25) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
+**Last updated:** 2026-09-04 · **Current beta:** [v1.2.0-beta.26](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.26) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -16,7 +16,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | GitHub | Summary |
 |----|--------|--------|---------|
-| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off (macOS arm64 + Windows or Linux) on **v1.2.0-beta.25** installer. Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md), matrix: [platform-smoke-beta25.md](testing/platform-smoke-beta25.md). |
+| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off (macOS arm64 + Windows or Linux) on **v1.2.0-beta.26** installer. Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md), matrix: [platform-smoke-beta26.md](testing/platform-smoke-beta26.md). |
 
 ### Cleared for cut (tracker hygiene 2026-07-20)
 
@@ -34,7 +34,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 |----|--------|--------|---------|
 | `layer-gate-make-verbose-macos` | **Fixed** | [#22](https://github.com/camronwood/neural-junkie/issues/22) | Harness now passes `VERBOSE=1` as env (not `--verbose` to BSD make). Latest collab-core climb ran ~23m (scenarios executed). Keep closed unless regression returns. |
 | `collab-agent-silence` | **Mitigated (closed)** | [#20](https://github.com/camronwood/neural-junkie/issues/20) | Closed 2026-08-25 — P0 handoff + watchdog; core matrix green ×2; `document-findings-execution` PASS. Evidence: [p4-collab-proof-2026-08-25.md](testing/p4-collab-proof-2026-08-25.md). Reopen if regression returns. |
-| `collab-generation-error` | **Mitigated (Ollama); cloud deferred** | [#21](https://github.com/camronwood/neural-junkie/issues/21) | Cloud providers (Claude, Gemini) loop `generation_error` during collab planning — P0 turn handoff + CollaborationPanel gen-error banner. **2026-08-25:** Ollama core + `collab-generation-error-resilience` PASS. **2026-08-27 (P5):** cloud repro skipped (`claude not authenticated`). **2026-08-28 (P6):** same — no Claude auth in regression env. Leave open until operator re-smokes with Claude/Gemini creds. |
+| `collab-generation-error` | **Mitigated (Ollama); cloud deferred** | [#21](https://github.com/camronwood/neural-junkie/issues/21) | Cloud providers (Claude, Gemini) loop `generation_error` during collab planning — P0 turn handoff + CollaborationPanel gen-error banner. **2026-08-25:** Ollama core + `collab-generation-error-resilience` PASS. **2026-08-27–09-04 (P5–P7):** cloud repro skipped (`claude not authenticated`). Leave open until operator re-smokes with Claude/Gemini creds. |
 
 ---
 

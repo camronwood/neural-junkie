@@ -21,10 +21,21 @@ export async function loadAgentsFromHub(api: ChatAPI): Promise<void> {
   });
 }
 
-/** Load channels into chatStore. */
+/** Load channels into chatStore. If the saved active channel is missing (hub restart),
+ * fall back to general so WebSocket ACL does not 403 on a stale DM name. */
 export async function loadChannelsFromHub(api?: ChatAPI): Promise<ReturnType<ChatAPI['fetchChannels']>> {
-  const channelList = await (api ?? new ChatAPI(getHubBaseURL())).fetchChannels();
-  useChatStore.getState().setChannels(channelList);
+  const client = api ?? new ChatAPI(getHubBaseURL());
+  const channelList = await client.fetchChannels();
+  const store = useChatStore.getState();
+  store.setChannels(channelList);
+  const active = store.channel?.trim();
+  if (active && !channelList.some((c) => c.name === active)) {
+    const general = channelList.find((c) => c.name === 'general')?.name ?? 'general';
+    console.warn(
+      `[loadChannelsFromHub] Active channel ${JSON.stringify(active)} missing on hub; switching to ${general}`,
+    );
+    store.setChannel(general);
+  }
   return channelList;
 }
 

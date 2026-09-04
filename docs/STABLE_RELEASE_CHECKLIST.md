@@ -88,7 +88,7 @@ Record PASS/FAIL and notes. Use existing release installers until you cut a new 
 
 **Minimum before stable cut:** macOS arm64 (your machine) + **one of** Windows or Linux.
 
-**Smoke steps:** See [testing/stable-platform-smoke.md](testing/stable-platform-smoke.md) and [testing/platform-smoke-beta25.md](testing/platform-smoke-beta25.md).
+**Smoke steps:** See [testing/stable-platform-smoke.md](testing/stable-platform-smoke.md) and [testing/platform-smoke-beta26.md](testing/platform-smoke-beta26.md).
 
 **Linux AppImage:** CI builds `.deb` only for stable releases. AppImage is not promised on the download page.
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Message } from '../types/protocol';
 import { perfMarkStart, perfMarkEnd } from '../utils/perfMarks';
+import { sanitizeWsUrl, updateWsDiagnostic } from '../utils/wsDiagnostics';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -12,6 +13,10 @@ interface UseWebSocketOptions {
   onError?: (error: Event) => void;
   autoReconnect?: boolean;
   reconnectInterval?: number;
+  /** When false, tear down any socket and stay disconnected until enabled. */
+  enabled?: boolean;
+  /** Whether a hub session token is present (for diagnostics only). */
+  hasSession?: boolean;
 }
 
 function clearSocketHandlers(ws: WebSocket): void {
@@ -29,6 +34,8 @@ export function useWebSocket({
   onError,
   autoReconnect = true,
   reconnectInterval = 3000,
+  enabled = true,
+  hasSession = false,
 }: UseWebSocketOptions) {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const wsRef = useRef<WebSocket | null>(null);
@@ -83,6 +90,13 @@ export function useWebSocket({
 
     setStatus('connecting');
     console.log('Connecting to WebSocket:', urlRef.current);
+    updateWsDiagnostic({
+      url: sanitizeWsUrl(urlRef.current),
+      origin: window.location.origin,
+      enabled: true,
+      hasSession,
+      status: 'connecting',
+    });
 
     try {
       const ws = new WebSocket(urlRef.current);
@@ -91,6 +105,7 @@ export function useWebSocket({
         if (gen !== generationRef.current) return;
         console.log('WebSocket connected');
         setStatus('connected');
+        updateWsDiagnostic({ status: 'connected', lastError: null });
         onConnectRef.current?.();
       };
 
@@ -111,16 +126,25 @@ export function useWebSocket({
         if (gen !== generationRef.current) return;
         console.error('WebSocket error:', error);
         setStatus('error');
+        updateWsDiagnostic({
+          status: 'error',
+          lastError: 'WebSocket error event (see console)',
+        });
         onErrorRef.current?.(error);
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (gen !== generationRef.current) return;
-        console.log('WebSocket disconnected');
+        console.log('WebSocket disconnected', event.code, event.reason || '');
         if (wsRef.current === ws) {
           wsRef.current = null;
         }
         setStatus('disconnected');
+        updateWsDiagnostic({
+          status: 'disconnected',
+          lastCloseCode: event.code,
+          lastCloseReason: event.reason || null,
+        });
         onDisconnectRef.current?.();
 
         if (shouldReconnectRef.current && autoReconnect) {
@@ -137,9 +161,13 @@ export function useWebSocket({
       console.error('Failed to create WebSocket:', error);
       if (gen === generationRef.current) {
         setStatus('error');
+        updateWsDiagnostic({
+          status: 'error',
+          lastError: error instanceof Error ? error.message : 'Failed to create WebSocket',
+        });
       }
     }
-  }, [autoReconnect, reconnectInterval, clearReconnectTimer, tearDownSocket]);
+  }, [autoReconnect, reconnectInterval, clearReconnectTimer, tearDownSocket, hasSession]);
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false;
@@ -151,8 +179,32 @@ export function useWebSocket({
     setStatus('disconnected');
   }, [clearReconnectTimer, tearDownSocket]);
 
-  // Connect on mount and whenever URL / reconnect policy changes.
+  // Connect on mount and whenever URL / reconnect policy / enabled changes.
   useEffect(() => {
+    if (!enabled) {
+      shouldReconnectRef.current = false;
+      clearReconnectTimer();
+      generationRef.current += 1;
+      const prev = wsRef.current;
+      wsRef.current = null;
+      tearDownSocket(prev);
+      setStatus('disconnected');
+      updateWsDiagnostic({
+        url: sanitizeWsUrl(url),
+        origin: window.location.origin,
+        enabled: false,
+        hasSession,
+        status: 'disconnected',
+      });
+      return;
+    }
+
+    updateWsDiagnostic({
+      url: sanitizeWsUrl(url),
+      origin: window.location.origin,
+      enabled: true,
+      hasSession,
+    });
     shouldReconnectRef.current = autoReconnect;
     connect();
 
@@ -164,7 +216,7 @@ export function useWebSocket({
       wsRef.current = null;
       tearDownSocket(prev);
     };
-  }, [url, connect, autoReconnect, clearReconnectTimer, tearDownSocket]);
+  }, [url, connect, autoReconnect, enabled, hasSession, clearReconnectTimer, tearDownSocket]);
 
   return {
     status,

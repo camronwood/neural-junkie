@@ -9,14 +9,14 @@ import { getHubBaseURL } from '../config/hubUrl';
 import type { FileNode } from '../stores/fileExplorerStore';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { isImagePreviewPath, workspaceAbsolutePath } from '../utils/editorFileKind';
+import { isImagePreviewPath, isPdfPreviewPath, workspaceAbsolutePath } from '../utils/editorFileKind';
 import {
   dispatchWorkspaceFileDropEventAtPoint,
   dispatchWorkspaceFileDropToStickyZone,
   scheduleWorkspaceFileDragClear,
   setWorkspaceFileDragData,
 } from '../utils/workspaceFileDrag';
-import { resolveEditorImageSrc } from '../utils/chatImageSrc';
+import { resolveEditorImageSrc, resolveEditorPdfSrc } from '../utils/chatImageSrc';
 import {
   isScanSummaryDirListing,
   isScanSummaryMetadataPath,
@@ -655,6 +655,18 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
             });
             openFile(activeWorkspace.id, file.path, '', undefined, {
               viewMode: 'image',
+              imageSrc,
+              preview: e?.detail !== 2,
+            });
+          } else if (isPdfPreviewPath(file.path)) {
+            const absolutePath = workspaceAbsolutePath(activeWorkspace.path, file.path);
+            const imageSrc = await resolveEditorPdfSrc({
+              workspaceId: activeWorkspace.id,
+              relativePath: file.path,
+              absolutePath,
+            });
+            openFile(activeWorkspace.id, file.path, '', undefined, {
+              viewMode: 'pdf',
               imageSrc,
               preview: e?.detail !== 2,
             });

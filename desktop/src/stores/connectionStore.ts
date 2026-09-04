@@ -32,6 +32,7 @@ export async function loadConnectionSettings(): Promise<ConnectionSettings> {
   } catch {
     // browser dev without Tauri store
   }
+  setHubConnectionOverride(cachedConnection.hubUrl, cachedConnection.hubToken);
   loaded = true;
   return cachedConnection;
 }

@@ -40,9 +40,6 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
           setNameInput(saved.username);
           setChannelInput(saved.channel);
           setServerInput(saved.serverAddr);
-          if (saved.sessionToken) {
-            setHubSessionToken(saved.sessionToken);
-          }
           setRememberMe(true);
           console.log('[LoginScreen] Loaded saved credentials');
         }

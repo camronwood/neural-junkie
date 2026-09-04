@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { isTauri } from '@tauri-apps/api/core';
 import { getHubBaseURL } from '../config/hubUrl';
 
 interface LoadingScreenProps {
@@ -22,6 +23,9 @@ interface HubHealth {
 const HUB_WAIT_MS = 50_000;
 /** After hub is up, keep waiting for agents to listen before revealing the UI. */
 const AGENTS_WAIT_MS = 45_000;
+/** Packaged app must wait for sidecar `server-ready` before trusting health polls. */
+const isPackagedTauri =
+  import.meta.env.PROD && typeof window !== 'undefined' && isTauri();
 
 export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: LoadingScreenProps) {
   const [status, setStatus] = useState('Connecting to hub…');
@@ -30,6 +34,7 @@ export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: Loadin
   const hubUrl = getHubBaseURL();
   const finishedRef = useRef(false);
   const hubOkSinceRef = useRef<number | null>(null);
+  const serverReadyRef = useRef(false);
 
   const markConnected = () => {
     if (finishedRef.current) {
@@ -44,9 +49,10 @@ export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: Loadin
   useEffect(() => {
     finishedRef.current = false;
     hubOkSinceRef.current = null;
+    serverReadyRef.current = false;
 
     const unlisten1 = listen<boolean>('server-ready', () => {
-      // Tauri may fire early; still require agents_ready via health poll.
+      serverReadyRef.current = true;
       setStatus('Hub process ready — waiting for agents…');
     });
 
@@ -58,6 +64,9 @@ export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: Loadin
 
     const pollInterval = setInterval(async () => {
       try {
+        if (isPackagedTauri && !serverReadyRef.current) {
+          return;
+        }
         const resp = await fetch(`${hubUrl}/api/health`);
         if (!resp.ok) return;
         const data = (await resp.json()) as HubHealth;

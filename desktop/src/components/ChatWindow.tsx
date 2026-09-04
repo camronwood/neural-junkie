@@ -121,14 +121,10 @@ import { findThreadParentMessage } from '../utils/slackThread';
 import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
 import { useSuggestedCommands } from '../hooks/useSuggestedCommands';
-import {
-  ensureRepoAgentWorkspace,
-  parseCreateRepoAgentCommand,
-} from '../utils/repoAgentWorkspace';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useFileChangeStore } from '../stores/fileChangeStore';
 import { useGitChangeStore } from '../stores/gitChangeStore';
-import { getHubBaseURL } from '../config/hubUrl';
+import { getHubBaseURL, useHubAccessToken, useHubSessionToken } from '../config/hubUrl';
 import { isIdeLayout, layoutPresetLabel, panelsForPreset } from '../utils/layoutPresets';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import {
@@ -154,6 +150,7 @@ import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
 import { useChatChannelActions } from '../hooks/useChatChannelActions';
 import { useChatDmActions } from '../hooks/useChatDmActions';
+import { useChatCommandActions } from '../hooks/useChatCommandActions';
 import { useChatOutboundDispatch } from '../hooks/useChatOutboundDispatch';
 import { registerRestartBlocker } from '../utils/restartSafety';
 import {
@@ -862,15 +859,34 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         .join('\0'),
     [channels],
   );
+  const hubSessionToken = useHubSessionToken();
+  const hubAccessToken = useHubAccessToken();
+  // Debounce slack extra-channel subscriptions so channel list hydration does not thrash the socket.
+  const [stableChannelNamesKey, setStableChannelNamesKey] = useState(channelNamesKey);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setStableChannelNamesKey(channelNamesKey), 800);
+    return () => window.clearTimeout(timer);
+  }, [channelNamesKey]);
+
+  // Hub restart wipes in-memory sessions; re-mint if we reached chat without a token.
+  useEffect(() => {
+    if (hubSessionToken) return;
+    const name = useChatStore.getState().username?.trim() || 'Anonymous';
+    void api.createSession(name).catch((err) => {
+      console.error('[ChatWindow] Failed to restore hub session for WebSocket:', err);
+    });
+  }, [api, hubSessionToken]);
+
   const wsURL = useMemo(() => {
-    const slackExtra = channelNamesKey
+    const slackExtra = stableChannelNamesKey
       .split('\0')
       .filter((name) => name && isSlackHubChannelName(name) && name !== channel);
     return api.getWebSocketURL(channel, slackExtra);
-  }, [api, channel, channelNamesKey]);
+  }, [api, channel, stableChannelNamesKey, hubSessionToken, hubAccessToken]);
   
   // Debounce timeout ref for agent list refresh
   const agentRefreshTimeoutRef = useRef<number | null>(null);
+  const wsOutageToastShownRef = useRef(false);
   
   // Load layout settings on mount
   useEffect(() => {
@@ -1037,11 +1053,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         }
         return next;
       });
+      // Prefer the store map just updated above — collaborationsByIDRef lags one effect tick.
       setActiveCollab(current => {
         if (!current || current.channel !== targetChannel) return current;
         const refreshed = snapshots.find(snapshot => snapshot.id === current.id);
         if (refreshed) return refreshed;
-        const cached = collaborationsByIDRef.current[current.id];
+        const cached =
+          collaborationsByIDSnapshot()[current.id] ??
+          collaborationsByIDRef.current[current.id];
         if (cached && cached.channel === targetChannel) return cached;
         return null;
       });
@@ -1441,9 +1460,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // WebSocket connection
   const { status, connect: reconnectHub } = useWebSocket({
     url: wsURL,
+    hasSession: hubSessionToken !== null,
     onMessage: onInboundMessage,
     onConnect: () => {
       devLog('Connected to chat');
+      wsOutageToastShownRef.current = false;
       useChatStore.getState().setConnectionStatus('connected');
       loadInitialData();
     },
@@ -1454,11 +1475,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     onError: (error) => {
       console.error('WebSocket error:', error);
       useChatStore.getState().setConnectionStatus('error');
-      addToast({
-        type: 'error',
-        title: 'Connection lost',
-        message: 'WebSocket disconnected. Reconnecting…',
-      });
+      if (!wsOutageToastShownRef.current) {
+        wsOutageToastShownRef.current = true;
+        addToast({
+          type: 'error',
+          title: 'Connection lost',
+          message: 'WebSocket disconnected. Reconnecting…',
+        });
+      }
     },
   });
 
@@ -1688,95 +1712,31 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
 
   // Ensure command definitions are loaded, fetching them if needed
-  const ensureCommandDefs = useCallback(async (forceRefresh: boolean = false) => {
-    if (!forceRefresh && commandDefs.length > 0) return;
-    try {
-      const defs = await api.fetchCommands(forceRefresh);
-      setCommandDefs(withClientPaletteCommands(defs));
-    } catch (err) {
-      console.error('Failed to load command definitions:', err);
-      setCommandDefs(withClientPaletteCommands([]));
-    }
-  }, [api, commandDefs.length]);
-
-  // Handle command executed from command palette
-  const handleCommandExecute = async (
-    commandString: string,
-    metadata?: Record<string, unknown>
-  ) => {
-    const trimmed = commandString.trim();
-    if (trimmed === '/nj-open-model-library') {
-      appendLocalSlashCommand(trimmed);
-      setModelLibraryOpen(true);
-      (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
-      return;
-    }
-    if (trimmed === '/nj-open-knowledge-graph') {
-      appendLocalSlashCommand(trimmed);
-      const fe = useFileExplorerStore.getState();
-      const ws = fe.workspaces.find((w) => w.id === fe.activeWorkspaceId);
-      if (ws?.path && fe.activeWorkspaceId) {
-        useEditorStore.getState().openKnowledgeGraphWorkbench(fe.activeWorkspaceId, ws.path);
-        setCodeEditorOpen(true);
-        void updateLayoutSettings({ editorPanelVisible: true });
-      } else {
-        addToast({
-          type: 'warning',
-          title: 'No workspace',
-          message: 'Open a workspace in the Files panel first.',
-        });
-      }
-      (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
-      return;
-    }
-    if (trimmed === '/nj-open-neural-canvas') {
-      appendLocalSlashCommand(trimmed);
-      const fe = useFileExplorerStore.getState();
-      useEditorStore.getState().openArtifact(
-        fe.activeWorkspaceId ?? '',
-        '__library__',
-        'Neural Canvas',
-      );
-      setCodeEditorOpen(true);
-      void updateLayoutSettings({ editorPanelVisible: true });
-      (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
-      return;
-    }
-    const repoAgentCmd = parseCreateRepoAgentCommand(trimmed);
-    const sent = await handleSendMessage(commandString, metadata);
-    if (sent !== false) {
-      (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
-    }
-    if (repoAgentCmd && sent !== false) {
-      window.setTimeout(() => {
-        void ensureRepoAgentWorkspace(repoAgentCmd.repoPath, {
-          preferredName: repoAgentCmd.agentName,
-        }).then((workspaceId) => {
-          if (workspaceId) {
-            setFileExplorerOpen(true);
-          }
-        });
-      }, 400);
-    }
-  };
-
-  // Open command palette from toolbar button or Cmd/Ctrl+Shift+P
-  const openCommandPalette = useCallback((filter = '') => {
-    setCommandPaletteFilter(filter);
-    setCommandPaletteOpen(true);
-    void ensureCommandDefs(true);
-    void loadCollaborations(channel);
-    void api
-      .fetchAssistantState(channel)
-      .then((state) => {
-        setAssistantTasks(state.tasks || []);
-        setAssistantReminders(state.reminders || []);
-      })
-      .catch((error) => console.error('Failed to load assistant state:', error));
-    void fetchPendingChanges(username || 'default').catch((error) =>
-      console.error('Failed to load pending file changes:', error)
-    );
-  }, [api, channel, ensureCommandDefs, fetchPendingChanges, loadCollaborations, username]);
+  const {
+    ensureCommandDefs,
+    handleCommandExecute,
+    openCommandPalette,
+  } = useChatCommandActions({
+    api,
+    channel,
+    username,
+    commandDefsLength: commandDefs.length,
+    setCommandDefs,
+    setCommandPaletteFilter,
+    setCommandPaletteOpen,
+    setModelLibraryOpen,
+    setCodeEditorOpen,
+    setFileExplorerOpen,
+    setAssistantTasks,
+    setAssistantReminders,
+    updateLayoutSettings,
+    appendLocalSlashCommand,
+    handleSendMessage,
+    loadCollaborations,
+    fetchPendingChanges,
+    addToast,
+    inputRef,
+  });
 
   const handleFirstWinOpenFiles = useCallback(() => {
     setFileExplorerOpen(true);

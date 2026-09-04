@@ -124,6 +124,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	for _, name := range watch {
+		if err := ensureChannelExistsForWS(name, sess); err != nil {
+			log.Printf("Ensure channel %q for WS: %v", name, err)
+		}
 		msgCh, err := chatHub.SubscribeUI(name)
 		if err != nil {
 			log.Printf("Subscribe %q: %v", name, err)
@@ -222,4 +225,44 @@ func broadcastRoomPresence(channel, roomID, username string, connected bool) {
 	msg.Metadata["username"] = username
 	msg.Metadata["connected"] = connected
 	chatHub.BroadcastDirect(channel, msg)
+}
+
+// ensureChannelExistsForWS recreates a missing owned DM shell so SubscribeUI succeeds
+// after hub restart when the desktop still points at a saved DM channel name.
+func ensureChannelExistsForWS(name string, sess *hub.HubSession) error {
+	if chatHub == nil || strings.TrimSpace(name) == "" {
+		return nil
+	}
+	if _, err := chatHub.GetChannel(name); err == nil {
+		return nil
+	}
+	username := ""
+	if sess != nil {
+		username = sess.Username
+	}
+	if username == "" || !chatHub.CanUserAccessChannel(username, name) {
+		return nil
+	}
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(name)), "dm-") {
+		return nil
+	}
+	_ = chatHub.CreateChannelWithType(
+		name,
+		"Direct message",
+		"",
+		protocol.ChannelTypeDM,
+		username,
+	)
+	// Best-effort: re-join assistant/agent inferred from dm-{user}-{agentSlug}.
+	parts := strings.Split(strings.ToLower(strings.TrimSpace(name)), "-")
+	if len(parts) >= 3 {
+		agentSlug := strings.Join(parts[2:], "-")
+		for _, a := range chatHub.ListAgents() {
+			if strings.ToLower(a.Name) == agentSlug || strings.EqualFold(string(a.Type), agentSlug) {
+				_ = chatHub.JoinChannel(a.ID, name)
+				break
+			}
+		}
+	}
+	return nil
 }

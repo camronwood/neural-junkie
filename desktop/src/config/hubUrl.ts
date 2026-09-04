@@ -1,5 +1,22 @@
+import { useSyncExternalStore } from 'react';
+
 /** Default hub HTTP origin (Neural Junkie chat hub; server binds IPv4 loopback by default). */
 export const DEFAULT_HUB_HTTP = 'http://127.0.0.1:18765';
+
+type HubAuthListener = () => void;
+const hubAuthListeners = new Set<HubAuthListener>();
+
+function notifyHubAuthListeners(): void {
+  for (const listener of hubAuthListeners) {
+    listener();
+  }
+}
+
+/** Subscribe to hub session / connection-token changes (WebSocket URL auth). */
+export function subscribeHubAuth(listener: HubAuthListener): () => void {
+  hubAuthListeners.add(listener);
+  return () => hubAuthListeners.delete(listener);
+}
 
 /**
  * Map legacy local hub URLs that used port 8080 to the current default (18765).
@@ -46,11 +63,13 @@ let connectionHubToken: string | undefined;
 export function setHubConnectionOverride(url: string, token: string): void {
   connectionHubUrl = url?.trim() || undefined;
   connectionHubToken = token?.trim() || undefined;
+  notifyHubAuthListeners();
 }
 
 export function clearHubConnectionOverride(): void {
   connectionHubUrl = undefined;
   connectionHubToken = undefined;
+  notifyHubAuthListeners();
 }
 
 export function getHubBaseURL(): string {
@@ -85,16 +104,40 @@ let hubSessionToken: string | null = null;
 
 export function setHubSessionToken(token: string | null): void {
   hubSessionToken = token?.trim() || null;
+  notifyHubAuthListeners();
 }
 
 export function getHubSessionToken(): string | null {
   return hubSessionToken;
 }
 
+/** Reactive hub user session token for WebSocket URL construction. */
+export function useHubSessionToken(): string | null {
+  return useSyncExternalStore(subscribeHubAuth, getHubSessionToken, getHubSessionToken);
+}
+
+/** Reactive hub access token (LAN / saved connection settings). */
+export function useHubAccessToken(): string | undefined {
+  return useSyncExternalStore(subscribeHubAuth, getHubAccessToken, getHubAccessToken);
+}
+
 /** Session from POST /api/auth/session (channel ACL + per-user auth). */
 export function hubSessionHeaders(): Record<string, string> {
   if (!hubSessionToken) return {};
   return { 'X-NJ-Session': hubSessionToken };
+}
+
+/** WebSocket hub origin — prefer localhost over 127.0.0.1 for Tauri WebView compatibility. */
+export function getHubWebSocketHost(): string {
+  try {
+    const u = new URL(getHubBaseURL());
+    if (u.hostname === '127.0.0.1') {
+      u.hostname = 'localhost';
+    }
+    return u.host;
+  } catch {
+    return 'localhost:18765';
+  }
 }
 
 /** WebSocket URL for the hub (matches getHubBaseURL host/port). */
@@ -108,8 +151,8 @@ export function getHubWebSocketURL(): string {
     if (token) q.set('hub_token', token);
     if (sess) q.set('nj_session', sess);
     const qs = q.toString();
-    return `${wsProto}//${u.host}/ws${qs ? `?${qs}` : ''}`;
+    return `${wsProto}//${getHubWebSocketHost()}/ws${qs ? `?${qs}` : ''}`;
   } catch {
-    return 'ws://127.0.0.1:18765/ws';
+    return 'ws://localhost:18765/ws';
   }
 }

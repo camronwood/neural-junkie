@@ -11,7 +11,7 @@
   },
   "app": {
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' asset: http://asset.localhost https: data: blob: http://127.0.0.1:18765 http://localhost:18765; connect-src 'self' http://127.0.0.1:18765 ws://127.0.0.1:18765 http://localhost:18765 ws://localhost:18765 http://localhost:1420 ws://localhost:1420; font-src 'self' data:",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' asset: http://asset.localhost https: data: blob: http://127.0.0.1:18765 http://localhost:18765; frame-src 'self' data: blob: http://127.0.0.1:18765 http://localhost:18765; object-src 'self' data: blob: http://127.0.0.1:18765 http://localhost:18765; connect-src 'self' ipc: ipc://localhost http://ipc.localhost http://127.0.0.1:18765 ws://127.0.0.1:18765 http://localhost:18765 ws://localhost:18765 http://tauri.localhost https://tauri.localhost http://asset.localhost https://asset.localhost http://localhost:1420 ws://localhost:1420; font-src 'self' data:",
       "assetProtocol": {
         "enable": true,
         "scope": [
@@ -38,7 +38,8 @@
         "center": true,
         "minWidth": 800,
         "minHeight": 600,
-        "dragDropEnabled": true
+        "dragDropEnabled": true,
+        "devtools": true
       }
     ]
   },

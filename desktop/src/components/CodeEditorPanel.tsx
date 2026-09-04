@@ -14,6 +14,7 @@ import { usePacksStore } from '../stores/packsStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
+import { EditorPdfPreview } from './EditorPdfPreview';
 import { ScanSummaryViewer } from './ScanSummaryViewer';
 import {
   LazyArenaWorkbench,
@@ -204,6 +205,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   }, [editor, revealRequest, activeTab, clearRevealRequest]);
 
   const isImageTab = activeTab?.viewMode === 'image';
+  const isPdfTab = activeTab?.viewMode === 'pdf';
   const isScanSummaryTab = activeTab?.viewMode === 'scan-summary';
   const isScanAnalysisTab = activeTab?.viewMode === 'scan-analysis';
   const isCadWorkbenchTab = activeTab?.viewMode === 'cad-workbench';
@@ -216,7 +218,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   const isMarkdownPreviewTab = activeTab?.viewMode === 'markdown-preview';
   const isCsvFileTab = activeTab ? isEditableCsvPath(activeTab.path) : false;
   const isMarkdownFileTab = activeTab ? isMarkdownPath(activeTab.path) : false;
-  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab || isStructureWorkbenchTab || isMusicWorkbenchTab || isArenaWorkbenchTab || isKnowledgeGraphTab || isNeuralCanvasTab;
+  const isPreviewTab = isImageTab || isPdfTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab || isStructureWorkbenchTab || isMusicWorkbenchTab || isArenaWorkbenchTab || isKnowledgeGraphTab || isNeuralCanvasTab;
 
   useEffect(() => {
     if (!activeTabId) {
@@ -265,7 +267,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench' || tab.viewMode === 'knowledge-graph-workbench' || tab.viewMode === 'neural-canvas') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'pdf' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench' || tab.viewMode === 'knowledge-graph-workbench' || tab.viewMode === 'neural-canvas') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -343,7 +345,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
   const handleSave = useCallback(async () => {
     const tab = useEditorStore.getState().getActiveTab();
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'knowledge-graph-workbench' || tab.viewMode === 'neural-canvas' || useEditorStore.getState().saving) return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'pdf' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'knowledge-graph-workbench' || tab.viewMode === 'neural-canvas' || useEditorStore.getState().saving) return;
 
     const success = await saveTab(tab.id);
     if (success) {
@@ -478,6 +480,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
   const getTabIcon = (tab: EditorTab) => {
     if (tab.viewMode === 'image') return '🖼️';
+    if (tab.viewMode === 'pdf') return '📄';
     if (tab.viewMode === 'cad-workbench') return '📐';
     if (tab.viewMode === 'structure-workbench') return '🧬';
     if (tab.viewMode === 'html-preview') return '🌐';
@@ -797,6 +800,20 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
             ) : (
               <div className="flex items-center justify-center h-full text-slack-textMuted p-6">
                 <div className="text-center text-sm">Image preview unavailable</div>
+              </div>
+            )
+          ) : activeTab.viewMode === 'pdf' ? (
+            activeTab.imageSrc ? (
+              <EditorPdfPreview
+                src={activeTab.imageSrc}
+                alt={tabLabel(activeTab)}
+                reloadKey={activeTab.contentSyncKey ?? 0}
+                workspaceId={activeTab.workspaceId}
+                relativePath={activeTab.path}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-slack-textMuted p-6">
+                <div className="text-center text-sm">PDF preview unavailable</div>
               </div>
             )
           ) : monacoReady ? (

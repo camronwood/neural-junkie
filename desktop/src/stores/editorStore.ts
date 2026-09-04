@@ -12,7 +12,7 @@ import { logActivity } from './activityLogStore';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench' | 'structure-workbench' | 'html-preview' | 'music-workbench' | 'arena-workbench' | 'knowledge-graph-workbench' | 'neural-canvas';
+export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'pdf' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench' | 'structure-workbench' | 'html-preview' | 'music-workbench' | 'arena-workbench' | 'knowledge-graph-workbench' | 'neural-canvas';
 
 export interface EditorTab {
   id: string;
@@ -238,7 +238,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isDirty: false,
       isPreview: asPreview || undefined,
       contentSyncKey: 0,
-      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'structure-workbench' || viewMode === 'html-preview' || viewMode === 'music-workbench' || viewMode === 'arena-workbench' || viewMode === 'knowledge-graph-workbench' || viewMode === 'neural-canvas' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'pdf' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'structure-workbench' || viewMode === 'html-preview' || viewMode === 'music-workbench' || viewMode === 'arena-workbench' || viewMode === 'knowledge-graph-workbench' || viewMode === 'neural-canvas' ? undefined : language,
       viewMode,
       imageSrc,
       scanSummaryDir: options?.scanSummaryDir,
@@ -879,7 +879,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'html-preview' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench' || tab.viewMode === 'knowledge-graph-workbench') {
           return tab.content === content ? tab : { ...tab, content, isDirty: false };
         }
-        if (tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
+        if (tab.viewMode === 'image' || tab.viewMode === 'pdf' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
         if (tab.content === content) return tab;
         // Editing a preview tab pins it (hard open).
         return { ...tab, content, isDirty: true, isPreview: false };
@@ -931,7 +931,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     const tab = state.getTabById(tabId);
     if (!tab) return false;
-    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench' || tab.viewMode === 'knowledge-graph-workbench') return true;
+    if (tab.viewMode === 'image' || tab.viewMode === 'pdf' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'structure-workbench' || tab.viewMode === 'music-workbench' || tab.viewMode === 'arena-workbench' || tab.viewMode === 'knowledge-graph-workbench') return true;
 
     set({ saving: true, error: null });
 
@@ -960,7 +960,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveAllTabs: async () => {
     const state = get();
     const dirtyTabs = state.tabs.filter(
-      (tab) => tab.isDirty && tab.viewMode !== 'image' && tab.viewMode !== 'scan-summary' && tab.viewMode !== 'scan-analysis' && tab.viewMode !== 'comparator-analysis' && tab.viewMode !== 'cad-workbench' && tab.viewMode !== 'structure-workbench' && tab.viewMode !== 'music-workbench' && tab.viewMode !== 'arena-workbench' && tab.viewMode !== 'knowledge-graph-workbench'
+      (tab) => tab.isDirty && tab.viewMode !== 'image' && tab.viewMode !== 'pdf' && tab.viewMode !== 'scan-summary' && tab.viewMode !== 'scan-analysis' && tab.viewMode !== 'comparator-analysis' && tab.viewMode !== 'cad-workbench' && tab.viewMode !== 'structure-workbench' && tab.viewMode !== 'music-workbench' && tab.viewMode !== 'arena-workbench' && tab.viewMode !== 'knowledge-graph-workbench'
     );
     
     if (dirtyTabs.length === 0) return true;
@@ -997,7 +997,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
 
-    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary') {
+    if (tab.viewMode === 'image' || tab.viewMode === 'pdf' || tab.viewMode === 'scan-summary') {
       set(current => ({
         tabs: current.tabs.map(t =>
           t.id === tab.id

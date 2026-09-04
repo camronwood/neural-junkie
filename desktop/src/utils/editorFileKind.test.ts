@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isImagePreviewPath, isPngPath, workspaceAbsolutePath, workspaceRelativePath } from './editorFileKind';
+import { isImagePreviewPath, isPdfPreviewPath, isPngPath, workspaceAbsolutePath, workspaceRelativePath } from './editorFileKind';
 
 describe('isImagePreviewPath', () => {
   it('matches common image extensions', () => {
@@ -13,6 +13,19 @@ describe('isImagePreviewPath', () => {
     expect(isImagePreviewPath('foo.rs')).toBe(false);
     expect(isImagePreviewPath('foo.png.bak')).toBe(false);
     expect(isImagePreviewPath('')).toBe(false);
+  });
+});
+
+describe('isPdfPreviewPath', () => {
+  it('matches pdf extension', () => {
+    expect(isPdfPreviewPath('report.pdf')).toBe(true);
+    expect(isPdfPreviewPath('docs/Report.PDF')).toBe(true);
+  });
+
+  it('rejects non-pdf extensions', () => {
+    expect(isPdfPreviewPath('report.pdf.bak')).toBe(false);
+    expect(isPdfPreviewPath('report.png')).toBe(false);
+    expect(isPdfPreviewPath('')).toBe(false);
   });
 });
 

@@ -1574,7 +1574,11 @@ fn spawn_sidecar(
     app: &tauri::AppHandle,
     bundled_ollama: Option<&PathBuf>,
 ) -> Result<ShellCommandChild, String> {
-    let mut envs = HashMap::from([("OLLAMA_HOST".to_string(), "127.0.0.1:11434".to_string())]);
+    let mut envs = HashMap::from([
+        ("OLLAMA_HOST".to_string(), "127.0.0.1:11434".to_string()),
+        // Loopback parity with `make server` — allow WS/API without nj_session on 127.0.0.1.
+        ("NEURAL_JUNKIE_RELAXED_LOCAL".to_string(), "1".to_string()),
+    ]);
     if let Some(models_dir) = ollama_models_dir(app).to_str() {
         envs.insert("OLLAMA_MODELS".to_string(), models_dir.to_string());
     }
@@ -1839,6 +1843,61 @@ fn decrypt_credential_blob(blob: String) -> Result<String, String> {
     String::from_utf8(plain).map_err(|e| e.to_string())
 }
 
+/// Open WebView DevTools (packaged builds block right-click unless Option+click).
+#[tauri::command]
+fn open_devtools(app: tauri::AppHandle) -> Result<(), String> {
+    app.get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?
+        .open_devtools();
+    Ok(())
+}
+
+/// Probe hub WebSocket upgrade from native code (bypasses WebView CSP / mixed-content).
+#[tauri::command]
+fn probe_hub_websocket(hub_url: String, channel: String) -> Result<String, String> {
+    let base = hub_url.trim().trim_end_matches('/');
+    let ws_base = base
+        .replacen("https://", "wss://", 1)
+        .replacen("http://", "ws://", 1);
+    let ch = channel.trim();
+    let ch = if ch.is_empty() { "general" } else { ch };
+    let ws_url = format!("{}/ws?channel={}", ws_base, ch);
+
+    let output = std::process::Command::new("curl")
+        .args([
+            "-s",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            "--max-time",
+            "3",
+            "-H",
+            "Connection: Upgrade",
+            "-H",
+            "Upgrade: websocket",
+            "-H",
+            "Sec-WebSocket-Version: 13",
+            "-H",
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            &ws_url,
+        ])
+        .output()
+        .map_err(|e| format!("curl failed: {}", e))?;
+
+    if !output.status.success() && output.status.code() != Some(22) {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("curl exit {:?}: {}", output.status.code(), stderr.trim()));
+    }
+
+    let code = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if code == "101" {
+        Ok(format!("OK (HTTP 101) {}", ws_url))
+    } else {
+        Ok(format!("HTTP {} (expected 101) {}", code, ws_url))
+    }
+}
+
 fn main() {
     let pty_sessions: PtySessions = Arc::new(Mutex::new(HashMap::new()));
     let sidecar_state: SidecarChild = Arc::new(Mutex::new(None));
@@ -1864,6 +1923,11 @@ fn main() {
             let sidecar_state = app.state::<SidecarChild>().inner().clone();
             let ollama_state = app.state::<OllamaChild>().inner().clone();
             let app_handle = app.handle().clone();
+
+            // Kill any orphan hub on the managed port before the UI can connect to it.
+            if !cfg!(debug_assertions) {
+                stop_managed_hub_on_port();
+            }
 
             std::thread::spawn(move || {
                 // Only spawn sidecar in production builds; in dev the server
@@ -1959,7 +2023,9 @@ fn main() {
             prepare_for_update,
             encrypt_credential_blob,
             decrypt_credential_blob,
-            read_hub_bootstrap_token
+            read_hub_bootstrap_token,
+            open_devtools,
+            probe_hub_websocket
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application");

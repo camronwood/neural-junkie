@@ -31,6 +31,7 @@ const { apiHarness, wsHarness, addToastMock } = vi.hoisted(() => {
     fetchAssistantState: vi.fn().mockResolvedValue({ tasks: [], reminders: [] }),
     createChannel: vi.fn(),
     deleteChannel: vi.fn(),
+    createSession: vi.fn().mockResolvedValue({ token: "t", username: "Tester" }),
     markAssistantTaskDone: vi.fn(),
     dismissAssistantReminder: vi.fn(),
     fetchWorkspaces: vi.fn().mockResolvedValue([]),
@@ -62,6 +63,7 @@ vi.mock('../api/chatAPI', () => ({
     fetchAssistantState = apiHarness.fetchAssistantState;
     createChannel = apiHarness.createChannel;
     deleteChannel = apiHarness.deleteChannel;
+    createSession = apiHarness.createSession;
     markAssistantTaskDone = apiHarness.markAssistantTaskDone;
     dismissAssistantReminder = apiHarness.dismissAssistantReminder;
     fetchWorkspaces = apiHarness.fetchWorkspaces;

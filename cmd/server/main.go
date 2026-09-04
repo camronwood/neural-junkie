@@ -4,9 +4,7 @@ import (
 	"context"
 	"flag"
 	"log"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -65,39 +63,14 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // checkWebSocketOrigin restricts browser WebSocket hijacking (CSWSH). Non-browser clients often omit Origin.
-// Override with NEURAL_JUNKIE_WS_ORIGINS (comma-separated full Origin URLs) for extra dev hosts.
 func checkWebSocketOrigin(r *http.Request) bool {
 	o := r.Header.Get("Origin")
-	if o == "" {
+	if browserOriginAllowed(o, r.Host) {
 		return true
 	}
-	u, err := url.Parse(o)
-	if err != nil || u.Hostname() == "" {
-		return false
+	if o != "" {
+		log.Printf("websocket: rejected Origin %q for Host %q (set NEURAL_JUNKIE_WS_ORIGINS to allow)", o, r.Host)
 	}
-	host := strings.ToLower(u.Hostname())
-	switch host {
-	case "localhost", "127.0.0.1", "::1":
-		return true
-	}
-	if strings.HasSuffix(host, ".localhost") {
-		return true
-	}
-	if rh := r.Host; rh != "" {
-		reqHost, _, splitErr := net.SplitHostPort(rh)
-		if splitErr != nil {
-			reqHost = rh
-		}
-		if strings.EqualFold(host, strings.ToLower(reqHost)) {
-			return true
-		}
-	}
-	for _, extra := range strings.Split(os.Getenv("NEURAL_JUNKIE_WS_ORIGINS"), ",") {
-		if strings.TrimSpace(extra) == o {
-			return true
-		}
-	}
-	log.Printf("websocket: rejected Origin %q for Host %q (set NEURAL_JUNKIE_WS_ORIGINS to allow)", o, r.Host)
 	return false
 }
 

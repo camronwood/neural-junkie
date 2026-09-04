@@ -1,4 +1,18 @@
-import { getHubAccessToken, getHubSessionToken } from '../../config/hubUrl';
+import { getHubAccessToken, getHubSessionToken, getHubWebSocketHost } from '../../config/hubUrl';
+
+function httpBaseToWsBase(baseURL: string): string {
+  const trimmed = baseURL.replace(/\/+$/, '');
+  const wsURL = trimmed.replace(/^http:\/\//i, 'ws://').replace(/^https:\/\//i, 'wss://');
+  try {
+    const u = new URL(wsURL);
+    if (u.hostname === '127.0.0.1') {
+      u.hostname = 'localhost';
+    }
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return `ws://${getHubWebSocketHost()}`;
+  }
+}
 
 /**
  * Build hub WebSocket URL for a channel subscription.
@@ -10,7 +24,7 @@ export function buildChannelWebSocketURL(
   channel: string,
   extraChannels: string[] = []
 ): string {
-  const wsURL = baseURL.replace('http://', 'ws://').replace('https://', 'wss://');
+  const wsURL = httpBaseToWsBase(baseURL);
   const token = getHubAccessToken();
   const params = new URLSearchParams();
   params.set('channel', channel);
@@ -34,7 +48,7 @@ export function buildThreadWebSocketURL(
   channel: string,
   threadId: string
 ): string {
-  const wsURL = baseURL.replace('http://', 'ws://').replace('https://', 'wss://');
+  const wsURL = httpBaseToWsBase(baseURL);
   const token = getHubAccessToken();
   const params = new URLSearchParams();
   params.set('channel', channel);

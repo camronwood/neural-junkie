@@ -95,6 +95,18 @@ describe('useWebSocket', () => {
     expect(result.current.status).toBe('connected');
   });
 
+  it('does not connect when disabled', () => {
+    renderHook(() =>
+      useWebSocket({
+        url: 'ws://127.0.0.1:18765/ws?channel=a',
+        onMessage: () => {},
+        enabled: false,
+        autoReconnect: false,
+      }),
+    );
+    expect(MockWebSocket.instances).toHaveLength(0);
+  });
+
   it('reconnects when URL changes', () => {
     const { result, rerender } = renderHook(
       ({ url }: { url: string }) =>

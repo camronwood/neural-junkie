@@ -6,6 +6,19 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.27] - 2026-09-04
+
+P7 polish: Gate 5 beta.26 matrix; Slack/Assistant chatAPI domains; ChatWindow command-palette extract.
+
+### Added
+- **chatAPI domains** — `slackApi`, `assistantApi` (incl. Google Meet notes) behind the ChatAPI façade.
+- **Command actions hook** — `useChatCommandActions` / `createChatCommandActions` extracts palette open, command defs load, and local `/nj-open-*` shortcuts; `ChatWindow.command.test.tsx` coverage.
+- **Hub/sidecar readiness** — desktop hub connection diagnostics and PDF editor preview improvements shipped with this cut.
+
+### Changed
+- **Gate 5** — beta.26 package verification recorded in [platform-smoke-beta26.md](testing/platform-smoke-beta26.md); interactive macOS + Win/Linux still operator ([#18](https://github.com/camronwood/neural-junkie/issues/18)).
+- **KNOWN_ISSUES #21** — cloud collab repro deferred again (no Claude auth).
+
 ## [1.2.0-beta.26] - 2026-08-28
 
 P6 polish: Gate 5 beta.25 matrix; continue chatAPI/ChatWindow decomposition.

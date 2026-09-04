@@ -10,6 +10,8 @@ import { RoomsApi } from './domains/roomsApi';
 import { ConnectorsApi } from './domains/connectorsApi';
 import { StreamsApi } from './domains/streamsApi';
 import { GitChangesApi } from './domains/gitChangesApi';
+import { AssistantApi } from './domains/assistantApi';
+import { SlackApi } from './domains/slackApi';
 import { getHubBaseURL, hubAuthHeaders, hubSessionHeaders, normalizeHubBaseURL, setHubSessionToken, getHubSessionToken } from '../config/hubUrl';
 
 describe('PacksApi', () => {
@@ -194,6 +196,32 @@ describe('RoomsApi', () => {
     expect(data.token).toBe('sess-1');
     expect(getHubSessionToken()).toBe('sess-1');
     setHubSessionToken(null);
+  });
+});
+
+describe('AssistantApi', () => {
+  it('fetchAssistantState calls /api/assistant/state', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ tasks: [], reminders: [] }),
+    });
+    const api = new AssistantApi(hubFetch);
+    const data = await api.fetchAssistantState('general');
+    expect(hubFetch).toHaveBeenCalledWith('/api/assistant/state?channel=general');
+    expect(data.tasks).toEqual([]);
+  });
+});
+
+describe('SlackApi', () => {
+  it('getSlackConfig calls /api/slack/config', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ enabled: false }),
+    });
+    const api = new SlackApi(hubFetch);
+    const data = await api.getSlackConfig();
+    expect(hubFetch).toHaveBeenCalledWith('/api/slack/config');
+    expect(data.enabled).toBe(false);
   });
 });
 

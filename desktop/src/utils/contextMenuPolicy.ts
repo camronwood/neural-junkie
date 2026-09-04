@@ -1,5 +1,10 @@
-/** Whether the native WebView context menu (Reload, etc.) should be allowed. */
-export function shouldAllowNativeContextMenu(target: EventTarget | null): boolean {
+/** Whether the native WebView context menu (Reload, Inspect, etc.) should be allowed. */
+export function shouldAllowNativeContextMenu(
+  target: EventTarget | null,
+  event?: MouseEvent,
+): boolean {
+  // Option/Alt + right-click: allow Inspect in packaged builds for debugging.
+  if (event?.altKey) return true;
   const el = target as HTMLElement | null;
   if (!el) return false;
   if (el.closest('.monaco-editor')) return true;
@@ -15,7 +20,7 @@ export function shouldAllowNativeContextMenu(target: EventTarget | null): boolea
  */
 export function initContextMenuPolicy(): () => void {
   const onContextMenu = (event: MouseEvent) => {
-    if (!shouldAllowNativeContextMenu(event.target)) {
+    if (!shouldAllowNativeContextMenu(event.target, event)) {
       event.preventDefault();
     }
   };

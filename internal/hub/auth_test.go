@@ -16,6 +16,20 @@ func TestCanUserAccessDMChannel(t *testing.T) {
 	}
 }
 
+func TestCanUserAccessMissingOwnedDMChannel(t *testing.T) {
+	h := NewHub()
+	// Channel not created yet (fresh hub / snapshot race).
+	if !h.CanUserAccessChannel("Camron", "dm-camron-assistant") {
+		t.Fatal("owner should access missing dm by name slug")
+	}
+	if h.CanUserAccessChannel("Eve", "dm-camron-assistant") {
+		t.Fatal("other user should not access missing dm")
+	}
+	if h.CanUserAccessChannel("Camron", "general-missing") {
+		t.Fatal("missing non-dm channel should deny")
+	}
+}
+
 func TestCanUserAccessSlackMirrorChannel(t *testing.T) {
 	h := NewHub()
 	h.CreateChannelWithType("slack:C01234", "Slack: #test", "", "custom", "slack-bridge")

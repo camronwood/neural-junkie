@@ -18,7 +18,10 @@ func (h *Hub) CanUserAccessChannel(username, channelName string) bool {
 	}
 	ch, err := h.GetChannel(channelName)
 	if err != nil || ch == nil {
-		return false
+		// Hub restart / race: channel not registered yet. Allow DM names owned by
+		// this user so WebSocket upgrade is not 403'd before the client (or WS
+		// handler) can recreate the DM shell.
+		return userMayAccessDMChannel(user, channelName, "")
 	}
 	typ := inferChannelTypeForName(ch.Name, ch.Type)
 	switch typ {

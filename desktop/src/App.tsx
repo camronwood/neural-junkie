@@ -125,14 +125,8 @@ function App() {
         const api = new ChatAPI(savedCredentials.serverAddr);
         const connected = await api.testConnection();
         if (connected) {
-          try {
-            const session = await api.createSession(savedCredentials.username);
-            setHubSessionToken(session.token);
-          } catch {
-            if (savedCredentials.sessionToken) {
-              setHubSessionToken(savedCredentials.sessionToken);
-            }
-          }
+          const session = await api.createSession(savedCredentials.username);
+          setHubSessionToken(session.token);
           setUsername(savedCredentials.username);
           setChannel(savedCredentials.channel);
           setServerAddr(savedCredentials.serverAddr);

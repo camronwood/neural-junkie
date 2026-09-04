@@ -19,6 +19,8 @@ import { RoomsApi } from './domains/roomsApi';
 import { ConnectorsApi } from './domains/connectorsApi';
 import { StreamsApi } from './domains/streamsApi';
 import { GitChangesApi } from './domains/gitChangesApi';
+import { AssistantApi } from './domains/assistantApi';
+import { SlackApi } from './domains/slackApi';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
 export interface SendMessageResponse {
@@ -442,6 +444,8 @@ export class ChatAPI {
   private readonly connectorsApi: ConnectorsApi;
   private readonly streamsApi: StreamsApi;
   private readonly gitChangesApi: GitChangesApi;
+  private readonly assistantApi: AssistantApi;
+  private readonly slackApi: SlackApi;
 
   constructor(serverAddr: string = getHubBaseURL()) {
     this.baseURL = normalizeHubBaseURL(serverAddr);
@@ -457,6 +461,8 @@ export class ChatAPI {
     this.connectorsApi = new ConnectorsApi(hubFetch);
     this.streamsApi = new StreamsApi(hubFetch);
     this.gitChangesApi = new GitChangesApi(hubFetch);
+    this.assistantApi = new AssistantApi(hubFetch);
+    this.slackApi = new SlackApi(hubFetch);
   }
 
   /** JSON + hub token + session for authenticated hub calls. */
@@ -929,46 +935,19 @@ export class ChatAPI {
   }
 
   async fetchAssistantState(channel?: string): Promise<AssistantStateResponse> {
-    const params = new URLSearchParams();
-    if (channel) {
-      params.set('channel', channel);
-    }
-    const query = params.toString();
-    const response = await this.hubFetch(`/api/assistant/state${query ? `?${query}` : ''}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch assistant state: ${response.statusText}`);
-    }
-    return response.json();
+    return this.assistantApi.fetchAssistantState(channel);
   }
 
   async markAssistantTaskDone(taskID: string): Promise<void> {
-    const response = await this.hubFetch(`/api/assistant/task-done`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: taskID }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to mark task done: ${response.statusText}`);
-    }
+    return this.assistantApi.markAssistantTaskDone(taskID);
   }
 
   async dismissAssistantReminder(reminderID: string): Promise<void> {
-    const response = await this.hubFetch(`/api/assistant/reminder-dismiss`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reminder_id: reminderID }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to dismiss reminder: ${response.statusText}`);
-    }
+    return this.assistantApi.dismissAssistantReminder(reminderID);
   }
 
   async getGoogleMeetNotesAppConfig(): Promise<GoogleMeetNotesAppConfig> {
-    const response = await this.hubFetch(`/api/assistant/google/config`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Google OAuth config: ${response.statusText}`);
-    }
-    return response.json();
+    return this.assistantApi.getGoogleMeetNotesAppConfig();
   }
 
   async saveGoogleMeetNotesAppConfig(
@@ -976,66 +955,27 @@ export class ChatAPI {
     clientSecret: string,
     redirectUrl?: string
   ): Promise<GoogleMeetNotesAppConfig> {
-    const response = await this.hubFetch(`/api/assistant/google/config`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_url: redirectUrl ?? '',
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Failed to save Google OAuth config: ${response.statusText}`);
-    }
-    return data;
+    return this.assistantApi.saveGoogleMeetNotesAppConfig(clientId, clientSecret, redirectUrl);
   }
 
   async getGoogleMeetNotesStatus(): Promise<GoogleMeetNotesStatus> {
-    const response = await this.hubFetch(`/api/assistant/google/status`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Google meet notes status: ${response.statusText}`);
-    }
-    return response.json();
+    return this.assistantApi.getGoogleMeetNotesStatus();
   }
 
   async getGoogleMeetNotesAuthURL(): Promise<string> {
-    const response = await this.hubFetch(`/api/assistant/google/auth?json=1`);
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Failed to get auth URL: ${response.statusText}`);
-    }
-    return data.url;
+    return this.assistantApi.getGoogleMeetNotesAuthURL();
   }
 
   async disconnectGoogleMeetNotes(): Promise<void> {
-    const response = await this.hubFetch(`/api/assistant/google/disconnect`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || `Disconnect failed: ${response.statusText}`);
-    }
+    return this.assistantApi.disconnectGoogleMeetNotes();
   }
 
   async syncGoogleMeetNotes(): Promise<number> {
-    const response = await this.hubFetch(`/api/assistant/google/sync`, {
-      method: 'POST',
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Sync failed: ${response.statusText}`);
-    }
-    return data.ingested ?? 0;
+    return this.assistantApi.syncGoogleMeetNotes();
   }
 
   async getSlackConfig(): Promise<SlackConfigResponse> {
-    const response = await this.hubFetch(`/api/slack/config`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Slack config: ${response.statusText}`);
-    }
-    return response.json();
+    return this.slackApi.getSlackConfig();
   }
 
   async saveSlackConfig(body: {
@@ -1049,16 +989,7 @@ export class ChatAPI {
     client_secret?: string;
     redirect_url?: string;
   }): Promise<{ status: string }> {
-    const response = await this.hubFetch(`/api/slack/config`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Failed to save Slack config: ${response.statusText}`);
-    }
-    return data;
+    return this.slackApi.saveSlackConfig(body);
   }
 
   async getWebSearchConfig(): Promise<WebSearchConfigResponse> {
@@ -1098,38 +1029,19 @@ export class ChatAPI {
   }
 
   async getSlackStatus(): Promise<SlackStatus> {
-    const response = await this.hubFetch(`/api/slack/status`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Slack status: ${response.statusText}`);
-    }
-    return response.json();
+    return this.slackApi.getSlackStatus();
   }
 
   async getSlackConnection(): Promise<SlackConnectionResponse> {
-    const response = await this.hubFetch(`/api/slack/connection`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Slack connection: ${response.statusText}`);
-    }
-    return response.json();
+    return this.slackApi.getSlackConnection();
   }
 
   async getSlackBindings(): Promise<SlackBinding[]> {
-    const response = await this.hubFetch(`/api/slack/bindings`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Slack bindings: ${response.statusText}`);
-    }
-    return response.json();
+    return this.slackApi.getSlackBindings();
   }
 
   async getSlackChannels(): Promise<SlackChannelInfo[]> {
-    const response = await this.hubFetch(`/api/slack/channels`);
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(
-        typeof data?.error === 'string' ? data.error : `Failed to list Slack channels: ${response.statusText}`
-      );
-    }
-    return Array.isArray(data) ? data : [];
+    return this.slackApi.getSlackChannels();
   }
 
   async saveSlackBinding(binding: {
@@ -1140,154 +1052,64 @@ export class ChatAPI {
     policy?: SlackPolicy;
     enabled?: boolean;
   }): Promise<SlackBinding> {
-    const response = await this.hubFetch(`/api/slack/bindings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(binding),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Failed to save Slack binding: ${response.statusText}`);
-    }
-    return data;
+    return this.slackApi.saveSlackBinding(binding);
   }
 
   async deleteSlackBinding(slackChannelId: string): Promise<void> {
-    const response = await this.hubFetch(`/api/slack/bindings?slack_channel_id=${encodeURIComponent(slackChannelId)}`,
-      { method: 'DELETE' }
-    );
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || `Failed to delete binding: ${response.statusText}`);
-    }
+    return this.slackApi.deleteSlackBinding(slackChannelId);
   }
 
   async getSlackOAuthURL(): Promise<string> {
-    const response = await this.hubFetch(`/api/slack/oauth/start?json=1`);
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Failed to get Slack OAuth URL: ${response.statusText}`);
-    }
-    return data.url;
+    return this.slackApi.getSlackOAuthURL();
   }
 
   async getSlackUserDMOAuthURL(): Promise<string> {
-    const response = await this.hubFetch(`/api/slack/oauth/user-dm/start?json=1`);
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Failed to get Slack user DM OAuth URL: ${response.statusText}`);
-    }
-    return data.url;
+    return this.slackApi.getSlackUserDMOAuthURL();
   }
 
   async disconnectSlack(): Promise<void> {
-    const response = await this.hubFetch(`/api/slack/disconnect`, { method: 'POST' });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || `Slack disconnect failed: ${response.statusText}`);
-    }
+    return this.slackApi.disconnectSlack();
   }
 
   async restartSlackBridge(): Promise<void> {
-    const response = await this.hubFetch(`/api/slack/restart`, { method: 'POST' });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || `Slack restart failed: ${response.statusText}`);
-    }
+    return this.slackApi.restartSlackBridge();
   }
 
   async getSlackInbox(): Promise<SlackInboxConfig> {
-    const response = await this.hubFetch(`/api/slack/inbox`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Slack inbox: ${response.statusText}`);
-    }
-    return response.json();
+    return this.slackApi.getSlackInbox();
   }
 
   async saveSlackInbox(body: SlackInboxConfig): Promise<SlackInboxConfig> {
-    const response = await this.hubFetch(`/api/slack/inbox`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Failed to save Slack inbox: ${response.statusText}`);
-    }
-    return data;
+    return this.slackApi.saveSlackInbox(body);
   }
 
   /** Toggle manual away mode for human DM away (GET + merge + PUT). */
   async setSlackInboxAwayEnabled(awayEnabled: boolean): Promise<SlackInboxConfig> {
-    const current = await this.getSlackInbox();
-    return this.saveSlackInbox({
-      ...current,
-      human_dm_away: {
-        ...current.human_dm_away,
-        away_enabled: awayEnabled,
-      },
-    });
+    return this.slackApi.setSlackInboxAwayEnabled(awayEnabled);
   }
 
   /** Toggle channel message forwarding into the personal inbox (reply from NJ). */
   async setSlackInboxForwardEnabled(forwardEnabled: boolean): Promise<SlackInboxConfig> {
-    const current = await this.getSlackInbox();
-    return this.saveSlackInbox({
-      ...current,
-      forward_enabled: forwardEnabled,
-    });
+    return this.slackApi.setSlackInboxForwardEnabled(forwardEnabled);
   }
 
   async testSlackInboxDM(text?: string): Promise<void> {
-    const response = await this.hubFetch(`/api/slack/inbox/test-dm`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text ?? '' }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Failed to send inbox test DM: ${response.statusText}`);
-    }
+    return this.slackApi.testSlackInboxDM(text);
   }
 
   async slackTestPost(slackChannelId: string, text?: string): Promise<void> {
-    const response = await this.hubFetch(`/api/slack/test-post`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slack_channel_id: slackChannelId, text: text ?? '' }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Slack test post failed: ${response.statusText}`);
-    }
+    return this.slackApi.slackTestPost(slackChannelId, text);
   }
 
   async getSlackDiagnose(): Promise<SlackDiagnoseResult> {
-    const response = await this.hubFetch(`/api/slack/diagnose`);
-    if (!response.ok) {
-      throw new Error(`Slack diagnose failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.slackApi.getSlackDiagnose();
   }
 
   async runSlackSmoke(options?: {
     channel_id?: string;
     outbound?: boolean;
   }): Promise<SlackSmokeResult> {
-    const response = await this.hubFetch(`/api/slack/smoke/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        channel_id: options?.channel_id,
-        outbound: options?.outbound ?? false,
-        allow_outbound: options?.outbound ?? false,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok && !data.checks) {
-      throw new Error(data.error || `Slack smoke failed: ${response.statusText}`);
-    }
-    return data;
+    return this.slackApi.runSlackSmoke(options);
   }
 
   // Create a new channel
@@ -2132,17 +1954,26 @@ export class ChatAPI {
   }
 
   async fetchWorkspaceImageDataUrl(workspaceId: string, path: string): Promise<string> {
-    const response = await this.hubFetch(`/api/file-content?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}&binary=1`
+    return this.fetchWorkspaceBinaryDataUrl(workspaceId, path);
+  }
+
+  async fetchWorkspaceBinaryDataUrl(
+    workspaceId: string,
+    path: string,
+    fallbackMime = 'application/octet-stream',
+  ): Promise<string> {
+    const response = await this.hubFetch(
+      `/api/file-content?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}&binary=1`,
     );
     if (!response.ok) {
-      throw new Error(`Failed to load image: ${response.statusText}`);
+      throw new Error(`Failed to load file: ${response.statusText}`);
     }
     const data = (await response.json()) as { mime?: string; content_base64?: string };
     const b64 = data.content_base64 ?? '';
     if (!b64) {
-      throw new Error('Empty image payload from hub');
+      throw new Error('Empty binary payload from hub');
     }
-    const mime = data.mime || 'application/octet-stream';
+    const mime = data.mime || fallbackMime;
     return `data:${mime};base64,${b64}`;
   }
 

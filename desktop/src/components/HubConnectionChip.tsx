@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { invoke } from '@tauri-apps/api/core';
 import type { ChatToolbarActionsLayout } from './ChatToolbarActions';
 import type { SettingsTab } from './SettingsModal';
 import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { getHubBaseURL, hubAuthHeaders, hubSessionHeaders } from '../config/hubUrl';
+import { isTauriRuntime } from '../utils/promptAttachments';
+import { updateWsDiagnostic, useWsDiagnostics } from '../utils/wsDiagnostics';
 
 const iconBtn =
   'w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
 
-const POPOVER_WIDTH = 256;
+const POPOVER_WIDTH = 288;
 
 interface HubConnectionChipProps {
   layout: ChatToolbarActionsLayout;
@@ -61,10 +64,48 @@ export function HubConnectionChip({
   const [health, setHealth] = useState<HubHealth | null>(null);
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
-  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
+  const [probeRunning, setProbeRunning] = useState(false);
+  const wsDiag = useWsDiagnostics();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
   const isVertical = layout === 'vertical';
+  const isTauri = isTauriRuntime();
+
+  const hubOrigin = (() => {
+    try {
+      return getHubBaseURL();
+    } catch {
+      return serverAddr;
+    }
+  })();
+
+  const runNativeProbe = useCallback(async () => {
+    if (!isTauri) return;
+    setProbeRunning(true);
+    try {
+      const channel = 'general';
+      const result = await invoke<string>('probe_hub_websocket', {
+        hubUrl: hubOrigin,
+        channel,
+      });
+      updateWsDiagnostic({ nativeProbe: result });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Native probe failed';
+      updateWsDiagnostic({ nativeProbe: msg });
+    } finally {
+      setProbeRunning(false);
+    }
+  }, [isTauri, hubOrigin]);
+
+  const openDevTools = useCallback(async () => {
+    if (!isTauri) return;
+    try {
+      await invoke('open_devtools');
+    } catch (e) {
+      console.error('[HubConnectionChip] open_devtools failed:', e);
+    }
+  }, [isTauri]);
 
   const refreshHealth = useCallback(async () => {
     const base = (serverAddr.startsWith('http') ? serverAddr : `http://${serverAddr}`).replace(
@@ -119,13 +160,6 @@ export function HubConnectionChip({
   }, [open, isVertical, connectionStatus, health, healthError]);
 
   const label = statusLabel(connectionStatus, healthOk);
-  const hubOrigin = (() => {
-    try {
-      return getHubBaseURL();
-    } catch {
-      return serverAddr;
-    }
-  })();
 
   const popover = open
     ? createPortal(
@@ -133,7 +167,7 @@ export function HubConnectionChip({
           <div className="fixed inset-0 z-[250]" aria-hidden onMouseDown={() => setOpen(false)} />
           <div
             ref={popoverRef}
-            className="fixed z-[251] w-64 rounded-lg border border-slack-border bg-slack-bg shadow-xl p-3 space-y-2"
+            className="fixed z-[251] w-72 rounded-lg border border-slack-border bg-slack-bg shadow-xl p-3 space-y-2"
             style={{ top: popoverPos.top, left: popoverPos.left }}
             role="dialog"
             aria-label="Hub connection status"
@@ -171,6 +205,36 @@ export function HubConnectionChip({
               )}
             </div>
 
+            <div className="text-[11px] text-slack-textMuted space-y-0.5 border-t border-slack-border pt-2">
+              <div className="font-medium text-slack-text">Diagnostics</div>
+              <div className="truncate" title={wsDiag.origin}>
+                Webview: <span className="text-slack-text">{wsDiag.origin || '—'}</span>
+              </div>
+              <div className="truncate" title={wsDiag.url}>
+                WS URL: <span className="text-slack-text">{wsDiag.url || '—'}</span>
+              </div>
+              <div>
+                Session: <span className="text-slack-text">{wsDiag.hasSession ? 'yes' : 'no'}</span>
+              </div>
+              {wsDiag.lastCloseCode != null && (
+                <div>
+                  Last close:{' '}
+                  <span className="text-slack-text">
+                    {wsDiag.lastCloseCode}
+                    {wsDiag.lastCloseReason ? ` (${wsDiag.lastCloseReason})` : ''}
+                  </span>
+                </div>
+              )}
+              {wsDiag.lastError && (
+                <div className="text-red-300 break-words">{wsDiag.lastError}</div>
+              )}
+              {wsDiag.nativeProbe && (
+                <div className="break-words">
+                  Native probe: <span className="text-slack-text">{wsDiag.nativeProbe}</span>
+                </div>
+              )}
+            </div>
+
             <div className="flex flex-wrap gap-1.5 pt-1">
               <button
                 type="button"
@@ -189,6 +253,25 @@ export function HubConnectionChip({
               >
                 Refresh
               </button>
+              {isTauri && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void runNativeProbe()}
+                    disabled={probeRunning}
+                    className="px-2.5 py-1 text-xs rounded bg-slate-700 text-slate-100 hover:bg-slate-600 disabled:opacity-50"
+                  >
+                    {probeRunning ? 'Probing…' : 'Native probe'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void openDevTools()}
+                    className="px-2.5 py-1 text-xs rounded bg-slate-700 text-slate-100 hover:bg-slate-600"
+                  >
+                    DevTools
+                  </button>
+                </>
+              )}
             </div>
 
             {onOpenSettings && (

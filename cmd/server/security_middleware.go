@@ -56,6 +56,12 @@ func hubPublicHost(listenAddr string) string {
 }
 
 func corsAllowsOrigin(origin string) bool {
+	return browserOriginAllowed(origin, "")
+}
+
+// browserOriginAllowed validates browser Origin headers for CORS and WebSocket CSWSH checks.
+// requestHost is the Host header from the incoming HTTP request (may be empty for CORS).
+func browserOriginAllowed(origin, requestHost string) bool {
 	srv := config.AppConfig().ResolvedServer()
 	if srv.CorsAny || os.Getenv("NEURAL_JUNKIE_CORS_ANY") == "1" {
 		return true
@@ -75,16 +81,40 @@ func corsAllowsOrigin(origin string) bool {
 	if strings.HasSuffix(host, ".localhost") {
 		return true
 	}
+	// Tauri asset protocol and custom schemes used by packaged webviews.
+	switch strings.ToLower(u.Scheme) {
+	case "tauri", "asset", "ipc":
+		return true
+	}
 	// Tauri / Vite dev
 	if host == "localhost" && (u.Port() == "1420" || u.Port() == "5173") {
 		return true
+	}
+	if requestHost != "" {
+		reqHost, _, splitErr := net.SplitHostPort(requestHost)
+		if splitErr != nil {
+			reqHost = requestHost
+		}
+		if strings.EqualFold(host, strings.ToLower(reqHost)) {
+			return true
+		}
 	}
 	for _, extra := range srv.CorsOrigins {
 		if strings.TrimSpace(extra) == origin {
 			return true
 		}
 	}
+	for _, extra := range srv.WSOrigins {
+		if strings.TrimSpace(extra) == origin {
+			return true
+		}
+	}
 	for _, extra := range strings.Split(os.Getenv("NEURAL_JUNKIE_CORS_ORIGINS"), ",") {
+		if strings.TrimSpace(extra) == origin {
+			return true
+		}
+	}
+	for _, extra := range strings.Split(os.Getenv("NEURAL_JUNKIE_WS_ORIGINS"), ",") {
 		if strings.TrimSpace(extra) == origin {
 			return true
 		}
