@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.27">v1.2.0-beta.27</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.28">v1.2.0-beta.28</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.28">1.2.0-beta.28</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.27">1.2.0-beta.27</a>
       ·
       <a href="#v1.2.0-beta.26">1.2.0-beta.26</a>
@@ -243,6 +245,22 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1.2.0-beta.28" class="release-version-heading">1.2.0-beta.28 <span class="release-date">— 2026-09-09</span></h2>
+
+      <p><strong>P8 — Gate 5 beta.27 + providers/channels extract.</strong> Gate 5 matrix updated for beta.27 installers. chatAPI gains <code>providersApi</code> and <code>webSearchApi</code>; <code>channelsApi</code> and <code>messagesApi</code> expanded. ChatWindow inbound surface helpers extract to <code>useChatInboundSurfaces</code>. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.28">GitHub Releases</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>chatAPI domains</strong> — providers / web search; expanded channels (create/DM/durable/WS) and message search / turn-trace / thread fetch.</li>
+        <li><strong>Inbound surfaces hook</strong> — <code>useChatInboundSurfaces</code> / <code>createChatInboundSurfaces</code> with inbound tests.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Gate 5</strong> — beta.27 package verification in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/platform-smoke-beta27.md">platform-smoke-beta27.md</a>; interactive smoke still open on #18.</li>
+        <li><strong>#21</strong> — cloud collab repro deferred (no Claude auth).</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.27" class="release-version-heading">1.2.0-beta.27 <span class="release-date">— 2026-09-04</span></h2>
 
       <p><strong>P7 — Gate 5 beta.26 + integrations extract.</strong> Gate 5 matrix updated for beta.26 installers. chatAPI gains <code>slackApi</code> and <code>assistantApi</code>; ChatWindow command palette / local slash shortcuts extract to <code>useChatCommandActions</code>. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.27">GitHub Releases</a>.</p>

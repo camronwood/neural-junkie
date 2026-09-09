@@ -7,7 +7,6 @@ import {
   normalizeHubBaseURL,
   setHubSessionToken,
 } from '../config/hubUrl';
-import { buildChannelWebSocketURL, buildThreadWebSocketURL } from './chatAPI/wsUrl';
 import { PacksApi } from './domains/packsApi';
 import { ChannelsApi } from './domains/channelsApi';
 import { MessagesApi } from './domains/messagesApi';
@@ -21,6 +20,8 @@ import { StreamsApi } from './domains/streamsApi';
 import { GitChangesApi } from './domains/gitChangesApi';
 import { AssistantApi } from './domains/assistantApi';
 import { SlackApi } from './domains/slackApi';
+import { ProvidersApi } from './domains/providersApi';
+import { WebSearchApi } from './domains/webSearchApi';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
 export interface SendMessageResponse {
@@ -446,12 +447,14 @@ export class ChatAPI {
   private readonly gitChangesApi: GitChangesApi;
   private readonly assistantApi: AssistantApi;
   private readonly slackApi: SlackApi;
+  private readonly providersApi: ProvidersApi;
+  private readonly webSearchApi: WebSearchApi;
 
   constructor(serverAddr: string = getHubBaseURL()) {
     this.baseURL = normalizeHubBaseURL(serverAddr);
     const hubFetch = (path: string, init?: RequestInit) => this.hubFetch(path, init);
     this.packsApi = new PacksApi(hubFetch);
-    this.channelsApi = new ChannelsApi(hubFetch);
+    this.channelsApi = new ChannelsApi(hubFetch, this.baseURL);
     this.messagesApi = new MessagesApi(hubFetch);
     this.collabApi = new CollabApi(hubFetch);
     this.agentsApi = new AgentsApi(hubFetch);
@@ -463,6 +466,8 @@ export class ChatAPI {
     this.gitChangesApi = new GitChangesApi(hubFetch);
     this.assistantApi = new AssistantApi(hubFetch);
     this.slackApi = new SlackApi(hubFetch);
+    this.providersApi = new ProvidersApi(hubFetch);
+    this.webSearchApi = new WebSearchApi(hubFetch);
   }
 
   /** JSON + hub token + session for authenticated hub calls. */
@@ -541,12 +546,7 @@ export class ChatAPI {
   }
 
   async searchMessages(channel: string, query: string, limit: number = 50): Promise<Message[]> {
-    const params = new URLSearchParams({ channel, q: query, limit: String(limit) });
-    const response = await this.hubFetch(`/api/messages/search?${params}`);
-    if (!response.ok) {
-      throw new Error(`Failed to search messages: ${response.statusText}`);
-    }
-    return response.json();
+    return this.messagesApi.searchMessages(channel, query, limit);
   }
 
   async fetchGitChanges(userId: string): Promise<GitChangeProposal[]> {
@@ -562,13 +562,7 @@ export class ChatAPI {
   }
 
   async fetchTurnTrace(channel: string, messageId: string, q?: string): Promise<Record<string, unknown>> {
-    const params = new URLSearchParams({ channel, message_id: messageId });
-    if (q?.trim()) params.set('q', q.trim());
-    const response = await this.hubFetch(`/api/debug/turn-trace?${params}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch turn trace: ${response.statusText}`);
-    }
-    return response.json();
+    return this.messagesApi.fetchTurnTrace(channel, messageId, q);
   }
 
   async listAPIKeys(): Promise<Array<Record<string, unknown>>> {
@@ -993,11 +987,7 @@ export class ChatAPI {
   }
 
   async getWebSearchConfig(): Promise<WebSearchConfigResponse> {
-    const response = await this.hubFetch(`/api/web-search/config`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch web search config: ${response.statusText}`);
-    }
-    return response.json();
+    return this.webSearchApi.getWebSearchConfig();
   }
 
   async saveWebSearchConfig(body: {
@@ -1007,25 +997,11 @@ export class ChatAPI {
     max_results?: number;
     keyless?: boolean;
   }): Promise<{ status: string }> {
-    const response = await this.hubFetch(`/api/web-search/config`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Failed to save web search config: ${response.statusText}`);
-    }
-    return data;
+    return this.webSearchApi.saveWebSearchConfig(body);
   }
 
   async testWebSearchConnection(): Promise<{ status: string; results?: Array<{ title: string; url: string; description: string }> }> {
-    const response = await this.hubFetch(`/api/web-search/test`, { method: 'POST' });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Web search test failed: ${response.statusText}`);
-    }
-    return data;
+    return this.webSearchApi.testWebSearchConnection();
   }
 
   async getSlackStatus(): Promise<SlackStatus> {
@@ -1120,39 +1096,12 @@ export class ChatAPI {
     members: string[] = [],
     createdBy: string = ''
   ): Promise<Channel> {
-    const response = await this.hubFetch(`/api/channels/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, type, members, created_by: createdBy }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error('Too Many Requests — wait a moment and try again.');
-      }
-      throw new Error(`Failed to create channel: ${response.statusText}`);
-    }
-
-    return response.json();
+    return this.channelsApi.createChannel(name, description, type, members, createdBy);
   }
 
   /** Find-or-create DM with an agent (rate-limit exempt on the hub). */
   async openDM(agentId: string, createdBy: string): Promise<Channel> {
-    const response = await this.hubFetch(`/api/channels/open-dm`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent_id: agentId, created_by: createdBy }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error('Too Many Requests — wait a moment and try again.');
-      }
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to open DM: ${response.statusText}`);
-    }
-
-    return response.json();
+    return this.channelsApi.openDM(agentId, createdBy);
   }
 
   /** Create a new expert or CLI agent scoped to a fresh DM channel. */
@@ -1171,36 +1120,7 @@ export class ChatAPI {
     cli_type?: string;
     work_dir?: string;
   }): Promise<Channel> {
-    const body: Record<string, unknown> = {
-      created_by: payload.created_by,
-      mode: payload.mode,
-      display_name: payload.display_name,
-    };
-    if (payload.mode === 'expert') {
-      body.expert_type = payload.expert_type ?? '';
-      body.persona = payload.persona ?? '';
-      body.provider_id = payload.provider_id ?? '';
-      body.provider = payload.provider ?? '';
-      body.model = payload.model ?? '';
-      body.capability_allow = payload.capability_allow ?? [];
-      body.capability_deny = payload.capability_deny ?? [];
-    } else {
-      body.cli_type = payload.cli_type ?? '';
-      body.work_dir = payload.work_dir ?? '';
-    }
-
-    const response = await this.hubFetch(`/api/channels/create-dm-agent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(detail.trim() || `Failed to create DM agent: ${response.statusText}`);
-    }
-
-    return response.json();
+    return this.channelsApi.createDMAgent(payload);
   }
 
   /** CLI agent registry keys and whether each binary appears on the server PATH. */
@@ -1228,131 +1148,57 @@ export class ChatAPI {
 
   // Delete a channel
   async clearChannelHistory(name: string): Promise<void> {
-    const response = await this.hubFetch(`/api/channels/clear-history`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Failed to clear channel history: ${response.statusText}`);
-    }
+    return this.channelsApi.clearChannelHistory(name);
   }
 
   async exportChannelHistory(channel: string, format: 'markdown' | 'json' = 'markdown'): Promise<Blob> {
-    const q = new URLSearchParams({ channel, format });
-    const response = await this.hubFetch(`/api/channel-export?${q.toString()}`);
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Failed to export channel history: ${response.statusText}`);
-    }
-    return response.blob();
+    return this.channelsApi.exportChannelHistory(channel, format);
   }
 
   async getChannelDurable(channel: string): Promise<boolean> {
-    const q = new URLSearchParams({ channel });
-    const response = await this.hubFetch(`/api/channel-durable/status?${q.toString()}`);
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Failed to read channel durable flag: ${response.statusText}`);
-    }
-    const data = (await response.json()) as { durable?: boolean };
-    return !!data.durable;
+    return this.channelsApi.getChannelDurable(channel);
   }
 
   async setChannelDurable(channel: string, durable: boolean): Promise<void> {
-    const response = await this.hubFetch(`/api/channel-durable`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel, durable }),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Failed to update channel durable flag: ${response.statusText}`);
-    }
+    return this.channelsApi.setChannelDurable(channel, durable);
   }
 
   async deleteChannel(name: string): Promise<void> {
-    const response = await this.hubFetch(`/api/channels/delete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete channel: ${response.statusText}`);
-    }
+    return this.channelsApi.deleteChannel(name);
   }
 
   async archiveChannel(name: string): Promise<void> {
-    const response = await this.hubFetch('/api/channels/archive', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(detail.trim() || `Failed to archive channel: ${response.statusText}`);
-    }
+    return this.channelsApi.archiveChannel(name);
   }
 
   // Add agents to a channel
   async addAgentsToChannel(channelName: string, agentIds: string[]): Promise<void> {
-    const response = await this.hubFetch(`/api/channels/agents?channel=${encodeURIComponent(channelName)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_ids: agentIds }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to add agents to channel: ${response.statusText}`);
-    }
+    return this.channelsApi.addAgentsToChannel(channelName, agentIds);
   }
 
   // Remove an agent from a channel
   async removeAgentFromChannel(channelName: string, agentId: string): Promise<void> {
-    const response = await this.hubFetch(`/api/channels/agents?channel=${encodeURIComponent(channelName)}&agent_id=${encodeURIComponent(agentId)}`,
-      { method: 'DELETE' }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to remove agent from channel: ${response.statusText}`);
-    }
+    return this.channelsApi.removeAgentFromChannel(channelName, agentId);
   }
 
   // Test server connection
   async testConnection(): Promise<boolean> {
-    try {
-      const response = await this.hubFetch(`/api/channels`);
-      return response.ok;
-    } catch (error) {
-      return false;
-    }
+    return this.channelsApi.testConnection();
   }
 
   // Get WebSocket URL for a channel. extraChannels are additional hub channels to watch on the same socket.
   getWebSocketURL(channel: string, extraChannels: string[] = []): string {
-    return buildChannelWebSocketURL(this.baseURL, channel, extraChannels);
+    return this.channelsApi.getWebSocketURL(channel, extraChannels);
   }
 
   // Get WebSocket URL for a thread
   getThreadWebSocketURL(channel: string, threadId: string): string {
-    return buildThreadWebSocketURL(this.baseURL, channel, threadId);
+    return this.channelsApi.getThreadWebSocketURL(channel, threadId);
   }
 
   // Fetch messages from a thread
   async fetchThreadMessages(threadId: string, limit: number = 50): Promise<Message[]> {
-    const response = await this.hubFetch(`/api/threads/${encodeURIComponent(threadId)}/messages?limit=${limit}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch thread messages: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.messagesApi.fetchThreadMessages(threadId, limit);
   }
 
   async sendThreadReply(
@@ -1482,129 +1328,22 @@ export class ChatAPI {
 
   // Test Anthropic connection
   async testAnthropicConnection(apiKey: string, useAIHub: boolean = true, aiHubEndpoint?: string): Promise<ConnectionTestResult> {
-    try {
-      const credentials = {
-        anthropic_api_key: apiKey,
-        use_ai_hub: useAIHub,
-        ai_hub_endpoint: aiHubEndpoint,
-      };
-
-      const response = await this.hubFetch(`/api/test-anthropic-connection`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      const result = await response.json();
-      return {
-        success: response.ok,
-        message: result.message || (response.ok ? 'Connection successful' : 'Connection failed'),
-        error: result.error,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Connection test failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
+    return this.providersApi.testAnthropicConnection(apiKey, useAIHub, aiHubEndpoint);
   }
 
   // Test GitHub connection
   async testGitHubConnection(personalAccessToken: string): Promise<ConnectionTestResult> {
-    try {
-      const credentials = {
-        github_token: personalAccessToken,
-      };
-
-      const response = await this.hubFetch(`/api/test-github-connection`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      const result = await response.json();
-      return {
-        success: response.ok,
-        message: result.message || (response.ok ? 'Connection successful' : 'Connection failed'),
-        error: result.error,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Connection test failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
+    return this.providersApi.testGitHubConnection(personalAccessToken);
   }
 
   // Test Confluence connection
   async testConfluenceConnection(domain: string, email: string, apiToken: string): Promise<ConnectionTestResult> {
-    try {
-      const credentials = {
-        confluence_credentials: {
-          domain,
-          email,
-          api_token: apiToken,
-        },
-      };
-
-      const response = await this.hubFetch(`/api/test-confluence-connection`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      const result = await response.json();
-      return {
-        success: response.ok,
-        message: result.message || (response.ok ? 'Connection successful' : 'Connection failed'),
-        error: result.error,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Connection test failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
+    return this.providersApi.testConfluenceConnection(domain, email, apiToken);
   }
 
   // Test Ollama connection
   async testOllamaConnection(endpoint: string, model: string): Promise<ConnectionTestResult> {
-    try {
-      const credentials = {
-        endpoint,
-        model,
-      };
-
-      const response = await this.hubFetch(`/api/test-ollama-connection`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      const result = await response.json();
-      return {
-        success: response.ok,
-        message: result.message || (response.ok ? 'Connection successful' : 'Connection failed'),
-        error: result.error,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Connection test failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
+    return this.providersApi.testOllamaConnection(endpoint, model);
   }
 
   // Switch agent provider
@@ -1624,100 +1363,32 @@ export class ChatAPI {
 
   // Switch all agents to same provider
   async switchAllAgentProviders(provider: string, model: string): Promise<void> {
-    const response = await this.hubFetch(`/api/agents/switch-all-providers`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ provider, model }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to switch all agents: ${response.statusText}`);
-    }
+    return this.providersApi.switchAllAgentProviders(provider, model);
   }
 
   // Get Ollama status
   async fetchOllamaStatus(): Promise<{ running: boolean; endpoint: string; error?: string }> {
-    const response = await this.hubFetch(`/api/ollama/status`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Ollama status: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.providersApi.fetchOllamaStatus();
   }
 
   // Get available Ollama models
   async fetchOllamaModels(endpoint?: string): Promise<string[]> {
-    const path = endpoint
-      ? `/api/ollama/models?endpoint=${encodeURIComponent(endpoint)}`
-      : '/api/ollama/models';
-    const response = await this.hubFetch(path);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Ollama models: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
-    return result.models || [];
+    return this.providersApi.fetchOllamaModels(endpoint);
   }
 
   // Test LM Studio connection
   async testLMStudioConnection(endpoint: string, model: string): Promise<ConnectionTestResult> {
-    try {
-      const credentials = {
-        endpoint,
-        model,
-      };
-
-      const response = await this.hubFetch(`/api/test-lmstudio-connection`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      const result = await response.json();
-      return {
-        success: response.ok,
-        message: result.message || (response.ok ? 'Connection successful' : 'Connection failed'),
-        error: result.error,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Connection test failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
+    return this.providersApi.testLMStudioConnection(endpoint, model);
   }
 
   // Get LM Studio status
   async fetchLMStudioStatus(): Promise<{ running: boolean; endpoint: string; error?: string }> {
-    const response = await this.hubFetch(`/api/lmstudio/status`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch LM Studio status: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.providersApi.fetchLMStudioStatus();
   }
 
   // Get available LM Studio models
   async fetchLMStudioModels(endpoint?: string): Promise<string[]> {
-    const path = endpoint
-      ? `/api/lmstudio/models?endpoint=${encodeURIComponent(endpoint)}`
-      : '/api/lmstudio/models';
-    const response = await this.hubFetch(path);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch LM Studio models: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
-    return result.models || [];
+    return this.providersApi.fetchLMStudioModels(endpoint);
   }
 
   async fetchHfCatalog(): Promise<
@@ -1730,11 +1401,7 @@ export class ChatAPI {
       files?: { filename: string; quant?: string }[];
     }[]
   > {
-    const response = await this.hubFetch(`/api/hf/catalog`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch HF catalog: ${response.statusText}`);
-    }
-    return response.json();
+    return this.providersApi.fetchHfCatalog();
   }
 
   async fetchHfStatus(): Promise<{
@@ -1742,21 +1409,13 @@ export class ChatAPI {
     router_reachable: boolean;
     cache_dir?: string;
   }> {
-    const response = await this.hubFetch(`/api/hf/status`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch HF status: ${response.statusText}`);
-    }
-    return response.json();
+    return this.providersApi.fetchHfStatus();
   }
 
   async fetchProviders(): Promise<
     { id: string; type: string; name: string; model?: string; endpoint?: string }[]
   > {
-    const response = await this.hubFetch(`/api/providers`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch providers: ${response.statusText}`);
-    }
-    return response.json();
+    return this.providersApi.fetchProviders();
   }
 
   // Send message with credentials for agent creation
@@ -1771,15 +1430,7 @@ export class ChatAPI {
 
   // Utility function to clear credentials from memory
   static clearCredentials(credentials: Record<string, any>): void {
-    for (const key in credentials) {
-      if (typeof credentials[key] === 'string') {
-        // Overwrite string values with random data to clear from memory
-        credentials[key] = 'x'.repeat(credentials[key].length);
-      } else if (typeof credentials[key] === 'object' && credentials[key] !== null) {
-        // Recursively clear nested objects
-        this.clearCredentials(credentials[key]);
-      }
-    }
+    ProvidersApi.clearCredentials(credentials);
   }
 
   // Workspace API methods

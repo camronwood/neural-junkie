@@ -12,6 +12,9 @@ import { StreamsApi } from './domains/streamsApi';
 import { GitChangesApi } from './domains/gitChangesApi';
 import { AssistantApi } from './domains/assistantApi';
 import { SlackApi } from './domains/slackApi';
+import { ChannelsApi } from './domains/channelsApi';
+import { ProvidersApi } from './domains/providersApi';
+import { WebSearchApi } from './domains/webSearchApi';
 import { getHubBaseURL, hubAuthHeaders, hubSessionHeaders, normalizeHubBaseURL, setHubSessionToken, getHubSessionToken } from '../config/hubUrl';
 
 describe('PacksApi', () => {
@@ -64,6 +67,71 @@ describe('MessagesApi', () => {
       })
     );
     expect(result.status).toBe('ok');
+  });
+
+  it('searchMessages calls /api/messages/search', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    });
+    const api = new MessagesApi(hubFetch);
+    await api.searchMessages('general', 'hello', 10);
+    expect(hubFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/messages/search')
+    );
+  });
+});
+
+describe('ProvidersApi', () => {
+  it('fetchProviders calls /api/providers', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 'p1', type: 'ollama', name: 'Ollama' }],
+    });
+    const api = new ProvidersApi(hubFetch);
+    const data = await api.fetchProviders();
+    expect(hubFetch).toHaveBeenCalledWith('/api/providers');
+    expect(data).toHaveLength(1);
+  });
+});
+
+describe('ChannelsApi', () => {
+  it('createChannel posts to /api/channels/create', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ name: 'dev', type: 'public' }),
+      status: 200,
+      statusText: 'OK',
+    });
+    const api = new ChannelsApi(hubFetch, 'http://127.0.0.1:18765');
+    const channel = await api.createChannel('dev', 'Dev channel', 'public', [], 'camron');
+    expect(hubFetch).toHaveBeenCalledWith(
+      '/api/channels/create',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'dev',
+          description: 'Dev channel',
+          type: 'public',
+          members: [],
+          created_by: 'camron',
+        }),
+      })
+    );
+    expect(channel.name).toBe('dev');
+  });
+});
+
+describe('WebSearchApi', () => {
+  it('getWebSearchConfig calls /api/web-search/config', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ enabled: false }),
+    });
+    const api = new WebSearchApi(hubFetch);
+    const data = await api.getWebSearchConfig();
+    expect(hubFetch).toHaveBeenCalledWith('/api/web-search/config');
+    expect(data.enabled).toBe(false);
   });
 });
 

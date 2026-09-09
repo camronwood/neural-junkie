@@ -13,8 +13,6 @@ import { useEditorStore } from '../stores/editorStore';
 import { getLanguageFromPath } from '../utils/editorLanguage';
 import { isEditableCsvPath } from '../utils/csvTable';
 import { useToastStore } from '../stores/toastStore';
-import { useApprovalStore } from '../stores/approvalStore';
-import { formatToolApprovalSummary } from '../utils/approvalDisplay';
 import { PendingApprovalsBar } from './PendingApprovalsBar';
 import { LocationRequestModal } from './LocationRequestModal';
 import { useComposerPrefillStore } from '../stores/composerPrefillStore';
@@ -42,23 +40,16 @@ import {
 import { HubDataAccessModal } from './HubDataAccessModal';
 import { onOpenDomainPacksModal } from '../utils/domainPacksModal';
 import {
-  fileChangeProposalPaths,
   refreshFileExplorerForPaths,
 } from '../utils/refreshFileExplorer';
 import { loadAgentsFromHub, loadChannelsFromHub, loadChatWindowInitialData } from '../hooks/useChatWindowData';
 import { devLog } from '../utils/devLog';
 import { useChatInboundMessages } from '../hooks/useChatInboundMessages';
+import { useChatInboundSurfaces } from '../hooks/useChatInboundSurfaces';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useSidebarAutoUnhide } from '../hooks/useSidebarAutoUnhide';
-import { chatScrollerElRef } from './MessageList';
 import { ChatMessageList } from './chat/ChatMessageList';
 import { ChatInputArea } from './chat/ChatInputArea';
-import {
-  shouldNotifySlackInbound,
-  slackChannelLabel,
-  slackInboundPreview,
-  slackInboundSenderLabel,
-} from '../utils/slackNotification';
 import { isSlackHubChannelName } from '../utils/slackChannelDisplay';
 import { ThreadPanel } from './ThreadPanel';
 import { MyAgentsPanel } from './MyAgentsPanel';
@@ -116,7 +107,6 @@ import {
   CONTINUATION_REASON_METADATA_KEY,
   OUTPUT_LENGTH_CONTINUATION_PROMPT,
 } from '../types/protocol';
-import { getChangeProposalCard } from '../types/protocol';
 import { findThreadParentMessage } from '../utils/slackThread';
 import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
@@ -153,12 +143,7 @@ import { useChatDmActions } from '../hooks/useChatDmActions';
 import { useChatCommandActions } from '../hooks/useChatCommandActions';
 import { useChatOutboundDispatch } from '../hooks/useChatOutboundDispatch';
 import { registerRestartBlocker } from '../utils/restartSafety';
-import {
-  messageForPendingChangeId,
-  oldestPendingChangeNavTarget,
-  oldestPendingProposalMessage,
-  pendingProposalCount,
-} from '../utils/pendingChangeNavigation';
+import { pendingProposalCount } from '../utils/pendingChangeNavigation';
 import { useRoomStore } from '../stores/roomStore';
 import {
   agentsToCollaborationAgents,
@@ -765,7 +750,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const workspaceGateToastIdRef = useRef<string | null>(null);
   const handledRepoWorkspaceActionsRef = useRef<Set<string>>(new Set());
   const handledLearningProposalsRef = useRef<Set<string>>(new Set());
-  const handledChangeProposalNoticesRef = useRef<Set<string>>(new Set());
   const handledParticipantRequestPromptsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -884,8 +868,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     return api.getWebSocketURL(channel, slackExtra);
   }, [api, channel, stableChannelNamesKey, hubSessionToken, hubAccessToken]);
   
-  // Debounce timeout ref for agent list refresh
-  const agentRefreshTimeoutRef = useRef<number | null>(null);
   const wsOutageToastShownRef = useRef(false);
   
   // Load layout settings on mount
@@ -1180,253 +1162,28 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [trackedCollaborations]
   );
 
-  const navigateToMessage = useCallback(
-    async (channelName: string, messageId: string) => {
-      useChatStore.getState().setPendingScrollToMessageId(messageId);
-      await handleSwitchChannel(channelName);
-    },
-    [handleSwitchChannel]
-  );
-
-  const surfaceSlackInboundNotification = useCallback(
-    (message: Message) => {
-      if (!message.channel || !shouldNotifySlackInbound(message)) return;
-      const label = slackChannelLabel(useChatStore.getState().channels, message.channel);
-      const sender = slackInboundSenderLabel(message);
-      addToast({
-        type: 'info',
-        variant: 'slack',
-        title: sender,
-        message: slackInboundPreview(message),
-        duration: 8000,
-        action: {
-          label: `Open ${label}`,
-          onClick: () => void navigateToMessage(message.channel!, message.id),
-        },
-      });
-    },
-    [addToast, navigateToMessage]
-  );
-
-  // Debounced agent refresh (prevents excessive API calls).
-  // Channel list is only refreshed on agent_join/agent_leave, not on every status tick.
-  const debouncedRefreshAgents = useCallback(() => {
-    if (agentRefreshTimeoutRef.current) {
-      clearTimeout(agentRefreshTimeoutRef.current);
-    }
-    agentRefreshTimeoutRef.current = window.setTimeout(() => {
-      loadAgents();
-      loadCounts();
-    }, 300);
-  }, [loadAgents, loadCounts]);
-
-  const refreshExplorerForFileChange = useCallback(
-    (message: Message) => {
-      const paths = fileChangeProposalPaths(message);
-      if (paths.length === 0) return;
-      const ws =
-        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
-        explorerWorkspaces[0];
-      if (!ws) return;
-      void refreshFileExplorerForPaths(ws.id, paths);
-      for (const relPath of paths) {
-        void useEditorStore.getState().refreshTabFromDisk(ws.id, relPath);
-      }
-    },
-    [activeWorkspaceId, explorerWorkspaces]
-  );
-
-  const explorerRefreshTimeoutRef = useRef<number | null>(null);
-  const debouncedRefreshExplorer = useCallback(
-    (message: Message) => {
-      if (explorerRefreshTimeoutRef.current) {
-        clearTimeout(explorerRefreshTimeoutRef.current);
-      }
-      explorerRefreshTimeoutRef.current = window.setTimeout(() => {
-        refreshExplorerForFileChange(message);
-      }, 200);
-    },
-    [refreshExplorerForFileChange]
-  );
-
-  const surfaceChangeProposal = useCallback(
-    (message: Message, isActiveChannel: boolean) => {
-      const proposal = getChangeProposalCard(message);
-      if (!proposal) return;
-      if (proposal.kind === 'file_change') {
-        void fetchPendingChanges(username || 'default').catch((error) =>
-          console.error('Failed to refresh pending file changes:', error),
-        );
-        if (proposal.status === 'approved') {
-          debouncedRefreshExplorer(message);
-        }
-      } else {
-        void fetchPendingGitChanges(username || 'default').catch((error) =>
-          console.error('Failed to refresh pending Git changes:', error),
-        );
-      }
-      if (
-        proposal.status === 'pending' &&
-        !isActiveChannel &&
-        !handledChangeProposalNoticesRef.current.has(message.id)
-      ) {
-        handledChangeProposalNoticesRef.current.add(message.id);
-        addToast({
-          type: 'info',
-          title: 'Change needs review',
-          message: `${message.from.name} proposed a ${proposal.kind === 'file_change' ? 'file change' : 'Git operation'} in #${message.channel}.`,
-        });
-      }
-    },
-    [
-      addToast,
-      debouncedRefreshExplorer,
-      fetchPendingChanges,
-      fetchPendingGitChanges,
-      username,
-    ],
-  );
-
-  const jumpToOldestPendingChange = useCallback(async () => {
-    if (pendingChangeCount === 0) {
-      addToast({
-        type: 'info',
-        title: 'No pending changes',
-        message: 'All proposed file and Git changes have been resolved.',
-      });
-      return;
-    }
-
-    const pendingIds = new Set([
-      ...pendingChanges.map((change) => change.id),
-      ...pendingGitChanges.map((change) => change.id),
-    ]);
-    const navTarget = oldestPendingChangeNavTarget([
-      ...pendingChanges,
-      ...pendingGitChanges,
-    ]);
-
-    const focusProposal = (messages: Message[]) => {
-      const byId = navTarget
-        ? messageForPendingChangeId(messages, navTarget.id)
-        : null;
-      const target =
-        byId ?? oldestPendingProposalMessage(messages, pendingIds);
-      if (!target) return false;
-      const store = useChatStore.getState();
-      store.setPendingScrollToMessageId(target.id);
-      store.setHighlightMessageId(target.id);
-      return true;
-    };
-
-    if (focusProposal(useChatStore.getState().messages)) {
-      return;
-    }
-
-    if (!navTarget?.channel) {
-      addToast({
-        type: 'info',
-        title: 'Pending change unavailable',
-        message: 'A change is pending but its chat channel is unknown.',
-      });
-      return;
-    }
-
-    await handleSwitchChannel(navTarget.channel);
-
-    let messages = useChatStore.getState().messages;
-    if (!focusProposal(messages)) {
-      try {
-        messages = await api.fetchMessages(navTarget.channel, 200);
-        useChatStore.getState().setMessages(messages);
-      } catch {
-        // Fall through to toast below.
-      }
-    }
-
-    if (focusProposal(messages)) {
-      return;
-    }
-
-    addToast({
-      type: 'info',
-      title: `Opened #${navTarget.channel}`,
-      message: 'Switched to the chat with the pending change. Scroll to find the approval card.',
-    });
-  }, [
-    addToast,
+  const {
+    surfaceSlackInboundNotification,
+    debouncedRefreshAgents,
+    surfaceChangeProposal,
+    jumpToOldestPendingChange,
+    scrollToApproval,
+    surfaceToolApproval,
+  } = useChatInboundSurfaces({
     api,
+    username,
     handleSwitchChannel,
+    addToast,
+    loadAgents,
+    loadCounts,
+    activeWorkspaceId,
+    explorerWorkspaces,
+    fetchPendingChanges,
+    fetchPendingGitChanges,
     pendingChangeCount,
     pendingChanges,
     pendingGitChanges,
-  ]);
-
-  const scrollToApproval = useCallback((approvalId: string) => {
-    const el = document.querySelector(`[data-approval-id="${approvalId}"]`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
-    chatScrollerElRef.current?.scrollTo({
-      top: chatScrollerElRef.current.scrollHeight,
-      behavior: 'smooth',
-    });
-  }, []);
-
-  const surfaceToolApproval = useCallback(
-    (message: Message, isActiveChannel: boolean) => {
-      const approvalId = message.metadata?.approval_id as string | undefined;
-      const status = message.metadata?.status as string | undefined;
-      if (!approvalId) return;
-
-      const toolName = (message.metadata?.tool_name as string) || 'tool';
-      const toolInput = (message.metadata?.tool_input as Record<string, unknown>) || {};
-      const msgChannel = message.channel || useChatStore.getState().channel;
-
-      if (status === 'pending') {
-        useApprovalStore.getState().upsertPendingTool({
-          id: approvalId,
-          agentId: message.from.id,
-          agentName: message.from.name,
-          toolName,
-          toolInput,
-          channel: msgChannel,
-          messageId: message.id,
-          createdAt: message.timestamp,
-        });
-        const summary = formatToolApprovalSummary({
-          id: approvalId,
-          agentId: message.from.id,
-          agentName: message.from.name,
-          toolName,
-          toolInput,
-          channel: msgChannel,
-          createdAt: message.timestamp,
-        });
-        addToast({
-          type: 'warning',
-          title: `${message.from.name} needs your approval`,
-          message: isActiveChannel
-            ? summary
-            : `Waiting in #${msgChannel} — ${summary}`,
-          duration: 0,
-          action: isActiveChannel
-            ? {
-                label: 'Review now',
-                onClick: () => scrollToApproval(approvalId),
-              }
-            : {
-                label: `Open #${msgChannel}`,
-                onClick: () => useChatStore.getState().setChannel(msgChannel),
-              },
-        });
-      } else {
-        useApprovalStore.getState().removePendingTool(approvalId);
-      }
-    },
-    [addToast, scrollToApproval],
-  );
+  });
 
   const handledHandoffMessagesRef = useRef(new Set<string>());
 

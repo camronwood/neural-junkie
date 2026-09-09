@@ -164,4 +164,35 @@ export class MessagesApi {
       throw new Error(`Failed to answer question: ${response.statusText}`);
     }
   }
+
+  async searchMessages(channel: string, query: string, limit: number = 50): Promise<Message[]> {
+    const params = new URLSearchParams({ channel, q: query, limit: String(limit) });
+    const response = await this.hubFetch(`/api/messages/search?${params}`);
+    if (!response.ok) {
+      throw new Error(`Failed to search messages: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async fetchTurnTrace(channel: string, messageId: string, q?: string): Promise<Record<string, unknown>> {
+    const params = new URLSearchParams({ channel, message_id: messageId });
+    if (q?.trim()) params.set('q', q.trim());
+    const response = await this.hubFetch(`/api/debug/turn-trace?${params}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch turn trace: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async fetchThreadMessages(threadId: string, limit: number = 50): Promise<Message[]> {
+    const response = await this.hubFetch(
+      `/api/threads/${encodeURIComponent(threadId)}/messages?limit=${limit}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch thread messages: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
 }

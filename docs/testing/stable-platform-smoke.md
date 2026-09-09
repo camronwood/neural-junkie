@@ -67,4 +67,4 @@ For one macOS or Windows candidate, publish manifests against a test channel and
 
 ## Sign-off
 
-When done, update the Gate 5 table in [STABLE_RELEASE_CHECKLIST.md](../STABLE_RELEASE_CHECKLIST.md) and [platform-smoke-beta26.md](platform-smoke-beta26.md) (or a new matrix for this tag). Close [#18](https://github.com/camronwood/neural-junkie/issues/18) when macOS arm64 + one secondary platform pass.
+When done, update the Gate 5 table in [STABLE_RELEASE_CHECKLIST.md](../STABLE_RELEASE_CHECKLIST.md) and [platform-smoke-beta27.md](platform-smoke-beta27.md) (or a new matrix for this tag). Close [#18](https://github.com/camronwood/neural-junkie/issues/18) when macOS arm64 + one secondary platform pass.

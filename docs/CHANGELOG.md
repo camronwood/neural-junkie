@@ -6,6 +6,19 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.28] - 2026-09-09
+
+P8 polish: Gate 5 beta.27 matrix; providers/channels/webSearch chatAPI domains; ChatWindow inbound surfaces extract.
+
+### Added
+- **chatAPI domains** — `providersApi`, `webSearchApi`; expanded `channelsApi` (create/DM/durable/WS) and `messagesApi` (`searchMessages` / `fetchTurnTrace` / `fetchThreadMessages`) behind the ChatAPI façade.
+- **Inbound surfaces hook** — `useChatInboundSurfaces` / `createChatInboundSurfaces` extracts navigate-to-message, Slack/change/tool surface helpers, and explorer refresh; `ChatWindow.inbound.test.tsx` coverage.
+
+### Changed
+- **Gate 5** — beta.27 package verification recorded in [platform-smoke-beta27.md](testing/platform-smoke-beta27.md); interactive macOS + Win/Linux still operator ([#18](https://github.com/camronwood/neural-junkie/issues/18)).
+- **KNOWN_ISSUES #21** — cloud collab repro deferred again (no Claude auth).
+- **Structure** — `chatAPI.ts` ~3703 → ~3354 LOC; `ChatWindow.tsx` ~2811 → ~2568 LOC; desktop tests **627**.
+
 ## [1.2.0-beta.27] - 2026-09-04
 
 P7 polish: Gate 5 beta.26 matrix; Slack/Assistant chatAPI domains; ChatWindow command-palette extract.
