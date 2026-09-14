@@ -40,11 +40,20 @@ type ChangeProposalCard struct {
 	NewPath     string               `json:"new_path,omitempty"`
 	Message     string               `json:"message,omitempty"`
 	Paths       []string             `json:"paths,omitempty"`
+	RequestID   string               `json:"request_id,omitempty"`
+	PathStatus  []PathChangeStatus   `json:"path_status,omitempty"`
 	WorkspaceID string               `json:"workspace_id,omitempty"`
 	RequestedAt time.Time            `json:"requested_at,omitempty"`
 	ExpiresAt   time.Time            `json:"expires_at,omitempty"`
 	Reason      string               `json:"reason,omitempty"`
 	Error       string               `json:"error,omitempty"`
+}
+
+// PathChangeStatus is per-path state for a batch file-change proposal card.
+type PathChangeStatus struct {
+	Path   string               `json:"path"`
+	Status ChangeProposalStatus `json:"status"`
+	Reason string               `json:"reason,omitempty"`
 }
 
 func ParseChangeProposalCard(raw interface{}) (ChangeProposalCard, bool) {

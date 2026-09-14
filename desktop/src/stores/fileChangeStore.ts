@@ -19,8 +19,10 @@ interface FileChangeState {
   // Actions
   fetchPendingChanges: (userId?: string) => Promise<void>;
   approveChange: (changeId: string, userId?: string, newContent?: string) => Promise<void>;
+  approveRequest: (requestId: string, userId?: string) => Promise<void>;
   updateChangeContent: (changeId: string, newContent: string) => Promise<void>;
   rejectChange: (changeId: string, reason?: string, userId?: string) => Promise<void>;
+  rejectRequest: (requestId: string, reason?: string, userId?: string) => Promise<void>;
   getFileDiff: (changeId: string) => Promise<void>;
   selectChange: (changeId: string | null) => void;
   clearError: () => void;
@@ -116,6 +118,55 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     }
   },
 
+  approveRequest: async (requestId: string, userId = 'default') => {
+    set((state) => ({
+      busyById: { ...state.busyById, [requestId]: true },
+      errorsById: { ...state.errorsById, [requestId]: '' },
+      error: null,
+    }));
+    try {
+      const api = new ChatAPI();
+      const request = await api.approveFileChangeRequest(requestId, userId);
+      const memberIds = new Set((request.changes || []).map((c) => c.id));
+      const state = get();
+      const removed = state.pendingChanges.filter(
+        (c) => memberIds.has(c.id) || c.metadata?.request_id === requestId,
+      );
+      const updatedChanges = state.pendingChanges.filter(
+        (c) => !memberIds.has(c.id) && c.metadata?.request_id !== requestId,
+      );
+      set((current) => ({
+        pendingChanges: updatedChanges,
+        busyById: { ...current.busyById, [requestId]: false },
+      }));
+      const { workspaces } = useFileExplorerStore.getState();
+      for (const change of removed) {
+        const filePath = change?.file_path || change?.new_path || change?.old_path;
+        if (!filePath) continue;
+        const matchedWorkspace = workspaces.find(
+          (workspace) =>
+            filePath === workspace.path || filePath.startsWith(`${workspace.path}/`),
+        );
+        if (!matchedWorkspace) continue;
+        const relPath = filePath.startsWith(`${matchedWorkspace.path}/`)
+          ? filePath.slice(matchedWorkspace.path.length + 1)
+          : filePath;
+        await refreshFileExplorerForPaths(matchedWorkspace.id, [relPath]);
+        if (relPath) {
+          await useEditorStore.getState().refreshTabFromDisk(matchedWorkspace.id, relPath);
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to approve batch';
+      set((state) => ({
+        error: errorMessage,
+        busyById: { ...state.busyById, [requestId]: false },
+        errorsById: { ...state.errorsById, [requestId]: errorMessage },
+      }));
+      throw error;
+    }
+  },
+
   updateChangeContent: async (changeId: string, newContent: string) => {
     try {
       const api = new ChatAPI();
@@ -162,6 +213,32 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
         error: errorMessage,
         busyById: { ...state.busyById, [changeId]: false },
         errorsById: { ...state.errorsById, [changeId]: errorMessage },
+      }));
+      throw error;
+    }
+  },
+
+  rejectRequest: async (requestId: string, reason = 'No reason provided', userId = 'default') => {
+    set((state) => ({
+      busyById: { ...state.busyById, [requestId]: true },
+      errorsById: { ...state.errorsById, [requestId]: '' },
+      error: null,
+    }));
+    try {
+      const api = new ChatAPI();
+      await api.rejectFileChangeRequest(requestId, reason, userId);
+      set((state) => ({
+        pendingChanges: state.pendingChanges.filter(
+          (c) => c.metadata?.request_id !== requestId,
+        ),
+        busyById: { ...state.busyById, [requestId]: false },
+      }));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reject batch';
+      set((state) => ({
+        error: errorMessage,
+        busyById: { ...state.busyById, [requestId]: false },
+        errorsById: { ...state.errorsById, [requestId]: errorMessage },
       }));
       throw error;
     }

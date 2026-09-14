@@ -47,6 +47,78 @@ func TestProposeAndApproveCreate(t *testing.T) {
 	}
 }
 
+func TestProposeAndApproveFileChangeRequest(t *testing.T) {
+	mgr, root := newTestManager(t)
+	a := filepath.Join(root, "a.txt")
+	b := filepath.Join(root, "b.txt")
+	if err := os.WriteFile(a, []byte("old-a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(b, []byte("old-b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := mgr.ProposeFileChangeRequest([]*FileChange{
+		{Operation: FileOperationEdit, FilePath: a, OldContent: "old-a", NewContent: "new-a"},
+		{Operation: FileOperationEdit, FilePath: b, OldContent: "old-b", NewContent: "new-b"},
+	}, testAgent(), "general")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.ID == "" || len(req.Changes) != 2 {
+		t.Fatalf("unexpected request: %+v", req)
+	}
+	for _, c := range req.Changes {
+		if c.Metadata["request_id"] != req.ID {
+			t.Fatalf("change missing request_id: %+v", c.Metadata)
+		}
+	}
+	if mgr.GetPendingCount() != 2 {
+		t.Fatalf("expected 2 pending, got %d", mgr.GetPendingCount())
+	}
+
+	approved, err := mgr.ApproveFileChangeRequest(req.ID, "user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if approved.Status != FileChangeStatusApproved {
+		t.Fatalf("expected approved request, got %s", approved.Status)
+	}
+	for _, path := range []string{a, b} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(string(data), "new-") {
+			t.Fatalf("file %s not updated: %q", path, data)
+		}
+	}
+	if mgr.GetPendingCount() != 0 {
+		t.Fatal("expected no pending after batch approve")
+	}
+}
+
+func TestRejectFileChangeRequest(t *testing.T) {
+	mgr, root := newTestManager(t)
+	target := filepath.Join(root, "batch-reject.txt")
+	req, err := mgr.ProposeFileChangeRequest([]*FileChange{
+		{Operation: FileOperationCreate, FilePath: target, NewContent: "x"},
+	}, testAgent(), "general")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := mgr.RejectFileChangeRequest(req.ID, "user-1", "nope")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rejected.Status != FileChangeStatusRejected {
+		t.Fatalf("expected rejected, got %s", rejected.Status)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatal("rejected create should not write file")
+	}
+}
+
 func TestRejectFileChange(t *testing.T) {
 	mgr, root := newTestManager(t)
 	target := filepath.Join(root, "reject-me.txt")

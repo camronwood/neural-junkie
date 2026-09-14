@@ -67,12 +67,16 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
   const fileChange = useFileChangeStore((state) =>
     card?.kind === 'file_change' ? state.changesById[card.id] : undefined,
   );
-  const fileBusy = useFileChangeStore((state) =>
-    card?.kind === 'file_change' ? state.busyById[card.id] === true : false,
-  );
-  const fileError = useFileChangeStore((state) =>
-    card?.kind === 'file_change' ? state.errorsById[card.id] : '',
-  );
+  const fileBusy = useFileChangeStore((state) => {
+    if (card?.kind !== 'file_change') return false;
+    if (state.busyById[card.id] === true) return true;
+    if (card.request_id && state.busyById[card.request_id] === true) return true;
+    return false;
+  });
+  const fileError = useFileChangeStore((state) => {
+    if (card?.kind !== 'file_change') return '';
+    return state.errorsById[card.id] || (card.request_id ? state.errorsById[card.request_id] : '') || '';
+  });
   const gitChange = useGitChangeStore((state) =>
     card?.kind === 'git_change' ? state.changesById[card.id] : undefined,
   );
@@ -100,14 +104,23 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
   if (!card) return null;
 
   const destructive =
-    card.kind === 'file_change' && (card.operation === 'delete' || card.operation === 'move');
+    card.kind === 'file_change' &&
+    (card.operation === 'delete' || card.operation === 'move');
+  const isBatch =
+    card.kind === 'file_change' &&
+    (card.operation === 'batch' || Boolean(card.request_id) || (card.paths?.length ?? 0) > 1);
+  const requestId = card.request_id || (isBatch ? card.id : undefined);
   const canAct = status === 'pending';
   const errorText = card.error || fileError || gitError;
 
   const approve = async () => {
     try {
       if (card.kind === 'file_change') {
-        await useFileChangeStore.getState().approveChange(card.id);
+        if (requestId) {
+          await useFileChangeStore.getState().approveRequest(requestId);
+        } else {
+          await useFileChangeStore.getState().approveChange(card.id);
+        }
       } else {
         await useGitChangeStore.getState().approveGitChange(card.id);
       }
@@ -123,7 +136,11 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
   const reject = async () => {
     try {
       if (card.kind === 'file_change') {
-        await useFileChangeStore.getState().rejectChange(card.id, reason || undefined);
+        if (requestId) {
+          await useFileChangeStore.getState().rejectRequest(requestId, reason || undefined);
+        } else {
+          await useFileChangeStore.getState().rejectChange(card.id, reason || undefined);
+        }
       } else {
         await useGitChangeStore.getState().rejectGitChange(card.id, reason || undefined);
       }
@@ -139,9 +156,17 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
 
   const reviewFile = async () => {
     try {
-      await useFileChangeStore.getState().getFileDiff(card.id);
-      useFileChangeStore.getState().selectChange(card.id);
-      const change = useFileChangeStore.getState().changesById[card.id];
+      const pending = useFileChangeStore.getState().pendingChanges;
+      let targetId = card.id;
+      if (requestId) {
+        const member =
+          pending.find((c) => c.metadata?.request_id === requestId) ||
+          pending.find((c) => (card.paths || []).some((p) => (c.file_path || '').endsWith(p)));
+        if (member) targetId = member.id;
+      }
+      await useFileChangeStore.getState().getFileDiff(targetId);
+      useFileChangeStore.getState().selectChange(targetId);
+      const change = useFileChangeStore.getState().changesById[targetId];
       if (!change) throw new Error('Change details are unavailable.');
       const absolutePath = change.file_path || change.old_path || change.new_path || '';
       const explorer = useFileExplorerStore.getState();
@@ -189,7 +214,11 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-slack-text">
-              {card.kind === 'file_change' ? 'Proposed file change' : 'Proposed Git operation'}
+              {card.kind === 'file_change'
+                ? isBatch
+                  ? 'Proposed batch file change'
+                  : 'Proposed file change'
+                : 'Proposed Git operation'}
             </span>
             <span className="rounded bg-slack-bg px-1.5 py-0.5 text-[11px] uppercase text-slack-textMuted">
               {card.operation}
@@ -200,10 +229,23 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
             {displayPath(card)}
           </div>
           {card.message && <p className="mt-2 text-sm text-slack-text">{card.message}</p>}
-          {card.paths && card.paths.length > 0 && (
-            <div className="mt-2 text-xs text-slack-textMuted">
-              {card.paths.length} path{card.paths.length === 1 ? '' : 's'}: {card.paths.join(', ')}
-            </div>
+          {card.path_status && card.path_status.length > 0 ? (
+            <ul className="mt-2 space-y-1 text-xs text-slack-textMuted">
+              {card.path_status.map((entry) => (
+                <li key={entry.path} className="flex flex-wrap items-center gap-2 font-mono">
+                  <span>{entry.path}</span>
+                  <StatusBadge status={entry.status} />
+                  {entry.reason && <span className="text-amber-300">{entry.reason}</span>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            card.paths &&
+            card.paths.length > 0 && (
+              <div className="mt-2 text-xs text-slack-textMuted">
+                {card.paths.length} path{card.paths.length === 1 ? '' : 's'}: {card.paths.join(', ')}
+              </div>
+            )
           )}
           {(card.reason || errorText) && (
             <div className="mt-2 text-xs text-amber-300">{card.reason || errorText}</div>

@@ -37,7 +37,12 @@ func (h *Hub) UpdateChangeProposalStatus(
 				continue
 			}
 			card, ok := protocol.ParseChangeProposalCard(message.Metadata[protocol.MetaChangeProposal])
-			if !ok || card.ID != proposalID {
+			if !ok {
+				continue
+			}
+			matches := card.ID == proposalID ||
+				(card.RequestID != "" && card.RequestID == proposalID)
+			if !matches {
 				continue
 			}
 			card.Status = status

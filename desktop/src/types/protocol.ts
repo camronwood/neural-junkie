@@ -237,6 +237,8 @@ export interface ChangeProposalCard {
   new_path?: string;
   message?: string;
   paths?: string[];
+  request_id?: string;
+  path_status?: Array<{ path: string; status: ChangeProposalStatus; reason?: string }>;
   workspace_id?: string;
   requested_at?: string;
   expires_at?: string;
@@ -278,6 +280,16 @@ export function getChangeProposalCard(message: Message): ChangeProposalCard | nu
         message: card.message,
         paths: Array.isArray(card.paths)
           ? card.paths.filter((path): path is string => typeof path === 'string')
+          : undefined,
+        request_id: typeof card.request_id === 'string' ? card.request_id : undefined,
+        path_status: Array.isArray(card.path_status)
+          ? card.path_status.filter(
+              (entry): entry is { path: string; status: ChangeProposalStatus; reason?: string } =>
+                !!entry &&
+                typeof entry === 'object' &&
+                typeof (entry as { path?: unknown }).path === 'string' &&
+                typeof (entry as { status?: unknown }).status === 'string',
+            )
           : undefined,
         workspace_id: card.workspace_id,
         requested_at: card.requested_at,

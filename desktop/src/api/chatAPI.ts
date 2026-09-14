@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, GitChangeProposal, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, RunbookDefinitionBundle, RunbookRunProvenance, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, ResolvedCapability, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, FileChangeRequest, GitChangeProposal, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, RunbookDefinitionBundle, RunbookRunProvenance, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, ResolvedCapability, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
 export type { ResolvedCapability } from '../types/protocol';
 import {
   getHubBaseURL,
@@ -2535,6 +2535,38 @@ export class ChatAPI {
       throw new Error(detail || `Failed to approve file change: ${response.statusText}`);
     }
 
+    return response.json();
+  }
+
+  async approveFileChangeRequest(requestId: string, userId: string = 'default'): Promise<FileChangeRequest> {
+    const response = await this.hubFetch(
+      `/api/file-changes/requests/${encodeURIComponent(requestId)}/approve?user_id=${encodeURIComponent(userId)}`,
+      { method: 'POST' },
+    );
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to approve file change request: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async rejectFileChangeRequest(
+    requestId: string,
+    reason: string = 'No reason provided',
+    userId: string = 'default',
+  ): Promise<FileChangeRequest> {
+    const response = await this.hubFetch(
+      `/api/file-changes/requests/${encodeURIComponent(requestId)}/reject`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, reason }),
+      },
+    );
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw new Error(detail || `Failed to reject file change request: ${response.statusText}`);
+    }
     return response.json();
   }
 

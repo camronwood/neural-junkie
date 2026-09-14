@@ -14,6 +14,7 @@ import {
   fileChangeProposalPaths,
   refreshFileExplorerForPaths,
 } from '../utils/refreshFileExplorer';
+import { syncOpenTabsWithPendingChanges } from '../utils/syncPendingChangeToEditor';
 import {
   shouldNotifySlackInbound,
   slackChannelLabel,
@@ -22,6 +23,7 @@ import {
 } from '../utils/slackNotification';
 import { chatScrollerElRef } from '../components/MessageList';
 import { getChangeProposalCard, type Message } from '../types/protocol';
+import { useFileChangeStore } from '../stores/fileChangeStore';
 
 export type ChatInboundSurfacesDeps = {
   api: ChatAPI;
@@ -104,11 +106,35 @@ export function createChatInboundSurfaces(deps: ChatInboundSurfacesDeps) {
     const proposal = getChangeProposalCard(message);
     if (!proposal) return;
     if (proposal.kind === 'file_change') {
-      void deps.fetchPendingChanges(deps.username || 'default').catch((error) =>
-        console.error('Failed to refresh pending file changes:', error),
-      );
+      void deps
+        .fetchPendingChanges(deps.username || 'default')
+        .then(async () => {
+          if (proposal.status !== 'pending') return;
+          try {
+            const pending = useFileChangeStore.getState().pendingChanges;
+            await syncOpenTabsWithPendingChanges(pending);
+          } catch (syncErr) {
+            console.error('Failed to sync pending change to editor:', syncErr);
+          }
+        })
+        .catch((error) => console.error('Failed to refresh pending file changes:', error));
       if (proposal.status === 'approved') {
         debouncedRefreshExplorer(message);
+      }
+      const held =
+        Boolean(message.metadata?.file_change_held_for_approval) ||
+        (typeof proposal.reason === 'string' &&
+          proposal.reason.toLowerCase().includes('held for approval'));
+      if (held && proposal.status === 'pending' && !deps.handledChangeProposalNoticesRef.current.has(`hold:${message.id}`)) {
+        deps.handledChangeProposalNoticesRef.current.add(`hold:${message.id}`);
+        deps.addToast({
+          type: 'warning',
+          title: 'Held for approval',
+          message:
+            proposal.reason ||
+            `${message.from.name} proposed a large rewrite that needs your review.`,
+          duration: 10000,
+        });
       }
     } else {
       void deps.fetchPendingGitChanges(deps.username || 'default').catch((error) =>

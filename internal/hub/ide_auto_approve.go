@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"fmt"
 	"log"
 	"strings"
 
@@ -87,8 +88,16 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 		}
 	}
 	if (destructive || gitDestructive) && !agent.CanAutoApproveDestructiveRewrite(routedProvider, destructiveApproveMetadata(msg)) {
+		reason := fmt.Sprintf("Held for approval: large rewrite on %s (%.0f%% replacement)",
+			change.FilePath, ratio*100)
 		log.Printf("[IDE] Holding destructive rewrite for approval: %s (replacement=%.0f%% provider=%s)",
 			change.FilePath, ratio*100, routedProvider)
+		change.Reason = reason
+		if msg.Metadata == nil {
+			msg.Metadata = map[string]interface{}{}
+		}
+		msg.Metadata[protocol.MetaFileChangeHeldForApproval] = true
+		msg.Metadata["file_change_hold_reason"] = reason
 		return
 	}
 	approvedBy := "system"

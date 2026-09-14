@@ -960,6 +960,121 @@ func (a *Agent) ProposeFileDelete(path string) error {
 	return a.proposeFileDeleteInChannel(context.Background(), a.Context.CurrentChannel, path, nil)
 }
 
+type fileEditBatchItem struct {
+	Path       string
+	OldContent string
+	NewContent string
+}
+
+func (a *Agent) proposeFileEditBatchInChannel(ctx context.Context, channel string, items []fileEditBatchItem, sourceMsg *protocol.Message) error {
+	if strings.TrimSpace(channel) == "" {
+		channel = "general"
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := a.refuseInactiveCollabProposal(sourceMsg); err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		return fmt.Errorf("batch requires at least one edit")
+	}
+
+	wsPath := ""
+	if sourceMsg != nil {
+		wsPath = a.resolveWorkspacePath(sourceMsg)
+	}
+	state := implementationSessionStateFromContext(ctx)
+	proposals := make([]*protocol.FileChangeProposal, 0, len(items))
+	paths := make([]string, 0, len(items))
+	anyDestructive := false
+	maxRatio := 0.0
+
+	for _, item := range items {
+		path := normalizeFileChangeRelPath(item.Path)
+		if !isValidFileChangeRelPath(path) {
+			return fmt.Errorf("invalid file change path: %q", path)
+		}
+		newContent := stripEditorLineNumberPrefixes(item.NewContent)
+		if err := validateProposalContent(path, newContent); err != nil {
+			return err
+		}
+		oldContent := stripEditorLineNumberPrefixes(item.OldContent)
+		if wsPath != "" {
+			if current, err := os.ReadFile(filepath.Join(wsPath, path)); err == nil {
+				oldContent = string(current)
+			}
+		}
+		if err := state.prepareEditSnapshot(wsPath, path, oldContent, newContent); err != nil {
+			return err
+		}
+		destructive, rewriteRatio := IsDestructiveFileRewrite(oldContent, newContent)
+		gitDestructive, gitRewriteRatio, gitBaselineLines := gitBaselineRewriteRisk(ctx, wsPath, path, newContent)
+		if destructive || gitDestructive {
+			anyDestructive = true
+			if rewriteRatio > maxRatio {
+				maxRatio = rewriteRatio
+			}
+			if gitRewriteRatio > maxRatio {
+				maxRatio = gitRewriteRatio
+			}
+		}
+		proposal := &protocol.FileChangeProposal{
+			ChangeID:    uuid.New().String()[:8],
+			Operation:   "edit",
+			FilePath:    path,
+			OldContent:  oldContent,
+			NewContent:  newContent,
+			Agent:       a.Info,
+			Channel:     channel,
+			RequestedAt: time.Now(),
+			ExpiresAt:   time.Now().Add(30 * time.Minute),
+			IsDelete:    false,
+			Metadata:    make(map[string]interface{}),
+		}
+		if destructive {
+			proposal.Metadata["destructive_rewrite"] = true
+			proposal.Metadata["destructive_rewrite_ratio"] = rewriteRatio
+		}
+		if gitDestructive {
+			proposal.Metadata["git_baseline_destructive"] = true
+			proposal.Metadata["git_baseline_rewrite_ratio"] = gitRewriteRatio
+			proposal.Metadata["git_baseline_lines"] = gitBaselineLines
+		}
+		proposals = append(proposals, proposal)
+		paths = append(paths, path)
+	}
+
+	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
+		fmt.Sprintf("📝 Proposing batch edit of %d files", len(paths)))
+	msg.Metadata[protocol.MetaFileChangeBatchProposal] = map[string]interface{}{
+		"proposals": proposals,
+		"paths":     paths,
+	}
+	if anyDestructive {
+		msg.Metadata["destructive_rewrite"] = true
+		msg.Metadata["destructive_rewrite_ratio"] = maxRatio
+	}
+	if len(proposals) > 0 {
+		a.attachWorkspaceContextToProposalMessage(channel, msg, proposals[0], sourceMsg)
+	}
+	attachIdeSessionMetadataToProposal(msg, sourceMsg)
+	a.ApplyRoutingMetadataToResponse(msg)
+
+	err := a.Hub.SendMessage(msg)
+	if err == nil {
+		for _, item := range items {
+			state.recordEditResult(normalizeFileChangeRelPath(item.Path), item.NewContent)
+			a.noteProposalResult(ctx, normalizeFileChangeRelPath(item.Path), nil)
+		}
+	} else {
+		for _, item := range items {
+			a.noteProposalResult(ctx, normalizeFileChangeRelPath(item.Path), err)
+		}
+	}
+	return err
+}
+
 func (a *Agent) proposeFileDeleteInChannel(ctx context.Context, channel, path string, sourceMsg *protocol.Message) error {
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"

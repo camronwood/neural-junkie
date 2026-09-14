@@ -9,6 +9,9 @@ const (
 	MetaFileChangeID                  = "file_change_id"
 	MetaFileChangePath                = "file_change_path"
 	MetaFileChangeAgentID             = "file_change_agent_id"
+	MetaFileChangeBatchProposal       = "file_change_batch_proposal"
+	MetaFileChangeRequestID           = "file_change_request_id"
+	MetaFileChangeHeldForApproval     = "file_change_held_for_approval"
 )
 
 // FileChangeApproved reports whether the message records a user-approved file change.

@@ -168,6 +168,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/file-changes/propose-from-message", corsMiddleware(localOnly(handleProposeFileChangeFromMessage)))
 	http.HandleFunc("/api/file-changes/approve/", corsMiddleware(localOnly(handleApproveFileChange)))
 	http.HandleFunc("/api/file-changes/reject/", corsMiddleware(localOnly(handleRejectFileChange)))
+	http.HandleFunc("/api/file-changes/requests/", corsMiddleware(localOnly(handleFileChangeRequest)))
 	http.HandleFunc("/api/file-changes/", corsMiddleware(localOnly(handleFileChangeDiff)))
 
 	// AI Provider API endpoints

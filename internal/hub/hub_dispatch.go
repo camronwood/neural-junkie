@@ -167,7 +167,15 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	// Intercept file change proposals and register with FileChangeManager
 	var fileChangeRegErr error
 	if msg.Type == protocol.MessageTypeFileChange && msg.Metadata != nil {
-		if proposalRaw, ok := msg.Metadata["file_change_proposal"]; ok {
+		if batchRaw, ok := msg.Metadata[protocol.MetaFileChangeBatchProposal]; ok {
+			fileChangeRegErr = h.registerFileChangeBatchProposal(msg, batchRaw)
+			if fileChangeRegErr != nil {
+				if msg.Metadata == nil {
+					msg.Metadata = make(map[string]interface{})
+				}
+				msg.Metadata[protocol.MetaFileChangeRegistrationError] = fileChangeRegErr.Error()
+			}
+		} else if proposalRaw, ok := msg.Metadata["file_change_proposal"]; ok {
 			fileChangeRegErr = h.registerFileChangeProposal(msg, proposalRaw)
 			if fileChangeRegErr != nil {
 				if msg.Metadata == nil {
@@ -1918,6 +1926,12 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		}
 		msg.Metadata[protocol.MetaFileChangeAutoApproved] = true
 	}
+	holdReason := refreshed.Reason
+	if holdReason == "" && msg.Metadata != nil {
+		if r, ok := msg.Metadata["file_change_hold_reason"].(string); ok {
+			holdReason = r
+		}
+	}
 	msg.Metadata[protocol.MetaChangeProposal] = protocol.ChangeProposalCard{
 		Version:     1,
 		Kind:        protocol.ChangeProposalKindFile,
@@ -1929,7 +1943,10 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		NewPath:     refreshed.NewPath,
 		RequestedAt: refreshed.RequestedAt,
 		ExpiresAt:   refreshed.ExpiresAt,
-		Reason:      refreshed.Reason,
+		Reason:      holdReason,
+	}
+	if holdReason != "" && refreshed.Status == filechange.FileChangeStatusPending {
+		msg.Content = fmt.Sprintf("Held for approval: large rewrite on `%s`. Review the proposal before accepting.", refreshed.FilePath)
 	}
 	return nil
 }

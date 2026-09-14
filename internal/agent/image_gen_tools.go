@@ -400,6 +400,9 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	if name == applyPatchToolName {
 		return a.executeApplyPatchTool(ctx, msg, input)
 	}
+	if name == applyEditsBatchToolName {
+		return a.executeApplyEditsBatchTool(ctx, msg, input)
+	}
 	if name == askUserToolName {
 		return a.executeAskUserTool(ctx, msg, input)
 	}
@@ -867,7 +870,7 @@ func implementationSessionActive(ctx context.Context) bool {
 
 func isImplementationEditTool(name string) bool {
 	switch strings.TrimSpace(name) {
-	case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName:
+	case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName, applyEditsBatchToolName:
 		return true
 	default:
 		return false
