@@ -803,6 +803,14 @@ func (a *Agent) proposeFileChangePreferEditOrCreate(ctx context.Context, channel
 		wsPath = a.resolveWorkspacePath(sourceMsg)
 	}
 	op := InferProposalOperation(wsPath, path)
+	// Self-ground existing edit targets before the session gate (mirrors search_replace /
+	// apply_edits_batch, which read the file first and RecordReadPath).
+	if op == ProposalOpEdit && wsPath != "" {
+		if _, readErr := a.readWorkspaceFileForEdit(ctx, sourceMsg, path); readErr != nil {
+			// Fall through to validateProposalForSession — it returns a clearer error.
+			_ = readErr
+		}
+	}
 	if err := a.validateProposalForSession(ctx, sourceMsg, path, op); err != nil {
 		return err
 	}

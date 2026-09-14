@@ -29,6 +29,11 @@ func (s *ImplementationSessionState) groundingSatisfied() bool {
 	if len(s.LastReadPaths) >= 1 {
 		return true
 	}
+	// Discover tools (read_file/grep/glob/…) count as grounding even when the
+	// specific path list was not recorded — matches IMPLEMENTATION_SESSION.md.
+	if len(s.DiscoverTools) >= 1 {
+		return true
+	}
 	if s.BootFixIntent {
 		if s.BootFixReadsSatisfied() {
 			return true

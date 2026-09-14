@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -40,6 +42,42 @@ func TestDetectFilePaths_atFilePrefersFullPath(t *testing.T) {
 	}
 	if !foundFull {
 		t.Fatalf("expected core/sample/main.go in %v", paths)
+	}
+}
+
+func TestExpandPathRanges_numberedDirsWithBasename(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for i := 0; i < 10; i++ {
+		dir := filepath.Join(root, "noise", fmt.Sprintf("pkg%04d", i))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "util.go"), []byte(fmt.Sprintf("package pkg%04d\n", i)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	content := "in noise/pkg0000 through noise/pkg0009 rename each UtilN in util.go (10 files)"
+	paths := DetectFilePathsInWorkspace(content, root)
+	want := map[string]bool{}
+	for i := 0; i < 10; i++ {
+		want[fmt.Sprintf("noise/pkg%04d/util.go", i)] = true
+	}
+	for p := range want {
+		found := false
+		for _, got := range paths {
+			if got == p {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing %q in %v", p, paths)
+		}
+	}
+	n := AppendReferencedFiles(&strings.Builder{}, content, root)
+	if n < 8 {
+		t.Fatalf("expected expanded referenced seeds, got %d", n)
 	}
 }
 

@@ -1123,6 +1123,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 			}
 			var referencedFiles strings.Builder
 			seedMsg := msg
+			refSeeds := 0
 			if userAffirmsPendingImplementation(msg.Content) {
 				for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
 					m := a.channelHistory(msg.Channel)[i]
@@ -1131,16 +1132,23 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 					}
 					if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 						seedMsg = m
-						AppendReferencedFiles(&referencedFiles, m.Content, wsPath)
+						refSeeds = AppendReferencedFiles(&referencedFiles, m.Content, wsPath)
 						break
 					}
 				}
 			} else {
-				AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
+				refSeeds = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
 			}
-			seeds := AppendImplementationSeedFiles(&referencedFiles, a, seedMsg, wsPath, a.Info.Type, collectIncludedFilePaths(msg))
+			exclude := collectIncludedFilePaths(msg)
+			for _, p := range DetectFilePathsInWorkspace(seedMsg.Content, wsPath) {
+				if exclude == nil {
+					exclude = map[string]bool{}
+				}
+				exclude[p] = true
+			}
+			seeds := AppendImplementationSeedFiles(&referencedFiles, a, seedMsg, wsPath, a.Info.Type, exclude)
 			if st := implementationSessionStateFromContext(ctx); st != nil {
-				st.SeedsLoaded += seeds
+				st.SeedsLoaded += refSeeds + seeds
 			}
 			prompt += referencedFiles.String()
 		}

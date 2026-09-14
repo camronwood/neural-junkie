@@ -950,7 +950,7 @@ func implementationSeedCandidates(workspacePath string, content string, history 
 		seen[p] = true
 		out = append(out, p)
 	}
-	for _, p := range DetectFilePaths(content) {
+	for _, p := range DetectFilePathsInWorkspace(content, workspacePath) {
 		add(p)
 	}
 	if workspaceDirectiveRE.MatchString(content) {
@@ -965,7 +965,7 @@ func implementationSeedCandidates(workspacePath string, content string, history 
 			continue
 		}
 		seenHist++
-		for _, p := range DetectFilePaths(m.Content) {
+		for _, p := range DetectFilePathsInWorkspace(m.Content, workspacePath) {
 			add(p)
 		}
 	}

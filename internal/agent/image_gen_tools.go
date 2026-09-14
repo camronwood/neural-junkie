@@ -911,11 +911,15 @@ func (a *Agent) chainPlaintextToolResponse(
 		}
 		log.Printf("[%s] Recovered plaintext MCP tool call from tool-loop model response (chain %d/%d)", a.Info.Name, i+1, maxChain)
 		if isImplementationEditTool(name) {
-			return recovered, nil
+			// Successful edit proposals end the round; grounding/preflight failures should
+			// stay in the chain so the model can read files and retry.
+			if !strings.Contains(recovered, "failed:") && !strings.Contains(strings.ToLower(recovered), "grounding required") {
+				return recovered, nil
+			}
 		}
 		followUp := prompt + "\n\n=== TOOL RESULT (" + name + ") ===\n" +
 			truncateImplLog(recovered, 4000) +
-			"\n\nContinue the implementation session: use search_replace, apply_patch, or propose_file_edit to ship file changes. " +
+			"\n\nContinue the implementation session: use search_replace, apply_patch, apply_edits_batch, or propose_file_edit to ship file changes. " +
 			"Do not repeat read_file on paths you already read unless fixing a specific compile error.\n"
 		next, err := eff.GenerateResponse(ctx, followUp, histMsgs)
 		if err != nil {
