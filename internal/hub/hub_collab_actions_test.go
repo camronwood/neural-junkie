@@ -11,7 +11,7 @@ import (
 )
 
 func TestMaxConcurrentTasksCapsDispatchWave(t *testing.T) {
-	h := NewHub()
+	h := newTestHub(t)
 	chName := "general"
 	_ = h.CreateChannel(chName, "General", "")
 
@@ -65,7 +65,7 @@ func TestMaxConcurrentTasksCapsDispatchWave(t *testing.T) {
 }
 
 func TestExecuteCollabActionTaskDispatchesDependent(t *testing.T) {
-	h := NewHub()
+	h := newTestHub(t)
 	chName := "general"
 	_ = h.CreateChannel(chName, "General", "")
 	h.SetCollabActionRunnerConfig(actions.Config{

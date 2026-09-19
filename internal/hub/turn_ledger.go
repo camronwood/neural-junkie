@@ -78,11 +78,21 @@ func (h *Hub) noteTurnLedger(msg *protocol.Message) {
 		TraceID:     metadataString(msg.Metadata, "trace_id"),
 	}
 	channel := msg.Channel
+	h.turnLedgerWG.Add(1)
 	go func() {
+		defer h.turnLedgerWG.Done()
 		if err := turnledger.Append(channel, ev); err != nil {
 			log.Printf("[Hub] turn ledger append failed channel=%s: %v", channel, err)
 		}
 	}()
+}
+
+// WaitTurnLedgers blocks until async turn-ledger appends finish (tests / shutdown).
+func (h *Hub) WaitTurnLedgers() {
+	if h == nil {
+		return
+	}
+	h.turnLedgerWG.Wait()
 }
 
 // GetChannelTurnLedger returns the last limit turn-ledger entries for a channel
