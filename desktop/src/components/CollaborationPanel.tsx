@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useFileChangeStore } from '../stores/fileChangeStore';
+import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { RichMarkdownView } from './RichMarkdownView';
 import type {
@@ -9,7 +10,11 @@ import type {
   CollaborationTask,
   CollaborationPhase,
 } from '../types/protocol';
-import { confirmReplaceCollaborationExecution } from '../utils/collaborationConfirm';
+import {
+  confirmCancelCollaboration,
+  confirmMarkDoneWithMissingFileDeliverables,
+  confirmReplaceCollaborationExecution,
+} from '../utils/collaborationConfirm';
 import {
   canSubmitCollaborationForReview,
   collaborationPrimaryActionLabel,
@@ -32,6 +37,29 @@ import { taskOrchestrationLabel } from '../utils/collaborationTaskOrchestration'
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { RunbookGraphModal } from './runbook-graph';
 import { RunbookHistoryPanel } from './runbook/RunbookHistoryPanel';
+
+function CollabAdvancedDebug({
+  collabIdPrefix,
+  testId,
+}: {
+  collabIdPrefix?: string;
+  testId: string;
+}) {
+  const cmd = collabIdPrefix
+    ? `make debug-collab COLAB=${collabIdPrefix} LIVE=1`
+    : 'make debug-collab LIVE=1';
+  return (
+    <details data-testid={testId} style={{ marginTop: 8 }}>
+      <summary style={{ fontSize: 11, color: 'var(--text-secondary, #888)', cursor: 'pointer' }}>
+        Advanced debug
+      </summary>
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-secondary, #999)', lineHeight: 1.4 }}>
+        From a terminal in the Neural Junkie repo:{' '}
+        <code style={{ fontSize: 11 }}>{cmd}</code>
+      </p>
+    </details>
+  );
+}
 
 interface CollaborationPanelProps {
   collaboration: Collaboration;
@@ -96,6 +124,7 @@ export function CollaborationPanel({
     shallow
   );
   const pendingFileProposalCount = useFileChangeStore((s) => s.pendingChanges.length);
+  const addToast = useToastStore((s) => s.addToast);
   const [api] = useState(() => new ChatAPI(serverAddr));
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -105,10 +134,30 @@ export function CollaborationPanel({
   const [extendTargetId, setExtendTargetId] = useState('');
   const [extendRounds, setExtendRounds] = useState('1');
   const [extendMessages, setExtendMessages] = useState('');
+  const [reassignTaskId, setReassignTaskId] = useState<string | null>(null);
+  const [reassignAgentId, setReassignAgentId] = useState('');
   const from = { name: username || 'User', type: 'human' };
   const workspaceContextMode = loadWorkspaceContextMode();
 
   const c = collaboration;
+  const toastCollabError = (title: string, error: unknown) => {
+    addToast({
+      type: 'error',
+      title,
+      message: error instanceof Error ? error.message : 'Something went wrong. Try again.',
+    });
+  };
+  const runCollabAction = async (title: string, action: () => Promise<void>) => {
+    setIsSubmitting(true);
+    try {
+      await action();
+      await onAfterCollaborationCommand?.();
+    } catch (error) {
+      toastCollabError(title, error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   const extendCandidates =
     extendableCollaborations.length > 0
       ? extendableCollaborations
@@ -141,23 +190,15 @@ export function CollaborationPanel({
         return;
       }
     }
-    setIsSubmitting(true);
-    try {
+    await runCollabAction('Could not resume collaboration', async () => {
       await sendCollabCommand(`/resume-plan ${c.id.slice(0, 8)}`);
-      await onAfterCollaborationCommand?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const handleSubmitForReview = async () => {
-    setIsSubmitting(true);
-    try {
+    await runCollabAction('Could not submit for review', async () => {
       await sendCollabCommand(`/submit-plan ${c.id.slice(0, 8)}`);
-      await onAfterCollaborationCommand?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const anotherCollabExecuting =
@@ -202,27 +243,22 @@ export function CollaborationPanel({
 
   const handleRevise = async () => {
     if (!feedback.trim()) return;
-    setIsSubmitting(true);
-    try {
-      await sendCollabCommand(`/revise-plan ${c.id.slice(0, 8)} ${feedback}`);
+    const note = feedback.trim();
+    await runCollabAction('Could not revise plan', async () => {
+      await sendCollabCommand(`/revise-plan ${c.id.slice(0, 8)} ${note}`);
       setFeedback('');
-      await onAfterCollaborationCommand?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const handleCancel = async () => {
-    setIsSubmitting(true);
-    try {
+    if (!confirmCancelCollaboration(c)) return;
+    await runCollabAction('Could not cancel collaboration', async () => {
       await sendCollabCommand(`/cancel-plan ${c.id.slice(0, 8)}`);
-      await onAfterCollaborationCommand?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const openTasks = c.tasks?.filter(t => t.status !== 'completed') ?? [];
+  const pendingParticipantRequests = c.pending_participant_requests ?? [];
 
   const handleMarkDone = async () => {
     if (openTasks.length > 0) {
@@ -232,71 +268,97 @@ export function CollaborationPanel({
       );
       if (!ok) return;
     }
-    setIsSubmitting(true);
-    try {
+    if (!confirmMarkDoneWithMissingFileDeliverables(chatOnlyCompletedFileTasks.length)) {
+      return;
+    }
+    await runCollabAction('Could not mark collaboration done', async () => {
       const force = openTasks.length > 0 ? ' --force' : '';
       await sendCollabCommand(`/complete-collab ${c.id.slice(0, 8)}${force}`);
-      await onAfterCollaborationCommand?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const handleTaskDone = async (task: CollaborationTask) => {
-    setIsSubmitting(true);
-    try {
+    await runCollabAction('Could not complete task', async () => {
       await api.collabTaskComplete(c.id, task.id);
-      await onAfterCollaborationCommand?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const handleTaskSkip = async (task: CollaborationTask) => {
+    await runCollabAction('Could not skip task', async () => {
+      await api.collabTaskSkip(c.id, task.id);
+    });
+  };
+
+  const handleTaskRedispatch = async (task: CollaborationTask) => {
+    await runCollabAction('Could not redispatch task', async () => {
+      await api.collabTaskRedispatch(c.id, task.id);
+    });
+  };
+
+  const handleTaskReassign = async (task: CollaborationTask) => {
+    const agentId = reassignAgentId.trim();
+    if (!agentId) return;
+    await runCollabAction('Could not reassign task', async () => {
+      await api.collabTaskReassign(c.id, task.id, agentId);
+      setReassignTaskId(null);
+      setReassignAgentId('');
+    });
+  };
+
+  const handleParticipantApprove = async (agentId: string, agentName: string) => {
     setIsSubmitting(true);
     try {
-      await api.collabTaskSkip(c.id, task.id);
+      const updated = await api.approveCollabParticipantRequest(c.id, agentId);
       await onAfterCollaborationCommand?.();
+      addToast({
+        type: 'success',
+        title: 'Agent added',
+        message: `@${agentName} joined "${updated.title}".`,
+      });
+    } catch (error) {
+      toastCollabError('Could not approve participant', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleTaskRedispatch = async (task: CollaborationTask) => {
+  const handleParticipantDeny = async (agentId: string, agentName: string) => {
     setIsSubmitting(true);
     try {
-      await api.collabTaskRedispatch(c.id, task.id);
+      const updated = await api.denyCollabParticipantRequest(c.id, agentId);
       await onAfterCollaborationCommand?.();
+      addToast({
+        type: 'info',
+        title: 'Agent add denied',
+        message: `@${agentName} was not added to "${updated.title}".`,
+      });
+    } catch (error) {
+      toastCollabError('Could not deny participant', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handlePauseResume = async () => {
-    setIsSubmitting(true);
-    try {
-      if (c.dispatch_paused) {
-        await api.collabResume(c.id);
-      } else {
-        await api.collabPause(c.id);
+    await runCollabAction(
+      c.dispatch_paused ? 'Could not resume dispatch' : 'Could not pause dispatch',
+      async () => {
+        if (c.dispatch_paused) {
+          await api.collabResume(c.id);
+        } else {
+          await api.collabPause(c.id);
+        }
       }
-      await onAfterCollaborationCommand?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    );
   };
 
   const handleRename = async () => {
     const title = renameDraft.trim();
     if (!title) return;
-    setIsSubmitting(true);
-    try {
+    await runCollabAction('Could not rename collaboration', async () => {
       await sendCollabCommand(`/collab-rename ${c.id.slice(0, 8)} ${title}`);
       setRenaming(false);
-      await onAfterCollaborationCommand?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const handleExtend = async () => {
@@ -311,13 +373,9 @@ export function CollaborationPanel({
     if (messages > 0) {
       cmd += ` --messages ${messages}`;
     }
-    setIsSubmitting(true);
-    try {
+    await runCollabAction('Could not extend discussion', async () => {
       await sendCollabCommand(cmd);
-      await onAfterCollaborationCommand?.();
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   return (
@@ -352,7 +410,9 @@ export function CollaborationPanel({
           </span>
         </div>
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Close collaboration panel"
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
             color: 'var(--text-secondary, #888)', fontSize: 18,
@@ -582,10 +642,13 @@ export function CollaborationPanel({
               Waiting on {planningStalled.map((n) => `@${n}`).join(', ')}
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              These participants have not posted this round. Check agents are online and the model is reachable
-              (Ollama: <code style={{ fontSize: 11 }}>ollama serve</code>). Debug:{' '}
-              <code style={{ fontSize: 11 }}>make debug-collab COLAB={c.id.slice(0, 8)} LIVE=1</code>
+              These participants have not posted this round. Confirm agents are online in the sidebar, and check
+              Settings → Collaboration planning provider (or that Ollama is running).
             </p>
+            <CollabAdvancedDebug
+              collabIdPrefix={c.id.slice(0, 8)}
+              testId="collaboration-planning-stall-advanced"
+            />
           </div>
         )}
 
@@ -604,9 +667,10 @@ export function CollaborationPanel({
               Waiting for the first agent turn
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              The hub prompted the first participant. If nothing appears after ~30s, check that agents are online
-              or run <code style={{ fontSize: 11 }}>make debug-collab LIVE=1</code>.
+              The hub prompted the first participant. If nothing appears after ~30s, confirm agents are online and
+              the planning model is reachable (Settings → Collaboration planning provider).
             </p>
+            <CollabAdvancedDebug testId="collaboration-planning-wait-advanced" />
           </div>
         )}
 
@@ -625,10 +689,14 @@ export function CollaborationPanel({
               Execution may be stuck
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              No tasks completed yet while one is in progress. Use <strong>Resume plan</strong> if the watchdog
-              stopped dispatching, or check hub logs and{' '}
-              <code style={{ fontSize: 11 }}>make debug-collab COLAB={c.id.slice(0, 8)} LIVE=1</code>.
+              No tasks completed yet while one is in progress. Try <strong>Resume plan</strong> or{' '}
+              <strong>Redispatch</strong> / <strong>Reassign</strong> the in-progress task. Confirm the assignee
+              agent is online.
             </p>
+            <CollabAdvancedDebug
+              collabIdPrefix={c.id.slice(0, 8)}
+              testId="collaboration-executing-stuck-advanced"
+            />
           </div>
         )}
 
@@ -649,7 +717,8 @@ export function CollaborationPanel({
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
               {chatOnlyCompletedFileTasks.length} task(s) marked completed without file output. Approve{' '}
               <strong>{FILE_PROPOSAL_QUEUE_LABEL}</strong> in the toolbar or chat proposal cards — not tool
-              approvals. Ask the assignee to emit a [FILE_CHANGE] block if none appear.
+              approvals. Ask the assignee to emit a [FILE_CHANGE] block if none appear. Prefer{' '}
+              <strong>Redispatch</strong> over Mark collaboration done until files land.
             </p>
           </div>
         )}
@@ -758,16 +827,92 @@ export function CollaborationPanel({
           <h4 style={{ margin: '0 0 8px 0', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary, #888)', letterSpacing: 0.5 }}>
             Participants
           </h4>
-          {c.agents.map(agent => (
-            <div key={agent.agent_id} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '4px 0', fontSize: 13,
-            }}>
-              <span style={{ fontWeight: 500, color: 'var(--text-primary, #eee)' }}>@{agent.agent_name}</span>
-              <span style={{ color: 'var(--text-secondary, #888)', fontSize: 12 }}>{agent.role}</span>
-            </div>
-          ))}
+          {!c.agents?.length ? (
+            <p
+              data-testid="collaboration-participants-empty"
+              style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #999)', lineHeight: 1.45 }}
+            >
+              No agents in this collaboration yet. Start with{' '}
+              <strong>/collaborate</strong> or the Start collaboration form, or approve a join request below.
+            </p>
+          ) : (
+            c.agents.map(agent => (
+              <div key={agent.agent_id} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '4px 0', fontSize: 13,
+              }}>
+                <span style={{ fontWeight: 500, color: 'var(--text-primary, #eee)' }}>@{agent.agent_name}</span>
+                <span style={{ color: 'var(--text-secondary, #888)', fontSize: 12 }}>{agent.role}</span>
+              </div>
+            ))
+          )}
         </div>
+
+        {pendingParticipantRequests.length > 0 && !isTerminal && (
+          <div
+            data-testid="collaboration-participant-requests"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#93c5fd', marginBottom: 8 }}>
+              Pending join requests
+            </div>
+            {pendingParticipantRequests.map((req) => (
+              <div
+                key={`${req.agent_id}-${req.created_at}`}
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 8,
+                  fontSize: 12,
+                  color: 'var(--text-secondary, #ccc)',
+                }}
+              >
+                <span style={{ flex: '1 1 140px' }}>
+                  <strong>@{req.requested_by_name || 'An agent'}</strong> wants to add{' '}
+                  <strong>@{req.agent_name}</strong>
+                </span>
+                <button
+                  type="button"
+                  data-testid={`collaboration-participant-approve-${req.agent_id}`}
+                  onClick={() => void handleParticipantApprove(req.agent_id, req.agent_name)}
+                  disabled={isSubmitting}
+                  style={taskActionBtnStyle('#10b981')}
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  data-testid={`collaboration-participant-deny-${req.agent_id}`}
+                  onClick={() => void handleParticipantDeny(req.agent_id, req.agent_name)}
+                  disabled={isSubmitting}
+                  style={taskActionBtnStyle('#ef4444')}
+                >
+                  Deny
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {c.phase === 'planning' &&
+          !planningAwaitingFirstTurn &&
+          !(c.plan?.content) &&
+          (!c.tasks || c.tasks.length === 0) && (
+            <p
+              data-testid="collaboration-planning-empty"
+              style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary, #aaa)', lineHeight: 1.45 }}
+            >
+              Planning has started. Agents will discuss the goal and draft a shared plan here.
+            </p>
+          )}
 
         {/* Progress bar (during execution) */}
         {c.phase === 'executing' && totalTasks > 0 && (
@@ -792,7 +937,7 @@ export function CollaborationPanel({
         )}
 
         {/* Tasks */}
-        {c.tasks && c.tasks.length > 0 && (
+        {c.tasks && c.tasks.length > 0 ? (
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <h4 style={{ margin: 0, fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary, #888)', letterSpacing: 0.5 }}>
@@ -834,7 +979,16 @@ export function CollaborationPanel({
                 </ul>
               </div>
             ) : null}
-            {c.tasks.map((task: CollaborationTask, i: number) => (
+            {c.tasks.map((task: CollaborationTask, i: number) => {
+              const reassignCandidates = (c.agents || []).filter(
+                (a) => a.agent_id && a.agent_id !== task.assigned_to
+              );
+              const showReassign =
+                !isTerminal &&
+                c.phase === 'executing' &&
+                task.status !== 'completed' &&
+                reassignCandidates.length > 0;
+              return (
               <div key={task.id} style={{
                 padding: '8px 10px', marginBottom: 6,
                 borderRadius: 6,
@@ -898,13 +1052,72 @@ export function CollaborationPanel({
                         >
                           Redispatch
                         </button>
+                        {showReassign && (
+                          <button
+                            type="button"
+                            data-testid={`collaboration-task-reassign-${task.id}`}
+                            onClick={() => {
+                              setReassignTaskId((prev) => (prev === task.id ? null : task.id));
+                              setReassignAgentId(reassignCandidates[0]?.agent_id || '');
+                            }}
+                            disabled={isSubmitting}
+                            style={taskActionBtnStyle('#f59e0b')}
+                          >
+                            Reassign
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {reassignTaskId === task.id && showReassign && (
+                      <div
+                        data-testid={`collaboration-task-reassign-form-${task.id}`}
+                        style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}
+                      >
+                        <select
+                          aria-label={`Reassign ${task.title}`}
+                          value={reassignAgentId}
+                          onChange={(e) => setReassignAgentId(e.target.value)}
+                          style={{
+                            flex: '1 1 140px',
+                            padding: '4px 8px',
+                            borderRadius: 4,
+                            border: '1px solid var(--border-color, #444)',
+                            backgroundColor: 'var(--bg-secondary, #1e1e1e)',
+                            color: 'var(--text-primary, #eee)',
+                            fontSize: 12,
+                          }}
+                        >
+                          {reassignCandidates.map((a) => (
+                            <option key={a.agent_id} value={a.agent_id}>
+                              @{a.agent_name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => void handleTaskReassign(task)}
+                          disabled={isSubmitting || !reassignAgentId}
+                          style={taskActionBtnStyle('#10b981')}
+                        >
+                          Confirm
+                        </button>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
+        ) : (
+          (c.phase === 'reviewing' || c.phase === 'approved' || c.phase === 'executing') && (
+            <p
+              data-testid="collaboration-tasks-empty"
+              style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--text-secondary, #999)', lineHeight: 1.45 }}
+            >
+              No tasks yet. Approve a plan with task assignments, or revise so agents add concrete work items.
+            </p>
+          )
         )}
 
         {/* Plan artifact */}

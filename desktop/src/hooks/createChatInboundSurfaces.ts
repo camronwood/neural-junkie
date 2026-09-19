@@ -14,7 +14,11 @@ import {
   fileChangeProposalPaths,
   refreshFileExplorerForPaths,
 } from '../utils/refreshFileExplorer';
-import { syncOpenTabsWithPendingChanges } from '../utils/syncPendingChangeToEditor';
+import {
+  syncOpenTabsWithPendingChanges,
+  syncPendingChangeToEditor,
+} from '../utils/syncPendingChangeToEditor';
+import { wasEditApplyStreamed } from '../utils/applyEditStreamDelta';
 import {
   shouldNotifySlackInbound,
   slackChannelLabel,
@@ -112,6 +116,13 @@ export function createChatInboundSurfaces(deps: ChatInboundSurfacesDeps) {
           if (proposal.status !== 'pending') return;
           try {
             const pending = useFileChangeStore.getState().pendingChanges;
+            // New clients: edit_apply stream already typewriter'd; hand off to hunks.
+            // Old hubs/clients: degrade to one-shot syncPendingChangeToEditor path.
+            if (wasEditApplyStreamed(proposal.id)) {
+              const change = pending.find((c) => c.id === proposal.id);
+              if (change) await syncPendingChangeToEditor(change);
+              return;
+            }
             await syncOpenTabsWithPendingChanges(pending);
           } catch (syncErr) {
             console.error('Failed to sync pending change to editor:', syncErr);

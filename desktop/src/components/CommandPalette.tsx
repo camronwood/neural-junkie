@@ -62,14 +62,23 @@ export function CommandPalette({
     };
   }, [isOpen, activeCommand]);
 
-  // Reset query when opened
+  // Reset query when opened; auto-open /collaborate form when filter targets it.
   useEffect(() => {
     if (isOpen) {
       setQuery(initialFilter);
       setSelectedIndex(0);
-      setActiveCommand(null);
+      const filter = initialFilter.trim().toLowerCase().replace(/^\//, '');
+      if (filter === 'collaborate') {
+        const collabCmd =
+          commands.find((c) => c.name === '/collaborate') ??
+          commands.find((c) => c.name.replace(/^\//, '').toLowerCase() === 'collaborate') ??
+          null;
+        setActiveCommand(collabCmd);
+      } else {
+        setActiveCommand(null);
+      }
     }
-  }, [isOpen, initialFilter]);
+  }, [isOpen, initialFilter, commands]);
 
   // Lock body scroll while open
   useEffect(() => {

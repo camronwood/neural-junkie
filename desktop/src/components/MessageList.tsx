@@ -68,6 +68,7 @@ export function MessageList({
   searchQuery = '',
   onOpenFiles,
   onOpenCommandPalette,
+  onOpenStartCollaboration,
   onOpenAgentDM,
   onPrefillComposer,
   onOpenModelLibrary,
@@ -396,6 +397,7 @@ export function MessageList({
               packsEnabled={packsEnabled}
               onOpenFiles={onOpenFiles}
               onOpenCommandPalette={onOpenCommandPalette}
+              onOpenStartCollaboration={onOpenStartCollaboration}
               onOpenAgentDM={onOpenAgentDM}
               onPrefillComposer={onPrefillComposer}
               onOpenModelLibrary={onOpenModelLibrary}

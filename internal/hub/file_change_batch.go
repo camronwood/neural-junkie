@@ -105,12 +105,18 @@ func (h *Hub) registerFileChangeBatchProposal(msg *protocol.Message, batchRaw in
 		return ids
 	}()
 
+	// Progressive resolved-edit stream per member before auto-approve / card.
+	for _, change := range request.Changes {
+		h.emitEditApplyStreamForChange(msg, change)
+	}
+
 	heldReason := h.maybeAutoApproveIDEFileChangeRequest(msg, request, wsRoot)
 	status := protocol.ChangeProposalStatusPending
 	reason := ""
 	if heldReason != "" {
 		reason = heldReason
 		msg.Metadata[protocol.MetaFileChangeHeldForApproval] = true
+		msg.Metadata["file_change_hold_reason"] = heldReason
 		for i := range pathStatus {
 			pathStatus[i].Status = protocol.ChangeProposalStatusPending
 			pathStatus[i].Reason = heldReason
@@ -295,8 +301,22 @@ func (h *Hub) maybeAutoApproveIDEFileChangeRequest(
 		}
 		isCreate := change.Operation == filechange.FileOperationCreate
 		if !agent.ShouldAutoApproveFileChangeOp(change.FilePath, isCreate, wsRoot) {
-			log.Printf("[IDE] Skipping batch auto-approve for path: %s", change.FilePath)
-			return ""
+			displayPath := agent.RelativizeFileChangePath(change.FilePath, wsRoot)
+			if displayPath == "" {
+				displayPath = change.FilePath
+			}
+			reason := fmt.Sprintf("Held for approval: path policy blocked auto-apply for %s", displayPath)
+			log.Printf("[IDE] Holding batch %s: %s", request.ID, reason)
+			for _, c := range request.Changes {
+				if c == nil {
+					continue
+				}
+				if c.Reason == "" {
+					c.Reason = reason
+				}
+			}
+			agent.RecordEditOutcome("auto_approve_batch", "path_policy", "", "pending_approval")
+			return reason
 		}
 		destructive, ratio := agent.IsDestructiveFileRewrite(change.OldContent, change.NewContent)
 		gitDestructive, _ := change.Metadata["git_baseline_destructive"].(bool)
@@ -317,6 +337,7 @@ func (h *Hub) maybeAutoApproveIDEFileChangeRequest(
 					c.Reason = reason
 				}
 			}
+			agent.RecordEditOutcome("auto_approve_batch", "destructive", "", "pending_approval")
 			return reason
 		}
 	}
@@ -328,9 +349,13 @@ func (h *Hub) maybeAutoApproveIDEFileChangeRequest(
 	approved, err := h.fileChangeManager.ApproveFileChangeRequest(request.ID, approvedBy)
 	if err != nil {
 		log.Printf("[IDE] Auto-approve batch %s: %v", request.ID, err)
+		if approved != nil {
+			h.NotifyFileChangeRequestFailed(approved, err.Error())
+		}
 		return ""
 	}
 	h.NotifyFileChangeRequestApproved(approved, approvedBy)
+	agent.RecordEditOutcome("auto_approve_batch", "ok", "", "auto_approved")
 	log.Printf("[IDE] Auto-approved batch %s (%d files) trust=%s", request.ID, len(approved.Changes), trust)
 	return ""
 }
@@ -344,7 +369,14 @@ func (h *Hub) NotifyFileChangeRequestApproved(request *filechange.FileChangeRequ
 	if channel == "" {
 		channel = "general"
 	}
-	h.UpdateChangeProposalStatus(channel, request.ID, protocol.ChangeProposalStatusApproved, "", "")
+	h.UpdateChangeProposalStatusWithPaths(
+		channel,
+		request.ID,
+		protocol.ChangeProposalStatusApproved,
+		"",
+		"",
+		pathStatusFromRequest(request),
+	)
 	for _, change := range request.Changes {
 		if change == nil {
 			continue
@@ -401,7 +433,14 @@ func (h *Hub) NotifyFileChangeRequestRejected(request *filechange.FileChangeRequ
 			break
 		}
 	}
-	h.UpdateChangeProposalStatus(channel, request.ID, protocol.ChangeProposalStatusRejected, reason, "")
+	h.UpdateChangeProposalStatusWithPaths(
+		channel,
+		request.ID,
+		protocol.ChangeProposalStatusRejected,
+		reason,
+		"",
+		pathStatusFromRequest(request),
+	)
 	for _, change := range request.Changes {
 		if change == nil {
 			continue
@@ -426,4 +465,90 @@ func (h *Hub) NotifyFileChangeRequestRejected(request *filechange.FileChangeRequ
 		systemFrom,
 		content,
 	))
+}
+
+// NotifyFileChangeRequestFailed updates the batch card after a mid-batch apply
+// failure (including members that were applied then rolled back).
+func (h *Hub) NotifyFileChangeRequestFailed(request *filechange.FileChangeRequest, errText string) {
+	if h == nil || request == nil {
+		return
+	}
+	channel := strings.TrimSpace(request.Channel)
+	if channel == "" {
+		channel = "general"
+	}
+	reason := strings.TrimSpace(errText)
+	for _, change := range request.Changes {
+		if change != nil && change.Status == filechange.FileChangeStatusRolledBack {
+			if reason == "" {
+				reason = change.Reason
+			}
+			break
+		}
+	}
+	pathStatus := pathStatusFromRequest(request)
+	h.UpdateChangeProposalStatusWithPaths(
+		channel,
+		request.ID,
+		protocol.ChangeProposalStatusFailed,
+		reason,
+		errText,
+		pathStatus,
+	)
+	for _, change := range request.Changes {
+		if change == nil {
+			continue
+		}
+		h.resolveDurableInput(change.ID, "system", map[string]any{
+			"status": string(change.Status),
+			"reason": change.Reason,
+		})
+	}
+	systemFrom := protocol.AgentInfo{
+		ID:     "system",
+		Name:   "System",
+		Type:   protocol.AgentTypeGeneral,
+		Status: "active",
+	}
+	rolledBack := 0
+	for _, change := range request.Changes {
+		if change != nil && change.Status == filechange.FileChangeStatusRolledBack {
+			rolledBack++
+		}
+	}
+	content := fmt.Sprintf("Batch change `%s` failed (%d files).", request.ID, len(request.Changes))
+	if rolledBack > 0 {
+		content += fmt.Sprintf(" Rolled back %d applied file(s).", rolledBack)
+	}
+	if strings.TrimSpace(errText) != "" {
+		content += " Error: " + strings.TrimSpace(errText)
+	}
+	_ = h.SendMessage(protocol.NewMessage(
+		protocol.MessageTypeSystemInfo,
+		channel,
+		systemFrom,
+		content,
+	))
+}
+
+func pathStatusFromRequest(request *filechange.FileChangeRequest) []protocol.PathChangeStatus {
+	if request == nil {
+		return nil
+	}
+	out := make([]protocol.PathChangeStatus, 0, len(request.Changes))
+	for _, change := range request.Changes {
+		if change == nil {
+			continue
+		}
+		path := change.GetDisplayPath()
+		if path == "" {
+			path = change.FilePath
+		}
+		out = append(out, protocol.PathChangeStatus{
+			Path:   path,
+			Status: protocol.ChangeProposalStatus(change.Status),
+			Reason: change.Reason,
+		})
+	}
+	return out
 }

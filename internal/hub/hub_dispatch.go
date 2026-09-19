@@ -1914,6 +1914,10 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	log.Printf("[FileChange] Registered %s proposal for %s (change ID: %s) from %s",
 		proposal.Operation, filePath, change.ID, msg.From.Name)
 
+	// Stream resolved new_content into Monaco before/alongside the proposal card;
+	// auto-apply finalizes disk after the typewriter stream.
+	h.emitEditApplyStreamForChange(msg, change)
+
 	h.maybeAutoApproveCollabFileChange(msg, change, operation, wsRoot)
 	h.maybeAutoApproveIDEFileChange(msg, change, operation, wsRoot)
 	refreshed, _ := h.fileChangeManager.GetFileChange(change.ID)
@@ -1946,7 +1950,10 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		Reason:      holdReason,
 	}
 	if holdReason != "" && refreshed.Status == filechange.FileChangeStatusPending {
-		msg.Content = fmt.Sprintf("Held for approval: large rewrite on `%s`. Review the proposal before accepting.", refreshed.FilePath)
+		msg.Content = holdReason
+		if !strings.Contains(strings.ToLower(holdReason), "review") {
+			msg.Content = holdReason + " Review the proposal before accepting."
+		}
 	}
 	return nil
 }

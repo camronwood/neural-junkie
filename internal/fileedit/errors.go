@@ -3,6 +3,7 @@ package fileedit
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -17,16 +18,78 @@ const (
 )
 
 // PatchError describes a patch operation failure.
+// Optional Fingerprint/Near/Hint enrich miss and mismatch repair loops.
 type PatchError struct {
-	Code    string
-	Message string
+	Code        string `json:"code"`
+	Message     string `json:"message"`
+	Fingerprint string `json:"fingerprint,omitempty"`
+	Near        string `json:"near,omitempty"`
+	Hint        string `json:"hint,omitempty"`
 }
 
 func (e *PatchError) Error() string {
 	if e == nil {
 		return "patch error"
 	}
+	if e.Fingerprint != "" || e.Near != "" || e.Hint != "" {
+		return e.JSONString()
+	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+// JSONString returns a structured tool-error payload for model repair loops.
+func (e *PatchError) JSONString() string {
+	if e == nil {
+		return `{"code":"patch_error","message":"patch error"}`
+	}
+	b, err := json.Marshal(struct {
+		Code        string `json:"code"`
+		Message     string `json:"message"`
+		Fingerprint string `json:"fingerprint,omitempty"`
+		Near        string `json:"near,omitempty"`
+		Hint        string `json:"hint,omitempty"`
+	}{
+		Code:        e.Code,
+		Message:     e.Message,
+		Fingerprint: e.Fingerprint,
+		Near:        e.Near,
+		Hint:        e.Hint,
+	})
+	if err != nil {
+		return fmt.Sprintf(`{"code":%q,"message":%q}`, e.Code, e.Message)
+	}
+	return string(b)
+}
+
+// EnrichWithFileHints attaches fingerprint/near/hint for miss/unique/apply repair.
+func EnrichWithFileHints(err error, fileContent, needle string) error {
+	pe, ok := err.(*PatchError)
+	if !ok || pe == nil {
+		return err
+	}
+	switch pe.Code {
+	case ErrNotFound, ErrNotUnique, ErrApplyFailed:
+	default:
+		return err
+	}
+	out := &PatchError{
+		Code:        pe.Code,
+		Message:     pe.Message,
+		Fingerprint: ContentFingerprint(fileContent),
+		Near:        ClosestLineHint(fileContent, needle),
+		Hint:        "read_file and copy exact content, then retry with a unique old_string or refreshed patch",
+	}
+	if pe.Code == ErrNotUnique {
+		out.Hint = "include more surrounding context in old_string or set replace_all"
+	}
+	if pe.Code == ErrApplyFailed {
+		out.Hint = "read_file for current content and regenerate the unified diff"
+		if out.Near == "" && strings.Contains(pe.Message, "expected ") {
+			// Fall back to embedding the mismatch line when ClosestLineHint finds nothing.
+			out.Near = truncateHint(pe.Message, 120)
+		}
+	}
+	return out
 }
 
 // ContentFingerprint returns a short hash of file content for repair hints.

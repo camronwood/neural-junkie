@@ -67,7 +67,9 @@ export function RoomChatModal({ isOpen, onClose }: RoomChatModalProps) {
             <h2 id="room-chat-title" className="text-lg font-semibold text-indigo-200">
               Room chat
             </h2>
-            <p className="text-xs text-gray-500 mt-0.5">Same-room LAN chat (room-chat)</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Same-LAN human chat (room-chat pack) — separate from multi-agent Collaborations
+            </p>
           </div>
           <button
             type="button"

@@ -21,6 +21,7 @@ const statusLabel: Record<ChangeProposalStatus, string> = {
   stale: 'Stale',
   expired: 'Expired',
   failed: 'Failed',
+  rolled_back: 'Rolled back',
 };
 
 function effectiveStatus(
@@ -49,7 +50,7 @@ function StatusBadge({ status }: { status: ChangeProposalStatus }) {
       ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
       : status === 'rejected' || status === 'failed'
         ? 'bg-red-500/15 text-red-300 border-red-500/30'
-        : status === 'stale' || status === 'expired'
+        : status === 'stale' || status === 'expired' || status === 'rolled_back'
           ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
           : 'bg-blue-500/15 text-blue-300 border-blue-500/30';
   return (

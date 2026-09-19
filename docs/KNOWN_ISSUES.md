@@ -72,7 +72,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | GitHub | Summary |
 |----|--------|--------|---------|
-| `web-ui-thin` | **Limitation** | [#11](https://github.com/camronwood/neural-junkie/issues/11) | Browser hub UI at `/` is a **lightweight chat client** — no full workspace, palette, or file-approval UX. Use the **Tauri desktop** for production work. |
+| `web-ui-thin` | **Limitation** | [#11](https://github.com/camronwood/neural-junkie/issues/11) | Browser hub UI at `/` is **chat + pending file-change approval** (list, diff, approve/reject, batch request actions). **Not** a workspace IDE — no Monaco, ⌘K, or tab completion. Use the **Tauri desktop** for editor workflows. |
 | `git-dev-pack` | **Limitation** | [#12](https://github.com/camronwood/neural-junkie/issues/12) | In-app Git operations require the **Software development** pack, `git` on PATH, and a git workspace. |
 | `macos-adhoc-sign` | **Limitation** | [#13](https://github.com/camronwood/neural-junkie/issues/13) | GitHub Release macOS builds are **ad-hoc signed** until Apple Developer credentials are available. First launch may require **Right-click → Open**. Planned fix: **v1.2.1** notarized builds. |
 

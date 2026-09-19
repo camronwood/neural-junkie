@@ -453,6 +453,9 @@ func handleFileChangeRequest(w http.ResponseWriter, r *http.Request) {
 	case "approve":
 		req, err := fileChangeManager.ApproveFileChangeRequest(requestID, userID)
 		if err != nil {
+			if req != nil {
+				chatHub.NotifyFileChangeRequestFailed(req, err.Error())
+			}
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}

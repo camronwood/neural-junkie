@@ -32,6 +32,7 @@ export function ChatMessageList({
   onOpenWorkspaceGate,
   onOpenFiles,
   onOpenCommandPalette,
+  onOpenStartCollaboration,
   onOpenAgentDM,
   onPrefillComposer,
   onOpenModelLibrary,
@@ -114,6 +115,7 @@ export function ChatMessageList({
         searchQuery={messageSearchQuery}
         onOpenFiles={onOpenFiles}
         onOpenCommandPalette={onOpenCommandPalette}
+        onOpenStartCollaboration={onOpenStartCollaboration}
         onOpenAgentDM={onOpenAgentDM}
         onPrefillComposer={onPrefillComposer}
         onOpenModelLibrary={onOpenModelLibrary}

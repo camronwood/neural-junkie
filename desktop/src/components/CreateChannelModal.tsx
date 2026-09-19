@@ -51,7 +51,9 @@ export function CreateChannelModal({ agents, isOpen, onClose, onCreate }: Create
           <div className="px-5 py-4 border-b border-slack-border">
             <h2 className="text-lg font-bold text-slack-text">Create a Channel</h2>
             <p className="text-xs text-slack-textMuted mt-1">
-              Add agents to collaborate on a specific topic.
+              Create a chat channel and optionally add agents as members. This is not a multi-agent
+              collaboration session — use <strong>Start collaboration</strong> or{' '}
+              <code className="font-mono">/collaborate</code> for plan → approve → execute.
             </p>
           </div>
 

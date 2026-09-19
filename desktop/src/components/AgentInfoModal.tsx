@@ -965,7 +965,7 @@ export function AgentInfoModal({
                   className="px-4 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors border border-blue-500/30 disabled:opacity-50"
                   title={`Share ${agent.name} as a portable bundle (knowledge, rules, learnings)`}
                 >
-                  {sharingAgent ? 'Sharing…' : '📤 Share'}
+                  {sharingAgent ? 'Sharing…' : '📤 Share agent bundle'}
                 </button>
               )}
               

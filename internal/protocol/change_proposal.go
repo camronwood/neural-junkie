@@ -18,13 +18,14 @@ const (
 type ChangeProposalStatus string
 
 const (
-	ChangeProposalStatusPending  ChangeProposalStatus = "pending"
-	ChangeProposalStatusApplying ChangeProposalStatus = "applying"
-	ChangeProposalStatusApproved ChangeProposalStatus = "approved"
-	ChangeProposalStatusRejected ChangeProposalStatus = "rejected"
-	ChangeProposalStatusStale    ChangeProposalStatus = "stale"
-	ChangeProposalStatusExpired  ChangeProposalStatus = "expired"
-	ChangeProposalStatusFailed   ChangeProposalStatus = "failed"
+	ChangeProposalStatusPending    ChangeProposalStatus = "pending"
+	ChangeProposalStatusApplying   ChangeProposalStatus = "applying"
+	ChangeProposalStatusApproved   ChangeProposalStatus = "approved"
+	ChangeProposalStatusRejected   ChangeProposalStatus = "rejected"
+	ChangeProposalStatusStale      ChangeProposalStatus = "stale"
+	ChangeProposalStatusExpired    ChangeProposalStatus = "expired"
+	ChangeProposalStatusFailed     ChangeProposalStatus = "failed"
+	ChangeProposalStatusRolledBack ChangeProposalStatus = "rolled_back"
 )
 
 // ChangeProposalCard is the typed, versioned metadata rendered as an inline

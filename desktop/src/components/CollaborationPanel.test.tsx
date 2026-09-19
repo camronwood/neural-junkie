@@ -9,17 +9,27 @@ const collabPrefix = 'aaaaaaaa';
 const {
   sendMessageMock,
   confirmReplaceMock,
+  confirmCancelMock,
   collabTaskCompleteMock,
   collabTaskSkipMock,
   collabTaskRedispatchMock,
+  collabTaskReassignMock,
   collabTaskApproveMock,
+  approveParticipantMock,
+  denyParticipantMock,
+  addToastMock,
 } = vi.hoisted(() => ({
   sendMessageMock: vi.fn().mockResolvedValue({}),
   confirmReplaceMock: vi.fn((_a: unknown, _b: unknown) => true),
+  confirmCancelMock: vi.fn((_c: unknown) => true),
   collabTaskCompleteMock: vi.fn().mockResolvedValue({}),
   collabTaskSkipMock: vi.fn().mockResolvedValue({}),
   collabTaskRedispatchMock: vi.fn().mockResolvedValue({}),
+  collabTaskReassignMock: vi.fn().mockResolvedValue({}),
   collabTaskApproveMock: vi.fn().mockResolvedValue({}),
+  approveParticipantMock: vi.fn().mockResolvedValue({ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', title: 'Panel collab title' }),
+  denyParticipantMock: vi.fn().mockResolvedValue({ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', title: 'Panel collab title' }),
+  addToastMock: vi.fn(),
 }));
 
 vi.mock('../stores/chatStore', () => ({
@@ -37,19 +47,29 @@ vi.mock('../stores/fileChangeStore', () => ({
     selector({ pendingChanges: [] }),
 }));
 
+vi.mock('../stores/toastStore', () => ({
+  useToastStore: (selector: (s: { addToast: typeof addToastMock }) => unknown) =>
+    selector({ addToast: addToastMock }),
+}));
+
 vi.mock('../api/chatAPI', () => ({
   ChatAPI: class {
     sendMessage = sendMessageMock;
     collabTaskComplete = collabTaskCompleteMock;
     collabTaskSkip = collabTaskSkipMock;
     collabTaskRedispatch = collabTaskRedispatchMock;
+    collabTaskReassign = collabTaskReassignMock;
     collabTaskApprove = collabTaskApproveMock;
+    approveCollabParticipantRequest = approveParticipantMock;
+    denyCollabParticipantRequest = denyParticipantMock;
   },
 }));
 
 vi.mock('../utils/collaborationConfirm', () => ({
   confirmReplaceCollaborationExecution: (executing: unknown, incoming: unknown) =>
     confirmReplaceMock(executing, incoming) as boolean,
+  confirmCancelCollaboration: (collab: unknown) => confirmCancelMock(collab) as boolean,
+  confirmMarkDoneWithMissingFileDeliverables: () => true,
 }));
 
 function discussion(overrides: Partial<DiscussionSession> = {}): DiscussionSession {
@@ -101,10 +121,16 @@ afterEach(() => {
 beforeEach(() => {
   sendMessageMock.mockClear();
   confirmReplaceMock.mockClear();
+  confirmCancelMock.mockClear();
+  confirmCancelMock.mockReturnValue(true);
   collabTaskCompleteMock.mockClear();
   collabTaskSkipMock.mockClear();
   collabTaskRedispatchMock.mockClear();
+  collabTaskReassignMock.mockClear();
   collabTaskApproveMock.mockClear();
+  approveParticipantMock.mockClear();
+  denyParticipantMock.mockClear();
+  addToastMock.mockClear();
   confirmReplaceMock.mockReturnValue(true);
 });
 
@@ -299,7 +325,7 @@ describe('CollaborationPanel', () => {
     await waitFor(() => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'collab-test-channel',
-        `/revise-plan ${collabPrefix}   Add observability  `,
+        `/revise-plan ${collabPrefix} Add observability`,
         { name: 'PanelTester', type: 'human' },
         'question',
         expect.anything()
@@ -427,6 +453,7 @@ describe('CollaborationPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel Collaboration' }));
 
+    expect(confirmCancelMock).toHaveBeenCalled();
     await waitFor(() => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'collab-test-channel',
@@ -437,6 +464,145 @@ describe('CollaborationPanel', () => {
       );
     });
     expect(onAfter).toHaveBeenCalled();
+  });
+
+  it('does not cancel when confirm is declined', async () => {
+    confirmCancelMock.mockReturnValueOnce(false);
+    const onAfter = vi.fn().mockResolvedValue(undefined);
+    const collab = makeCollaboration({ phase: 'planning', discussion: discussion() });
+
+    render(
+      <CollaborationPanel collaboration={collab} onClose={() => {}} onAfterCollaborationCommand={onAfter} />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Collaboration' }));
+
+    await waitFor(() => {
+      expect(confirmCancelMock).toHaveBeenCalled();
+    });
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    expect(onAfter).not.toHaveBeenCalled();
+  });
+
+  it('toasts when a panel action fails', async () => {
+    sendMessageMock.mockRejectedValueOnce(new Error('hub down'));
+    const collab = makeCollaboration({ phase: 'planning', discussion: discussion() });
+
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Collaboration' }));
+
+    await waitFor(() => {
+      expect(addToastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'error',
+          title: 'Could not cancel collaboration',
+          message: 'hub down',
+        })
+      );
+    });
+  });
+
+  it('renders pending participant requests with approve/deny', async () => {
+    const onAfter = vi.fn().mockResolvedValue(undefined);
+    const collab = makeCollaboration({
+      phase: 'planning',
+      discussion: discussion(),
+      pending_participant_requests: [
+        {
+          agent_id: 'ag-new',
+          agent_name: 'DocsExpert',
+          agent_type: 'docs',
+          requested_by_id: 'ag1',
+          requested_by_name: 'RustExpert',
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
+
+    render(
+      <CollaborationPanel collaboration={collab} onClose={() => {}} onAfterCollaborationCommand={onAfter} />
+    );
+
+    expect(screen.getByTestId('collaboration-participant-requests')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('collaboration-participant-approve-ag-new'));
+
+    await waitFor(() => {
+      expect(approveParticipantMock).toHaveBeenCalledWith(fullCollabId, 'ag-new');
+    });
+    expect(onAfter).toHaveBeenCalled();
+    expect(addToastMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'success', title: 'Agent added' })
+    );
+  });
+
+  it('shows reassign controls for executing tasks', async () => {
+    const onAfter = vi.fn().mockResolvedValue(undefined);
+    const collab = makeCollaboration({
+      phase: 'executing',
+      workspace_acknowledged: true,
+      agents: [
+        {
+          agent_id: 'ag1',
+          agent_name: 'RustExpert',
+          agent_type: 'rust',
+          expertise: ['rust'],
+          role: 'Rust',
+        },
+        {
+          agent_id: 'ag2',
+          agent_name: 'ReactExpert',
+          agent_type: 'react',
+          expertise: ['react'],
+          role: 'React',
+        },
+      ],
+      tasks: [
+        {
+          id: 't1',
+          title: 'Ship UI',
+          description: 'd',
+          assigned_to: 'ag1',
+          assigned_name: 'RustExpert',
+          status: 'in_progress',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    });
+
+    render(
+      <CollaborationPanel collaboration={collab} onClose={() => {}} onAfterCollaborationCommand={onAfter} />
+    );
+
+    fireEvent.click(screen.getByTestId('collaboration-task-reassign-t1'));
+    expect(screen.getByTestId('collaboration-task-reassign-form-t1')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => {
+      expect(collabTaskReassignMock).toHaveBeenCalledWith(fullCollabId, 't1', 'ag2');
+    });
+    expect(onAfter).toHaveBeenCalled();
+  });
+
+  it('hides make debug-collab behind Advanced debug disclosure when planning is stalled', () => {
+    const collab = makeCollaboration({
+      phase: 'planning',
+      discussion: discussion({
+        status: 'active',
+        total_message_count: 2,
+        participants: ['ag1'],
+        turns_this_round: { ag1: 0 },
+      }),
+    });
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+    expect(screen.getByTestId('collaboration-planning-stall-banner')).toBeInTheDocument();
+    const advanced = screen.getByTestId('collaboration-planning-stall-advanced');
+    expect(advanced).toBeInTheDocument();
+    expect(advanced).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByText('Advanced debug'));
+    // jsdom may not toggle <details open>; still assert the disclosure exists with the command.
+    expect(advanced.textContent).toMatch(/make debug-collab COLAB=/);
   });
 
   it('executing phase shows task progress and resume for re-dispatch', () => {
@@ -567,7 +733,7 @@ describe('CollaborationPanel', () => {
     const onClose = vi.fn();
     render(<CollaborationPanel collaboration={makeCollaboration()} onClose={onClose} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '×' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close collaboration panel' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

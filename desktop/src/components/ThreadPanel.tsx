@@ -5,8 +5,9 @@ import { ChatAPI } from '../api/chatAPI';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { Message } from './Message';
 import { RichTextInput } from './RichTextInput';
-import { getAgentColor } from '../types/protocol';
+import { getAgentColor, isEditApplyStreamDelta } from '../types/protocol';
 import type { Message as MessageType } from '../types/protocol';
+import { applyEditStreamMessage } from '../utils/applyEditStreamDelta';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 
 interface ThreadPanelProps {
@@ -90,10 +91,18 @@ export function ThreadPanel({ threadId, parentMessage, onClose, onSendReply }: T
     onMessage: async (message: MessageType) => {
       const st = useChatStore.getState();
       if (message.type === 'stream_delta') {
+        if (isEditApplyStreamDelta(message.metadata)) {
+          applyEditStreamMessage(message);
+          return;
+        }
         st.appendStreamDelta(message);
         return;
       }
       if (message.type === 'stream_end') {
+        if (isEditApplyStreamDelta(message.metadata)) {
+          applyEditStreamMessage(message);
+          return;
+        }
         st.finalizeStream(message.id, message.metadata as Record<string, unknown> | undefined);
         return;
       }

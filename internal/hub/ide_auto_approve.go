@@ -73,7 +73,19 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 	}
 	isCreate := operation == filechange.FileOperationCreate
 	if !agent.ShouldAutoApproveFileChangeOp(change.FilePath, isCreate, wsRoot) {
-		log.Printf("[IDE] Skipping auto-approve for path: %s", change.FilePath)
+		displayPath := agent.RelativizeFileChangePath(change.FilePath, wsRoot)
+		if displayPath == "" {
+			displayPath = change.FilePath
+		}
+		reason := fmt.Sprintf("Held for approval: path policy blocked auto-apply for %s", displayPath)
+		log.Printf("[IDE] Holding path-policy skip for approval: %s", displayPath)
+		change.Reason = reason
+		if msg.Metadata == nil {
+			msg.Metadata = map[string]interface{}{}
+		}
+		msg.Metadata[protocol.MetaFileChangeHeldForApproval] = true
+		msg.Metadata["file_change_hold_reason"] = reason
+		agent.RecordEditOutcome("auto_approve", "path_policy", "", "pending_approval")
 		return
 	}
 	routedProvider := msg.From.AIProvider
@@ -98,6 +110,7 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 		}
 		msg.Metadata[protocol.MetaFileChangeHeldForApproval] = true
 		msg.Metadata["file_change_hold_reason"] = reason
+		agent.RecordEditOutcome("auto_approve", "destructive", "", "pending_approval")
 		return
 	}
 	approvedBy := "system"
@@ -110,5 +123,6 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 		return
 	}
 	h.NotifyFileChangeApproved(approved, approvedBy)
+	agent.RecordEditOutcome("auto_approve", "ok", "", "auto_approved")
 	log.Printf("[IDE] Auto-approved file change %s (%s) trust=%s", change.ID, change.FilePath, trust)
 }

@@ -4,6 +4,7 @@ import { ChatAPI } from '../api/chatAPI';
 import { useFileExplorerStore } from './fileExplorerStore';
 import { useEditorStore } from './editorStore';
 import { refreshFileExplorerForPaths } from '../utils/refreshFileExplorer';
+import { cancelEditApplyStream } from '../utils/applyEditStreamDelta';
 
 interface FileChangeState {
   // State
@@ -198,6 +199,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     try {
       const api = new ChatAPI();
       const rejectedChange = await api.rejectFileChange(changeId, reason, userId);
+      cancelEditApplyStream(changeId);
       
       // Remove the rejected change from the list
       const state = get();
@@ -227,6 +229,12 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     try {
       const api = new ChatAPI();
       await api.rejectFileChangeRequest(requestId, reason, userId);
+      const members = get().pendingChanges.filter(
+        (c) => c.metadata?.request_id === requestId,
+      );
+      for (const member of members) {
+        cancelEditApplyStream(member.id);
+      }
       set((state) => ({
         pendingChanges: state.pendingChanges.filter(
           (c) => c.metadata?.request_id !== requestId,

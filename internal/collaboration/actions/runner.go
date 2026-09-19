@@ -191,10 +191,7 @@ func (r *Runner) webSearch(ctx context.Context, cfg map[string]interface{}) (Res
 		}
 		return Result{Summary: fmt.Sprintf("web search: %d results", len(results)), Data: map[string]interface{}{"results": results}}, nil
 	}
-	return Result{
-		Summary: "web_search stub (configure WebSearchQuery in hub)",
-		Data:    map[string]interface{}{"query": q, "results": []interface{}{}},
-	}, nil
+	return Result{}, fmt.Errorf("web_search is not configured; set WebSearchQuery on the hub or remove this action task")
 }
 
 func (r *Runner) sms(cfg map[string]interface{}) (Result, error) {
@@ -206,7 +203,7 @@ func (r *Runner) sms(cfg map[string]interface{}) (Result, error) {
 	if to == "" || body == "" {
 		return Result{}, fmt.Errorf("sms requires to and body")
 	}
-	return Result{Summary: fmt.Sprintf("sms queued to %s (provider not configured in v1 stub)", to), Data: map[string]interface{}{"to": to}}, nil
+	return Result{}, fmt.Errorf("sms provider is not configured; enable a real SMS provider or remove this action task")
 }
 
 func (r *Runner) slackMessage(ctx context.Context, cfg map[string]interface{}) (Result, error) {
@@ -355,11 +352,7 @@ func (r *Runner) mcpTool(ctx context.Context, cfg map[string]interface{}) (Resul
 	if tool == "" {
 		return Result{}, fmt.Errorf("mcp_tool requires tool name")
 	}
-	args, _ := cfg["arguments"].(map[string]interface{})
-	return Result{
-		Summary: fmt.Sprintf("mcp_tool %s invoked (hub stub — wire MCP client for full execution)", tool),
-		Data:    map[string]interface{}{"tool": tool, "arguments": args},
-	}, nil
+	return Result{}, fmt.Errorf("mcp_tool %q is not wired on the hub; configure an MCP client or remove this action task", tool)
 }
 
 func (r *Runner) gitStatus(ctx context.Context, collab *collaboration.Collaboration) (Result, error) {

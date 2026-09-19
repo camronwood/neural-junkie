@@ -147,7 +147,8 @@ func (c *ClaudeProvider) GenerateResponseWithTools(
 				Name:  block.Name,
 				Input: block.Input,
 			})
-			if err != nil {
+			toolFailed := err != nil
+			if toolFailed {
 				resultText = fmt.Sprintf("Tool error: %v", err)
 				emitToolStep(ctx, ToolStepEvent{
 					Kind: "error", Name: block.Name, Iteration: iter + 1, MaxIterations: maxIter, Preview: resultText,
@@ -161,11 +162,15 @@ func (c *ClaudeProvider) GenerateResponseWithTools(
 					Kind: "result", Name: block.Name, Iteration: iter + 1, MaxIterations: maxIter, Preview: preview,
 				})
 			}
-			toolResults = append(toolResults, map[string]any{
+			result := map[string]any{
 				"type":        "tool_result",
 				"tool_use_id": block.ID,
 				"content":     resultText,
-			})
+			}
+			if toolFailed {
+				result["is_error"] = true
+			}
+			toolResults = append(toolResults, result)
 		}
 
 		if len(toolResults) == 0 {

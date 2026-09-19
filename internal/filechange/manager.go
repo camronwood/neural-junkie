@@ -21,6 +21,7 @@ type FileChangeManager struct {
 	mu            sync.RWMutex
 	changes       map[string]*FileChange        // changeID -> change
 	requests      map[string]*FileChangeRequest // requestID -> request
+	checkpoints   map[string]*batchCheckpoint   // requestID -> pre-batch snapshot
 	executor      *FileChangeExecutor
 	executors     map[string]*FileChangeExecutor // immutable execution context per change
 	cleanupTicker *time.Ticker
@@ -32,6 +33,7 @@ func NewFileChangeManager(executor *FileChangeExecutor) *FileChangeManager {
 	fcm := &FileChangeManager{
 		changes:       make(map[string]*FileChange),
 		requests:      make(map[string]*FileChangeRequest),
+		checkpoints:   make(map[string]*batchCheckpoint),
 		executor:      executor,
 		executors:     make(map[string]*FileChangeExecutor),
 		cleanupTicker: time.NewTicker(1 * time.Minute),
@@ -173,7 +175,8 @@ func (fcm *FileChangeManager) GetFileChangeRequest(requestID string) (*FileChang
 }
 
 // ApproveFileChangeRequest approves and executes every pending member of a batch.
-// On mid-batch failure, remaining pending members are marked failed.
+// On mid-batch failure, already-applied members are restored from a pre-batch
+// checkpoint (rolled_back), and remaining pending members are marked failed.
 func (fcm *FileChangeManager) ApproveFileChangeRequest(requestID, requestingUserID string) (*FileChangeRequest, error) {
 	fcm.mu.RLock()
 	req, ok := fcm.requests[requestID]
@@ -197,8 +200,13 @@ func (fcm *FileChangeManager) ApproveFileChangeRequest(requestID, requestingUser
 	}
 	fcm.mu.RUnlock()
 
+	if err := fcm.captureBatchCheckpoint(requestID); err != nil {
+		return nil, fmt.Errorf("batch checkpoint failed: %w", err)
+	}
+	defer fcm.clearBatchCheckpoint(requestID)
+
 	var firstErr error
-	applied := 0
+	appliedIDs := make([]string, 0, len(ids))
 	for _, id := range ids {
 		if firstErr != nil {
 			_, _ = fcm.MarkFileChangeStatus(id, FileChangeStatusFailed, "batch aborted: "+firstErr.Error())
@@ -215,9 +223,31 @@ func (fcm *FileChangeManager) ApproveFileChangeRequest(requestID, requestingUser
 		}
 		if _, err := fcm.ApproveFileChange(id, requestingUserID); err != nil {
 			firstErr = err
+			// ApproveFileChange may return before setting a terminal status (e.g. read errors).
+			if ch, getErr := fcm.GetFileChangeRecord(id); getErr == nil && ch.Status == FileChangeStatusPending {
+				_, _ = fcm.MarkFileChangeStatus(id, FileChangeStatusFailed, err.Error())
+			}
 			continue
 		}
-		applied++
+		appliedIDs = append(appliedIDs, id)
+	}
+
+	if firstErr != nil {
+		if len(appliedIDs) > 0 {
+			_ = fcm.restoreAppliedMembers(requestID, appliedIDs)
+			rollbackReason := "rolled back after batch failure: " + firstErr.Error()
+			for _, id := range appliedIDs {
+				_, _ = fcm.MarkFileChangeStatus(id, FileChangeStatusRolledBack, rollbackReason)
+			}
+		}
+		fcm.mu.Lock()
+		defer fcm.mu.Unlock()
+		req = fcm.requests[requestID]
+		if req == nil {
+			return nil, fmt.Errorf("file change request not found: %s", requestID)
+		}
+		req.Status = FileChangeStatusFailed
+		return req, fmt.Errorf("batch apply failed after %d success(es): %w", len(appliedIDs), firstErr)
 	}
 
 	fcm.mu.Lock()
@@ -225,10 +255,6 @@ func (fcm *FileChangeManager) ApproveFileChangeRequest(requestID, requestingUser
 	req = fcm.requests[requestID]
 	if req == nil {
 		return nil, fmt.Errorf("file change request not found: %s", requestID)
-	}
-	if firstErr != nil {
-		req.Status = FileChangeStatusFailed
-		return req, fmt.Errorf("batch apply failed after %d success(es): %w", applied, firstErr)
 	}
 	now := time.Now()
 	req.Status = FileChangeStatusApproved
@@ -582,5 +608,6 @@ func (fcm *FileChangeManager) doCleanup() {
 	// Remove expired requests
 	for _, id := range expiredRequests {
 		delete(fcm.requests, id)
+		delete(fcm.checkpoints, id)
 	}
 }

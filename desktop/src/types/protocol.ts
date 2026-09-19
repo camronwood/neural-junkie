@@ -224,7 +224,8 @@ export type ChangeProposalStatus =
   | 'rejected'
   | 'stale'
   | 'expired'
-  | 'failed';
+  | 'failed'
+  | 'rolled_back';
 
 export interface ChangeProposalCard {
   version: number;
@@ -850,6 +851,58 @@ export function isToolStepStreamDelta(metadata?: Record<string, unknown>): boole
   return typeof metadata?.tool_step === 'string';
 }
 
+/** Progressive resolved-edit stream into Monaco (Phase 2C). */
+export const STREAM_KIND_METADATA_KEY = 'stream_kind';
+export const STREAM_KIND_EDIT_APPLY = 'edit_apply';
+export const EDIT_APPLY_CHANGE_ID_KEY = 'change_id';
+export const EDIT_APPLY_PATH_KEY = 'path';
+export const EDIT_APPLY_OFFSET_KEY = 'offset';
+export const EDIT_APPLY_HUNK_ID_KEY = 'hunk_id';
+export const EDIT_APPLY_DONE_KEY = 'edit_apply_done';
+
+export type EditApplyStreamMeta = {
+  streamKind: typeof STREAM_KIND_EDIT_APPLY;
+  changeId: string;
+  path: string;
+  offset?: number;
+  hunkId?: string;
+  done?: boolean;
+};
+
+export function isEditApplyStreamDelta(metadata?: Record<string, unknown>): boolean {
+  return metadata?.[STREAM_KIND_METADATA_KEY] === STREAM_KIND_EDIT_APPLY;
+}
+
+export function getEditApplyStreamMeta(
+  metadata?: Record<string, unknown>,
+): EditApplyStreamMeta | null {
+  if (!isEditApplyStreamDelta(metadata) || !metadata) return null;
+  const changeId =
+    typeof metadata[EDIT_APPLY_CHANGE_ID_KEY] === 'string'
+      ? metadata[EDIT_APPLY_CHANGE_ID_KEY].trim()
+      : '';
+  const path =
+    typeof metadata[EDIT_APPLY_PATH_KEY] === 'string'
+      ? metadata[EDIT_APPLY_PATH_KEY].trim()
+      : '';
+  if (!changeId || !path) return null;
+  const offsetRaw = metadata[EDIT_APPLY_OFFSET_KEY];
+  const offset = typeof offsetRaw === 'number' ? offsetRaw : undefined;
+  const hunkId =
+    typeof metadata[EDIT_APPLY_HUNK_ID_KEY] === 'string'
+      ? metadata[EDIT_APPLY_HUNK_ID_KEY]
+      : undefined;
+  const done = metadata[EDIT_APPLY_DONE_KEY] === true;
+  return {
+    streamKind: STREAM_KIND_EDIT_APPLY,
+    changeId,
+    path,
+    offset,
+    hunkId,
+    done,
+  };
+}
+
 export type ChannelType = 'public' | 'dm' | 'custom' | 'collaboration' | 'room' | 'delegation';
 
 export interface Channel {
@@ -1288,7 +1341,8 @@ export type FileChangeStatus =
   | 'rejected'
   | 'stale'
   | 'expired'
-  | 'failed';
+  | 'failed'
+  | 'rolled_back';
 
 export interface FileChange {
   id: string;

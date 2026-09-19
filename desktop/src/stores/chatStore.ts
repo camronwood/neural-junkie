@@ -6,6 +6,7 @@ import {
   getToolSteps,
   isReasoningStreamDelta,
   isToolStepStreamDelta,
+  isEditApplyStreamDelta,
   REASONING_APPEND_METADATA_KEY,
   REASONING_TEXT_METADATA_KEY,
   TOOL_STEPS_METADATA_KEY,
@@ -847,6 +848,10 @@ export const useChatStore = create<ChatState>((set, get) => {
   appendStreamDelta: (msg) => {
     const id = msg.id;
     const meta = msg.metadata ?? {};
+    // Edit-apply streams are consumed by Monaco, not the chat timeline.
+    if (isEditApplyStreamDelta(meta)) {
+      return;
+    }
     const isReasoning = isReasoningStreamDelta(meta);
     const isToolStep = isToolStepStreamDelta(meta);
     const reasoningChunk =

@@ -479,7 +479,7 @@ func (a *Agent) tryEarlyGoMainFixtureFix(ctx context.Context, msg *protocol.Mess
 	if err := ValidateProposal(wsPath, target, ProposalOpEdit, manifest); err != nil {
 		return false
 	}
-	if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, existing, body, msg); err != nil {
+	if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, target, existing, body, msg); err != nil {
 		return false
 	}
 	if state != nil {
@@ -559,7 +559,7 @@ func (a *Agent) proposeScopedFileEdit(ctx context.Context, msg *protocol.Message
 	if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
 		return false
 	}
-	if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, existing, body, msg); err != nil {
+	if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, existing, body, msg); err != nil {
 		return false
 	}
 	if scopedFileEditSatisfied(wsPath, rel, userContent, body) {
@@ -671,7 +671,7 @@ func (a *Agent) tryEarlySidebarFooterExtract(ctx context.Context, msg *protocol.
 		log.Printf("[%s] early_sidebar_footer_extract_direct_apply(paths=[%s %s])", a.Info.Name, appRel, footerRel)
 	}
 	_ = a.proposeFileCreateInChannel(ctx, msg.Channel, footerRel, footerBody, msg)
-	_ = a.proposeFileEditInChannel(ctx, msg.Channel, appRel, appBody, newApp, msg)
+	_, _ = a.proposeFileEditInChannel(ctx, msg.Channel, appRel, appBody, newApp, msg)
 	if trust != editorTrustAutoApply {
 		// Without auto-apply, proposals alone are the contract.
 		if _, err := os.Stat(filepath.Join(wsPath, footerRel)); err != nil {
@@ -787,7 +787,7 @@ func (a *Agent) proposeTailwindDarkModeEdit(ctx context.Context, msg *protocol.M
 	if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
 		return false
 	}
-	if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, existing, body, msg); err != nil {
+	if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, existing, body, msg); err != nil {
 		return false
 	}
 	if implementationTargetSatisfied(wsPath, rel, userContent) {
@@ -880,7 +880,7 @@ func (a *Agent) tryEarlyThemeToggleFix(ctx context.Context, msg *protocol.Messag
 			if ok {
 				rel := a.ResolveProposalPath(ctx, msg, entryRel)
 				if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err == nil {
-					if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existing), body, msg); err == nil {
+					if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existing), body, msg); err == nil {
 						full := filepath.Join(wsPath, rel)
 						if !implementationTargetSatisfied(wsPath, rel, userContent) &&
 							resolveImplementationTrustMode(msg) == editorTrustAutoApply {
@@ -970,7 +970,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 		if err := ValidateProposal(wsPath, target, ProposalOpEdit, a.manifestForProposal(ctx, msg)); err != nil {
 			return false, nil
 		}
-		if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
+		if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 			return false, nil
 		}
 		paths = []string{target}
@@ -989,7 +989,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 		if err := a.validateProposalForSession(ctx, msg, target, ProposalOpEdit); err != nil {
 			return false, nil
 		}
-		if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
+		if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 			return false, nil
 		}
 		paths = []string{target}
@@ -1032,7 +1032,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 		if err := a.validateProposalForSession(ctx, msg, target, ProposalOpEdit); err != nil {
 			return false, nil
 		}
-		if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
+		if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 			return false, nil
 		}
 		paths = []string{target}
@@ -1157,7 +1157,7 @@ func (a *Agent) repairAppThemeIfNeeded(ctx context.Context, msg *protocol.Messag
 	if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
 		return
 	}
-	if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existing), body, msg); err != nil {
+	if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existing), body, msg); err != nil {
 		return
 	}
 	state.ProposedCount++
@@ -1297,7 +1297,7 @@ func (a *Agent) tryEarlyGoMathFixtureFix(ctx context.Context, msg *protocol.Mess
 		msg.Metadata = map[string]interface{}{}
 	}
 	msg.Metadata["deterministic_edit"] = true
-	if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
+	if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 		return false
 	}
 	full := filepath.Join(wsPath, target)
@@ -1355,7 +1355,7 @@ func (a *Agent) tryEarlyTypeScriptCompileFix(ctx context.Context, msg *protocol.
 		msg.Metadata = map[string]interface{}{}
 	}
 	msg.Metadata["deterministic_edit"] = true
-	if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
+	if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 		return false
 	}
 	full := filepath.Join(wsPath, target)

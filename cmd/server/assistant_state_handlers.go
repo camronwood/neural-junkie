@@ -392,6 +392,104 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             border-radius: 50%;
             margin-right: 6px;
         }
+        .pending-section { margin-top: 30px; }
+        .pending-section h3 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .pending-count {
+            font-size: 12px;
+            font-weight: normal;
+            color: #7f8c8d;
+            background: #ecf0f1;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .pending-empty { color: #95a5a6; font-size: 13px; padding: 8px 0; }
+        .pending-error { color: #c0392b; font-size: 12px; margin-bottom: 8px; }
+        .pending-batch {
+            background: #eef5fb;
+            border: 1px solid #c5d9ec;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 10px;
+        }
+        .pending-batch-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 6px;
+        }
+        .pending-card {
+            background: white;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .pending-card.destructive { border-color: #f0c36d; background: #fffbf0; }
+        .pending-path {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px;
+            color: #2c3e50;
+            word-break: break-all;
+            margin-bottom: 6px;
+        }
+        .pending-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .pending-badge {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .pending-badge.op { background: #ecf0f1; color: #566573; }
+        .pending-badge.status-pending { background: #d6eaf8; color: #1a5276; }
+        .pending-badge.status-other { background: #fdebd0; color: #9a7b0a; }
+        .pending-reason {
+            font-size: 12px;
+            color: #b9770e;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+        .pending-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+        .pending-actions button {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .pending-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-expand { background: #ecf0f1; color: #2c3e50; }
+        .btn-approve { background: #27ae60; color: white; }
+        .btn-reject { background: #c0392b; color: white; }
+        .btn-batch { background: #3498db; color: white; }
+        .pending-diff {
+            display: none;
+            margin-top: 8px;
+            max-height: 220px;
+            overflow: auto;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 4px;
+            padding: 8px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11px;
+            white-space: pre-wrap;
+            line-height: 1.35;
+        }
+        .pending-diff.open { display: block; }
+        .pending-diff .add { color: #98c379; }
+        .pending-diff .del { color: #e06c75; }
+        .pending-diff .hdr { color: #61afef; }
+        .pending-note { font-size: 11px; color: #95a5a6; margin-top: 12px; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -443,6 +541,20 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
                 <div class="stat-value" id="channel-count">0</div>
             </div>
             
+            <div class="pending-section">
+                <h3>
+                    Pending changes
+                    <span class="pending-count" id="pending-count">0</span>
+                </h3>
+                <div class="pending-error" id="pending-error" style="display:none;"></div>
+                <div id="pending-changes">
+                    <div class="pending-empty">No pending file changes</div>
+                </div>
+                <p class="pending-note">
+                    Browser hub: approve/reject with diff preview. No Monaco editor, ⌘K, or tab completion — use the desktop app for IDE workflows.
+                </p>
+            </div>
+
             <h3 style="margin-top: 30px;">ℹ️ About</h3>
             <p style="color: #7f8c8d; font-size: 13px; line-height: 1.6;">
                 This is a multi-agent collaboration system where AI agents with different specialties work together to solve problems.
@@ -467,6 +579,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             ws.onmessage = function(event) {
                 const msg = JSON.parse(event.data);
                 addMessage(msg);
+                if (msg.type === 'file_change' || (msg.metadata && (msg.metadata.change_proposal || msg.metadata.file_change_held_for_approval))) {
+                    loadPendingChanges();
+                }
             };
             
             ws.onclose = function() {
@@ -578,8 +693,283 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
             }
         };
         
+        const pendingUserId = 'default';
+        let pendingBusy = false;
+        const expandedDiffs = {};
+
+        function escapeHtml(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function displayPath(change) {
+            if (change.operation === 'move') {
+                return (change.old_path || change.file_path || '') + ' → ' + (change.new_path || '');
+            }
+            return change.file_path || '';
+        }
+
+        function holdReason(change) {
+            if (change.reason) return change.reason;
+            if (change.metadata && change.metadata.file_change_hold_reason) {
+                return change.metadata.file_change_hold_reason;
+            }
+            return '';
+        }
+
+        function requestIdOf(change) {
+            if (!change.metadata) return '';
+            return change.metadata.request_id || '';
+        }
+
+        function formatDiffHtml(diffText) {
+            if (!diffText) return '<span style="color:#888;">No unified diff for this operation.</span>';
+            return escapeHtml(diffText).split('\n').map(function(line) {
+                if (line.indexOf('+++') === 0 || line.indexOf('---') === 0 || line.indexOf('@@') === 0) {
+                    return '<span class="hdr">' + line + '</span>';
+                }
+                if (line.charAt(0) === '+' && line.indexOf('+++') !== 0) {
+                    return '<span class="add">' + line + '</span>';
+                }
+                if (line.charAt(0) === '-' && line.indexOf('---') !== 0) {
+                    return '<span class="del">' + line + '</span>';
+                }
+                return line;
+            }).join('\n');
+        }
+
+        function setPendingError(msg) {
+            const el = document.getElementById('pending-error');
+            if (!msg) {
+                el.style.display = 'none';
+                el.textContent = '';
+                return;
+            }
+            el.style.display = 'block';
+            el.textContent = msg;
+        }
+
+        function groupPending(changes) {
+            const order = [];
+            const groups = {};
+            const singles = [];
+            (changes || []).forEach(function(c) {
+                const rid = requestIdOf(c);
+                if (rid) {
+                    if (!groups[rid]) {
+                        groups[rid] = [];
+                        order.push(rid);
+                    }
+                    groups[rid].push(c);
+                } else {
+                    singles.push(c);
+                }
+            });
+            return { order: order, groups: groups, singles: singles };
+        }
+
+        function renderChangeCard(change) {
+            const path = escapeHtml(displayPath(change));
+            const reason = holdReason(change);
+            const op = escapeHtml(change.operation || 'edit');
+            const status = escapeHtml(change.status || 'pending');
+            const destructive = change.operation === 'delete' || change.operation === 'move';
+            const open = expandedDiffs[change.id] ? ' open' : '';
+            const reasonHtml = reason
+                ? '<div class="pending-reason">' + escapeHtml(reason) + '</div>'
+                : '';
+            return (
+                '<div class="pending-card' + (destructive ? ' destructive' : '') + '" data-id="' + escapeHtml(change.id) + '">' +
+                    '<div class="pending-path" title="' + path + '">' + path + '</div>' +
+                    '<div class="pending-meta">' +
+                        '<span class="pending-badge op">' + op + '</span>' +
+                        '<span class="pending-badge status-' + (status === 'pending' ? 'pending' : 'other') + '">' + status + '</span>' +
+                    '</div>' +
+                    reasonHtml +
+                    '<div class="pending-actions">' +
+                        '<button type="button" class="btn-expand" data-action="toggle-diff" data-id="' + escapeHtml(change.id) + '">' +
+                            (expandedDiffs[change.id] ? 'Hide diff' : 'Show diff') +
+                        '</button>' +
+                        '<button type="button" class="btn-approve" data-action="approve" data-id="' + escapeHtml(change.id) + '"' + (pendingBusy ? ' disabled' : '') + '>Approve</button>' +
+                        '<button type="button" class="btn-reject" data-action="reject" data-id="' + escapeHtml(change.id) + '"' + (pendingBusy ? ' disabled' : '') + '>Reject</button>' +
+                    '</div>' +
+                    '<pre class="pending-diff' + open + '" id="diff-' + escapeHtml(change.id) + '"></pre>' +
+                '</div>'
+            );
+        }
+
+        function renderPendingChanges(changes) {
+            const list = document.getElementById('pending-changes');
+            const countEl = document.getElementById('pending-count');
+            const items = changes || [];
+            countEl.textContent = String(items.length);
+            if (items.length === 0) {
+                list.innerHTML = '<div class="pending-empty">No pending file changes</div>';
+                return;
+            }
+            const grouped = groupPending(items);
+            let html = '';
+            grouped.order.forEach(function(rid) {
+                const members = grouped.groups[rid] || [];
+                html += '<div class="pending-batch">' +
+                    '<div class="pending-batch-title">Batch · ' + members.length + ' file' + (members.length === 1 ? '' : 's') + '</div>' +
+                    '<div class="pending-actions" style="margin-bottom:8px;">' +
+                        '<button type="button" class="btn-batch" data-action="approve-request" data-request-id="' + escapeHtml(rid) + '"' + (pendingBusy ? ' disabled' : '') + '>Approve all</button>' +
+                        '<button type="button" class="btn-reject" data-action="reject-request" data-request-id="' + escapeHtml(rid) + '"' + (pendingBusy ? ' disabled' : '') + '>Reject all</button>' +
+                    '</div>' +
+                    members.map(renderChangeCard).join('') +
+                '</div>';
+            });
+            html += grouped.singles.map(renderChangeCard).join('');
+            list.innerHTML = html;
+
+            Object.keys(expandedDiffs).forEach(function(id) {
+                if (expandedDiffs[id]) {
+                    const pre = document.getElementById('diff-' + id);
+                    if (pre && !pre.dataset.loaded) {
+                        loadDiff(id);
+                    } else if (pre && pre.dataset.loaded) {
+                        pre.classList.add('open');
+                    }
+                }
+            });
+        }
+
+        function loadPendingChanges() {
+            fetch('/api/file-changes?user_id=' + encodeURIComponent(pendingUserId))
+                .then(function(r) {
+                    if (!r.ok) throw new Error(r.statusText || 'failed');
+                    return r.json();
+                })
+                .then(function(changes) {
+                    setPendingError('');
+                    renderPendingChanges(Array.isArray(changes) ? changes : []);
+                })
+                .catch(function(err) {
+                    setPendingError('Could not load pending changes: ' + (err.message || err));
+                });
+        }
+
+        function loadDiff(changeId) {
+            const pre = document.getElementById('diff-' + changeId);
+            if (!pre) return;
+            pre.classList.add('open');
+            pre.textContent = 'Loading…';
+            fetch('/api/file-changes/' + encodeURIComponent(changeId))
+                .then(function(r) {
+                    if (!r.ok) return r.text().then(function(t) { throw new Error(t || r.statusText); });
+                    return r.json();
+                })
+                .then(function(data) {
+                    const change = data.change || {};
+                    let text = data.diff || '';
+                    if (!text && change.operation === 'create') {
+                        text = '+++ create ' + (change.file_path || '') + '\n' + (change.new_content || '');
+                    } else if (!text && change.operation === 'delete') {
+                        text = '--- delete ' + (change.file_path || '') + '\n' + (change.old_content || '');
+                    } else if (!text && change.operation === 'move') {
+                        text = 'move: ' + (change.old_path || '') + ' → ' + (change.new_path || '');
+                    }
+                    pre.innerHTML = formatDiffHtml(text);
+                    pre.dataset.loaded = '1';
+                })
+                .catch(function(err) {
+                    pre.textContent = 'Diff unavailable: ' + (err.message || err);
+                });
+        }
+
+        function toggleDiff(changeId) {
+            if (expandedDiffs[changeId]) {
+                expandedDiffs[changeId] = false;
+            } else {
+                expandedDiffs[changeId] = true;
+            }
+            loadPendingChanges();
+        }
+
+        function runPendingAction(promise) {
+            if (pendingBusy) return;
+            pendingBusy = true;
+            setPendingError('');
+            loadPendingChanges();
+            promise
+                .then(function() {
+                    pendingBusy = false;
+                    loadPendingChanges();
+                })
+                .catch(function(err) {
+                    pendingBusy = false;
+                    setPendingError(err.message || String(err));
+                    loadPendingChanges();
+                });
+        }
+
+        function approveChange(changeId) {
+            runPendingAction(
+                fetch('/api/file-changes/approve/' + encodeURIComponent(changeId) + '?user_id=' + encodeURIComponent(pendingUserId), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}'
+                }).then(function(r) {
+                    if (!r.ok) return r.text().then(function(t) { throw new Error(t || r.statusText); });
+                })
+            );
+        }
+
+        function rejectChange(changeId) {
+            runPendingAction(
+                fetch('/api/file-changes/reject/' + encodeURIComponent(changeId), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: pendingUserId, reason: 'Rejected from web UI' })
+                }).then(function(r) {
+                    if (!r.ok) return r.text().then(function(t) { throw new Error(t || r.statusText); });
+                })
+            );
+        }
+
+        function approveRequest(requestId) {
+            runPendingAction(
+                fetch('/api/file-changes/requests/' + encodeURIComponent(requestId) + '/approve?user_id=' + encodeURIComponent(pendingUserId), {
+                    method: 'POST'
+                }).then(function(r) {
+                    if (!r.ok) return r.text().then(function(t) { throw new Error(t || r.statusText); });
+                })
+            );
+        }
+
+        function rejectRequest(requestId) {
+            runPendingAction(
+                fetch('/api/file-changes/requests/' + encodeURIComponent(requestId) + '/reject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: pendingUserId, reason: 'Rejected from web UI' })
+                }).then(function(r) {
+                    if (!r.ok) return r.text().then(function(t) { throw new Error(t || r.statusText); });
+                })
+            );
+        }
+
+        document.getElementById('pending-changes').addEventListener('click', function(e) {
+            const btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+            const action = btn.getAttribute('data-action');
+            const id = btn.getAttribute('data-id');
+            const rid = btn.getAttribute('data-request-id');
+            if (action === 'toggle-diff' && id) toggleDiff(id);
+            else if (action === 'approve' && id) approveChange(id);
+            else if (action === 'reject' && id) rejectChange(id);
+            else if (action === 'approve-request' && rid) approveRequest(rid);
+            else if (action === 'reject-request' && rid) rejectRequest(rid);
+        });
+
         connect();
-        setInterval(loadAgents, 5000); // Refresh agents every 5 seconds
+        loadPendingChanges();
+        setInterval(loadAgents, 5000);
+        setInterval(loadPendingChanges, 5000);
     </script>
 </body>
 </html>`

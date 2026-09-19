@@ -146,7 +146,7 @@ Public tracker: [KNOWN_ISSUES.md](KNOWN_ISSUES.md) · [known-issues.html](known-
 | `hub-history-bounded` | Export + durable channel toggle; 5000 msg cap remains |
 | `collab-model-variance` | Local models vary in collaboration quality and timeouts |
 | `single-hub` | Single-server — no horizontal scale |
-| `web-ui-thin` | Browser hub UI is chat-only — use desktop for full workspace |
+| `web-ui-thin` | Browser hub UI is chat + pending approval — use desktop for full workspace IDE |
 
 ---
 

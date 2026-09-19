@@ -2078,7 +2078,10 @@ export class ChatAPI {
     path?: string;
     context?: string;
     model?: string;
-  }): Promise<{ completion: string }> {
+    neighbor_snippets?: Array<{ path: string; content: string; source?: string }>;
+    n?: number;
+    signal?: AbortSignal;
+  }): Promise<{ completion: string; completions?: string[]; model?: string }> {
     const response = await this.hubFetch('/api/dev/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2089,12 +2092,119 @@ export class ChatAPI {
         path: params.path,
         context: params.context,
         model: params.model,
+        neighbor_snippets: params.neighbor_snippets,
+        n: params.n ?? 2,
       }),
+      signal: params.signal,
     });
     if (!response.ok) {
       return { completion: '' };
     }
     return response.json();
+  }
+
+  /**
+   * Stream ghost-text completion via NDJSON (`/api/dev/complete/stream`).
+   * Falls back to non-stream `devComplete` when the stream endpoint is unavailable.
+   */
+  async devCompleteStream(
+    params: {
+      prefix: string;
+      suffix?: string;
+      language?: string;
+      path?: string;
+      context?: string;
+      model?: string;
+      neighbor_snippets?: Array<{ path: string; content: string; source?: string }>;
+      n?: number;
+      signal?: AbortSignal;
+    },
+    onChunk?: (text: string) => void
+  ): Promise<{ completion: string; completions: string[]; model?: string; streamed: boolean }> {
+    const body = {
+      prefix: params.prefix,
+      suffix: params.suffix ?? '',
+      language: params.language,
+      path: params.path,
+      context: params.context,
+      model: params.model,
+      neighbor_snippets: params.neighbor_snippets,
+      n: params.n ?? 2,
+    };
+    try {
+      const response = await this.hubFetch('/api/dev/complete/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
+        body: JSON.stringify(body),
+        signal: params.signal,
+      });
+      if (!response.ok || !response.body) {
+        throw new Error(`stream unavailable: ${response.status}`);
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let completion = '';
+      let completions: string[] = [];
+      let model: string | undefined;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let evt: {
+            type?: string;
+            text?: string;
+            completion?: string;
+            completions?: string[];
+            model?: string;
+            error?: string;
+          };
+          try {
+            evt = JSON.parse(trimmed);
+          } catch {
+            continue;
+          }
+          if (evt.type === 'chunk' && evt.text) {
+            completion += evt.text;
+            onChunk?.(evt.text);
+          } else if (evt.type === 'done') {
+            if (evt.completion) completion = evt.completion;
+            if (Array.isArray(evt.completions) && evt.completions.length > 0) {
+              completions = evt.completions;
+            }
+            model = evt.model;
+          } else if (evt.type === 'error') {
+            throw new Error(evt.error || 'stream error');
+          }
+        }
+      }
+      if (completions.length === 0 && completion) {
+        completions = [completion];
+      }
+      return { completion: completion.trim(), completions, model, streamed: true };
+    } catch {
+      if (params.signal?.aborted) {
+        return { completion: '', completions: [], streamed: false };
+      }
+      const fallback = await this.devComplete({ ...params, signal: params.signal });
+      const completions =
+        Array.isArray(fallback.completions) && fallback.completions.length > 0
+          ? fallback.completions
+          : fallback.completion
+            ? [fallback.completion]
+            : [];
+      return {
+        completion: fallback.completion ?? '',
+        completions,
+        model: fallback.model,
+        streamed: false,
+      };
+    }
   }
 
   async devAgentTurn(params: {

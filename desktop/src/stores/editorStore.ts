@@ -176,6 +176,8 @@ interface EditorState {
   cycleActiveTab: (direction: 1 | -1) => void;
   setTabViewMode: (tabId: string, viewMode: EditorTabViewMode) => void;
   updateTabContent: (tabId: string, content: string) => void;
+  /** Apply content from an external source (edit-apply stream) and bump contentSyncKey for Monaco. */
+  applyExternalTabContent: (tabId: string, content: string) => void;
   updateTabCursor: (tabId: string, position: { line: number; column: number }) => void;
   setActiveSelection: (selection: EditorSelectionContext | null) => void;
   revealLine: (workspaceId: string, path: string, line: number) => void;
@@ -892,6 +894,41 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...state.recentEdits.filter((item) => item.path !== tab.path),
         ].slice(0, 20);
       })(),
+    }));
+  },
+
+  applyExternalTabContent: (tabId, content) => {
+    set((state) => ({
+      tabs: state.tabs.map((tab) => {
+        if (tab.id !== tabId) return tab;
+        if (
+          tab.viewMode === 'image' ||
+          tab.viewMode === 'pdf' ||
+          tab.viewMode === 'csv-table' ||
+          tab.viewMode === 'markdown-preview' ||
+          tab.viewMode === 'scan-summary' ||
+          tab.viewMode === 'scan-analysis' ||
+          tab.viewMode === 'comparator-analysis' ||
+          tab.viewMode === 'cad-workbench' ||
+          tab.viewMode === 'structure-workbench' ||
+          tab.viewMode === 'html-preview' ||
+          tab.viewMode === 'music-workbench' ||
+          tab.viewMode === 'arena-workbench' ||
+          tab.viewMode === 'knowledge-graph-workbench' ||
+          tab.viewMode === 'neural-canvas'
+        ) {
+          return tab;
+        }
+        if (tab.content === content) return tab;
+        return {
+          ...tab,
+          content,
+          // Speculative / streamed agent content — not a user edit.
+          isDirty: false,
+          isPreview: false,
+          contentSyncKey: (tab.contentSyncKey ?? 0) + 1,
+        };
+      }),
     }));
   },
   
