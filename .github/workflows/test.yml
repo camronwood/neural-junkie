@@ -66,7 +66,8 @@ jobs:
       - name: Build Linux nj-server sidecar for Tauri check
         run: |
           mkdir -p desktop/src-tauri/binaries
-          GOOS=linux GOARCH=amd64 go build -tags "slackvendor googlevendor" \
+          # Unit CI has no vendor OAuth secrets; build a plain sidecar so cargo check can resolve externalBin.
+          GOOS=linux GOARCH=amd64 go build \
             -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
 
       - name: Check Tauri shell
