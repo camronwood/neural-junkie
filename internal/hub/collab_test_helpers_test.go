@@ -15,6 +15,10 @@ func newTestHub(t *testing.T) *Hub {
 	assetsRoot := filepath.Join(home, "collaborations")
 	h := NewHub()
 	h.SetCollaborationAssetsRootResolver(func() string { return assetsRoot })
+	t.Cleanup(func() {
+		h.WaitTurnLedgers()
+		h.WaitCollabAsync()
+	})
 	return h
 }
 

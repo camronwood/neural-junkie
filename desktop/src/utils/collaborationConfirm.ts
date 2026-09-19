@@ -30,3 +30,27 @@ export function confirmStartCollaborationWhileExecuting(executing: Collaboration
       `Continue with this /collaborate?`
   );
 }
+
+/** Confirm before cancelling an in-progress collaboration. */
+export function confirmCancelCollaboration(collab: Collaboration): boolean {
+  const title = collab.title?.trim() || 'this collaboration';
+  return window.confirm(
+    `Cancel "${title}"?\n\n` +
+      `Planning and execution stop immediately. This cannot be undone.`
+  );
+}
+
+/**
+ * Warn when marking a collab done while file deliverables completed without proposals.
+ * Returns false if the user declines.
+ */
+export function confirmMarkDoneWithMissingFileDeliverables(
+  missingCount: number
+): boolean {
+  if (missingCount <= 0) return true;
+  return window.confirm(
+    `${missingCount} file deliverable task(s) completed without a [FILE_CHANGE] proposal.\n\n` +
+      `Chat markdown does not write to disk. Prefer approving Pending changes, or Redispatch those tasks.\n\n` +
+      `Mark the collaboration done anyway?`
+  );
+}

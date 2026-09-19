@@ -125,7 +125,7 @@ func (a *Agent) attemptMissingStartAllMakefileFix(
 			return false, nil
 		}
 	} else {
-		if err := a.proposeFileEditInChannel(ctx, msg.Channel, "Makefile", oldContent, body, msg); err != nil {
+		if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, "Makefile", oldContent, body, msg); err != nil {
 			return false, nil
 		}
 	}
@@ -241,7 +241,7 @@ func (a *Agent) attemptTauriVitePortPlaybook(
 	if err := a.validateProposalForSession(ctx, msg, viteRel, inferProposalOp(wsPath, viteRel, oldContent)); err != nil {
 		return false, nil
 	}
-	if err := a.proposeFileEditInChannel(ctx, msg.Channel, viteRel, oldContent, newBody, msg); err != nil {
+	if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, viteRel, oldContent, newBody, msg); err != nil {
 		return false, nil
 	}
 	if state != nil {

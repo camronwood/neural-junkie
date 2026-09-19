@@ -298,7 +298,7 @@ func (a *Agent) observeImplementationSessionToolStep(
 	if ev.Kind == "result" && isDiscoverTool(ev.Name) {
 		state.recordDiscoverTool(ev.Name)
 	}
-	if ev.Kind == "result" && (ev.Name == "propose_file_edit" || ev.Name == "search_replace" || ev.Name == "apply_patch") {
+	if ev.Kind == "result" && (ev.Name == "propose_file_edit" || ev.Name == "search_replace" || ev.Name == "apply_patch" || ev.Name == "apply_edits_batch") {
 		state.RecordEdit("")
 	}
 	if streamMsgID != "" && a != nil && msg != nil {

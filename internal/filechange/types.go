@@ -20,12 +20,13 @@ const (
 type FileChangeStatus string
 
 const (
-	FileChangeStatusPending  FileChangeStatus = "pending"
-	FileChangeStatusApproved FileChangeStatus = "approved"
-	FileChangeStatusRejected FileChangeStatus = "rejected"
-	FileChangeStatusStale    FileChangeStatus = "stale"
-	FileChangeStatusExpired  FileChangeStatus = "expired"
-	FileChangeStatusFailed   FileChangeStatus = "failed"
+	FileChangeStatusPending    FileChangeStatus = "pending"
+	FileChangeStatusApproved   FileChangeStatus = "approved"
+	FileChangeStatusRejected   FileChangeStatus = "rejected"
+	FileChangeStatusStale      FileChangeStatus = "stale"
+	FileChangeStatusExpired    FileChangeStatus = "expired"
+	FileChangeStatusFailed     FileChangeStatus = "failed"
+	FileChangeStatusRolledBack FileChangeStatus = "rolled_back" // applied then restored after mid-batch failure
 )
 
 // FileChange represents a proposed file change

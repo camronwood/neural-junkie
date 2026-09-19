@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  confirmCancelCollaboration,
+  confirmMarkDoneWithMissingFileDeliverables,
   confirmReplaceCollaborationExecution,
   confirmStartCollaborationWhileExecuting,
 } from './collaborationConfirm';
@@ -96,6 +98,33 @@ describe('collaborationConfirm', () => {
     it('returns false when the user cancels the start prompt', () => {
       vi.spyOn(window, 'confirm').mockReturnValue(false);
       expect(confirmStartCollaborationWhileExecuting(makeCollab({ phase: 'executing' }))).toBe(false);
+    });
+  });
+
+  describe('confirmCancelCollaboration', () => {
+    it('prompts with the collaboration title', () => {
+      const spy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      expect(confirmCancelCollaboration(makeCollab({ title: 'Ship UI' }))).toBe(true);
+      expect(String(spy.mock.calls[0][0])).toContain('Ship UI');
+      expect(String(spy.mock.calls[0][0])).toContain('Cancel');
+    });
+
+    it('returns false when declined', () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      expect(confirmCancelCollaboration(makeCollab())).toBe(false);
+    });
+  });
+
+  describe('confirmMarkDoneWithMissingFileDeliverables', () => {
+    it('returns true when nothing is missing', () => {
+      expect(confirmMarkDoneWithMissingFileDeliverables(0)).toBe(true);
+    });
+
+    it('prompts when file deliverables are missing', () => {
+      const spy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      expect(confirmMarkDoneWithMissingFileDeliverables(2)).toBe(false);
+      expect(String(spy.mock.calls[0][0])).toContain('2 file deliverable');
+      expect(String(spy.mock.calls[0][0])).toContain('Pending changes');
     });
   });
 });

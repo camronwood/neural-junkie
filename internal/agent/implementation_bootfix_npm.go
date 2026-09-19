@@ -136,7 +136,7 @@ func (a *Agent) tryEarlyMissingNpmModuleFix(ctx context.Context, msg *protocol.M
 		if err := a.validateProposalForSession(ctx, msg, "package.json", ProposalOpEdit); err != nil {
 			return false
 		}
-		if err := a.proposeFileEditInChannel(ctx, msg.Channel, "package.json", string(existing), body, msg); err != nil {
+		if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, "package.json", string(existing), body, msg); err != nil {
 			return false
 		}
 		state.ProposedCount++

@@ -167,7 +167,15 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	// Intercept file change proposals and register with FileChangeManager
 	var fileChangeRegErr error
 	if msg.Type == protocol.MessageTypeFileChange && msg.Metadata != nil {
-		if proposalRaw, ok := msg.Metadata["file_change_proposal"]; ok {
+		if batchRaw, ok := msg.Metadata[protocol.MetaFileChangeBatchProposal]; ok {
+			fileChangeRegErr = h.registerFileChangeBatchProposal(msg, batchRaw)
+			if fileChangeRegErr != nil {
+				if msg.Metadata == nil {
+					msg.Metadata = make(map[string]interface{})
+				}
+				msg.Metadata[protocol.MetaFileChangeRegistrationError] = fileChangeRegErr.Error()
+			}
+		} else if proposalRaw, ok := msg.Metadata["file_change_proposal"]; ok {
 			fileChangeRegErr = h.registerFileChangeProposal(msg, proposalRaw)
 			if fileChangeRegErr != nil {
 				if msg.Metadata == nil {
@@ -1906,6 +1914,10 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	log.Printf("[FileChange] Registered %s proposal for %s (change ID: %s) from %s",
 		proposal.Operation, filePath, change.ID, msg.From.Name)
 
+	// Stream resolved new_content into Monaco before/alongside the proposal card;
+	// auto-apply finalizes disk after the typewriter stream.
+	h.emitEditApplyStreamForChange(msg, change)
+
 	h.maybeAutoApproveCollabFileChange(msg, change, operation, wsRoot)
 	h.maybeAutoApproveIDEFileChange(msg, change, operation, wsRoot)
 	refreshed, _ := h.fileChangeManager.GetFileChange(change.ID)
@@ -1918,6 +1930,12 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		}
 		msg.Metadata[protocol.MetaFileChangeAutoApproved] = true
 	}
+	holdReason := refreshed.Reason
+	if holdReason == "" && msg.Metadata != nil {
+		if r, ok := msg.Metadata["file_change_hold_reason"].(string); ok {
+			holdReason = r
+		}
+	}
 	msg.Metadata[protocol.MetaChangeProposal] = protocol.ChangeProposalCard{
 		Version:     1,
 		Kind:        protocol.ChangeProposalKindFile,
@@ -1929,7 +1947,13 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		NewPath:     refreshed.NewPath,
 		RequestedAt: refreshed.RequestedAt,
 		ExpiresAt:   refreshed.ExpiresAt,
-		Reason:      refreshed.Reason,
+		Reason:      holdReason,
+	}
+	if holdReason != "" && refreshed.Status == filechange.FileChangeStatusPending {
+		msg.Content = holdReason
+		if !strings.Contains(strings.ToLower(holdReason), "review") {
+			msg.Content = holdReason + " Review the proposal before accepting."
+		}
 	}
 	return nil
 }

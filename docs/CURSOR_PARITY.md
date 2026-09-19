@@ -1,6 +1,6 @@
 # Native Cursor parity (local-first)
 
-**Last updated:** June 2026
+**Last updated:** September 2026
 
 Neural Junkie native agents target **Cursor-equivalent workspace access** without `@Cursor` CLI or cloud indexing defaults. Inference and embeddings stay on-device (Ollama) unless the user explicitly selects a cloud provider.
 
@@ -12,18 +12,18 @@ Neural Junkie native agents target **Cursor-equivalent workspace access** withou
 | File reach | Read/write/delete within workspace | `WorkspaceBackend` (local + `nj-remote`) |
 | Discovery | Semantic + grep + glob at scale | `semantic_search` in 10k+ file repos |
 | Agent loop | Open-ended until done | Agent Runtime v2 until success, guardrail, or cancel |
-| Multi-file | Coordinated edits | Batched apply + checkpoint (no 5-file cap) |
+| Multi-file | Coordinated edits | `apply_edits_batch` + request approve/reject + mid-batch checkpoint rollback (no 5-file cap) |
 | Verify | Build/test loop | Node, Go, Rust, Python, Terraform |
 | Failure-driven repair | Read → edit → re-run on errors | **NJ Fix Loop** — circuit breaker, boot-fix playbooks, grounding gates |
 | Context | Large effective context | Model-aware budget + CCR + `nj_retrieve_context` |
-| Apply UX | Edits in editor | Auto-apply default in Agent mode; Monaco buffer sync |
+| Apply UX | Edits in editor | Auto-apply default in Agent mode; resolved-edit `stream_kind=edit_apply` typewriter into Monaco + hunk handoff |
 | Governance | Optional | `interactive` / `auto_apply_edits` / `yolo` |
 
 ## Explicit non-goals
 
 - VS Code extension marketplace
 - Cloud semantic index (Turbopuffer-class) as default
-- Cursor-class tab completion (tracked separately)
+- Cursor-class tab completion as cloud/default (local FIM + streaming ghost text ships via IDE pack; see `/api/dev/complete`)
 - Background cloud agents
 
 ## Feature flag

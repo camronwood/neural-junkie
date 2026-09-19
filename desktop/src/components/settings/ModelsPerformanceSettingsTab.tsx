@@ -362,6 +362,24 @@ export function ModelsPerformanceSettingsTab({ hubHttp, isActive }: SettingsTabP
       </label>
     </div>
 
+    {(layoutSettings.inlineCompletionEnabled ?? false) && (
+      <div className="flex items-center justify-between gap-4 p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-slack-text">Inline completion model</div>
+          <div className="text-sm text-slack-textMuted">
+            Small local default; set a stronger Ollama tag when you want higher quality
+          </div>
+        </div>
+        <input
+          type="text"
+          value={layoutSettings.inlineCompletionModel ?? 'qwen2.5-coder:1.5b'}
+          onChange={(e) => updateLayoutSettings({ inlineCompletionModel: e.target.value })}
+          placeholder="qwen2.5-coder:1.5b"
+          className="w-56 shrink-0 px-2 py-1 text-sm font-mono bg-slack-bg border border-slack-border rounded text-slack-text"
+        />
+      </div>
+    )}
+
     <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
       <div className="flex-1">
         <div className="font-medium text-slack-text">Editor agent trust</div>

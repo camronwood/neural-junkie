@@ -75,6 +75,10 @@ import {
 import { CommandPalette } from './CommandPalette';
 import { ChannelSidebar } from './ChannelSidebar';
 import { CreateChannelModal } from './CreateChannelModal';
+import {
+  findCollaborateCommand,
+  StartCollaborationModal,
+} from './StartCollaborationModal';
 import { ChannelInfoModal } from './ChannelInfoModal';
 import { CreateNewDMModal } from './CreateNewDMModal';
 import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
@@ -595,6 +599,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // State for command palette
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandPaletteFilter, setCommandPaletteFilter] = useState('');
+  const [startCollaborationOpen, setStartCollaborationOpen] = useState(false);
   const [commandDefs, setCommandDefs] = useState<CommandDefinition[]>([]);
   const [modelLibraryOpen, setModelLibraryOpen] = useState(false);
   const [modelLibraryInitialTab, setModelLibraryInitialTab] = useState<'installed' | 'ollama' | 'huggingface' | 'train' | undefined>();
@@ -1048,8 +1053,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       });
     } catch (error) {
       console.error('Failed to load collaborations:', error);
+      addToast({
+        type: 'error',
+        title: 'Could not load collaborations',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to refresh collaboration snapshots. Try again or check hub connectivity.',
+      });
     }
-  }, [api]);
+  }, [addToast, api]);
 
   const {
     handleWorkspaceGateContinue,
@@ -1505,6 +1518,20 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const handleFirstWinOpenModelLibrary = useCallback(() => {
     setModelLibraryOpen(true);
   }, []);
+
+  const handleOpenStartCollaboration = useCallback(() => {
+    void (async () => {
+      if (commandDefs.length === 0) {
+        try {
+          const defs = await api.fetchCommands();
+          setCommandDefs(withClientPaletteCommands(defs));
+        } catch {
+          /* keep empty; modal shows fallback */
+        }
+      }
+      setStartCollaborationOpen(true);
+    })();
+  }, [api, commandDefs.length]);
 
   useShortcutDispatcher(true);
 
@@ -2052,6 +2079,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           onOpenWorkspaceGate={openWorkspaceGate}
           onOpenFiles={handleFirstWinOpenFiles}
           onOpenCommandPalette={openCommandPalette}
+          onOpenStartCollaboration={handleOpenStartCollaboration}
           onOpenAgentDM={handleCreateDM}
           onPrefillComposer={handleFirstWinPrefill}
           onOpenModelLibrary={handleFirstWinOpenModelLibrary}
@@ -2383,6 +2411,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         initialFilter={commandPaletteFilter}
         onClose={closeCommandPalette}
         onExecute={handleCommandExecute}
+      />
+
+      <StartCollaborationModal
+        isOpen={startCollaborationOpen}
+        command={findCollaborateCommand(commandDefs)}
+        agents={agents}
+        channels={channels}
+        activeChannel={channel}
+        collaborations={trackedCollaborations}
+        pendingChanges={pendingChanges}
+        api={api}
+        onClose={() => setStartCollaborationOpen(false)}
+        onSubmit={handleCommandExecute}
       />
 
       {/* Create Channel Modal */}

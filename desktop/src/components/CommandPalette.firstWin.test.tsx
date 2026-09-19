@@ -49,7 +49,7 @@ describe('CommandPalette first-win filters', () => {
     expect(screen.queryByText('/status')).toBeNull();
   });
 
-  it('applies collaborate initialFilter', () => {
+  it('applies collaborate initialFilter and opens the collaborate form', () => {
     render(
       <CommandPalette
         commands={commands}
@@ -60,10 +60,8 @@ describe('CommandPalette first-win filters', () => {
         onExecute={vi.fn()}
       />,
     );
-    expect((screen.getByPlaceholderText('Search actions and commands...') as HTMLInputElement).value).toBe(
-      'collaborate',
-    );
     expect(screen.getByText('/collaborate')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Search actions and commands...')).toBeNull();
     expect(screen.queryByText('/create-repo-agent')).toBeNull();
   });
 });

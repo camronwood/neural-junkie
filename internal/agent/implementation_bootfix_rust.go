@@ -325,7 +325,7 @@ func (a *Agent) attemptMissingRustCrateFix(
 		msg.Metadata = map[string]interface{}{}
 	}
 	msg.Metadata["deterministic_edit"] = true
-	if err := a.proposeFileEditInChannel(ctx, channel, "Cargo.toml", oldContent, body, msg); err != nil {
+	if _, err := a.proposeFileEditInChannel(ctx, channel, "Cargo.toml", oldContent, body, msg); err != nil {
 		return false, nil
 	}
 	onDisk, readErr := os.ReadFile(cargoPath)

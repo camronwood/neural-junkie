@@ -88,17 +88,26 @@ func extractChangedSnippet(oldLines, newLines []string, start, end int) string {
 }
 
 // RequireOldStringInSelection returns an error when old must be anchored in selection text.
+// When selection text is stale (does not appear in scope constraints) but line range is set,
+// line-range scope alone is enough — callers validate via ValidateSelectionScope.
 func RequireOldStringInSelection(scope *SelectionScope, old string) error {
-	if scope == nil || strings.TrimSpace(scope.Text) == "" {
+	if scope == nil {
+		return nil
+	}
+	if strings.TrimSpace(scope.Text) == "" {
 		return nil
 	}
 	normSel := strings.ReplaceAll(scope.Text, "\r\n", "\n")
 	normOld := strings.ReplaceAll(old, "\r\n", "\n")
-	if !strings.Contains(normSel, normOld) {
-		return &PatchError{
-			Code: ErrOutOfScope,
-			Message: "old_string must appear inside the user selection when a selection is active",
-		}
+	if strings.Contains(normSel, normOld) {
+		return nil
 	}
-	return nil
+	// Stale selection text with valid line range: defer to line-range validation.
+	if scope.StartLine > 0 && scope.EndLine >= scope.StartLine {
+		return nil
+	}
+	return &PatchError{
+		Code:    ErrOutOfScope,
+		Message: "old_string must appear inside the user selection when a selection is active",
+	}
 }

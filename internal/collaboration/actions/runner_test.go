@@ -233,6 +233,39 @@ func TestHTTPPostAndWebhook(t *testing.T) {
 	}
 }
 
+func TestWebSearchRequiresProvider(t *testing.T) {
+	r := NewRunner(Config{})
+	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
+		Kind:   collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "web_search", Config: map[string]interface{}{"query": "neural junkie"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("expected not configured error, got %v", err)
+	}
+}
+
+func TestSMSEnabledStillRequiresProvider(t *testing.T) {
+	r := NewRunner(Config{SMSEnabled: true})
+	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
+		Kind:   collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "sms", Config: map[string]interface{}{"to": "+1", "body": "hi"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("expected not configured error, got %v", err)
+	}
+}
+
+func TestMCPToolFailsWithoutClient(t *testing.T) {
+	r := NewRunner(Config{})
+	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
+		Kind:   collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "mcp_tool", Config: map[string]interface{}{"tool": "search"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "not wired") {
+		t.Fatalf("expected not wired error, got %v", err)
+	}
+}
+
 func TestInterpolateConfig(t *testing.T) {
 	cfg := interpolateConfig(
 		map[string]interface{}{"url": "{{task.title}}-{{collab.description}}"},

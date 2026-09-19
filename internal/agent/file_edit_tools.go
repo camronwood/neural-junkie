@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	searchReplaceToolName = "search_replace"
-	applyPatchToolName    = "apply_patch"
+	searchReplaceToolName   = "search_replace"
+	applyPatchToolName      = "apply_patch"
+	applyEditsBatchToolName = "apply_edits_batch"
+	maxBatchEditFiles       = 25
 )
 
 func fileEditToolDefinitions() []ai.ClaudeToolDefinition {
@@ -51,6 +53,32 @@ func fileEditToolDefinitions() []ai.ClaudeToolDefinition {
 				"required":["path","patch"]
 			}`),
 		},
+		{
+			Name: applyEditsBatchToolName,
+			Description: "Propose coordinated edits across multiple existing files in one batch (preferred for multi-file refactors). " +
+				"Each edit is either search/replace (old_string/new_string) or a unified diff patch. Max 25 files.",
+			InputSchema: json.RawMessage(`{
+				"type":"object",
+				"properties":{
+					"edits":{
+						"type":"array",
+						"description":"Ordered list of file edits",
+						"items":{
+							"type":"object",
+							"properties":{
+								"path":{"type":"string"},
+								"old_string":{"type":"string"},
+								"new_string":{"type":"string"},
+								"replace_all":{"type":"boolean"},
+								"patch":{"type":"string","description":"Unified diff alternative to old_string/new_string"}
+							},
+							"required":["path"]
+						}
+					}
+				},
+				"required":["edits"]
+			}`),
+		},
 		proposeFileEditToolDefinition(),
 	}
 }
@@ -59,9 +87,10 @@ func appendFileEditToolsPrompt(system *strings.Builder) {
 	system.WriteString("FILE EDITING (Cursor-style):\n")
 	system.WriteString("1. Prefer search_replace for surgical edits to existing files (exact unique old_string).\n")
 	system.WriteString("2. Use apply_patch for multi-hunk changes in one file.\n")
-	system.WriteString("3. Use propose_file_edit only for new files or when replacing an entire small file (<120 lines).\n")
-	system.WriteString("4. When the user selected code, keep edits inside that selection (add imports above if needed).\n")
-	system.WriteString("5. Read the file first when unsure of exact content — do not guess old_string.\n\n")
+	system.WriteString("3. Use apply_edits_batch when changing multiple files in one coordinated refactor.\n")
+	system.WriteString("4. Use propose_file_edit only for new files, deletes, or when replacing an entire small file (<120 lines).\n")
+	system.WriteString("5. When the user selected code, keep edits inside that selection (add imports above if needed).\n")
+	system.WriteString("6. Read the file first when unsure of exact content — do not guess old_string.\n\n")
 }
 
 func (a *Agent) executeSearchReplaceTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
@@ -101,9 +130,33 @@ func (a *Agent) executeSearchReplaceTool(ctx context.Context, msg *protocol.Mess
 	newContent, strategy, err := fileedit.SearchReplaceWithFallback(oldContent, args.OldString, args.NewString, args.ReplaceAll)
 	if err != nil {
 		if pe, ok := err.(*fileedit.PatchError); ok && pe.Code == fileedit.ErrNotFound {
-			return a.searchReplaceSmartFallback(ctx, msg, path, oldContent, args.OldString, args.NewString, args.ReplaceAll, scope)
+			fallback, fbStrategy, fbErr := selectionReplaceContent(oldContent, args.OldString, args.NewString, args.ReplaceAll, scope)
+			if fbErr == nil {
+				if err := fileedit.ValidateSelectionScope(scope, oldContent, fallback); err != nil {
+					return "", err
+				}
+				if err := a.validateProposalForSession(ctx, msg, path, "edit"); err != nil {
+					return "", err
+				}
+				channel := msg.Channel
+				if channel == "" {
+					channel = "general"
+				}
+				outcome, propErr := a.proposeFileEditInChannel(ctx, channel, path, oldContent, fallback, msg)
+				if propErr != nil {
+					return "", propErr
+				}
+				a.trackFileEditProposal(ctx, msg, path)
+				RecordEditOutcome(searchReplaceToolName, "ok", fbStrategy, outcome.Status)
+				return formatFileEditToolResult(outcome, path, map[string]any{"strategy": fbStrategy}), nil
+			}
+			enriched := enrichPatchToolError(err, oldContent, args.OldString)
+			RecordEditOutcome(searchReplaceToolName, patchErrorCode(enriched), "", "")
+			return "", enriched
 		}
-		return "", err
+		enriched := enrichPatchToolError(err, oldContent, args.OldString)
+		RecordEditOutcome(searchReplaceToolName, patchErrorCode(enriched), "", "")
+		return "", enriched
 	}
 	if err := fileedit.ValidateSelectionScope(scope, oldContent, newContent); err != nil {
 		return "", err
@@ -116,11 +169,13 @@ func (a *Agent) executeSearchReplaceTool(ctx context.Context, msg *protocol.Mess
 	if channel == "" {
 		channel = "general"
 	}
-	if err := a.proposeFileEditInChannel(ctx, channel, path, oldContent, newContent, msg); err != nil {
+	outcome, err := a.proposeFileEditInChannel(ctx, channel, path, oldContent, newContent, msg)
+	if err != nil {
 		return "", err
 	}
 	a.trackFileEditProposal(ctx, msg, path)
-	return fmt.Sprintf(`{"status":"proposed","path":%q,"strategy":%q}`, path, strategy), nil
+	RecordEditOutcome(searchReplaceToolName, "ok", strategy, outcome.Status)
+	return formatFileEditToolResult(outcome, path, map[string]any{"strategy": strategy}), nil
 }
 
 func (a *Agent) executeApplyPatchTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
@@ -152,7 +207,9 @@ func (a *Agent) executeApplyPatchTool(ctx context.Context, msg *protocol.Message
 	}
 	newContent, err := fileedit.ApplyUnifiedPatch(oldContent, patch)
 	if err != nil {
-		return "", err
+		enriched := enrichPatchToolError(err, oldContent, patchNeedle(patch))
+		RecordEditOutcome(applyPatchToolName, patchErrorCode(enriched), "", "")
+		return "", enriched
 	}
 	scope := selectionScopeFromMessage(msg, path)
 	if err := fileedit.ValidateSelectionScope(scope, oldContent, newContent); err != nil {
@@ -166,11 +223,171 @@ func (a *Agent) executeApplyPatchTool(ctx context.Context, msg *protocol.Message
 	if channel == "" {
 		channel = "general"
 	}
-	if err := a.proposeFileEditInChannel(ctx, channel, path, oldContent, newContent, msg); err != nil {
+	outcome, err := a.proposeFileEditInChannel(ctx, channel, path, oldContent, newContent, msg)
+	if err != nil {
 		return "", err
 	}
 	a.trackFileEditProposal(ctx, msg, path)
-	return fmt.Sprintf(`{"status":"proposed","path":%q}`, path), nil
+	RecordEditOutcome(applyPatchToolName, "ok", "apply_patch", outcome.Status)
+	return formatFileEditToolResult(outcome, path, nil), nil
+}
+
+func (a *Agent) executeApplyEditsBatchTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
+	if isAskModeReadOnly(msg) {
+		return "", fmt.Errorf("ask mode is read-only")
+	}
+	var args struct {
+		Edits []struct {
+			Path       string `json:"path"`
+			OldString  string `json:"old_string"`
+			NewString  string `json:"new_string"`
+			ReplaceAll bool   `json:"replace_all"`
+			Patch      string `json:"patch"`
+		} `json:"edits"`
+	}
+	if len(input) > 0 {
+		if err := json.Unmarshal(input, &args); err != nil {
+			return "", fmt.Errorf("invalid apply_edits_batch input: %w", err)
+		}
+	}
+	if len(args.Edits) == 0 {
+		return "", fmt.Errorf("edits array is required")
+	}
+	if len(args.Edits) > maxBatchEditFiles {
+		return "", fmt.Errorf("apply_edits_batch supports at most %d files", maxBatchEditFiles)
+	}
+
+	type preparedEdit struct {
+		path       string
+		oldContent string
+		newContent string
+	}
+	prepared := make([]preparedEdit, 0, len(args.Edits))
+	seen := map[string]bool{}
+
+	for i, edit := range args.Edits {
+		path := strings.TrimSpace(edit.Path)
+		if path == "" {
+			return "", fmt.Errorf("edits[%d].path is required", i)
+		}
+		path = a.ResolveProposalPath(ctx, msg, path)
+		if !isValidFileChangeRelPath(path) {
+			return "", fmt.Errorf("edits[%d] invalid path: %q", i, path)
+		}
+		if seen[path] {
+			return "", fmt.Errorf("edits[%d] duplicates path %q in the same batch", i, path)
+		}
+		seen[path] = true
+
+		oldContent, err := a.readWorkspaceFileForEdit(ctx, msg, path)
+		if err != nil {
+			return "", fmt.Errorf("edits[%d] %s: %w", i, path, err)
+		}
+
+		var newContent string
+		patch := strings.TrimSpace(edit.Patch)
+		if patch != "" {
+			newContent, err = fileedit.ApplyUnifiedPatch(oldContent, patch)
+			if err != nil {
+				enriched := enrichPatchToolError(err, oldContent, patchNeedle(patch))
+				RecordEditOutcome(applyEditsBatchToolName, patchErrorCode(enriched), "", "")
+				return "", fmt.Errorf("edits[%d] %s patch: %w", i, path, enriched)
+			}
+		} else if strings.TrimSpace(edit.OldString) != "" {
+			scope := selectionScopeFromMessage(msg, path)
+			if err := fileedit.RequireOldStringInSelection(scope, edit.OldString); err != nil {
+				return "", fmt.Errorf("edits[%d] %s: %w", i, path, err)
+			}
+			newContent, _, err = fileedit.SearchReplaceWithFallback(oldContent, edit.OldString, edit.NewString, edit.ReplaceAll)
+			if err != nil {
+				if pe, ok := err.(*fileedit.PatchError); ok && pe.Code == fileedit.ErrNotFound {
+					fallback, _, fbErr := selectionReplaceContent(oldContent, edit.OldString, edit.NewString, edit.ReplaceAll, scope)
+					if fbErr == nil {
+						newContent = fallback
+						err = nil
+					}
+				}
+				if err != nil {
+					enriched := enrichPatchToolError(err, oldContent, edit.OldString)
+					RecordEditOutcome(applyEditsBatchToolName, patchErrorCode(enriched), "", "")
+					return "", fmt.Errorf("edits[%d] %s: %w", i, path, enriched)
+				}
+			}
+			if err := fileedit.ValidateSelectionScope(scope, oldContent, newContent); err != nil {
+				return "", fmt.Errorf("edits[%d] %s: %w", i, path, err)
+			}
+		} else {
+			return "", fmt.Errorf("edits[%d] %s requires old_string/new_string or patch", i, path)
+		}
+
+		if err := a.validateProposalForSession(ctx, msg, path, "edit"); err != nil {
+			return "", fmt.Errorf("edits[%d] %s: %w", i, path, err)
+		}
+		prepared = append(prepared, preparedEdit{path: path, oldContent: oldContent, newContent: newContent})
+	}
+
+	channel := msg.Channel
+	if channel == "" {
+		channel = "general"
+	}
+	paths := make([]string, 0, len(prepared))
+	batch := make([]fileEditBatchItem, 0, len(prepared))
+	for _, p := range prepared {
+		paths = append(paths, p.path)
+		batch = append(batch, fileEditBatchItem{
+			Path:       p.path,
+			OldContent: p.oldContent,
+			NewContent: p.newContent,
+		})
+	}
+	outcome, err := a.proposeFileEditBatchInChannel(ctx, channel, batch, msg)
+	if err != nil {
+		return "", err
+	}
+	for _, p := range paths {
+		a.trackFileEditProposal(ctx, msg, p)
+	}
+	RecordEditOutcome(applyEditsBatchToolName, "ok", "batch", outcome.Status)
+	pathsJSON, _ := json.Marshal(paths)
+	payload := map[string]any{
+		"status": outcome.Status,
+		"count":  len(paths),
+		"paths":  json.RawMessage(pathsJSON),
+	}
+	if outcome.Reason != "" {
+		payload["reason"] = outcome.Reason
+	}
+	b, _ := json.Marshal(payload)
+	return string(b), nil
+}
+
+// selectionReplaceContent retries within an active selection when exact match fails.
+func selectionReplaceContent(
+	fileContent, oldString, newString string,
+	replaceAll bool,
+	scope *fileedit.SelectionScope,
+) (string, string, error) {
+	if scope == nil || strings.TrimSpace(scope.Text) == "" {
+		return "", "", &fileedit.PatchError{Code: fileedit.ErrNotFound, Message: "old_string not found in file"}
+	}
+	selOld := scope.Text
+	selNew, _, err := fileedit.SearchReplaceWithFallback(selOld, oldString, newString, replaceAll)
+	if err != nil {
+		return "", "", &fileedit.PatchError{
+			Code:    fileedit.ErrNotFound,
+			Message: "old_string not found in file or selection; read_file and copy exact content",
+		}
+	}
+	normFile := strings.ReplaceAll(fileContent, "\r\n", "\n")
+	normSel := strings.ReplaceAll(selOld, "\r\n", "\n")
+	idx := strings.Index(normFile, normSel)
+	if idx < 0 {
+		return "", "", &fileedit.PatchError{
+			Code:    fileedit.ErrNotFound,
+			Message: "selection text not found in file; read_file for current content",
+		}
+	}
+	return normFile[:idx] + selNew + normFile[idx+len(normSel):], "selection_fallback", nil
 }
 
 // searchReplaceSmartFallback retries within an active selection when exact match fails.
@@ -181,29 +398,10 @@ func (a *Agent) searchReplaceSmartFallback(
 	replaceAll bool,
 	scope *fileedit.SelectionScope,
 ) (string, error) {
-	if scope == nil || strings.TrimSpace(scope.Text) == "" {
-		return "", &fileedit.PatchError{Code: fileedit.ErrNotFound, Message: "old_string not found in file"}
-	}
-	// Apply inside selection text only, then splice back into file.
-	selOld := scope.Text
-	selNew, _, err := fileedit.SearchReplaceWithFallback(selOld, oldString, newString, replaceAll)
+	newContent, strategy, err := selectionReplaceContent(fileContent, oldString, newString, replaceAll, scope)
 	if err != nil {
-		return "", &fileedit.PatchError{
-			Code:    fileedit.ErrNotFound,
-			Message: "old_string not found in file or selection; read_file and copy exact content",
-		}
+		return "", err
 	}
-	// Locate selection in file (first occurrence).
-	normFile := strings.ReplaceAll(fileContent, "\r\n", "\n")
-	normSel := strings.ReplaceAll(selOld, "\r\n", "\n")
-	idx := strings.Index(normFile, normSel)
-	if idx < 0 {
-		return "", &fileedit.PatchError{
-			Code:    fileedit.ErrNotFound,
-			Message: "selection text not found in file; read_file for current content",
-		}
-	}
-	newContent := normFile[:idx] + selNew + normFile[idx+len(normSel):]
 	if err := fileedit.ValidateSelectionScope(scope, fileContent, newContent); err != nil {
 		return "", err
 	}
@@ -214,11 +412,13 @@ func (a *Agent) searchReplaceSmartFallback(
 	if channel == "" {
 		channel = "general"
 	}
-	if err := a.proposeFileEditInChannel(ctx, channel, path, fileContent, newContent, msg); err != nil {
+	outcome, err := a.proposeFileEditInChannel(ctx, channel, path, fileContent, newContent, msg)
+	if err != nil {
 		return "", err
 	}
 	a.trackFileEditProposal(ctx, msg, path)
-	return fmt.Sprintf(`{"status":"proposed","path":%q,"strategy":"selection_fallback"}`, path), nil
+	RecordEditOutcome(searchReplaceToolName, "ok", strategy, outcome.Status)
+	return formatFileEditToolResult(outcome, path, map[string]any{"strategy": strategy}), nil
 }
 
 func (a *Agent) readWorkspaceFileForEdit(ctx context.Context, msg *protocol.Message, relPath string) (string, error) {
@@ -281,15 +481,16 @@ func selectionScopeFromMessage(msg *protocol.Message, targetPath string) *fileed
 		start, _ := fm["selection_start_line"].(float64)
 		end, _ := fm["selection_end_line"].(float64)
 		selText, _ := fm["selected_text"].(string)
-		if start <= 0 || end <= 0 || strings.TrimSpace(selText) == "" {
+		if start <= 0 || end <= 0 {
 			return nil
 		}
-		return &fileedit.SelectionScope{
+		scope := &fileedit.SelectionScope{
 			Path:      fp,
 			StartLine: int(start),
 			EndLine:   int(end),
 			Text:      selText,
 		}
+		return scope
 	}
 	return nil
 }
@@ -300,4 +501,51 @@ func (a *Agent) trackFileEditProposal(ctx context.Context, msg *protocol.Message
 		st.FilesChanged = appendUnique(st.FilesChanged, []string{path})
 	}
 	_ = msg
+}
+
+func enrichPatchToolError(err error, fileContent, needle string) error {
+	return fileedit.EnrichWithFileHints(err, fileContent, needle)
+}
+
+// enrichNotFoundError keeps the historical name used by tests/callers.
+func enrichNotFoundError(err error, fileContent, oldString string) error {
+	pe, ok := err.(*fileedit.PatchError)
+	if !ok || pe.Code != fileedit.ErrNotFound {
+		return enrichPatchToolError(err, fileContent, oldString)
+	}
+	return enrichPatchToolError(err, fileContent, oldString)
+}
+
+func patchErrorCode(err error) string {
+	if pe, ok := err.(*fileedit.PatchError); ok && pe != nil {
+		return pe.Code
+	}
+	return "error"
+}
+
+func patchNeedle(patch string) string {
+	for _, line := range strings.Split(patch, "\n") {
+		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "-") {
+			return strings.TrimPrefix(strings.TrimPrefix(line, " "), "-")
+		}
+	}
+	return patch
+}
+
+func formatFileEditToolResult(outcome fileEditProposeOutcome, path string, extra map[string]any) string {
+	payload := map[string]any{
+		"status": outcome.Status,
+		"path":   path,
+	}
+	if outcome.Reason != "" {
+		payload["reason"] = outcome.Reason
+	}
+	for k, v := range extra {
+		payload[k] = v
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Sprintf(`{"status":%q,"path":%q}`, outcome.Status, path)
+	}
+	return string(b)
 }

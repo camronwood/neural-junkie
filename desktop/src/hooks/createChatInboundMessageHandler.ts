@@ -18,6 +18,7 @@ import {
   isCollaborationMessage,
   isReasoningStreamDelta,
   isToolStepStreamDelta,
+  isEditApplyStreamDelta,
   showThreadReplyInMainTimeline,
   type Collaboration,
   type Message,
@@ -46,6 +47,7 @@ import {
   ensureRepoAgentWorkspace,
   isRepoAgentWorkspaceAction,
 } from '../utils/repoAgentWorkspace';
+import { applyEditStreamMessage } from '../utils/applyEditStreamDelta';
 import type { Toast } from '../stores/toastStore';
 
 export type ChatInboundMessageDeps = {
@@ -210,6 +212,11 @@ export function createChatInboundMessageHandler(deps: ChatInboundMessageDeps) {
         (!message.is_thread_reply || showThreadReplyInMainTimeline(streamChannel));
       if (message.type === 'stream_delta') {
         const streamMeta = message.metadata ?? {};
+        // Edit-apply streams update Monaco; do not append to the chat timeline.
+        if (isEditApplyStreamDelta(streamMeta)) {
+          applyEditStreamMessage(message);
+          return;
+        }
         const agentChannel = message.channel || activeChannel;
         if (isToolStepStreamDelta(streamMeta)) {
           st.updateThinkingAgentActivity(agentChannel, message.from.id, {
@@ -241,6 +248,10 @@ export function createChatInboundMessageHandler(deps: ChatInboundMessageDeps) {
         return;
       }
       if (message.type === 'stream_end') {
+        if (isEditApplyStreamDelta(message.metadata ?? {})) {
+          applyEditStreamMessage(message);
+          return;
+        }
         if (streamOnMainTimeline) {
           st.finalizeStream(message.id, message.metadata as Record<string, unknown> | undefined);
         }
@@ -284,40 +295,36 @@ export function createChatInboundMessageHandler(deps: ChatInboundMessageDeps) {
 
       const participantReq = parseCollabParticipantAddRequest(message);
       if (participantReq) {
-        const { collabID, agentID, agentName, requestedBy } = participantReq;
-        const key = `${collabID}:${agentID}:${message.id}`;
+        const { agentName, requestedBy } = participantReq;
+        const key = `${participantReq.collabID}:${participantReq.agentID}:${message.id}`;
         if (!deps.handledParticipantRequestPromptsRef.current.has(key)) {
           deps.handledParticipantRequestPromptsRef.current.add(key);
-          void (async () => {
-            const approved = window.confirm(
-              `${requestedBy} wants to add ${agentName} to this collaboration. Allow?`
-            );
-            try {
-              const updated = approved
-                ? await deps.api.approveCollabParticipantRequest(collabID, agentID)
-                : await deps.api.denyCollabParticipantRequest(collabID, agentID);
-              deps.mergeCollaborationSnapshot(updated);
-              if (deps.activeCollabRef.current?.id === updated.id) {
-                deps.setActiveCollab(updated);
-              }
-              deps.addToast({
-                type: approved ? 'success' : 'info',
-                title: approved ? 'Agent added' : 'Agent add denied',
-                message: approved
-                  ? `@${agentName} joined "${updated.title}".`
-                  : `@${agentName} was not added to "${updated.title}".`,
-              });
-            } catch (error) {
-              deps.addToast({
-                type: 'error',
-                title: 'Participant request failed',
-                message:
-                  error instanceof Error
-                    ? error.message
-                    : 'Could not update collaboration participants.',
-              });
+          const collabData = message.metadata?.collaboration_data as Collaboration | undefined;
+          if (collabData?.id) {
+            deps.mergeCollaborationSnapshot(collabData);
+            const decision = decideCollabPanelOpen({
+              snapshot: collabData,
+              activeChannel,
+              currentlyOpen: deps.activeCollabRef.current,
+              message,
+            });
+            if (decision.action === 'open' || decision.action === 'update_open') {
+              deps.setActiveCollab(decision.snapshot);
+            } else if (deps.activeCollabRef.current?.id === collabData.id) {
+              deps.setActiveCollab(collabData);
             }
-          })();
+          }
+          deps.addToast({
+            type: 'info',
+            title: 'Agent wants to join',
+            message: `${requestedBy} wants to add @${agentName}. Approve or deny in the Collaboration panel.`,
+            action: collabData
+              ? {
+                  label: 'Open panel',
+                  onClick: () => deps.setActiveCollab(collabData),
+                }
+              : undefined,
+          });
         }
       }
 

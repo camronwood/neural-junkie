@@ -47,6 +47,78 @@ func TestProposeAndApproveCreate(t *testing.T) {
 	}
 }
 
+func TestProposeAndApproveFileChangeRequest(t *testing.T) {
+	mgr, root := newTestManager(t)
+	a := filepath.Join(root, "a.txt")
+	b := filepath.Join(root, "b.txt")
+	if err := os.WriteFile(a, []byte("old-a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(b, []byte("old-b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := mgr.ProposeFileChangeRequest([]*FileChange{
+		{Operation: FileOperationEdit, FilePath: a, OldContent: "old-a", NewContent: "new-a"},
+		{Operation: FileOperationEdit, FilePath: b, OldContent: "old-b", NewContent: "new-b"},
+	}, testAgent(), "general")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.ID == "" || len(req.Changes) != 2 {
+		t.Fatalf("unexpected request: %+v", req)
+	}
+	for _, c := range req.Changes {
+		if c.Metadata["request_id"] != req.ID {
+			t.Fatalf("change missing request_id: %+v", c.Metadata)
+		}
+	}
+	if mgr.GetPendingCount() != 2 {
+		t.Fatalf("expected 2 pending, got %d", mgr.GetPendingCount())
+	}
+
+	approved, err := mgr.ApproveFileChangeRequest(req.ID, "user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if approved.Status != FileChangeStatusApproved {
+		t.Fatalf("expected approved request, got %s", approved.Status)
+	}
+	for _, path := range []string{a, b} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(string(data), "new-") {
+			t.Fatalf("file %s not updated: %q", path, data)
+		}
+	}
+	if mgr.GetPendingCount() != 0 {
+		t.Fatal("expected no pending after batch approve")
+	}
+}
+
+func TestRejectFileChangeRequest(t *testing.T) {
+	mgr, root := newTestManager(t)
+	target := filepath.Join(root, "batch-reject.txt")
+	req, err := mgr.ProposeFileChangeRequest([]*FileChange{
+		{Operation: FileOperationCreate, FilePath: target, NewContent: "x"},
+	}, testAgent(), "general")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := mgr.RejectFileChangeRequest(req.ID, "user-1", "nope")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rejected.Status != FileChangeStatusRejected {
+		t.Fatalf("expected rejected, got %s", rejected.Status)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatal("rejected create should not write file")
+	}
+}
+
 func TestRejectFileChange(t *testing.T) {
 	mgr, root := newTestManager(t)
 	target := filepath.Join(root, "reject-me.txt")
@@ -160,3 +232,115 @@ func TestBoundExecutionContextCannotBeRetargeted(t *testing.T) {
 		t.Fatalf("bound executor wrote wrong workspace: %q", got)
 	}
 }
+
+func TestApproveFileChangeRequestRollsBackOnMidBatchFailure(t *testing.T) {
+	mgr, root := newTestManager(t)
+	a := filepath.Join(root, "a.txt")
+	b := filepath.Join(root, "b.txt")
+	if err := os.WriteFile(a, []byte("old-a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(b, []byte("old-b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := mgr.ProposeFileChangeRequest([]*FileChange{
+		{Operation: FileOperationEdit, FilePath: a, OldContent: "old-a", NewContent: "new-a"},
+		{Operation: FileOperationEdit, FilePath: b, OldContent: "old-b", NewContent: "new-b"},
+	}, testAgent(), "general")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Make the second edit fail by changing the file after proposal (stale).
+	if err := os.WriteFile(b, []byte("user-changed-b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	failed, err := mgr.ApproveFileChangeRequest(req.ID, "user-1")
+	if err == nil {
+		t.Fatal("expected mid-batch failure")
+	}
+	if failed == nil || failed.Status != FileChangeStatusFailed {
+		t.Fatalf("expected failed request, got %+v", failed)
+	}
+
+	gotA, err := os.ReadFile(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(gotA) != "old-a" {
+		t.Fatalf("first edit should be rolled back, got %q", gotA)
+	}
+	gotB, err := os.ReadFile(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(gotB) != "user-changed-b" {
+		t.Fatalf("failed member path should remain user content, got %q", gotB)
+	}
+
+	if len(failed.Changes) != 2 {
+		t.Fatalf("expected 2 members, got %d", len(failed.Changes))
+	}
+	if failed.Changes[0].Status != FileChangeStatusRolledBack {
+		t.Fatalf("first member status = %q, want rolled_back (reason=%q)", failed.Changes[0].Status, failed.Changes[0].Reason)
+	}
+	if failed.Changes[1].Status != FileChangeStatusStale && failed.Changes[1].Status != FileChangeStatusFailed {
+		t.Fatalf("second member status = %q, want stale or failed", failed.Changes[1].Status)
+	}
+	if !strings.Contains(failed.Changes[0].Reason, "rolled back") {
+		t.Fatalf("rolled_back reason missing: %q", failed.Changes[0].Reason)
+	}
+}
+
+func TestApproveFileChangeRequestRollsBackCreateAndDelete(t *testing.T) {
+	mgr, root := newTestManager(t)
+	existing := filepath.Join(root, "keep.txt")
+	created := filepath.Join(root, "created.txt")
+	missingEdit := filepath.Join(root, "missing-edit.txt")
+	if err := os.WriteFile(existing, []byte("keep-me"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := mgr.ProposeFileChangeRequest([]*FileChange{
+		{Operation: FileOperationCreate, FilePath: created, NewContent: "brand-new"},
+		{Operation: FileOperationDelete, FilePath: existing},
+		// Third member fails: edit of a file that does not exist.
+		{Operation: FileOperationEdit, FilePath: missingEdit, OldContent: "x", NewContent: "y"},
+	}, testAgent(), "general")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	failed, err := mgr.ApproveFileChangeRequest(req.ID, "user-1")
+	if err == nil {
+		t.Fatal("expected mid-batch failure")
+	}
+	if failed == nil || failed.Status != FileChangeStatusFailed {
+		t.Fatalf("expected failed request, got %+v", failed)
+	}
+
+	if _, err := os.Stat(created); !os.IsNotExist(err) {
+		t.Fatalf("created file should be removed on rollback, stat err=%v", err)
+	}
+	got, err := os.ReadFile(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "keep-me" {
+		t.Fatalf("deleted file should be restored, got %q", got)
+	}
+
+	statuses := make([]FileChangeStatus, 0, len(failed.Changes))
+	for _, c := range failed.Changes {
+		statuses = append(statuses, c.Status)
+	}
+	if statuses[0] != FileChangeStatusRolledBack || statuses[1] != FileChangeStatusRolledBack {
+		t.Fatalf("expected first two rolled_back, got %v", statuses)
+	}
+	if statuses[2] != FileChangeStatusFailed {
+		t.Fatalf("expected third failed, got %v", statuses)
+	}
+}
+

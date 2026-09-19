@@ -413,7 +413,7 @@ func (a *Agent) runCollabLightMarkdownExecution(ctx context.Context, msg *protoc
 	}
 	var propErr error
 	if existing != "" {
-		propErr = a.proposeFileEditInChannel(ctx, msg.Channel, dest, existing, body, msg)
+		_, propErr = a.proposeFileEditInChannel(ctx, msg.Channel, dest, existing, body, msg)
 	} else {
 		propErr = a.proposeFileCreateInChannel(ctx, msg.Channel, dest, body, msg)
 	}

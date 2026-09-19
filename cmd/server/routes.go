@@ -141,6 +141,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/workspaces/symbols/search", corsMiddleware(localOnly(handleWorkspaceSymbolSearch)))
 	http.HandleFunc("/api/dev/fast-edit", corsMiddleware(localOnly(handleDevFastEdit)))
 	http.HandleFunc("/api/dev/complete", corsMiddleware(localOnly(handleDevComplete)))
+	http.HandleFunc("/api/dev/complete/stream", corsMiddleware(localOnly(handleDevCompleteStream)))
 	http.HandleFunc("/api/dev/agent-turn", corsMiddleware(localOnly(handleDevAgentTurn)))
 	http.HandleFunc("/api/lsp/go/diagnostics", corsMiddleware(localOnly(handleLSPGoDiagnostics)))
 	http.HandleFunc("/api/lsp/rust/diagnostics", corsMiddleware(localOnly(handleLSPRustDiagnostics)))
@@ -168,6 +169,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/file-changes/propose-from-message", corsMiddleware(localOnly(handleProposeFileChangeFromMessage)))
 	http.HandleFunc("/api/file-changes/approve/", corsMiddleware(localOnly(handleApproveFileChange)))
 	http.HandleFunc("/api/file-changes/reject/", corsMiddleware(localOnly(handleRejectFileChange)))
+	http.HandleFunc("/api/file-changes/requests/", corsMiddleware(localOnly(handleFileChangeRequest)))
 	http.HandleFunc("/api/file-changes/", corsMiddleware(localOnly(handleFileChangeDiff)))
 
 	// AI Provider API endpoints

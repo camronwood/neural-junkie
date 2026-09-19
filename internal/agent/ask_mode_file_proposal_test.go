@@ -89,7 +89,7 @@ func TestAgentToolDefinitions_askModeOmitsProposeFileEdit(t *testing.T) {
 	}
 	for _, td := range a.agentToolDefinitions(askMsg) {
 		switch td.Name {
-		case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName:
+		case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName, applyEditsBatchToolName:
 			t.Fatalf("ask mode must not expose %q", td.Name)
 		}
 	}
@@ -121,7 +121,7 @@ func TestAgentToolDefinitions_askModeOmitsProposeFileEdit(t *testing.T) {
 	var hasRead bool
 	for _, td := range a.agentToolDefinitions(planMsg) {
 		switch td.Name {
-		case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName:
+		case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName, applyEditsBatchToolName:
 			t.Fatalf("plan mode must not expose %q", td.Name)
 		case "read_file":
 			hasRead = true

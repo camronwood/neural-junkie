@@ -1123,6 +1123,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 			}
 			var referencedFiles strings.Builder
 			seedMsg := msg
+			refSeeds := 0
 			if userAffirmsPendingImplementation(msg.Content) {
 				for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
 					m := a.channelHistory(msg.Channel)[i]
@@ -1131,16 +1132,23 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 					}
 					if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 						seedMsg = m
-						AppendReferencedFiles(&referencedFiles, m.Content, wsPath)
+						refSeeds = AppendReferencedFiles(&referencedFiles, m.Content, wsPath)
 						break
 					}
 				}
 			} else {
-				AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
+				refSeeds = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
 			}
-			seeds := AppendImplementationSeedFiles(&referencedFiles, a, seedMsg, wsPath, a.Info.Type, collectIncludedFilePaths(msg))
+			exclude := collectIncludedFilePaths(msg)
+			for _, p := range DetectFilePathsInWorkspace(seedMsg.Content, wsPath) {
+				if exclude == nil {
+					exclude = map[string]bool{}
+				}
+				exclude[p] = true
+			}
+			seeds := AppendImplementationSeedFiles(&referencedFiles, a, seedMsg, wsPath, a.Info.Type, exclude)
 			if st := implementationSessionStateFromContext(ctx); st != nil {
-				st.SeedsLoaded += seeds
+				st.SeedsLoaded += refSeeds + seeds
 			}
 			prompt += referencedFiles.String()
 		}
@@ -1767,10 +1775,10 @@ func semanticDecisionHasReason(decision semantic.TurnDecision, reasons ...string
 const proposeFileEditToolName = "propose_file_edit"
 
 func proposeFileEditToolDefinition() ai.ClaudeToolDefinition {
-	schema := json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Relative file path under workspace root"},"content":{"type":"string","description":"Full new file content"},"operation":{"type":"string","description":"create, edit, or delete"}},"required":["path","content"]}`)
+	schema := json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Relative file path under workspace root"},"content":{"type":"string","description":"Full new file content (omit or empty for delete)"},"operation":{"type":"string","description":"create, edit, or delete"}},"required":["path"]}`)
 	return ai.ClaudeToolDefinition{
 		Name:        proposeFileEditToolName,
-		Description: "Propose a file create or edit in the shared workspace (submitted for approval)",
+		Description: "Propose a file create, edit, or delete in the shared workspace (submitted for approval)",
 		InputSchema: schema,
 	}
 }
@@ -1795,12 +1803,23 @@ func (a *Agent) executeProposeFileEditTool(ctx context.Context, msg *protocol.Me
 	}
 	path = a.ResolveProposalPath(ctx, msg, path)
 	op := strings.ToLower(strings.TrimSpace(args.Operation))
-	if op == "delete" {
-		return "", fmt.Errorf("delete not supported via propose_file_edit in v1")
-	}
 	channel := msg.Channel
 	if channel == "" {
 		channel = "general"
+	}
+	if op == "delete" {
+		if err := a.validateProposalForSession(ctx, msg, path, "delete"); err != nil {
+			return "", err
+		}
+		if err := a.proposeFileDeleteInChannel(ctx, channel, path, msg); err != nil {
+			return "", err
+		}
+		if st := implementationSessionStateFromContext(ctx); st != nil {
+			st.ProposedCount++
+			st.FilesChanged = appendUnique(st.FilesChanged, []string{path})
+			st.RecordEdit(path)
+		}
+		return fmt.Sprintf(`{"status":"proposed","path":%q,"operation":"delete"}`, path), nil
 	}
 	content := a.substituteFileExportContent(msg, args.Content)
 	if userPath := preferFileExportTargetPath(msg); userPath != "" {

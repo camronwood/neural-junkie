@@ -44,9 +44,26 @@ func SearchReplaceWithFallback(content, old, new string, replaceAll bool) (resul
 		}
 	}
 
-	// Expand tabs vs spaces is intentionally not attempted — too risky.
+	// One bounded whitespace-normalized retry: trim trailing spaces per line.
+	wsOld := trimTrailingSpacesPerLine(old)
+	wsNew := trimTrailingSpacesPerLine(new)
+	wsContent := trimTrailingSpacesPerLine(content)
+	if wsOld != old || wsContent != content {
+		if result, err = SearchReplace(wsContent, wsOld, wsNew, replaceAll); err == nil {
+			return result, "trimmed_trailing_spaces", nil
+		}
+	}
 
 	return "", "", &PatchError{Code: ErrNotFound, Message: "old_string not found in file (exact match required)"}
+}
+
+func trimTrailingSpacesPerLine(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " \t")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // Hunk is one unified-diff hunk.

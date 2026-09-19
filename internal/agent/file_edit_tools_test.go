@@ -63,7 +63,7 @@ func TestAgentToolDefinitions_editModeIncludesPatchTools(t *testing.T) {
 	for _, td := range a.agentToolDefinitions(editMsg) {
 		names[td.Name] = true
 	}
-	for _, want := range []string{searchReplaceToolName, applyPatchToolName, proposeFileEditToolName} {
+	for _, want := range []string{searchReplaceToolName, applyPatchToolName, applyEditsBatchToolName, proposeFileEditToolName} {
 		if !names[want] {
 			t.Fatalf("missing tool %q in agent mode; got %v", want, names)
 		}
@@ -84,7 +84,7 @@ func TestAgentToolDefinitions_askModeOmitsPatchTools(t *testing.T) {
 	}
 	for _, td := range a.agentToolDefinitions(askMsg) {
 		switch td.Name {
-		case searchReplaceToolName, applyPatchToolName, proposeFileEditToolName:
+		case searchReplaceToolName, applyPatchToolName, applyEditsBatchToolName, proposeFileEditToolName:
 			t.Fatalf("ask mode must not expose %q", td.Name)
 		}
 	}

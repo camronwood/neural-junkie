@@ -105,7 +105,12 @@ export function useInlinePendingHunks(
       return;
     }
 
-    if (!previewData?.diff || selectedChangeId !== change.id) {
+    if (selectedChangeId !== change.id) {
+      useFileChangeStore.getState().selectChange(change.id);
+      return;
+    }
+
+    if (!previewData?.diff) {
       void useFileChangeStore.getState().getFileDiff(change.id);
       return;
     }

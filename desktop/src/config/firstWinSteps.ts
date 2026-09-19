@@ -16,6 +16,7 @@ export type FirstWinStepId =
 export type FirstWinAction =
   | { type: 'openFiles' }
   | { type: 'openPalette'; filter: string }
+  | { type: 'openStartCollaboration' }
   | { type: 'openAgentDM'; agentType: string }
   | { type: 'prefillComposer'; template: 'repo' | 'biology' | 'cad' | 'assistant' }
   | { type: 'openModelLibrary' };
@@ -66,7 +67,7 @@ export const FIRST_WIN_BY_TRACK: Record<WizardTrack, FirstWinTrackCopy> = {
         title: 'Start a collaboration',
         description: 'Optional: a bounded session with specialists, a shared plan, and human approval.',
         ctaLabel: 'Collaborate',
-        action: { type: 'openPalette', filter: 'collaborate' },
+        action: { type: 'openStartCollaboration' },
         optional: true,
       },
     ],

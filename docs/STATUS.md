@@ -67,7 +67,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 
 ### User Interfaces
 - **Desktop App** — Tauri + React; command palette, file explorer, code editor, terminal, threads, pending changes, collaboration panel
-- **Web UI** — Lightweight chat client at `/` (not full workspace)
+- **Web UI** — Chat client at `/` with pending file-change review (diff + approve/reject); not a full workspace IDE (no Monaco / ⌘K / tab completion)
 - **Terminal Chat** — Interactive WebSocket-based CLI
 - **CLI Tool** — Scripting, automation, MCP resource server
 

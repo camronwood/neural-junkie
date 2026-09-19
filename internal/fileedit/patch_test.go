@@ -26,17 +26,40 @@ func TestSearchReplace_notUnique(t *testing.T) {
 	}
 }
 
-func TestSearchReplaceWithFallback_trimmedNewline(t *testing.T) {
+func TestSearchReplaceWithFallback_trimmedTrailingSpaces(t *testing.T) {
 	t.Parallel()
-	out, strategy, err := SearchReplaceWithFallback("line one\nline two", "line two", "line TOO", false)
+	content := "abc  \ndef"
+	old := "abc\ndef"
+	new := "ABC\ndef"
+	out, strategy, err := SearchReplaceWithFallback(content, old, new, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strategy != "exact" && strategy != "trimmed_old_newline" {
+	if strategy != "trimmed_trailing_spaces" {
 		t.Fatalf("strategy %q", strategy)
 	}
-	if out != "line one\nline TOO" {
+	if out != "ABC\ndef" {
 		t.Fatalf("got %q", out)
+	}
+}
+
+func TestRequireOldStringInSelection_lineRangeFallback(t *testing.T) {
+	t.Parallel()
+	scope := &SelectionScope{Path: "a.go", StartLine: 2, EndLine: 4, Text: "stale selection text"}
+	if err := RequireOldStringInSelection(scope, "actual old"); err != nil {
+		t.Fatalf("expected line-range fallback to allow, got %v", err)
+	}
+}
+
+func TestContentFingerprintAndHint(t *testing.T) {
+	t.Parallel()
+	fp := ContentFingerprint("hello\nworld\n")
+	if len(fp) < 8 {
+		t.Fatalf("fingerprint too short: %q", fp)
+	}
+	hint := ClosestLineHint("alpha\nhello world\nbeta", "hello")
+	if hint == "" {
+		t.Fatal("expected hint")
 	}
 }
 

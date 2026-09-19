@@ -63,7 +63,7 @@ func (l *ActionEvidenceLedger) recordToolEvent(ev ai.ToolStepEvent) {
 		status = "failed"
 	}
 	switch ev.Name {
-	case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName:
+	case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName, applyEditsBatchToolName:
 		l.Record(ActionEvidence{Kind: EvidenceEditProposed, Tool: ev.Name, Status: status, Detail: ev.Preview})
 	case createArtifactToolName, updateArtifactToolName, mapsCreateToolName, mapsUpdateToolName:
 		l.Record(ActionEvidence{Kind: EvidenceArtifactCreated, Tool: ev.Name, Status: status, Detail: ev.Preview})

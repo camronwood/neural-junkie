@@ -33,7 +33,7 @@
   "steps": [
     {
       "action": "send",
-      "content": "please implement: in noise/pkg0000 through noise/pkg0009 rename each UtilN function to UtilRenamedN in util.go (10 files). Use propose_file_edit for every file.",
+      "content": "please implement: in noise/pkg0000 through noise/pkg0009 rename each UtilN function to UtilRenamedN in util.go (10 files). Prefer apply_edits_batch for the coordinated multi-file rename; fall back to propose_file_edit per file if needed.",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "backend",

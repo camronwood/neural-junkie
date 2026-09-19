@@ -205,3 +205,56 @@ func TestSendMessage_holdsRewriteDestructiveAgainstGitBaseline(t *testing.T) {
 		t.Fatal("Git-baseline guard allowed rewrite onto disk")
 	}
 }
+
+func TestSendMessage_holdsPathPolicyBlockedAutoApply(t *testing.T) {
+	h := newTestHub(t)
+	chName := "implementation-path-policy"
+	_ = h.CreateChannel(chName, "test", "tester")
+	agentInfo := &protocol.AgentInfo{
+		ID: "be-1", Name: "BackendEngineer", Type: protocol.AgentTypeBackend, Status: "active",
+	}
+	_ = h.RegisterAgent(agentInfo)
+	repoRoot := t.TempDir()
+	rel := "package.json"
+	existing := `{"name":"demo","version":"1.0.0"}`
+	replacement := `{"name":"demo","version":"1.0.1"}`
+	if err := os.WriteFile(filepath.Join(repoRoot, rel), []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeFileChange, chName, *agentInfo, "Proposing package.json edit")
+	msg.Metadata = map[string]interface{}{
+		"workspace_context":                   map[string]interface{}{"workspace_path": repoRoot},
+		"editor_agent_trust":                  "auto_apply_edits",
+		"editor_mode":                         "agent",
+		protocol.IdeMetaImplementationSession: true,
+		"file_change_proposal": map[string]interface{}{
+			"operation": "edit", "file_path": rel,
+			"old_content": existing, "new_content": replacement,
+		},
+	}
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+	if msg.FileChangeAutoApproved() {
+		t.Fatal("protected package.json edit must not auto-approve")
+	}
+	held, _ := msg.Metadata[protocol.MetaFileChangeHeldForApproval].(bool)
+	if !held {
+		t.Fatal("expected file_change_held_for_approval")
+	}
+	reason, _ := msg.Metadata["file_change_hold_reason"].(string)
+	if !strings.Contains(reason, "path policy") {
+		t.Fatalf("hold reason=%q", reason)
+	}
+	card, _ := msg.Metadata[protocol.MetaChangeProposal].(protocol.ChangeProposalCard)
+	if !strings.Contains(card.Reason, "path policy") {
+		t.Fatalf("card reason=%q", card.Reason)
+	}
+	got, err := os.ReadFile(filepath.Join(repoRoot, rel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != existing {
+		t.Fatal("path-policy hold must leave file unchanged on disk")
+	}
+}

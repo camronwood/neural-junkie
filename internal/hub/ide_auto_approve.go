@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"fmt"
 	"log"
 	"strings"
 
@@ -72,7 +73,19 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 	}
 	isCreate := operation == filechange.FileOperationCreate
 	if !agent.ShouldAutoApproveFileChangeOp(change.FilePath, isCreate, wsRoot) {
-		log.Printf("[IDE] Skipping auto-approve for path: %s", change.FilePath)
+		displayPath := agent.RelativizeFileChangePath(change.FilePath, wsRoot)
+		if displayPath == "" {
+			displayPath = change.FilePath
+		}
+		reason := fmt.Sprintf("Held for approval: path policy blocked auto-apply for %s", displayPath)
+		log.Printf("[IDE] Holding path-policy skip for approval: %s", displayPath)
+		change.Reason = reason
+		if msg.Metadata == nil {
+			msg.Metadata = map[string]interface{}{}
+		}
+		msg.Metadata[protocol.MetaFileChangeHeldForApproval] = true
+		msg.Metadata["file_change_hold_reason"] = reason
+		agent.RecordEditOutcome("auto_approve", "path_policy", "", "pending_approval")
 		return
 	}
 	routedProvider := msg.From.AIProvider
@@ -87,8 +100,17 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 		}
 	}
 	if (destructive || gitDestructive) && !agent.CanAutoApproveDestructiveRewrite(routedProvider, destructiveApproveMetadata(msg)) {
+		reason := fmt.Sprintf("Held for approval: large rewrite on %s (%.0f%% replacement)",
+			change.FilePath, ratio*100)
 		log.Printf("[IDE] Holding destructive rewrite for approval: %s (replacement=%.0f%% provider=%s)",
 			change.FilePath, ratio*100, routedProvider)
+		change.Reason = reason
+		if msg.Metadata == nil {
+			msg.Metadata = map[string]interface{}{}
+		}
+		msg.Metadata[protocol.MetaFileChangeHeldForApproval] = true
+		msg.Metadata["file_change_hold_reason"] = reason
+		agent.RecordEditOutcome("auto_approve", "destructive", "", "pending_approval")
 		return
 	}
 	approvedBy := "system"
@@ -101,5 +123,6 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 		return
 	}
 	h.NotifyFileChangeApproved(approved, approvedBy)
+	agent.RecordEditOutcome("auto_approve", "ok", "", "auto_approved")
 	log.Printf("[IDE] Auto-approved file change %s (%s) trust=%s", change.ID, change.FilePath, trust)
 }

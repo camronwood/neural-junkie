@@ -68,15 +68,44 @@ export async function refreshFileExplorerForPaths(
 export function fileChangeProposalPaths(message: {
   metadata?: Record<string, unknown>;
 }): string[] {
-  const raw = message.metadata?.file_change_proposal;
-  if (!raw || typeof raw !== 'object') return [];
-  const proposal = raw as Record<string, unknown>;
   const paths: string[] = [];
-  if (typeof proposal.file_path === 'string' && proposal.file_path.trim()) {
-    paths.push(proposal.file_path.trim());
+  const push = (value: unknown) => {
+    if (typeof value === 'string' && value.trim()) {
+      paths.push(value.trim());
+    }
+  };
+
+  const card = message.metadata?.change_proposal;
+  if (card && typeof card === 'object') {
+    const c = card as Record<string, unknown>;
+    push(c.file_path);
+    push(c.new_path);
+    if (Array.isArray(c.paths)) {
+      for (const p of c.paths) push(p);
+    }
   }
-  if (typeof proposal.new_path === 'string' && proposal.new_path.trim()) {
-    paths.push(proposal.new_path.trim());
+
+  const raw = message.metadata?.file_change_proposal;
+  if (raw && typeof raw === 'object') {
+    const proposal = raw as Record<string, unknown>;
+    push(proposal.file_path);
+    push(proposal.new_path);
   }
-  return paths;
+
+  const batch = message.metadata?.file_change_batch_proposal;
+  if (batch && typeof batch === 'object') {
+    const b = batch as Record<string, unknown>;
+    if (Array.isArray(b.paths)) {
+      for (const p of b.paths) push(p);
+    }
+    if (Array.isArray(b.proposals)) {
+      for (const item of b.proposals) {
+        if (item && typeof item === 'object') {
+          push((item as Record<string, unknown>).file_path);
+        }
+      }
+    }
+  }
+
+  return [...new Set(paths)];
 }

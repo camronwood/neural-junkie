@@ -16,6 +16,30 @@ func (h *Hub) UpdateChangeProposalStatus(
 	reason string,
 	errText string,
 ) {
+	h.updateChangeProposalCard(channel, proposalID, status, reason, errText, nil)
+}
+
+// UpdateChangeProposalStatusWithPaths is like UpdateChangeProposalStatus but also
+// replaces per-path status entries (used for batch apply / rollback notifications).
+func (h *Hub) UpdateChangeProposalStatusWithPaths(
+	channel string,
+	proposalID string,
+	status protocol.ChangeProposalStatus,
+	reason string,
+	errText string,
+	pathStatus []protocol.PathChangeStatus,
+) {
+	h.updateChangeProposalCard(channel, proposalID, status, reason, errText, pathStatus)
+}
+
+func (h *Hub) updateChangeProposalCard(
+	channel string,
+	proposalID string,
+	status protocol.ChangeProposalStatus,
+	reason string,
+	errText string,
+	pathStatus []protocol.PathChangeStatus,
+) {
 	if h == nil || strings.TrimSpace(proposalID) == "" {
 		return
 	}
@@ -37,12 +61,20 @@ func (h *Hub) UpdateChangeProposalStatus(
 				continue
 			}
 			card, ok := protocol.ParseChangeProposalCard(message.Metadata[protocol.MetaChangeProposal])
-			if !ok || card.ID != proposalID {
+			if !ok {
+				continue
+			}
+			matches := card.ID == proposalID ||
+				(card.RequestID != "" && card.RequestID == proposalID)
+			if !matches {
 				continue
 			}
 			card.Status = status
 			card.Reason = strings.TrimSpace(reason)
 			card.Error = strings.TrimSpace(errText)
+			if pathStatus != nil {
+				card.PathStatus = pathStatus
+			}
 			updated := *message
 			updated.Metadata = make(map[string]interface{}, len(message.Metadata))
 			for key, value := range message.Metadata {

@@ -5,26 +5,51 @@ interface EditorReviewBarProps {
   workspaceRoot?: string;
 }
 
+function requestIdForChange(change: { id: string; metadata?: Record<string, unknown> }): string | null {
+  const raw = change.metadata?.request_id;
+  return typeof raw === 'string' && raw.trim() !== '' ? raw : null;
+}
+
 export function EditorReviewBar({ workspaceRoot }: EditorReviewBarProps) {
-  const { pendingChanges, approveChange, rejectChange, busyById } = useFileChangeStore();
+  const { pendingChanges, approveChange, rejectChange, approveRequest, rejectRequest, busyById } =
+    useFileChangeStore();
   const relevant = pendingChanges.filter((c) => {
     if (!workspaceRoot) return true;
     const fp = c.file_path || c.new_path || c.old_path || '';
     return fp.startsWith(workspaceRoot);
   });
-  const busy = relevant.some((change) => busyById[change.id]);
+  const busy = relevant.some((change) => {
+    const requestId = requestIdForChange(change);
+    return busyById[change.id] || (requestId ? busyById[requestId] : false);
+  });
 
   if (relevant.length === 0) return null;
 
   const acceptAll = async () => {
+    const seenRequests = new Set<string>();
     for (const c of [...relevant]) {
+      const requestId = requestIdForChange(c);
+      if (requestId) {
+        if (seenRequests.has(requestId)) continue;
+        seenRequests.add(requestId);
+        await approveRequest(requestId);
+        continue;
+      }
       await approveChange(c.id);
     }
     await useFileChangeStore.getState().fetchPendingChanges();
   };
 
   const rejectAll = async () => {
+    const seenRequests = new Set<string>();
     for (const c of [...relevant]) {
+      const requestId = requestIdForChange(c);
+      if (requestId) {
+        if (seenRequests.has(requestId)) continue;
+        seenRequests.add(requestId);
+        await rejectRequest(requestId, 'Rejected from editor review bar');
+        continue;
+      }
       await rejectChange(c.id, 'Rejected from editor review bar');
     }
     await useFileChangeStore.getState().fetchPendingChanges();

@@ -15,6 +15,7 @@ import type { WizardTrack } from '../config/wizardProfiles';
 export interface FirstWinCoachActions {
   onOpenFiles?: () => void;
   onOpenCommandPalette?: (filter: string) => void;
+  onOpenStartCollaboration?: () => void;
   onOpenAgentDM?: (agentId: string) => void;
   onPrefillComposer?: (text: string) => void;
   onOpenModelLibrary?: () => void;
@@ -59,6 +60,9 @@ function runAction(
       return;
     case 'openPalette':
       props.onOpenCommandPalette?.(action.filter);
+      return;
+    case 'openStartCollaboration':
+      props.onOpenStartCollaboration?.();
       return;
     case 'openAgentDM': {
       const agent = findAgentByType(props.agents, action.agentType);

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/pathutil"
@@ -48,6 +49,11 @@ var bareFilenamePattern = regexp.MustCompile(`\b([a-zA-Z0-9][a-zA-Z0-9._\-]*\.(?
 
 // esbuildLocationPattern matches compiler error locations like src/App.js:1:7.
 var esbuildLocationPattern = regexp.MustCompile(`\b((?:[./]?(?:[a-zA-Z0-9_\-]+/)*[a-zA-Z0-9_\-]+)\.[a-zA-Z0-9]{1,16}):\d+(?::\d+)?\b`)
+
+// dirRangePattern matches numbered directory ranges like noise/pkg0000 through noise/pkg0009.
+var dirRangePattern = regexp.MustCompile(`(?i)\b((?:[A-Za-z0-9_\-]+/)*[A-Za-z0-9_\-]*?)(\d+)\s+through\s+(?:(?:[A-Za-z0-9_\-]+/)*[A-Za-z0-9_\-]*?)(\d+)\b`)
+
+const maxExpandedRangePaths = 25
 
 func appendDetectedPath(paths []string, seen map[string]bool, p string) []string {
 	p = strings.TrimSpace(p)
@@ -116,6 +122,87 @@ func DetectFilePaths(content string) []string {
 	}
 
 	return paths
+}
+
+// DetectFilePathsInWorkspace is DetectFilePaths plus workspace-aware expansion of
+// numbered directory ranges (e.g. noise/pkg0000 through noise/pkg0009 + util.go).
+func DetectFilePathsInWorkspace(content, workspacePath string) []string {
+	seen := make(map[string]bool)
+	var paths []string
+	// Expand ranges first so bare basenames (util.go) are skipped when fuller
+	// paths like noise/pkg0000/util.go already cover them.
+	for _, p := range ExpandPathRanges(content, workspacePath) {
+		paths = appendDetectedPath(paths, seen, p)
+	}
+	for _, p := range DetectFilePaths(content) {
+		paths = appendDetectedPath(paths, seen, p)
+	}
+	return paths
+}
+
+// ExpandPathRanges expands "dirNNNN through dirMMMM" mentions into concrete files
+// when a bare basename (e.g. util.go) is also present and exists under each dir.
+func ExpandPathRanges(content, workspacePath string) []string {
+	workspacePath = strings.TrimSpace(workspacePath)
+	if workspacePath == "" || strings.TrimSpace(content) == "" {
+		return nil
+	}
+	basenames := DetectBareFilenames(content)
+	if len(basenames) == 0 {
+		return nil
+	}
+	var out []string
+	seen := make(map[string]bool)
+	for _, match := range dirRangePattern.FindAllStringSubmatch(content, -1) {
+		if len(match) < 4 {
+			continue
+		}
+		prefix, startRaw, endRaw := match[1], match[2], match[3]
+		start, err1 := strconv.Atoi(startRaw)
+		end, err2 := strconv.Atoi(endRaw)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		if end < start {
+			start, end = end, start
+		}
+		width := len(startRaw)
+		if len(endRaw) > width {
+			width = len(endRaw)
+		}
+		count := end - start + 1
+		if count <= 0 {
+			continue
+		}
+		if count > maxExpandedRangePaths {
+			count = maxExpandedRangePaths
+			end = start + count - 1
+		}
+		for i := start; i <= end; i++ {
+			dir := prefix + fmt.Sprintf("%0*d", width, i)
+			for _, base := range basenames {
+				base = filepath.Base(base)
+				if base == "" || base == "." {
+					continue
+				}
+				rel := filepath.ToSlash(filepath.Join(dir, base))
+				if seen[rel] {
+					continue
+				}
+				abs := filepath.Join(workspacePath, filepath.FromSlash(rel))
+				info, err := os.Stat(abs)
+				if err != nil || info.IsDir() {
+					continue
+				}
+				seen[rel] = true
+				out = append(out, rel)
+				if len(out) >= maxExpandedRangePaths {
+					return out
+				}
+			}
+		}
+	}
+	return out
 }
 
 // ReadFileForPrompt reads a file and returns its content with line numbers,
@@ -247,7 +334,7 @@ func AppendReferencedFiles(prompt *strings.Builder, messageContent string, works
 		return 0
 	}
 
-	paths := DetectFilePaths(messageContent)
+	paths := DetectFilePathsInWorkspace(messageContent, workspacePath)
 	if len(paths) == 0 {
 		return 0
 	}

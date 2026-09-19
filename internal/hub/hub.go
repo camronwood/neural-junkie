@@ -88,19 +88,20 @@ type Hub struct {
 	// channelHolds: user interject (Stop) — agents defer new turns until a human message.
 	channelHolds map[string]ChannelHold
 
-	persistentStore       PersistentMessageStore
-	durableChannels       map[string]bool
-	channelPersistEpoch   map[string]uint64
-	persistMu             sync.Mutex // serializes durable inserts vs clear-history
-	handoffs              map[string]delegation.HandoffRecord
+	persistentStore     PersistentMessageStore
+	durableChannels     map[string]bool
+	channelPersistEpoch map[string]uint64
+	persistMu           sync.Mutex // serializes durable inserts vs clear-history
+	handoffs            map[string]delegation.HandoffRecord
 
 	// Collaboration idle watchdog (in-memory, not persisted).
-	collabWatchdogMu                sync.Mutex
-	collabWatchdogRedispatch        map[string]int
-	collabWatchdogAutoAckTried      map[string]bool
-	collabWatchdogPlanningHandoff   map[string]time.Time
+	collabWatchdogMu                 sync.Mutex
+	collabWatchdogRedispatch         map[string]int
+	collabWatchdogAutoAckTried       map[string]bool
+	collabWatchdogPlanningHandoff    map[string]time.Time
 	collabWatchdogPlanningSkipStreak map[string]planningHandoffStreak
-	collabAsyncWG                   sync.WaitGroup // approve-plan review assets + task dispatch
+	collabAsyncWG                    sync.WaitGroup // approve-plan review assets + task dispatch
+	turnLedgerWG                     sync.WaitGroup // async turn-ledger Append goroutines
 
 	collabActionConfigMu sync.RWMutex
 	collabActionConfig   actions.Config
@@ -117,22 +118,22 @@ type planningHandoffStreak struct {
 // NewHub creates a new chat hub
 func NewHub() *Hub {
 	hub := &Hub{
-		channels:                      make(map[string]*protocol.Channel),
-		agents:                        make(map[string]*protocol.AgentInfo),
-		messages:                      make(map[string][]*protocol.Message),
-		rooms:                         make(map[string]*Room),
-		roomsByCode:                   make(map[string]string),
-		threads:                       make(map[string][]*protocol.Message),
-		threadMetadata:                make(map[string]*protocol.ThreadMetadata),
-		threadParentAuthors:           make(map[string]string),
-		subscribers:                   make(map[string][]chan *protocol.Message),
-		uiSubscribers:                 make(map[string][]chan *protocol.Message),
-		threadSubscribers:             make(map[string][]chan *protocol.Message),
-		removedAgents:                 make(map[string]*protocol.AgentInfo),
-		channelContext:                make(map[string]*ChannelContextState),
-		conversationState:             make(map[string]*ChannelConversationState),
-		restoredChannelMemberNames:    make(map[string][]string),
-		channelHolds:                  make(map[string]ChannelHold),
+		channels:                         make(map[string]*protocol.Channel),
+		agents:                           make(map[string]*protocol.AgentInfo),
+		messages:                         make(map[string][]*protocol.Message),
+		rooms:                            make(map[string]*Room),
+		roomsByCode:                      make(map[string]string),
+		threads:                          make(map[string][]*protocol.Message),
+		threadMetadata:                   make(map[string]*protocol.ThreadMetadata),
+		threadParentAuthors:              make(map[string]string),
+		subscribers:                      make(map[string][]chan *protocol.Message),
+		uiSubscribers:                    make(map[string][]chan *protocol.Message),
+		threadSubscribers:                make(map[string][]chan *protocol.Message),
+		removedAgents:                    make(map[string]*protocol.AgentInfo),
+		channelContext:                   make(map[string]*ChannelContextState),
+		conversationState:                make(map[string]*ChannelConversationState),
+		restoredChannelMemberNames:       make(map[string][]string),
+		channelHolds:                     make(map[string]ChannelHold),
 		collabWatchdogRedispatch:         make(map[string]int),
 		collabWatchdogAutoAckTried:       make(map[string]bool),
 		collabWatchdogPlanningHandoff:    make(map[string]time.Time),

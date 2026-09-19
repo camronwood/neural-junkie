@@ -230,7 +230,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 			if err := a.validateProposalForSession(ctx, sourceMsg, activePath, ProposalOpEdit); err != nil {
 				return response, false, err
 			}
-			if err := a.proposeFileEditInChannel(ctx, channel, activePath, "", newContent, sourceMsg); err != nil {
+			if _, err := a.proposeFileEditInChannel(ctx, channel, activePath, "", newContent, sourceMsg); err != nil {
 				return response, false, err
 			}
 			log.Printf("[%s] fallback_path_used(operation=edit,target=%s)", a.Info.Name, activePath)
@@ -245,7 +245,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 				return response, false, err
 			}
 			if op == ProposalOpEdit {
-				if err := a.proposeFileEditInChannel(ctx, channel, namedPath, "", newContent, sourceMsg); err != nil {
+				if _, err := a.proposeFileEditInChannel(ctx, channel, namedPath, "", newContent, sourceMsg); err != nil {
 					return response, false, err
 				}
 			} else if err := a.proposeFileCreateInChannel(ctx, channel, namedPath, newContent, sourceMsg); err != nil {
@@ -269,7 +269,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 					if err := a.proposeFileCreateInChannel(ctx, channel, alt, newContent, sourceMsg); err != nil {
 						return response, false, err
 					}
-				} else if err := a.proposeFileEditInChannel(ctx, channel, alt, "", newContent, sourceMsg); err != nil {
+				} else if _, err := a.proposeFileEditInChannel(ctx, channel, alt, "", newContent, sourceMsg); err != nil {
 					return response, false, err
 				}
 				log.Printf("[%s] fallback_path_used(operation=%s,target=%s)", a.Info.Name, op, alt)
@@ -285,7 +285,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 		if alt := preferImplementationTargetPath(a.resolveWorkspacePath(sourceMsg), sourceMsg.Content, ""); alt != "" {
 			if body := stripEditorLineNumberPrefixes(extractAnyCodeFenceContent(match[1])); strings.TrimSpace(body) != "" {
 				if err2 := a.validateProposalForSession(ctx, sourceMsg, alt, ProposalOpEdit); err2 == nil {
-					if err2 = a.proposeFileEditInChannel(ctx, channel, alt, "", body, sourceMsg); err2 == nil {
+					if _, err2 = a.proposeFileEditInChannel(ctx, channel, alt, "", body, sourceMsg); err2 == nil {
 						log.Printf("[%s] implement_path_recovery(edit,target=%s)", a.Info.Name, alt)
 						cleaned := strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
 						return cleaned, true, nil
@@ -312,7 +312,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 		if err := a.validateProposalForSession(ctx, sourceMsg, directive.Path, ProposalOpEdit); err != nil {
 			return response, false, err
 		}
-		if err := a.proposeFileEditInChannel(ctx, channel, directive.Path, directive.OldContent, directive.NewContent, sourceMsg); err != nil {
+		if _, err := a.proposeFileEditInChannel(ctx, channel, directive.Path, directive.OldContent, directive.NewContent, sourceMsg); err != nil {
 			return response, false, err
 		}
 	case "delete":
@@ -376,7 +376,7 @@ func (a *Agent) submitAllFileChangesFromResponse(ctx context.Context, response, 
 			if err := a.validateProposalForSession(ctx, sourceMsg, directive.Path, ProposalOpEdit); err != nil {
 				return cleaned, proposed, err
 			}
-			if err := a.proposeFileEditInChannel(ctx, channel, directive.Path, directive.OldContent, body, sourceMsg); err != nil {
+			if _, err := a.proposeFileEditInChannel(ctx, channel, directive.Path, directive.OldContent, body, sourceMsg); err != nil {
 				return cleaned, proposed, err
 			}
 		default:
@@ -700,28 +700,58 @@ func extractActiveOpenFilePath(msg *protocol.Message) string {
 
 // File change proposal helper methods
 
-// ProposeFileEdit proposes an edit to an existing file
-func (a *Agent) ProposeFileEdit(path, oldContent, newContent string) error {
-	return a.proposeFileEditInChannel(context.Background(), a.Context.CurrentChannel, path, oldContent, newContent, nil)
+// fileEditProposeOutcome is the post-hub status returned to edit tools.
+type fileEditProposeOutcome struct {
+	Status string // proposed | pending_approval | auto_approved
+	Reason string
+	Path   string
+	Paths  []string
 }
 
-func (a *Agent) proposeFileEditInChannel(ctx context.Context, channel, path, oldContent, newContent string, sourceMsg *protocol.Message) error {
+func fileEditProposeOutcomeFromMessage(msg *protocol.Message, path string, paths []string) fileEditProposeOutcome {
+	out := fileEditProposeOutcome{Status: "proposed", Path: path, Paths: paths}
+	if msg == nil || msg.Metadata == nil {
+		return out
+	}
+	if held, _ := msg.Metadata[protocol.MetaFileChangeHeldForApproval].(bool); held {
+		out.Status = "pending_approval"
+		if r, ok := msg.Metadata["file_change_hold_reason"].(string); ok {
+			out.Reason = r
+		}
+		return out
+	}
+	if msg.FileChangeAutoApproved() {
+		out.Status = "auto_approved"
+		return out
+	}
+	return out
+}
+
+// ProposeFileEdit proposes an edit to an existing file
+func (a *Agent) ProposeFileEdit(path, oldContent, newContent string) error {
+	_, err := a.proposeFileEditInChannel(context.Background(), a.Context.CurrentChannel, path, oldContent, newContent, nil)
+	return err
+}
+
+func (a *Agent) proposeFileEditInChannel(ctx context.Context, channel, path, oldContent, newContent string, sourceMsg *protocol.Message) (fileEditProposeOutcome, error) {
+	empty := fileEditProposeOutcome{Status: "proposed", Path: path}
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return empty, err
 	}
 	if err := a.refuseInactiveCollabProposal(sourceMsg); err != nil {
-		return err
+		return empty, err
 	}
 	path = normalizeFileChangeRelPath(path)
+	empty.Path = path
 	if !isValidFileChangeRelPath(path) {
-		return fmt.Errorf("invalid file change path: %q", path)
+		return empty, fmt.Errorf("invalid file change path: %q", path)
 	}
 	newContent = stripEditorLineNumberPrefixes(newContent)
 	if err := validateProposalContent(path, newContent); err != nil {
-		return err
+		return empty, err
 	}
 	wsPath := ""
 	if sourceMsg != nil {
@@ -735,7 +765,7 @@ func (a *Agent) proposeFileEditInChannel(ctx context.Context, channel, path, old
 	oldContent = stripEditorLineNumberPrefixes(oldContent)
 	state := implementationSessionStateFromContext(ctx)
 	if err := state.prepareEditSnapshot(wsPath, path, oldContent, newContent); err != nil {
-		return err
+		return empty, err
 	}
 	destructive, rewriteRatio := IsDestructiveFileRewrite(oldContent, newContent)
 	gitDestructive, gitRewriteRatio, gitBaselineLines := gitBaselineRewriteRisk(ctx, wsPath, path, newContent)
@@ -776,7 +806,10 @@ func (a *Agent) proposeFileEditInChannel(ctx context.Context, channel, path, old
 		state.recordEditResult(path, newContent)
 	}
 	a.noteProposalResult(ctx, path, err)
-	return err
+	if err != nil {
+		return empty, err
+	}
+	return fileEditProposeOutcomeFromMessage(msg, path, nil), nil
 }
 
 // ProposeFileCreate proposes creating a new file
@@ -803,13 +836,22 @@ func (a *Agent) proposeFileChangePreferEditOrCreate(ctx context.Context, channel
 		wsPath = a.resolveWorkspacePath(sourceMsg)
 	}
 	op := InferProposalOperation(wsPath, path)
+	// Self-ground existing edit targets before the session gate (mirrors search_replace /
+	// apply_edits_batch, which read the file first and RecordReadPath).
+	if op == ProposalOpEdit && wsPath != "" {
+		if _, readErr := a.readWorkspaceFileForEdit(ctx, sourceMsg, path); readErr != nil {
+			// Fall through to validateProposalForSession — it returns a clearer error.
+			_ = readErr
+		}
+	}
 	if err := a.validateProposalForSession(ctx, sourceMsg, path, op); err != nil {
 		return err
 	}
 	if wsPath != "" {
 		resolved := filepath.Join(wsPath, path)
 		if info, err := os.Stat(resolved); err == nil && !info.IsDir() {
-			return a.proposeFileEditInChannel(ctx, channel, path, "", content, sourceMsg)
+			_, err := a.proposeFileEditInChannel(ctx, channel, path, "", content, sourceMsg)
+			return err
 		}
 	}
 	return a.proposeFileCreateInChannel(ctx, channel, path, content, sourceMsg)
@@ -958,6 +1000,123 @@ func (a *Agent) maybeScaffoldGreenfieldCargoTomlAfterRustFile(ctx context.Contex
 // ProposeFileDelete proposes deleting a file
 func (a *Agent) ProposeFileDelete(path string) error {
 	return a.proposeFileDeleteInChannel(context.Background(), a.Context.CurrentChannel, path, nil)
+}
+
+type fileEditBatchItem struct {
+	Path       string
+	OldContent string
+	NewContent string
+}
+
+func (a *Agent) proposeFileEditBatchInChannel(ctx context.Context, channel string, items []fileEditBatchItem, sourceMsg *protocol.Message) (fileEditProposeOutcome, error) {
+	empty := fileEditProposeOutcome{Status: "proposed"}
+	if strings.TrimSpace(channel) == "" {
+		channel = "general"
+	}
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
+	if err := a.refuseInactiveCollabProposal(sourceMsg); err != nil {
+		return empty, err
+	}
+	if len(items) == 0 {
+		return empty, fmt.Errorf("batch requires at least one edit")
+	}
+
+	wsPath := ""
+	if sourceMsg != nil {
+		wsPath = a.resolveWorkspacePath(sourceMsg)
+	}
+	state := implementationSessionStateFromContext(ctx)
+	proposals := make([]*protocol.FileChangeProposal, 0, len(items))
+	paths := make([]string, 0, len(items))
+	anyDestructive := false
+	maxRatio := 0.0
+
+	for _, item := range items {
+		path := normalizeFileChangeRelPath(item.Path)
+		if !isValidFileChangeRelPath(path) {
+			return empty, fmt.Errorf("invalid file change path: %q", path)
+		}
+		newContent := stripEditorLineNumberPrefixes(item.NewContent)
+		if err := validateProposalContent(path, newContent); err != nil {
+			return empty, err
+		}
+		oldContent := stripEditorLineNumberPrefixes(item.OldContent)
+		if wsPath != "" {
+			if current, err := os.ReadFile(filepath.Join(wsPath, path)); err == nil {
+				oldContent = string(current)
+			}
+		}
+		if err := state.prepareEditSnapshot(wsPath, path, oldContent, newContent); err != nil {
+			return empty, err
+		}
+		destructive, rewriteRatio := IsDestructiveFileRewrite(oldContent, newContent)
+		gitDestructive, gitRewriteRatio, gitBaselineLines := gitBaselineRewriteRisk(ctx, wsPath, path, newContent)
+		if destructive || gitDestructive {
+			anyDestructive = true
+			if rewriteRatio > maxRatio {
+				maxRatio = rewriteRatio
+			}
+			if gitRewriteRatio > maxRatio {
+				maxRatio = gitRewriteRatio
+			}
+		}
+		proposal := &protocol.FileChangeProposal{
+			ChangeID:    uuid.New().String()[:8],
+			Operation:   "edit",
+			FilePath:    path,
+			OldContent:  oldContent,
+			NewContent:  newContent,
+			Agent:       a.Info,
+			Channel:     channel,
+			RequestedAt: time.Now(),
+			ExpiresAt:   time.Now().Add(30 * time.Minute),
+			IsDelete:    false,
+			Metadata:    make(map[string]interface{}),
+		}
+		if destructive {
+			proposal.Metadata["destructive_rewrite"] = true
+			proposal.Metadata["destructive_rewrite_ratio"] = rewriteRatio
+		}
+		if gitDestructive {
+			proposal.Metadata["git_baseline_destructive"] = true
+			proposal.Metadata["git_baseline_rewrite_ratio"] = gitRewriteRatio
+			proposal.Metadata["git_baseline_lines"] = gitBaselineLines
+		}
+		proposals = append(proposals, proposal)
+		paths = append(paths, path)
+	}
+
+	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
+		fmt.Sprintf("📝 Proposing batch edit of %d files", len(paths)))
+	msg.Metadata[protocol.MetaFileChangeBatchProposal] = map[string]interface{}{
+		"proposals": proposals,
+		"paths":     paths,
+	}
+	if anyDestructive {
+		msg.Metadata["destructive_rewrite"] = true
+		msg.Metadata["destructive_rewrite_ratio"] = maxRatio
+	}
+	if len(proposals) > 0 {
+		a.attachWorkspaceContextToProposalMessage(channel, msg, proposals[0], sourceMsg)
+	}
+	attachIdeSessionMetadataToProposal(msg, sourceMsg)
+	a.ApplyRoutingMetadataToResponse(msg)
+
+	err := a.Hub.SendMessage(msg)
+	if err == nil {
+		for _, item := range items {
+			state.recordEditResult(normalizeFileChangeRelPath(item.Path), item.NewContent)
+			a.noteProposalResult(ctx, normalizeFileChangeRelPath(item.Path), nil)
+		}
+	} else {
+		for _, item := range items {
+			a.noteProposalResult(ctx, normalizeFileChangeRelPath(item.Path), err)
+		}
+		return empty, err
+	}
+	return fileEditProposeOutcomeFromMessage(msg, "", paths), nil
 }
 
 func (a *Agent) proposeFileDeleteInChannel(ctx context.Context, channel, path string, sourceMsg *protocol.Message) error {

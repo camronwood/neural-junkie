@@ -424,5 +424,71 @@ func handleFileChangeDiff(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func handleFileChangeRequest(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/file-changes/requests/")
+	path = strings.Trim(path, "/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		http.Error(w, "request id and action required", http.StatusBadRequest)
+		return
+	}
+	requestID := strings.TrimSpace(parts[0])
+	action := strings.TrimSpace(parts[1])
+	if requestID == "" {
+		http.Error(w, "request id required", http.StatusBadRequest)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	fileChangeManager := chatHub.GetFileChangeManager()
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		userID = "default"
+	}
+
+	switch action {
+	case "approve":
+		req, err := fileChangeManager.ApproveFileChangeRequest(requestID, userID)
+		if err != nil {
+			if req != nil {
+				chatHub.NotifyFileChangeRequestFailed(req, err.Error())
+			}
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		chatHub.NotifyFileChangeRequestApproved(req, userID)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(req)
+	case "reject":
+		var body struct {
+			UserID string `json:"user_id"`
+			Reason string `json:"reason"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			body.UserID = userID
+			body.Reason = "No reason provided"
+		}
+		if body.UserID != "" {
+			userID = body.UserID
+		}
+		if body.Reason == "" {
+			body.Reason = "No reason provided"
+		}
+		req, err := fileChangeManager.RejectFileChangeRequest(requestID, userID, body.Reason)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		chatHub.NotifyFileChangeRequestRejected(req)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(req)
+	default:
+		http.Error(w, "unknown action; use approve or reject", http.StatusBadRequest)
+	}
+}
+
 // handleToolApprovals creates a new tool approval request (called by the hook binary).
 // The request blocks until the user approves/rejects or a timeout occurs.

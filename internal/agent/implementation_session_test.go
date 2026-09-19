@@ -460,6 +460,10 @@ func TestGroundingSatisfied(t *testing.T) {
 	if !st3.groundingSatisfied() {
 		t.Fatal("one seed file should satisfy grounding")
 	}
+	st4 := &ImplementationSessionState{DiscoverTools: []string{"glob_file_search"}}
+	if !st4.groundingSatisfied() {
+		t.Fatal("a discover tool should satisfy grounding")
+	}
 }
 
 func TestBuildImplementationSessionOutcome(t *testing.T) {
