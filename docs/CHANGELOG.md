@@ -6,6 +6,25 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.29] - 2026-09-19
+
+Edit-loop trust/streaming and collab operator UX.
+
+### Added
+- **Batch checkpoints** — mid-apply snapshot + rollback with `rolled_back` status.
+- **Monaco edit-apply streaming** — resolved `new_content` typewriter via `stream_kind=edit_apply`.
+- **Richer tab completion** — FIM context, streaming ghost text, multi-suggestion metrics.
+- **Start Collaboration modal** — First-win / palette entry with agent multi-select.
+- **Web pending review** — `/` pending panel supports list, diff, approve/reject (incl. batch).
+
+### Changed
+- **Composer loop** — structured patch repair errors, path-policy / hold feedback, Claude `is_error`, edit-outcome telemetry.
+- **Collab panel** — failure toasts, cancel confirm, in-panel participant Approve/Deny, product stall copy, task reassign, empty states.
+- **Action honesty** — unconfigured `web_search` / `sms` / `mcp_tool` fail loud instead of stub success.
+
+### Fixed
+- **CI** — plain Linux sidecar for Tauri checks; hub tests wait on async turn-ledger writes.
+
 ## [1.2.0-beta.28] - 2026-09-09
 
 P8 polish: Gate 5 beta.27 matrix; providers/channels/webSearch chatAPI domains; ChatWindow inbound surfaces extract.
