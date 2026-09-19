@@ -1,10 +1,12 @@
 package hub
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/collaboration/actions"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -66,6 +68,11 @@ func TestExecuteCollabActionTaskDispatchesDependent(t *testing.T) {
 	h := NewHub()
 	chName := "general"
 	_ = h.CreateChannel(chName, "General", "")
+	h.SetCollabActionRunnerConfig(actions.Config{
+		WebSearchQuery: func(_ context.Context, q string) ([]map[string]interface{}, error) {
+			return []map[string]interface{}{{"title": "ok", "query": q}}, nil
+		},
+	})
 
 	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
 	_ = h.RegisterAgent(a1)
