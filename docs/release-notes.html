@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.28">v1.2.0-beta.28</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.29">v1.2.0-beta.29</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.29">1.2.0-beta.29</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.28">1.2.0-beta.28</a>
       <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.27">1.2.0-beta.27</a>
@@ -245,6 +247,26 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1.2.0-beta.29" class="release-version-heading">1.2.0-beta.29 <span class="release-date">— 2026-09-19</span></h2>
+
+      <p><strong>Edit-loop + collab operator UX.</strong> Composer repair feedback, batch checkpoints/rollback, Monaco edit-apply streaming, richer tab completion, fuller web pending review, and collab Start modal with panel trust improvements. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.29">GitHub Releases</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Batch checkpoints</strong> — mid-apply snapshot + rollback with <code>rolled_back</code> status.</li>
+        <li><strong>Monaco edit-apply streaming</strong> — resolved content typewriter via <code>stream_kind=edit_apply</code>.</li>
+        <li><strong>Richer tab completion</strong> — FIM context, streaming ghost text, multi-suggestion metrics.</li>
+        <li><strong>Start Collaboration modal</strong> — First-win / palette entry with agent multi-select.</li>
+        <li><strong>Web pending review</strong> — <code>/</code> pending panel: list, diff, approve/reject (incl. batch).</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Composer loop</strong> — structured patch repair errors, path-policy / hold feedback, Claude <code>is_error</code>, edit-outcome telemetry.</li>
+        <li><strong>Collab panel</strong> — failure toasts, cancel confirm, in-panel participant Approve/Deny, product stall copy, task reassign, empty states.</li>
+        <li><strong>Action honesty</strong> — unconfigured <code>web_search</code> / <code>sms</code> / <code>mcp_tool</code> fail loud instead of stub success.</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.28" class="release-version-heading">1.2.0-beta.28 <span class="release-date">— 2026-09-09</span></h2>
 
       <p><strong>P8 — Gate 5 beta.27 + providers/channels extract.</strong> Gate 5 matrix updated for beta.27 installers. chatAPI gains <code>providersApi</code> and <code>webSearchApi</code>; <code>channelsApi</code> and <code>messagesApi</code> expanded. ChatWindow inbound surface helpers extract to <code>useChatInboundSurfaces</code>. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.28">GitHub Releases</a>.</p>
