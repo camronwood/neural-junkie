@@ -250,8 +250,10 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 				!userRequestsCodeReviewForMessage(msg)
 		case semantic.ActionArtifact:
 			// Open-canvas promote often stamps artifact when a plan Neural Canvas is focused.
-			// Explicit implementation_session + agent mode still means workspace file edits.
+			// Only beat that stamp for explicit approve/implement wording — ambient IDE
+			// implementation_session metadata must not turn "show me a Neural Canvas" into Edit.
 			if msg.ImplementationSession() && caps.CanRunImplSession &&
+				semantic.PrefersWorkspaceImplementOverOpenCanvas(msg.Content) &&
 				!msg.IdeEditorModeIsAsk() && !msg.IdeEditorModeIsPlan() &&
 				(a.Info.Type != protocol.AgentTypeAssistant || assistantAllowsImplementationSession(a, msg)) &&
 				agentTypeCanShipFileChanges(a.Info.Type) &&
