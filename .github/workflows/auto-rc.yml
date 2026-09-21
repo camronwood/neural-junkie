@@ -1,0 +1,85 @@
+name: Auto RC
+
+# Backup morning RC cut (America/Chicago ~05:30). Prefer scripts/away-morning-rc.sh
+# at the end of overnight away. Skips when main has no shippable delta.
+
+on:
+  schedule:
+    # 10:30 UTC ≈ 05:30 CT (CST); during CDT this is 05:30 CDT — close enough.
+    - cron: '30 10 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Compute next tag without pushing
+        type: boolean
+        default: true
+      force:
+        description: Tag even when HEAD matches last release tag
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  cut-rc:
+    if: github.repository == 'camronwood/neural-junkie'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Unit gate (same bar as PR CI)
+        run: |
+          python3 scripts/lib/scenario_contract.py
+          python3 -m unittest \
+            scripts.lib.eval_telemetry_test \
+            scripts.lib.transcript_contract_test \
+            scripts.lib.scenario_contract_test \
+            scripts.lib.model_benchmark_test
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri v2 Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: make test-all
+        run: make test-all
+
+      - name: make test-race
+        run: make test-race
+
+      - name: Cut morning RC tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MORNING_RC_FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force == true && '1' || '0' }}
+        run: |
+          chmod +x scripts/auto-rc-next-tag.sh scripts/away-morning-rc.sh
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          args=()
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
+            args+=(--force)
+          fi
+          ./scripts/away-morning-rc.sh "${args[@]}"

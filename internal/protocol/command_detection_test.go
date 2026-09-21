@@ -105,14 +105,30 @@ func TestIsSafeShellCommand(t *testing.T) {
 	}
 }
 
-func TestDetectCommandsMarksSafeShellMetadata(t *testing.T) {
+func TestDetectCommandsSkipsIllustrativeExampleBash(t *testing.T) {
 	cd := NewCommandDetector(nil)
-	suggestions := cd.DetectCommands("```bash\ncat README.md\n```", "Agent", "msg-1")
-	if len(suggestions) != 1 {
-		t.Fatalf("expected 1 suggestion, got %d", len(suggestions))
+	content := "Here are the most common causes:\n\nExample fix:\n\n```bash\nnpm start\n```\n\nThen check DevTools."
+	suggestions := cd.DetectCommands(content, "BackendEngineer", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no suggestions for illustrative example bash, got %#v", suggestions)
 	}
-	if !suggestions[0].IsSafe {
-		t.Fatalf("expected cat to be safe, got %#v", suggestions[0])
+}
+
+func TestDetectCommandsKeepsIntentionalBashAfterProse(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "Please run this in the host terminal:\n\n```bash\ngo test ./internal/agent/...\n```\n"
+	suggestions := cd.DetectCommands(content, "BackendEngineer", "msg-1")
+	if len(suggestions) != 1 {
+		t.Fatalf("expected 1 suggestion, got %d (%#v)", len(suggestions), suggestions)
+	}
+}
+
+func TestDetectCommandsSkipsJavascriptFences(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "Example fix:\n\n```javascript\nmainWindow.show();\n```\n"
+	suggestions := cd.DetectCommands(content, "BackendEngineer", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no suggestions for javascript fence, got %#v", suggestions)
 	}
 }
 
@@ -164,9 +180,19 @@ func TestDetectCommandsKeepsGoRunInShBlocks(t *testing.T) {
 	}
 }
 
+func TestDetectCommandsSkipsIncidentalInlineShellMentions(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "When you run `npm start` (or your specific startup command), look at your terminal output.\n" +
+		"Also try `npm run build` if needed. Paste main.js here."
+	suggestions := cd.DetectCommands(content, "BackendEngineer", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no suggestions for incidental inline shell mentions, got %#v", suggestions)
+	}
+}
+
 func TestDetectCommandsGitCommandStillDetected(t *testing.T) {
 	cd := NewCommandDetector(nil)
-	content := "`git status`"
+	content := "```bash\ngit status\n```"
 	suggestions := cd.DetectCommands(content, "Agent", "msg-1")
 	if len(suggestions) != 1 {
 		t.Fatalf("expected git status suggestion, got %#v", suggestions)

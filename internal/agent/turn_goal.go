@@ -345,26 +345,25 @@ func syncTurnGoalImplementationSession(a *Agent, msg *protocol.Message, goal *Tu
 	if a == nil || msg == nil || goal == nil {
 		return
 	}
-	if goal.Action == ActionArtifact || goal.Action == ActionImage || goal.Action == ActionMusic {
-		return
-	}
-	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
-		switch decision.Action {
-		case intent.ActionArtifact, intent.ActionImage, intent.ActionMusic:
-			return
-		}
-	}
 	if !shouldRunImplementationSession(a, msg) {
 		return
 	}
+	// Explicit implementation sessions (IDE + scenario harness) beat open-canvas
+	// ActionArtifact promotion from a prior plan Neural Canvas tab. Without this,
+	// "Approve that plan and implement" updates the plan artifact and stamps
+	// session_not_run instead of editing workspace files.
 	goal.ImplementationSession = true
 	goal.Intent = IntentTask
 	switch goal.Action {
-	case ActionAnswer, ActionPlan, ActionInspect, ActionAskUser:
+	case ActionAnswer, ActionPlan, ActionInspect, ActionAskUser, ActionArtifact:
 		goal.Action = ActionEdit
 		goal.Mutation = MutationWorkspace
 		goal.RequiredCapabilities = []string{"workspace_edit"}
 		goal.ExpectedEvidence = []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}
+	default:
+		if goal.Mutation == MutationNone || goal.Mutation == MutationExternal {
+			goal.Mutation = MutationWorkspace
+		}
 	}
 }
 

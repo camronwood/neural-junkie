@@ -1,7 +1,7 @@
 id: web-browser
-version: "2.1.0"
+version: "2.2.0"
 title: Web browser
-description: Fetch URL, web search, HTML preview workbench, and Playwright QA (screenshots, a11y, visual diff, perf) — tools on Assistant when enabled.
+description: Fetch URL, web search, HTML preview workbench, and Playwright QA (screenshots, a11y, visual diff, perf) — pack-owned MCP tools on Assistant when enabled.
 layout_profile: team
 capabilities:
   - web-browser
@@ -24,10 +24,18 @@ capability_defs:
       - browser_fill
       - browser_a11y_audit
       - browser_metrics
+      - browser_visual_diff
+      - browser_pick_element
+    mcp_tools_path: assets/mcp/tools.json
+  html-viewer:
+    kind: file-viewer
+    match_glob: "**/*.{html,htm}"
+    viewer: nj.html
   browser-sidecar:
     kind: hub-sidecar
     routes:
       - /api/browser
+      - /mcp
     sidecar:
       module: assets/hub/routes/browser.py
     settings:

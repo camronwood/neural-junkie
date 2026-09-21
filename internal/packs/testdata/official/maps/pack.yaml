@@ -1,7 +1,7 @@
 id: maps
-version: "1.2.0"
+version: "1.3.0"
 title: Maps
-description: Geocode and walking/driving routes via OpenStreetMap (Nominatim + OSRM), interactive Neural Canvas maps, optional device location — tools on Assistant when enabled.
+description: Geocode and walking/driving routes via OpenStreetMap (Nominatim + OSRM), interactive Neural Canvas maps, optional device location — pack-owned MCP on Assistant when enabled.
 layout_profile: team
 capabilities:
   - maps-tools
@@ -21,6 +21,7 @@ capability_defs:
       - maps_route
       - maps_create
       - maps_update
+    mcp_tools_path: assets/mcp/tools.json
   maps-location:
     kind: mcp-tools
     label: Device location
@@ -34,8 +35,9 @@ capability_defs:
     kind: hub-sidecar
     routes:
       - /api/maps
+      - /mcp
     sidecar:
-      module: assets/hub/routes/maps.py
+      module: assets/hub/server.py
     settings:
       - nominatim_base_url
       - osrm_base_url

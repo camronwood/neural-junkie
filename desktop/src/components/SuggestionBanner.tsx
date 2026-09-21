@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { CommandSuggestion, useTerminalStore } from '../stores/terminalStore';
-import { terminalAPI } from '../api/terminalAPI';
 import { runAgentTerminalCommand } from '../utils/runTerminalCommand';
 import type { ChatAPI } from '../api/chatAPI';
 
 interface SuggestionBannerProps {
   suggestions: CommandSuggestion[];
+  /** @deprecated Kept for call-site compatibility; run path uses the active terminal tab. */
   activeTabId: string;
   channel: string;
   api: ChatAPI;
@@ -13,7 +13,7 @@ interface SuggestionBannerProps {
   collaboration?: import('../types/protocol').Collaboration | null;
 }
 
-export function SuggestionBanner({ suggestions, activeTabId, channel, api, collaboration }: SuggestionBannerProps) {
+export function SuggestionBanner({ suggestions, channel, api, collaboration }: SuggestionBannerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const { removeSuggestedCommand } = useTerminalStore();
 
@@ -24,8 +24,8 @@ export function SuggestionBanner({ suggestions, activeTabId, channel, api, colla
     removeSuggestedCommand(suggestion.id);
     try {
       await runAgentTerminalCommand(suggestion, { collaboration, channel, api });
-    } catch {
-      await terminalAPI.writePtySession(activeTabId, suggestion.command + '\n');
+    } catch (err) {
+      console.error('Failed to run suggested command', err);
     }
   };
 

@@ -3,6 +3,7 @@ package hub
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -38,5 +39,31 @@ func TestClearChannelHistory_clearsMemory(t *testing.T) {
 	cands, _ := store.ListCandidates(name, "", 10)
 	if len(cands) != 0 {
 		t.Fatalf("expected memory cleared, got %d chunks", len(cands))
+	}
+}
+
+func TestClearChannelHistory_dismissesPendingUserQuestions(t *testing.T) {
+	h := NewHub()
+	name := "uq-clear-ch"
+	_ = h.CreateChannel(name, "c", "test")
+	uqm := h.GetUserQuestionManager()
+	if uqm == nil {
+		t.Fatal("expected user question manager")
+	}
+	done := make(chan struct{})
+	go func() {
+		_, _ = uqm.Ask("a1", "BE", name, "Pick one?", nil, 2*time.Second)
+		close(done)
+	}()
+	time.Sleep(40 * time.Millisecond)
+	if !uqm.HasPendingOnChannel(name) {
+		t.Fatal("expected pending before clear")
+	}
+	if err := h.ClearChannelHistory(name); err != nil {
+		t.Fatal(err)
+	}
+	<-done
+	if uqm.HasPendingOnChannel(name) {
+		t.Fatal("clear history should dismiss pending ask_user")
 	}
 }

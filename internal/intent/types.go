@@ -126,7 +126,10 @@ type TurnFeatures struct {
 	HasWorkspace         bool       `json:"has_workspace,omitempty"`
 	CanProposeFiles      bool       `json:"can_propose_files,omitempty"`
 	CanRunImplementation bool       `json:"can_run_implementation,omitempty"`
-	FrontierAllowed      bool       `json:"frontier_allowed,omitempty"`
+	// ImplementationSession is set when the client requests a file-edit session
+	// (implementation_session metadata). Open-canvas promote must not steal those turns.
+	ImplementationSession bool `json:"implementation_session,omitempty"`
+	FrontierAllowed       bool `json:"frontier_allowed,omitempty"`
 	// Open canvas artifact in the channel (from recent artifact_changed), when present.
 	// Classifier/policy use this for revisions without phrase matching.
 	OpenArtifactID       string `json:"open_artifact_id,omitempty"`

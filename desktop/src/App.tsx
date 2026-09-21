@@ -213,7 +213,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-    <div className="w-full h-screen overflow-hidden flex flex-col">
+    <div className="w-full h-screen overflow-hidden flex flex-col" data-testid="app-shell">
       <UpdateBanner />
       <div className="flex-1 min-h-0 overflow-hidden">
         {phase === 'login' ? (

@@ -33,6 +33,7 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "=========================================="
 	@echo ""
 	@echo "See docs/TEST_PORTFOLIO.md for tiers (climb / soak / quarantine)."
+	@echo "Away ops (morning RC by 7AM CT): docs/AWAY_OPERATIONS.md"
 	@echo ""
 	@echo "PRIMARY (Tier A climb — each boots Ollama + hub automatically)"
 	@echo "  make layer-list                         # climb + soak + quarantine estimates"
@@ -43,12 +44,16 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  #   progress: docs/testing/layer-climb-status.txt  (tail -f)"
 	@echo "  make overnight-preflight                # afternoon check before overnight"
 	@echo "  make overnight                          # walk-away release-prep (tmux; clean ~4h)"
+	@echo "  make overnight NJ_OVERNIGHT_TARGET=away # real user scenarios → fix → morning RC"
 	@echo "  make layer-overnight LAYER=implement    # walk-away layer fix loop"
 	@echo ""
 	@echo "RELEASE-ENG / META (not ship gates)"
 	@echo "  make sut-loop-once SCENARIO=… NO_COMMIT=1  # Claude Human→SUT→Judge→Cursor"
 	@echo "  make test-growth-loop                   # defaults SKIP_LIVE=1 (unit companions)"
 	@echo "  make model-benchmark SUITE=standard     # multi-model; Arena missing → skip in release-prep"
+	@echo "  make away-agent                         # claim one agent-ready GitHub issue → PR"
+	@echo "  make desktop-e2e                        # Playwright UI click journeys"
+	@echo "  make away-morning-rc                    # cut v*-rc.N if main moved (dry-run: DRY_RUN=1)"
 	@echo ""
 	@echo "FULL GATE (after Tier A; soak optional)"
 	@echo "  make release-prep                       # test-everything-full + parity + benchmark"
@@ -63,7 +68,7 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "LAYERS (make layer-gate LAYER=<name>)"
 	@echo "  climb:  ci → implement → collab-core → chat (canary)"
 	@echo "  soak:   chat-full | collab | collab-full | parity (implement×3)"
-	@echo "  quarantine: bundle | user-flows (not in climb)"
+	@echo "  away:   user-flows (real journeys) + desktop-e2e — see AWAY_OPERATIONS.md"
 	@echo ""
 	@echo "DEBUG (single scenario)"
 	@echo "  make implement-scenario SCENARIO=go-handler"
@@ -408,7 +413,7 @@ overnight-preflight: ## Afternoon check before overnight (models + hub + Arena +
 	 ./scripts/overnight-preflight.sh
 
 overnight: ## Walk-away clean gate: reset + hub + preflight + release-prep in tmux (see scripts/overnight.sh)
-	@chmod +x scripts/overnight.sh scripts/ensure-ollama-models-ready.py
+	@chmod +x scripts/overnight.sh scripts/ensure-ollama-models-ready.py scripts/away-overnight.py scripts/away-agent-loop.py scripts/away-morning-rc.sh scripts/desktop-e2e.sh scripts/auto-rc-next-tag.sh
 	@NJ_OVERNIGHT_TARGET='$(or $(NJ_OVERNIGHT_TARGET),release-prep)' \
 	 BENCHMARK_SUITE='$(or $(BENCHMARK_SUITE),release)' \
 	 NO_PULL='$(or $(NO_PULL),1)' \
@@ -419,12 +424,31 @@ overnight: ## Walk-away clean gate: reset + hub + preflight + release-prep in tm
 	 PULL='$(PULL)' NJ_OVERNIGHT_KEEP_ALIVE='$(NJ_OVERNIGHT_KEEP_ALIVE)' \
 	 NEURAL_JUNKIE_HUB_URL='$(NEURAL_JUNKIE_HUB_URL)' IN_TMUX='$(IN_TMUX)' \
 	 NJ_OVERNIGHT_SESSION='$(NJ_OVERNIGHT_SESSION)' NJ_OVERNIGHT_LOG='$(NJ_OVERNIGHT_LOG)' \
-	 MAX_ITER='$(MAX_ITER)' REPORT='$(REPORT)' SKIP_RELEASE_PREP='$(SKIP_RELEASE_PREP)' \
+	 MAX_ITER='$(MAX_ITER)' MAX_ISSUES='$(MAX_ISSUES)' REPORT='$(REPORT)' SKIP_RELEASE_PREP='$(SKIP_RELEASE_PREP)' \
 	 SKIP_AGENT='$(SKIP_AGENT)' SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' \
 	 MODEL='$(MODEL)' PREFER_SDK='$(PREFER_SDK)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
 	 NO_COMMIT='$(NO_COMMIT)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
 	 LAYER='$(LAYER)' SKIP_GATE='$(SKIP_GATE)' \
+	 AWAY_DEADLINE_CT='$(AWAY_DEADLINE_CT)' AWAY_GATE='$(AWAY_GATE)' SKIP_DESKTOP_E2E='$(SKIP_DESKTOP_E2E)' \
 	 ./scripts/overnight.sh
+
+away-agent: ## Claim one agent-ready GitHub issue → Cursor → PR (auto-merge)
+	@chmod +x scripts/away-agent-loop.py
+	@bash -c 'source load-env.sh && python3 scripts/away-agent-loop.py \
+		$(if $(DRY_RUN),--dry-run,) \
+		$(if $(MAX_ITER),--max-iter $(MAX_ITER),) \
+		$(if $(MODEL),--model "$(MODEL)",) \
+		$(if $(PREFER_SDK),--prefer-sdk,) \
+		$(if $(NO_WORKTREE),--no-worktree,) \
+		$(if $(SKIP_AGENT),--skip-agent,)'
+
+desktop-e2e: ## Playwright UI click journeys (hub at NEURAL_JUNKIE_HUB_URL)
+	@chmod +x scripts/desktop-e2e.sh
+	@./scripts/desktop-e2e.sh
+
+away-morning-rc: ## Tag next v*-rc.N when main moved (DRY_RUN=1 FORCE=1)
+	@chmod +x scripts/away-morning-rc.sh scripts/auto-rc-next-tag.sh
+	@./scripts/away-morning-rc.sh $(if $(DRY_RUN),--dry-run,) $(if $(FORCE),--force,)
 
 layer-list: ## List climb + soak + quarantine layers (docs/TEST_PORTFOLIO.md)
 	@chmod +x scripts/layer-gate.py

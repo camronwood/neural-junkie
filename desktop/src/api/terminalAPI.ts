@@ -133,7 +133,8 @@ export class TerminalAPI {
 
   async executeCommand(
     command: string,
-    workingDir?: string
+    workingDir?: string,
+    options?: { userApproved?: boolean }
   ): Promise<CommandResult> {
     const ws = this.activeWorkspace();
     if (ws && isRemoteWorkspace(ws.kind)) {
@@ -173,6 +174,7 @@ export class TerminalAPI {
       command,
       workingDir: workingDir ?? null,
       allowedRoots: getWorkspaceRoots(),
+      userApproved: options?.userApproved ?? false,
     });
   }
 

@@ -734,3 +734,72 @@ func TestDeriveTurnGoalFromDecision_explicitSessionUpgradesRunBootFix(t *testing
 		t.Fatalf("goal=%+v", goal)
 	}
 }
+
+func TestShouldRunImplementationSession_artifactStampWithExplicitSession(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBackend, Name: "BackendEngineer"}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"Approve that plan and implement it now.")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"composer_mode":          "agent",
+		"implementation_session": true,
+		"ide_route_agent_type":   "backend",
+		"conversation_mode":      "code",
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: true,
+		Provenance: "test",
+	})
+	_ = protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion,
+		Action:        intent.ActionArtifact,
+		Mutation:      intent.MutationExternal,
+		Interaction:   intent.InteractionTask,
+		Confidence:    1,
+		Source:        "test",
+		ReasonCodes:   []string{"durable_artifact", "open_canvas_artifact"},
+	})
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("explicit implementation_session must beat open-canvas ActionArtifact stamp")
+	}
+}
+
+func TestDeriveTurnGoal_overridesOpenCanvasArtifactForImplSession(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBackend, Name: "BackendEngineer"}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"Approve that plan and implement it now.")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"composer_mode":          "agent",
+		"implementation_session": true,
+		"ide_route_agent_type":   "backend",
+		"conversation_mode":      "code",
+		"editor_agent_trust":     "auto_apply_edits",
+	}
+	protocol.StampTurnGovernance(msg, protocol.TurnGovernance{
+		ComposerMode: "agent", CanProposeFiles: true, CanRunImplSession: true, RequiresWorkspace: true,
+		Provenance: "test",
+	})
+	_ = protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion:   intent.SchemaVersion,
+		Action:          intent.ActionArtifact,
+		RequestedAction: intent.ActionArtifact,
+		Mutation:        intent.MutationExternal,
+		Interaction:     intent.InteractionTask,
+		Confidence:      1,
+		Source:          "test",
+		PolicyOverrides: []string{"open_canvas_artifact"},
+	})
+	goal := deriveTurnGoal(a, msg, IntentTask)
+	if !goal.ImplementationSession {
+		t.Fatal("expected ImplementationSession after syncTurnGoal")
+	}
+	if goal.Action != ActionEdit {
+		t.Fatalf("action=%s want ActionEdit (not canvas artifact)", goal.Action)
+	}
+	if goal.Mutation != MutationWorkspace {
+		t.Fatalf("mutation=%s want workspace", goal.Mutation)
+	}
+}

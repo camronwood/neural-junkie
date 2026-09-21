@@ -1,0 +1,425 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "jira_get_issue",
+      "description": "Fetch a Jira issue by key (e.g. PROJ-123).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_key": {
+            "type": "string",
+            "description": "Jira issue key"
+          }
+        },
+        "required": [
+          "issue_key"
+        ]
+      }
+    },
+    {
+      "name": "jira_search_issues",
+      "description": "Search Jira issues with JQL.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "jql": {
+            "type": "string"
+          },
+          "max_results": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "jql"
+        ]
+      }
+    },
+    {
+      "name": "jira_add_comment",
+      "description": "Add a triage comment to a Jira issue (requires write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_key": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_key",
+          "body"
+        ]
+      }
+    },
+    {
+      "name": "jira_summarize_issue",
+      "description": "Return a concise triage summary for a Jira issue.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_key": {
+            "type": "string",
+            "description": "Jira issue key"
+          }
+        },
+        "required": [
+          "issue_key"
+        ]
+      }
+    },
+    {
+      "name": "jira_create_issue",
+      "description": "Create a Jira issue (requires write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "issue_type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary"
+        ]
+      }
+    },
+    {
+      "name": "jira_assign_issue",
+      "description": "Assign a Jira issue (requires write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_key": {
+            "type": "string"
+          },
+          "assignee": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_key",
+          "assignee"
+        ]
+      }
+    },
+    {
+      "name": "jira_transition_issue",
+      "description": "Transition Jira issue status (requires write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_key",
+          "status"
+        ]
+      }
+    },
+    {
+      "name": "jira_set_priority",
+      "description": "Set Jira issue priority (requires write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_key": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_key",
+          "priority"
+        ]
+      }
+    },
+    {
+      "name": "ticket_get",
+      "description": "Fetch ticket from default or specified provider.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "jira|github|linear"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "ticket_search",
+      "description": "Search tickets.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "jira|github|linear"
+          },
+          "query": {
+            "type": "string"
+          },
+          "max_results": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "ticket_comment",
+      "description": "Add comment to ticket (write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "jira|github|linear"
+          },
+          "id": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "body"
+        ]
+      }
+    },
+    {
+      "name": "ticket_create",
+      "description": "Create ticket (write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "jira|github|linear"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      }
+    },
+    {
+      "name": "ticket_transition",
+      "description": "Transition ticket status (write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "jira|github|linear"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      }
+    },
+    {
+      "name": "ticket_assign",
+      "description": "Assign ticket (write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "jira|github|linear"
+          },
+          "id": {
+            "type": "string"
+          },
+          "assignee": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "assignee"
+        ]
+      }
+    },
+    {
+      "name": "ticket_set_priority",
+      "description": "Set ticket priority (write mode + approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "jira|github|linear"
+          },
+          "id": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "priority"
+        ]
+      }
+    },
+    {
+      "name": "pagerduty_get_incident",
+      "description": "Fetch PagerDuty incident by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "description": "PagerDuty incident ID"
+          }
+        },
+        "required": [
+          "incident_id"
+        ]
+      }
+    },
+    {
+      "name": "pagerduty_list_incidents",
+      "description": "List triggered/acknowledged PagerDuty incidents.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "sentry_get_issue",
+      "description": "Fetch Sentry issue by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_id": {
+            "type": "string",
+            "description": "Sentry issue ID"
+          }
+        },
+        "required": [
+          "issue_id"
+        ]
+      }
+    },
+    {
+      "name": "sentry_get_event",
+      "description": "Fetch latest Sentry event for an issue.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_id": {
+            "type": "string",
+            "description": "Sentry issue ID"
+          }
+        },
+        "required": [
+          "issue_id"
+        ]
+      }
+    },
+    {
+      "name": "incident_parse_stack_trace",
+      "description": "Parse stack trace into frames, suspect files, repro steps, severity hint.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "trace": {
+            "type": "string",
+            "description": "Raw stack trace text"
+          }
+        },
+        "required": [
+          "trace"
+        ]
+      }
+    },
+    {
+      "name": "incident_link_code_locations",
+      "description": "Return suspect file:line list from stack trace for BackendEngineer consult.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "trace": {
+            "type": "string",
+            "description": "Raw stack trace text"
+          }
+        },
+        "required": [
+          "trace"
+        ]
+      }
+    },
+    {
+      "name": "incident_generate_postmortem",
+      "description": "Generate postmortem draft from incident metadata and timeline.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "issue_key": {
+            "type": "string"
+          },
+          "timeline_markdown": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_key"
+        ]
+      }
+    }
+  ]
+}

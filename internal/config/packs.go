@@ -91,7 +91,9 @@ func manifestToDomainPack(m *packs.Manifest) DomainPack {
 	}
 	for _, a := range m.Agents {
 		agentType := strings.TrimSpace(a.Type)
-		if builtinType, ok := packs.ParseBuiltinImplementation(a.Implementation); ok {
+		if packType, ok := packs.ParsePackImplementation(a.Implementation); ok {
+			agentType = packType
+		} else if builtinType, ok := packs.ParseBuiltinImplementation(a.Implementation); ok {
 			// Implementation wins over empty or mismatched type (music pilot).
 			agentType = builtinType
 		}

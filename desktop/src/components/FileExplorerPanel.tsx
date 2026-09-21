@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useEditorStore } from '../stores/editorStore';
 import { usePacksStore } from '../stores/packsStore';
-import { NJ_VIEWER } from '../stores/packCapabilityRegistry';
+import { openPackViewer } from '../stores/packViewerHost';
 import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
@@ -101,13 +101,12 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     clearError,
   } = useFileExplorerStore();
 
-  const { openFile, openScanSummary, openScanAnalysis, openCadWorkbench, openStructureWorkbench, openHtmlBrowser, openMusicWorkbench, openArenaWorkbench, openComparatorAnalysis, setPanelQCReport } =
+  const { openFile, openScanSummary, openScanAnalysis, openCadWorkbench, openHtmlBrowser, openMusicWorkbench, openArenaWorkbench, openComparatorAnalysis, setPanelQCReport } =
     useEditorStore();
   const hasScanSummary = usePacksStore((s) => s.hasCapability('scan-summary-viewer'));
   const hasScanAnalysis = usePacksStore((s) => s.hasCapability('scan-analysis-viewer'));
   const hasSecondaryAnalysis = usePacksStore((s) => s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_VIEWER));
   const hasCadWorkbench = usePacksStore((s) => s.hasCapability('cad-workbench'));
-  const hasStructureWorkbench = usePacksStore((s) => s.hasCapability('biology-workbench'));
   const hasHtmlBrowserWorkbench = usePacksStore((s) => s.hasCapability(PACK_CAP.WEB_BROWSER_WORKBENCH));
   const hasMusicWorkbench = usePacksStore((s) => s.hasCapability(PACK_CAP.MUSIC_WORKBENCH));
   const hasArenaWorkbench = usePacksStore((s) => s.hasCapability(PACK_CAP.MODEL_ARENA_WORKBENCH));
@@ -575,29 +574,14 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
       setSelectedPath(file.path);
       const activeWorkspace = getActiveWorkspace();
       if (activeWorkspace) {
-        const declaredViewer = usePacksStore.getState().getFileViewerForPath(file.path)?.viewer;
-        if (declaredViewer === NJ_VIEWER.STRUCTURE) {
-          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
-          openStructureWorkbench(activeWorkspace.id, file.path, content);
-          if (onFileOpen) onFileOpen();
-          return;
-        }
-        if (declaredViewer === NJ_VIEWER.CAD) {
-          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
-          openCadWorkbench(activeWorkspace.id, file.path, content);
-          if (onFileOpen) onFileOpen();
-          return;
-        }
-        if (declaredViewer === NJ_VIEWER.MUSIC) {
-          const content = /\.json$/i.test(file.path)
-            ? await api.fetchFileContent(activeWorkspace.id, file.path)
-            : '';
-          openMusicWorkbench(activeWorkspace.id, file.path, content);
-          if (onFileOpen) onFileOpen();
-          return;
-        }
-        if (declaredViewer === NJ_VIEWER.ARENA) {
-          openArenaWorkbench(activeWorkspace.id, file.path);
+        const registry = usePacksStore.getState().capabilityRegistry;
+        const packOpen = await openPackViewer(
+          registry,
+          activeWorkspace.id,
+          file.path,
+          (wsId, p) => api.fetchFileContent(wsId, p),
+        );
+        if (packOpen === 'opened') {
           if (onFileOpen) onFileOpen();
           return;
         }
@@ -609,21 +593,10 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
         if (opened) {
           return;
         }
+        // Extension fallbacks for packs that have not yet declared file-viewer globs.
         if (hasCadWorkbench && !file.is_dir && file.path.toLowerCase().endsWith('.scad')) {
           const content = await api.fetchFileContent(activeWorkspace.id, file.path);
           openCadWorkbench(activeWorkspace.id, file.path, content);
-          if (onFileOpen) onFileOpen();
-          return;
-        }
-        if (hasStructureWorkbench && !file.is_dir && /\.(pdb|cif|mmcif)$/i.test(file.path)) {
-          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
-          openStructureWorkbench(activeWorkspace.id, file.path, content);
-          if (onFileOpen) onFileOpen();
-          return;
-        }
-        if (hasHtmlBrowserWorkbench && !file.is_dir && /\.html?$/i.test(file.path)) {
-          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
-          openHtmlBrowser(activeWorkspace.id, file.path, content);
           if (onFileOpen) onFileOpen();
           return;
         }

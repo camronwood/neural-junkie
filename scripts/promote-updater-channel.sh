@@ -5,7 +5,12 @@ VERSION="${1:?Usage: $0 <version-tag> [repo]}"
 REPO="${2:-camronwood/neural-junkie}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-if [[ "${VERSION}" != *beta* ]]; then
+if [[ "${VERSION}" == *beta* && "${VERSION}" != *-rc* ]]; then
+  :
+elif [[ "${VERSION}" == *-rc* ]]; then
+  echo "RC releases do not advance updater/beta; skipping channel promote."
+  exit 0
+else
   echo "Stable releases use GitHub latest directly; no channel pointer to advance."
   exit 0
 fi

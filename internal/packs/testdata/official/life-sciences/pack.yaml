@@ -1,7 +1,7 @@
 id: life-sciences
-version: "2.0.0"
+version: "2.1.0"
 title: Life sciences
-description: OpenBioLLM chat, GenomicsExpert, StructuralBiologyExpert, structure viewer workbench, biology sidecar, and official runbooks. Research use only.
+description: OpenBioLLM chat, GenomicsExpert, StructuralBiologyExpert, structure viewer workbench, biology sidecar, and official runbooks (pack-owned MCP). Research use only.
 layout_profile: team
 capabilities:
   - biology-api
@@ -20,10 +20,20 @@ capability_defs:
       - structural-biology
       - biology
       - cheminformatics
+    mcp_tools:
+      - analyze_sequence
+      - fold_protein
+      - structure_metadata
+      - blast_search
+      - pathway_lookup
+      - validate_smiles
+      - mol_descriptors
+    mcp_tools_path: assets/mcp/tools.json
   biology-sidecar:
     kind: hub-sidecar
     routes:
       - /api/biology
+      - /mcp
     sidecar:
       module: assets/hub/server.py
     settings:
@@ -47,11 +57,13 @@ capability_defs:
       - mol_descriptors
       - blast_search
       - pathway_lookup
-    mcp_tools_path: assets/hub/routes/cheminformatics.py
+    mcp_tools_path: assets/mcp/tools.json
   structure-canvas:
     kind: artifact-renderer
     renderer: nj.structure
-    media_types: [chemical/x-pdb, chemical/x-mmcif]
+    media_types:
+      - chemical/x-pdb
+      - chemical/x-mmcif
     match_glob: "**/*.{pdb,cif,mmcif}"
     renderer_api_version: 1
     schema_version_min: 1

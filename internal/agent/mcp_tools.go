@@ -208,7 +208,12 @@ func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, 
 		system.WriteString("When workspace context includes scan paths, call the matching summarize tool immediately.\n\n")
 	default:
 		system.WriteString("\nUse these tools to provide data-driven answers. When diagnosing issues,\n")
-		system.WriteString("USE THE TOOLS to get actual data rather than guessing.\n\n")
+		system.WriteString("USE THE TOOLS to get actual data rather than guessing.\n")
+		if len(allowlist) == 0 || toolInAllowlist("run_command", allowlist) {
+			system.WriteString("You have run_command: use it for non-destructive shell work instead of telling the user to paste commands.\n")
+			system.WriteString("Never claim you cannot execute commands on the user's machine when this tool is listed.\n")
+		}
+		system.WriteString("\n")
 	}
 	if contextcompress.RuntimeOptions().Enabled && mcpServer.GetTool(contextRetrieveToolName) != nil &&
 		(len(allowlist) == 0 || toolInAllowlist(contextRetrieveToolName, allowlist)) {

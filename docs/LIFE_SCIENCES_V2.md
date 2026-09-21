@@ -4,8 +4,10 @@ Detailed plan for [neural-junkie-pack-life-sciences](https://github.com/camronwo
 
 **Parent:** [PACKS_V2_ROADMAP.md](./PACKS_V2_ROADMAP.md) · **v1 doc:** [BIOLOGY_PACK.md](./BIOLOGY_PACK.md) · **Customer boundary:** [PACKS_CUSTOM.md](./PACKS_CUSTOM.md)
 
-**Last updated:** July 2026  
-**Target pack version:** `2.0.0`
+**Last updated:** September 2026  
+**Target pack version:** `2.1.0` (pack-owned MCP via `assets/mcp/tools.json` + hub `/mcp/call`; core keeps customer-gated scan/QC tools)
+
+> **Note:** Official research tools (`analyze_sequence`, `fold_protein`, BLAST, pathway, SMILES) are pack-owned. Core `internal/mcp/biology` registers Phoenix/scan QC tools only. Fold backend: Hugging Face token or `biology_fold_local_url`; optional `INSTALL_RDKIT=1` for cheminformatics.
 
 ---
 

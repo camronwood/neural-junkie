@@ -309,6 +309,9 @@ func (ca *ConfluenceAgent) handleMessage(ctx context.Context, msg *protocol.Mess
 
 // shouldRespond determines if the agent should respond to a message
 func (ca *ConfluenceAgent) shouldRespond(msg *protocol.Message) bool {
+	if msg.Type == protocol.MessageTypeCommandOutput {
+		return shouldRespondToSuggestedCommandOutput(ca.Agent, msg)
+	}
 	// Collaboration: same gating as base agents so limits and phases are respected.
 	if collabID := msg.GetCollaborationID(); collabID != "" && ca.Collab != nil {
 		if ca.Collab.IsParticipant(collabID, ca.Info.ID) && ca.Collab.IsActive(collabID) {

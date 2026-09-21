@@ -26,6 +26,14 @@ export default defineConfig(async () => ({
   test: {
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
+    // Playwright journeys live under e2e/ and use test.describe from @playwright/test.
+    // Keep them out of Vitest so `npm test` / `make test-all` stay unit-only.
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/e2e/**",
+      "**/.{idea,git,cache,output,temp}/**",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text"],

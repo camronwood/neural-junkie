@@ -18,6 +18,9 @@ TESTING_ARTIFACT_PREFIXES = (
     "docs/testing/test-growth-",
     "docs/testing/layer-gate-",
     "docs/testing/layer-fix-loop-",
+    "docs/testing/away-morning-",
+    "docs/testing/away-agent-",
+    "docs/testing/desktop-e2e-",
 )
 
 BRANCH_SAFE_RE = re.compile(r"[^a-zA-Z0-9._/-]+")

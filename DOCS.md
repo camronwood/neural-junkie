@@ -12,6 +12,7 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 | Product overview | [USER_VALUE_GUIDE.md](docs/USER_VALUE_GUIDE.md) |
 | Hardware requirements | [HARDWARE.md](docs/HARDWARE.md) |
 | In-app auto-update | [RELEASE_UPDATES.md](docs/RELEASE_UPDATES.md) |
+| Away ops / morning RC | [AWAY_OPERATIONS.md](docs/AWAY_OPERATIONS.md) · [AGENTS.md](AGENTS.md) |
 
 ## Product depth
 
@@ -61,7 +62,7 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 |--------|------|
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | System design | [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Testing and parity gates | [TESTING.md](docs/TESTING.md) — start with `make release-help`; portfolio: [TEST_PORTFOLIO.md](docs/TEST_PORTFOLIO.md); user journeys: [USER_FLOW_SCENARIOS.md](docs/USER_FLOW_SCENARIOS.md) |
+| Testing and parity gates | [TESTING.md](docs/TESTING.md) — start with `make release-help`; portfolio: [TEST_PORTFOLIO.md](docs/TEST_PORTFOLIO.md); user journeys: [USER_FLOW_SCENARIOS.md](docs/USER_FLOW_SCENARIOS.md); away ops: [AWAY_OPERATIONS.md](docs/AWAY_OPERATIONS.md); UI E2E: [DESKTOP_E2E.md](docs/DESKTOP_E2E.md) |
 | Maintainer / internals | [DEVELOPMENT_NOTES.md](docs/DEVELOPMENT_NOTES.md) |
 | Security | [SECURITY.md](docs/SECURITY.md) · [SECURITY_HARDENING.md](docs/SECURITY_HARDENING.md) |
 | Current status | [STATUS.md](docs/STATUS.md) |

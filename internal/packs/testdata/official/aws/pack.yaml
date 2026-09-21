@@ -1,7 +1,7 @@
 id: aws
-version: "2.0.0"
+version: "2.1.0"
 title: AWS
-description: AWSExpert — account-aware SRE copilot with typed boto3 tools, IaC drift, cost/security lenses, and gated writes.
+description: AWSExpert — account-aware SRE copilot with typed boto3 tools, IaC drift, cost/security lenses, and gated writes (pack-owned MCP).
 layout_profile: team
 capabilities:
   - aws-api
@@ -16,10 +16,12 @@ capability_defs:
     exposure: sensitive
     mcp_agents:
       - aws
+    mcp_tools_path: assets/mcp/tools.json
   aws-sidecar:
     kind: hub-sidecar
     routes:
       - /api/aws
+      - /mcp
     sidecar:
       module: assets/hub/server.py
     settings:
@@ -37,7 +39,8 @@ capability_defs:
   aws-report-canvas:
     kind: artifact-renderer
     renderer: nj.chart
-    media_types: [application/vnd.neural-junkie.aws-report+json]
+    media_types:
+      - application/vnd.neural-junkie.aws-report+json
     renderer_api_version: 1
     schema_version_min: 1
     schema_version_max: 1

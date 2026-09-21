@@ -20,6 +20,13 @@ func shouldOfferAskUserTool(a *Agent, msg *protocol.Message) bool {
 	if msg == nil {
 		return true
 	}
+	// Plan composer mode must emit a plan, not block the channel on ask_user.
+	// A pending question defers all agents (agentsDeferred) until answered; scenario
+	// harnesses historically treated the user_question card as "plan replied" and then
+	// timed out on the implement turn with "nudged silent".
+	if msg.IdeEditorModeIsPlan() {
+		return false
+	}
 	if explicitCodebaseLookupWithChunks(msg) {
 		return false
 	}

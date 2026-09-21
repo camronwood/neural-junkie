@@ -45,9 +45,10 @@ Collab fixture: `scenarios/collab/aws-alarm-incident-handoff.json` (requires inc
 
 ## Release
 
-```bash
+```
+cd /Users/camronwood/development/projects/neural-junkie-pack-aws
 make verify && make pack-zip
-git tag v2.0.0 && git push origin v2.0.0
+git tag v2.1.0 && git push origin v2.1.0
 ```
 
-Update `packs/catalog.json` when bumping versions.
+Update `packs/catalog.json` when bumping versions. MCP tools are pack-owned (`assets/mcp/tools.json` + hub `/mcp/call`); core no longer ships `internal/mcp/aws`.

@@ -18,25 +18,30 @@ Repeat this checklist before tagging **`v1.0.0`** (stable channel) or any major 
 
 ## Gate 2 — Automated regression (hub running for live scenarios)
 
-Run from repo root:
+Run from repo root (current layer commands — see [TESTING.md](TESTING.md)):
 
 ```bash
-make test-go
+make test-all
 make test-conversation-contract
 make collab-preflight
-make conversation-scenarios-regression
-make test-parity-stable-restart   # recommended before stable
+make layer-climb CONTINUE=1
+make layer-gate LAYER=user-flows    # real user journeys (away overnight primary)
+make layer-gate LAYER=parity        # recommended before stable (implement ×3)
+make desktop-e2e                    # UI click journeys when GUI available
 ```
 
 | Command | Purpose | Last result |
 |---------|---------|-------------|
-| `make test-go` | Unit + integration Go tests | **PASS** 2026-06-09 |
-| `make test-conversation-contract` | Agent/hub/desktop chat wiring | **PASS** 2026-06-09 |
-| `make collab-preflight` | Hub, Ollama, agents, scenario list | **PASS** 2026-06-09 |
-| `make conversation-scenarios-regression` | 18 chat + 6 collab conversation scenarios | **PASS** 23/23 2026-06-09 |
-| `make chat-scenarios-regression` | Tagged chat regressions | Run before tag |
-| `make collab-scenarios-all` | Full collab sweep (~1–3h) | Optional |
-| `make test-parity-stable-restart` | Implement scenarios 3× with hub restart | **PASS** 3/3 runs, 7/7 per sweep — [parity-stable-restart-2026-06-09-1723.log](testing/parity-stable-restart-2026-06-09-1723.log) |
+| `make test-all` | Unit + integration + desktop Vitest | Run before tag |
+| `make test-conversation-contract` | Agent/hub/desktop chat wiring | Run before tag |
+| `make collab-preflight` | Hub, Ollama, agents, scenario list | Run before tag |
+| `make layer-climb` | Tier A: ci → implement → collab-core → chat | Run before tag |
+| `make layer-gate LAYER=user-flows` | Real product journeys | Away overnight / pre-stable |
+| `make layer-gate LAYER=chat-full` | Full chat regression | Optional soak |
+| `make layer-gate LAYER=collab-full` | Full collab sweep (~1–3h) | Optional |
+| `make layer-gate LAYER=parity` | Implement scenarios 3× with hub restart | Recommended before stable |
+
+Away automation: [AWAY_OPERATIONS.md](AWAY_OPERATIONS.md).
 
 ---
 

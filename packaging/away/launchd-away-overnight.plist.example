@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Install (example):
+    cp packaging/away/launchd-away-overnight.plist.example ~/Library/LaunchAgents/com.neuraljunkie.away-overnight.plist
+    # Edit WorkingDirectory / PATH to your checkout and tools
+    launchctl load ~/Library/LaunchAgents/com.neuraljunkie.away-overnight.plist
+
+  Starts at 22:00 America/Chicago so bug-hunt + merges finish before ~05:00 CT morning RC.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.neuraljunkie.away-overnight</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/camronwood/development/projects/neural-junkie</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/make</string>
+    <string>overnight</string>
+    <string>NJ_OVERNIGHT_TARGET=away</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>22</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>AWAY_DEADLINE_CT</key>
+    <string>05:00</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/nj-away-overnight.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/nj-away-overnight.err.log</string>
+</dict>
+</plist>

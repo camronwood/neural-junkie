@@ -33,6 +33,10 @@ DISCUSSION_TYPES = frozenset(
 
 # user_question is a valid agent turn (ask-user tool); treat it like chat for wait_reply.
 CHAT_REPLY_TYPES = frozenset({"chat", "answer", "user_question"})
+# Implement/parity completion must wait for a real chat/answer (or file_change). A bare
+# ask_user card would satisfy wait_reply while leaving HasPendingUserQuestion true, which
+# defers all agents — the next harness send looks like "nudged silent" forever.
+IMPLEMENT_REPLY_TYPES = frozenset({"chat", "answer"})
 
 
 def hub_request(
@@ -649,11 +653,67 @@ def ensure_dm_channel(base: str, user: str, agent_name: str) -> str | None:
     return name or None
 
 
+def list_pending_user_questions(base: str, channel: str | None = None) -> list[dict]:
+    """GET /api/user-questions/pending — optional channel filter."""
+    code, data = hub_request(base, "GET", "/api/user-questions/pending")
+    if code != 200 or not isinstance(data, list):
+        return []
+    out = [q for q in data if isinstance(q, dict)]
+    if channel is None:
+        return out
+    want = channel.strip()
+    return [q for q in out if str(q.get("channel") or "").strip() == want]
+
+
+def answer_user_question(base: str, question_id: str, answer: str) -> bool:
+    """POST /api/user-questions/answer/:id — mirrors desktop composer answering ask_user cards."""
+    qid = (question_id or "").strip()
+    text = (answer or "").strip()
+    if not qid or not text:
+        return False
+    code, _ = hub_request(
+        base,
+        "POST",
+        f"/api/user-questions/answer/{urllib.parse.quote(qid, safe='')}",
+        {"answer": text},
+    )
+    return code == 200
+
+
+def answer_pending_user_questions(
+    base: str,
+    channel: str,
+    answer: str,
+) -> list[str]:
+    """Answer pending ask_user cards on channel (desktop ChatWindow parity).
+
+    Without this, harness sends leave HasPendingUserQuestion true and agentsDeferred
+    blocks every subsequent specialist reply on the channel.
+    """
+    text = (answer or "").strip()
+    if not text or text.startswith("/"):
+        return []
+    answered: list[str] = []
+    for q in list_pending_user_questions(base, channel):
+        qid = str(q.get("id") or "").strip()
+        if not qid:
+            continue
+        if answer_user_question(base, qid, text):
+            answered.append(qid)
+    return answered
+
+
 def clear_channel_history(base: str, channel: str, *, max_retries: int = 5) -> bool:
     payload = {"name": channel}
     for attempt in range(max_retries):
         code, _ = hub_request(base, "POST", "/api/channels/clear-history", payload)
         if code == 200:
+            # History clear does not drop in-memory ask_user waiters; dismiss them so the
+            # next scenario is not stuck behind agentsDeferred from a prior turn.
+            for q in list_pending_user_questions(base, channel):
+                qid = str(q.get("id") or "").strip()
+                if qid:
+                    answer_user_question(base, qid, "scenario channel cleared")
             return True
         if code in (429, 500, 502, 503, 504) and attempt + 1 < max_retries:
             time.sleep(2.0 * (attempt + 1))

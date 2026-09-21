@@ -166,6 +166,7 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
               </label>
               <input
                 id="server"
+                data-testid="login-server"
                 type="text"
                 value={serverInput}
                 onChange={(e) => setServerInput(e.target.value)}
@@ -204,6 +205,7 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
             {/* Connect Button */}
             <button
               type="button"
+              data-testid="login-connect"
               onClick={handleConnect}
               disabled={isConnecting || isLoadingCredentials}
               aria-busy={isConnecting}

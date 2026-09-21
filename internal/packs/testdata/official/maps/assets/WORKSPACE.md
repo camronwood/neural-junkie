@@ -2,6 +2,8 @@
 
 Geocode places and build walking or driving routes with the public OpenStreetMap stack (Nominatim + OSRM), then publish interactive maps to Neural Canvas (`nj.map`). Tools attach to **Assistant** when this pack is enabled (Composition Model can also grant them to custom experts). Device location is a separate **sensitive** capability (`maps-location`).
 
+Pack-owned MCP: `assets/mcp/tools.json` + hub `POST /mcp/call` for `maps_geocode` / `maps_route`. Native `maps_create` / `maps_update` publish canvas artifacts; `maps_locate` stays host-side (device consent).
+
 ## Install
 
 1. Install and enable the **Maps** pack in Settings → Domain packs.

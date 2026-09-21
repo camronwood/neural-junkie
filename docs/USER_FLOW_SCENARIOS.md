@@ -27,7 +27,7 @@ JSON lives under `scenarios/user-flows/{implement,collab}/` so the implement **2
 
 One-shot user-flows catch “can the agent ship from a single paste?” Journeys catch the failure modes real sessions hit: clarify → constrain → mid-course correction → finish. Each is tagged `journey` + `long-horizon` (≥4 user sends) and still gates on **disk deliverables**, not chat phrases.
 
-**Default suite / quarantine:** User-flows are **not** Tier A ship gates ([TEST_PORTFOLIO.md](TEST_PORTFOLIO.md)). Prefer `make layer-climb` for daily confidence. Force-run any one with:
+**Default suite / quarantine:** User-flows remain outside Tier A climb ([TEST_PORTFOLIO.md](TEST_PORTFOLIO.md)). They are the **primary overnight away bug-hunt gate** ([AWAY_OPERATIONS.md](AWAY_OPERATIONS.md)). Prefer `make layer-climb` for daily confidence. Force-run any one with:
 
 ```bash
 make user-flow-scenario SCENARIO=journey-crud-clarify-correct VERBOSE=1

@@ -6,9 +6,9 @@ on:
       - 'v*'
 
 env:
-  GO_VERSION: '1.23'
   NODE_VERSION: '24'
-  VITE_UPDATE_CHANNEL: ${{ contains(github.ref_name, 'beta') && 'beta' || 'stable' }}
+  # beta and rc tags use the beta updater build path; only plain semver is stable.
+  VITE_UPDATE_CHANNEL: ${{ (contains(github.ref_name, 'beta') || contains(github.ref_name, '-rc.') || contains(github.ref_name, '-rc')) && 'beta' || 'stable' }}
 
 permissions:
   contents: write
@@ -38,7 +38,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Neural Junkie ${{ github.ref_name }}
-          prerelease: ${{ contains(github.ref_name, 'beta') }}
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, '-rc.') || contains(github.ref_name, '-rc') }}
           draft: true
           make_latest: false
           generate_release_notes: false
@@ -75,7 +75,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
 
       - uses: actions/setup-node@v4
         with:
@@ -110,7 +110,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
 
       - uses: actions/setup-node@v4
         with:
@@ -272,7 +272,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
 
       - uses: actions/setup-node@v4
         with:
@@ -368,7 +368,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
 
       - uses: actions/setup-node@v4
         with:
@@ -481,7 +481,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           args=(--draft=false)
-          if [[ "${{ github.ref_name }}" == *beta* ]]; then
+          if [[ "${{ github.ref_name }}" == *beta* || "${{ github.ref_name }}" == *-rc.* || "${{ github.ref_name }}" == *-rc ]]; then
             args+=(--prerelease)
           fi
           gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" "${args[@]}"

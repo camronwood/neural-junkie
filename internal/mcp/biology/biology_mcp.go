@@ -10,14 +10,16 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// BiologyMCP provides MCP tools for life-sciences workflows.
+// BiologyMCP provides customer-gated Phoenix/scan QC MCP tools.
+// Official research tools (sequence, fold, BLAST, SMILES) live in the
+// life-sciences pack hub (assets/mcp/tools.json + POST /mcp/call).
 type BiologyMCP struct {
 	mcpServer  *server.MCPServer
 	httpServer *server.StreamableHTTPServer
 	config     *mcp.MCPServerConfig
 }
 
-// NewBiologyMCP creates a new Biology MCP server.
+// NewBiologyMCP creates a scan/QC-only Biology MCP server.
 func NewBiologyMCP() (*BiologyMCP, error) {
 	config := mcp.GetMCPServerConfig("biology")
 	if cfg := mcp.AppConfig(); cfg != nil && !config.Enabled {
@@ -40,8 +42,7 @@ func NewBiologyMCP() (*BiologyMCP, error) {
 		config:     config,
 	}
 
-	b.registerTools()
-	b.registerSidecarTools()
+	b.registerScanTools()
 	return b, nil
 }
 
@@ -55,21 +56,20 @@ func (b *BiologyMCP) GetMCPServer() *server.MCPServer {
 	return b.mcpServer
 }
 
-func (b *BiologyMCP) registerTools() {
-	b.mcpServer.AddTool(mcp.CreateTool(
-		"analyze_sequence",
-		"Analyze a DNA, RNA, or protein sequence (length, type, validity, reverse complement for DNA). Research use only.",
-		mcp.CreateStringInputSchema("sequence", "Raw sequence or FASTA text"),
-		nil,
-	), b.handleAnalyzeSequence)
+// AttachCustomerScanTools registers Phoenix/scan QC tools on an existing MCP server
+// (e.g. pack hub MCP for life-sciences specialists).
+func AttachCustomerScanTools(mcpServer *server.MCPServer) {
+	if mcpServer == nil {
+		return
+	}
+	b := &BiologyMCP{mcpServer: mcpServer}
+	b.registerScanTools()
+}
 
-	b.mcpServer.AddTool(mcp.CreateTool(
-		"fold_protein",
-		"Predict 3D protein structure from amino acid sequence using ESMFold (requires Hugging Face token in Settings). Writes PDB under the configured biology artifacts folder.",
-		mcp.CreateStringInputSchema("sequence", "Amino acid sequence or FASTA (protein only)"),
-		nil,
-	), b.handleFoldProtein)
-
+func (b *BiologyMCP) registerScanTools() {
+	if b == nil || b.mcpServer == nil {
+		return
+	}
 	b.mcpServer.AddTool(mcp.CreateTool(
 		"summarize_scan_summary",
 		"Summarize a Phoenix-style scan summary folder (imageMetadata.json + well TIFFs): well counts, analyte spot distribution, and QC flags. Path may be the summary directory, scan-export/, or imageMetadata.json.",
@@ -121,7 +121,7 @@ func (b *BiologyMCP) registerTools() {
 		nil,
 	), b.handleRunSecondaryAnalysis)
 
-	log.Printf("Registered %d Biology MCP tools", len(b.mcpServer.ListTools()))
+	log.Printf("Registered Biology scan/QC MCP tools")
 }
 
 func (b *BiologyMCP) requireScanTool(toolName string) error {
@@ -130,18 +130,6 @@ func (b *BiologyMCP) requireScanTool(toolName string) error {
 		return fmt.Errorf("%s requires an enabled custom pack with the appropriate capability (see capability_defs in your lab pack)", toolName)
 	}
 	return nil
-}
-
-func (b *BiologyMCP) handleAnalyzeSequence(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	if err := mcp.ValidateToolInput(request, []string{"sequence"}); err != nil {
-		return mcp.HandleToolError(err, "analyze_sequence"), nil
-	}
-	seq := request.GetString("sequence", "")
-	out, err := analyzeSequenceText(seq)
-	if err != nil {
-		return mcp.HandleToolError(err, "analyze_sequence"), nil
-	}
-	return mcp.HandleToolSuccess(out), nil
 }
 
 func (b *BiologyMCP) handleSummarizeScanSummary(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
@@ -229,18 +217,6 @@ func (b *BiologyMCP) handleRunSecondaryAnalysis(ctx context.Context, request mcp
 	)
 	if err != nil {
 		return mcp.HandleToolError(err, "run_secondary_analysis"), nil
-	}
-	return mcp.HandleToolSuccess(out), nil
-}
-
-func (b *BiologyMCP) handleFoldProtein(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	if err := mcp.ValidateToolInput(request, []string{"sequence"}); err != nil {
-		return mcp.HandleToolError(err, "fold_protein"), nil
-	}
-	seq := request.GetString("sequence", "")
-	out, err := foldProteinSequence(ctx, seq)
-	if err != nil {
-		return mcp.HandleToolError(err, "fold_protein"), nil
 	}
 	return mcp.HandleToolSuccess(out), nil
 }

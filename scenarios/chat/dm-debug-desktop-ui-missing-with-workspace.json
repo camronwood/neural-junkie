@@ -1,0 +1,56 @@
+{
+  "name": "dm-debug-desktop-ui-missing-with-workspace",
+  "description": "Workspace shared + desktop UI-missing ask: agent must use tools / inspect fixture, not claim files were not shared, invent Electron, or false terminal-wait cue.",
+  "tags": [
+    "dm",
+    "backend",
+    "workspace",
+    "debug",
+    "canary",
+    "regression",
+    "away"
+  ],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "BackendEngineer",
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "react-tauri-missing-start-all",
+    "file_tree": "src/\n  App.tsx\n  main.tsx\nsrc-tauri/\n  tauri.conf.json\npackage.json\nMakefile\n"
+  },
+  "steps": [
+    {
+      "action": "send",
+      "content": "can you look at this app I am working on, it will boot but the UI does not come up its a desktop app",
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "240s"
+    },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "BackendEngineer",
+      "none_match": [
+        "haven't shared the specific code",
+        "have not shared the specific code",
+        "haven't shared.*code files",
+        "Waiting for you to run the command",
+        "Electron-based",
+        "BrowserWindow",
+        "main\\.js"
+      ],
+      "any_match": [
+        "tauri|vite|src-tauri|App\\.tsx|package\\.json|start-all|Makefile|workspace|file tree|Project:"
+      ]
+    }
+  ],
+  "cleanup": "clear"
+}

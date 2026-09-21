@@ -291,9 +291,11 @@ async fn execute_command(
     command: String,
     working_dir: Option<String>,
     allowed_roots: Vec<String>,
+    user_approved: Option<bool>,
     app_handle: tauri::AppHandle,
 ) -> Result<CommandResult, String> {
-    if !command_security::command_allowed(&command) {
+    let approved = user_approved.unwrap_or(false);
+    if !command_security::command_allowed_with_approval(&command, approved) {
         return Err(format!(
             "command not allowed: {} (approve only allowlisted commands)",
             command.lines().next().unwrap_or(&command)

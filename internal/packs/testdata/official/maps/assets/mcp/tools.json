@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "maps_geocode",
+      "description": "Geocode a place name or address via Nominatim (OSM). Returns lat/lon and display_name.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "description": "Place name or address to geocode"},
+          "limit": {"type": "integer", "description": "Max results (default 5, max 10)"},
+          "near": {
+            "type": "object",
+            "description": "Optional {lat, lon} bias (device location or a known point)"
+          },
+          "viewbox": {
+            "type": "string",
+            "description": "Optional Nominatim viewbox min_lon,max_lat,max_lon,min_lat"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "maps_route",
+      "description": "Compute a walking or driving route between waypoints via OSRM. Returns distance, duration, and GeoJSON geometry.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "mode": {"type": "string", "description": "walking or driving (default walking)"},
+          "waypoints": {
+            "type": "array",
+            "description": "Ordered waypoints as {lat, lon} objects (min 2)",
+            "items": {"type": "object"}
+          }
+        },
+        "required": ["waypoints"]
+      }
+    }
+  ]
+}

@@ -228,7 +228,9 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 		hasMetaCanvasReasonCode(decision.ReasonCodes)
 	if hasOpenCanvas && features.ExplicitAction == "" &&
 		strings.ToLower(strings.TrimSpace(features.ComposerMode)) != "export" &&
-		!pendingActionBlocksCanvasPromote(features) {
+		!pendingActionBlocksCanvasPromote(features) &&
+		!features.ImplementationSession &&
+		!PrefersWorkspaceImplementOverOpenCanvas(features.Text) {
 		promoteOpenCanvas := false
 		if !metaCanvasQ && !PrefersChatOverOpenCanvas(features.Text) {
 			switch decision.Action {
@@ -269,6 +271,8 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	if features.ExplicitAction == "" &&
 		strings.ToLower(strings.TrimSpace(features.ComposerMode)) != "export" &&
 		!pendingActionBlocksCanvasPromote(features) &&
+		!features.ImplementationSession &&
+		!PrefersWorkspaceImplementOverOpenCanvas(features.Text) &&
 		shouldPromoteCanvasReasonCodes(decision, features.Text) {
 		decision.Action = ActionArtifact
 		decision.RequestedAction = ActionArtifact
@@ -288,6 +292,8 @@ func ResolvePolicy(features TurnFeatures, semantic SemanticIntent, source Source
 	if features.ExplicitAction == "" &&
 		strings.ToLower(strings.TrimSpace(features.ComposerMode)) != "export" &&
 		!pendingActionBlocksCanvasPromote(features) &&
+		!features.ImplementationSession &&
+		!PrefersWorkspaceImplementOverOpenCanvas(features.Text) &&
 		shouldPromoteCanvasTextAsk(decision, features.Text) {
 		decision.Action = ActionArtifact
 		decision.RequestedAction = ActionArtifact
@@ -736,6 +742,32 @@ func PrefersChatOverOpenCanvas(text string) bool {
 	if gateText(LooksLikeMeetingNotesAsk, text) &&
 		!gateText(LooksLikeOpenCanvasFillAsk, text) &&
 		!gateText(LooksLikeCanvasDeliverableAsk, text) {
+		return true
+	}
+	return false
+}
+
+// PrefersWorkspaceImplementOverOpenCanvas reports approve/implement turns that must
+// edit the workspace even when a plan Neural Canvas from a prior plan-mode turn is
+// still the most recent artifact_ref on the channel.
+func PrefersWorkspaceImplementOverOpenCanvas(text string) bool {
+	c := strings.ToLower(strings.TrimSpace(text))
+	if c == "" {
+		return false
+	}
+	if gateText(LooksLikeOpenCanvasFillAsk, c) || gateText(LooksLikeCanvasDeliverableAsk, c) {
+		return false
+	}
+	hasImplement := strings.Contains(c, "implement") || strings.Contains(c, "make the change") ||
+		strings.Contains(c, "apply the fix") || strings.Contains(c, "ship it") ||
+		strings.Contains(c, "do the edit") || strings.Contains(c, "write the code")
+	hasPlanCue := strings.Contains(c, "plan") || strings.Contains(c, "approve") ||
+		strings.Contains(c, "go ahead") || strings.Contains(c, "do it now")
+	if hasImplement && hasPlanCue {
+		return true
+	}
+	if strings.Contains(c, "approve that plan") || strings.Contains(c, "approve the plan") ||
+		strings.Contains(c, "approve your plan") {
 		return true
 	}
 	return false

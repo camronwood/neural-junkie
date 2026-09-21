@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "analyze_sequence",
+      "description": "Analyze a DNA, RNA, or protein sequence (length, type, validity, reverse complement for DNA). Research use only.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "sequence": {"type": "string", "description": "Raw sequence or FASTA text"}
+        },
+        "required": ["sequence"]
+      }
+    },
+    {
+      "name": "fold_protein",
+      "description": "Predict 3D protein structure from amino acid sequence (ESMFold via HF or local fold URL). Writes PDB under the configured biology artifacts folder.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "sequence": {"type": "string", "description": "Amino acid sequence or FASTA (protein only)"}
+        },
+        "required": ["sequence"]
+      }
+    },
+    {
+      "name": "structure_metadata",
+      "description": "Summarize a PDB/mmCIF file: atom count, chains, mean B-factor.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "description": "Absolute or workspace path to structure file"}
+        },
+        "required": ["path"]
+      }
+    },
+    {
+      "name": "blast_search",
+      "description": "Submit a BLAST query via the biology sidecar (NCBI REST). Research use only.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "description": "Protein or nucleotide query sequence"}
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "pathway_lookup",
+      "description": "Look up pathways for a gene name or symbol via Reactome (read-only).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "gene": {"type": "string", "description": "Gene name or symbol"}
+        },
+        "required": ["gene"]
+      }
+    },
+    {
+      "name": "validate_smiles",
+      "description": "Validate and canonicalize a SMILES string (requires RDKit in biology sidecar; set INSTALL_RDKIT=1).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "smiles": {"type": "string", "description": "SMILES string"}
+        },
+        "required": ["smiles"]
+      }
+    },
+    {
+      "name": "mol_descriptors",
+      "description": "Compute basic molecular descriptors for a SMILES string (requires RDKit).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "smiles": {"type": "string", "description": "SMILES string"}
+        },
+        "required": ["smiles"]
+      }
+    }
+  ]
+}

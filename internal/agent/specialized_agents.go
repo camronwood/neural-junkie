@@ -4,19 +4,17 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
-	"github.com/camronwood/neural-junkie/internal/mcp/aws"
 	"github.com/camronwood/neural-junkie/internal/mcp/biology"
-	"github.com/camronwood/neural-junkie/internal/mcp/browser"
 	"github.com/camronwood/neural-junkie/internal/mcp/cad"
 	"github.com/camronwood/neural-junkie/internal/mcp/externalmedia"
-	"github.com/camronwood/neural-junkie/internal/mcp/incident"
 	"github.com/camronwood/neural-junkie/internal/mcp/manufacturing"
-	mapsmcp "github.com/camronwood/neural-junkie/internal/mcp/maps"
+	mapsloc "github.com/camronwood/neural-junkie/internal/maps"
+	"github.com/camronwood/neural-junkie/internal/mcp/packremote"
 	"github.com/camronwood/neural-junkie/internal/mcp/usertools"
 	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
 	webmcp "github.com/camronwood/neural-junkie/internal/mcp/web"
@@ -24,8 +22,6 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/mark3labs/mcp-go/server"
 )
-
-var sharedBiologyMCPStartOnce sync.Once
 
 func attachWorkspaceTools(agent *Agent, srv MCPServerInterface) {
 	if agent == nil || srv == nil {
@@ -334,24 +330,15 @@ func NewCheminformaticsAgent(name string, ai ai.AIProvider, hub HubClient) *Agen
 }
 
 func attachSharedBiologyMCP(agent *Agent, label, agentType string) {
-	bioMCP, err := biology.SharedBiologyMCP()
-	if err != nil {
-		log.Printf("Failed to create Biology MCP server: %v", err)
-		return
-	}
+	attachPackOwnedMCP(agent, config.PackLifeSciences, agentType, label, true, func() (MCPServerInterface, error) {
+		return biology.SharedBiologyMCP()
+	})
 	if allowlist := biology.ToolAllowlistForAgentType(agentType); allowlist != nil {
 		agent.MCPToolAllowlist = allowlist
 	}
-	agent.MCPServer = bioMCP
-	attachWorkspaceTools(agent, bioMCP)
-	sharedBiologyMCPStartOnce.Do(func() {
-		attachContextCompressTools(bioMCP)
-		if err := bioMCP.Start(); err != nil {
-			log.Printf("Failed to start %s MCP server: %v", label, err)
-		} else {
-			log.Printf("Biology MCP server started (shared)")
-		}
-	})
+	if agent != nil && agent.MCPServer != nil {
+		biology.AttachCustomerScanTools(agent.MCPServer.GetMCPServer())
+	}
 }
 
 // NewCADAgent creates a CAD agent with OpenSCAD MCP tools.
@@ -402,33 +389,13 @@ func NewAWSAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	}
 
 	agent := NewAgent(protocol.AgentTypeAWS, name, expertise, ai, hub)
-
-	if awsMCP, err := aws.NewAWSMCP(); err != nil {
-		log.Printf("Failed to create AWS MCP server: %v", err)
-	} else {
-		startAgentMCPWithOptions(agent, "AWS", awsMCP, true)
-	}
-
+	attachPackOwnedMCP(agent, config.PackAWS, "aws", "AWS", true, nil)
 	return agent
 }
 
-// NewIncidentAgent creates an incident triage agent with Jira MCP tools.
+// NewIncidentAgent creates an incident triage agent with pack-owned MCP tools.
 func NewIncidentAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
-	expertise := []string{
-		"Incident response", "Bug triage", "Root cause analysis",
-		"Reproduction steps", "Severity assessment", "Jira",
-		"Stack traces", "Regression analysis", "Handoff",
-	}
-
-	agent := NewAgent(protocol.AgentTypeIncident, name, expertise, ai, hub)
-
-	if incMCP, err := incident.NewIncidentMCP(); err != nil {
-		log.Printf("Failed to create Incident MCP server: %v", err)
-	} else {
-		startDomainAgentMCP(agent, "Incident", incMCP)
-	}
-
-	return agent
+	return NewPackSpecialistAgent("incident", name, config.PackIncidentManagement, ai, hub)
 }
 
 // NewBrowserAgent creates a web browsing agent with fetch_url and web_search MCP tools.
@@ -440,13 +407,17 @@ func NewBrowserAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	}
 
 	agent := NewAgent(protocol.AgentTypeBrowser, name, expertise, ai, hub)
-
-	if browserMCP, err := browser.NewBrowserMCP(); err != nil {
-		log.Printf("Failed to create Browser MCP server: %v", err)
+	if browserMCP, err := packremote.NewHubPackMCP(config.PackWebBrowser, "Browser"); err != nil {
+		log.Printf("Failed to create Browser pack MCP: %v", err)
+		// Core fetch/search still useful without Playwright pack tools.
+		if srv, err := mcp.NewInProcessMCPServer("browser-web-mcp", "1.0.0"); err == nil {
+			webmcp.AttachTools(srv)
+			startDomainAgentMCP(agent, "Browser", &rawMCPServer{srv: srv})
+		}
 	} else {
+		webmcp.AttachTools(browserMCP.GetMCPServer())
 		startDomainAgentMCP(agent, "Browser", browserMCP)
 	}
-
 	return agent
 }
 
@@ -469,13 +440,7 @@ func NewMapsAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	agent := NewAgent(protocol.AgentTypeMaps, name, expertise, ai, hub)
 	// Native maps_create/maps_update publish artifacts; MCP keeps geocode/route only.
 	agent.MCPToolAllowlist = []string{"maps_geocode", "maps_route"}
-
-	if mapsMCP, err := mapsmcp.NewMapsMCP(); err != nil {
-		log.Printf("Failed to create Maps MCP server: %v", err)
-	} else {
-		startDomainAgentMCP(agent, "Maps", mapsMCP)
-	}
-
+	attachPackOwnedMCP(agent, config.PackMaps, "maps", "Maps", false, nil)
 	return agent
 }
 
@@ -549,16 +514,18 @@ func attachPackToolGrantsToServer(mcpServer *server.MCPServer, agentName string)
 	}
 	attached := false
 	if packToolGrantedToAgent(agentName, "maps-tools") {
-		mapsmcp.AttachGeocodeRouteTools(mcpServer)
-		attached = true
+		if packremote.AttachHubPackTools(mcpServer, config.PackMaps) {
+			attached = true
+		}
 	}
 	if packToolGrantedToAgent(agentName, "maps-location") {
-		mapsmcp.AttachLocateTool(mcpServer)
+		mapsloc.AttachLocateTool(mcpServer)
 		attached = true
 	}
 	if packToolGrantedToAgent(agentName, "web-browser") {
-		browser.AttachAutomationTools(mcpServer)
-		attached = true
+		if packremote.AttachHubPackTools(mcpServer, config.PackWebBrowser) {
+			attached = true
+		}
 	}
 	return attached
 }
@@ -640,8 +607,11 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 }
 
 // ResolveAgentTypeFromPackSpec picks the runtime agent type from a pack AgentSpec.
-// A valid implementation: builtin/<slug> wins over type (including empty or mismatched type).
+// A valid implementation: builtin/<slug> or pack/<slug> wins over type (including empty or mismatched type).
 func ResolveAgentTypeFromPackSpec(spec packs.AgentSpec) protocol.AgentType {
+	if at, ok := packs.ParsePackImplementation(spec.Implementation); ok {
+		return protocol.AgentType(at)
+	}
 	if at, ok := packs.ParseBuiltinImplementation(spec.Implementation); ok {
 		return protocol.AgentType(at)
 	}
@@ -649,10 +619,40 @@ func ResolveAgentTypeFromPackSpec(spec packs.AgentSpec) protocol.AgentType {
 }
 
 // AgentFactoryFromPackSpec creates an in-process agent from a pack AgentSpec.
-// Pilot: implementation builtin/music -> NewMusicAgent even when type is empty or wrong.
+// Pilot: implementation pack/incident -> generic pack specialist; builtin/music -> NewMusicAgent.
 func AgentFactoryFromPackSpec(spec packs.AgentSpec, name string, aiProvider ai.AIProvider, hub HubClient) (*Agent, error) {
 	if strings.TrimSpace(name) == "" {
 		name = strings.TrimSpace(spec.Name)
 	}
+	if slug, ok := packs.ParsePackImplementation(spec.Implementation); ok {
+		packID := packs.PackIDForAgentType(slug)
+		if packID == "" {
+			packID = packs.PackIDForAgentType(strings.TrimSpace(spec.Type))
+		}
+		if packID == "" {
+			return nil, fmt.Errorf("pack implementation %q: no pack owns agent type %q", spec.Implementation, slug)
+		}
+		return NewPackSpecialistAgent(slug, name, packID, aiProvider, hub), nil
+	}
 	return AgentFactory(ResolveAgentTypeFromPackSpec(spec), name, aiProvider, hub)
+}
+
+// NewPackSpecialistAgent creates a thin specialist whose MCP tools come from the pack hub catalog.
+// No bespoke NewFooAgent / protocol.AgentType* factory is required beyond the agent type slug.
+func NewPackSpecialistAgent(agentType, name, packID string, aiProvider ai.AIProvider, hub HubClient) *Agent {
+	agentType = strings.TrimSpace(agentType)
+	packID = strings.TrimSpace(packID)
+	if name == "" {
+		name = agentType
+	}
+	expertise := []string{agentType}
+	if cfg := config.AppConfig(); cfg != nil {
+		if entry, ok := cfg.SpecialistCompose[agentType]; ok && len(entry.ConsultTriggers) > 0 {
+			expertise = append([]string(nil), entry.ConsultTriggers...)
+		}
+	}
+	agent := NewAgent(protocol.AgentType(agentType), name, expertise, aiProvider, hub)
+	attachWorkspace := packID != config.PackIncidentManagement
+	attachPackOwnedMCP(agent, packID, agentType, name, attachWorkspace, nil)
+	return agent
 }

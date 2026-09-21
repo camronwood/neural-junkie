@@ -28,6 +28,19 @@ func TestFirstStringMetadata_PrefersOriginalGoal(t *testing.T) {
 	}
 }
 
+func TestShouldOfferAskUserTool_planModeSuppresses(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"Inspect the failing Add test and plan the smallest correction in core/sample/math.go.")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":   "plan",
+		"composer_mode": "plan",
+	}
+	if shouldOfferAskUserTool(nil, msg) {
+		t.Fatal("expected ask_user suppressed in plan composer mode")
+	}
+}
+
 func TestShouldOfferAskUserTool_codebaseInjected(t *testing.T) {
 	t.Parallel()
 	msg := &protocol.Message{

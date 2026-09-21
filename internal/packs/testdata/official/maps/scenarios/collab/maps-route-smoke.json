@@ -1,0 +1,25 @@
+{
+  "name": "maps-route-smoke",
+  "tags": ["pack-smoke", "maps"],
+  "channel": "collab-scenarios",
+  "agents": "",
+  "setup": {
+    "packs": ["maps"]
+  },
+  "steps": [
+    {
+      "action": "setup_pack",
+      "pack_id": "maps"
+    },
+    {
+      "action": "send",
+      "content": "Create a walking map from Millennium Park Chicago to the Art Institute of Chicago. Geocode both places, compute the walking route, and publish a Neural Canvas map artifact with markers and the route."
+    },
+    {
+      "action": "assert_contains",
+      "any_of": ["map", "walk", "route", "distance", "artifact", "canvas"],
+      "timeout_sec": 180
+    }
+  ],
+  "cleanup": "none"
+}

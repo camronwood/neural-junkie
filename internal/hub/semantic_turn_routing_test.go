@@ -302,6 +302,52 @@ func TestSemanticTurnFeaturesFillsRendererWhenClientOmitsIt(t *testing.T) {
 	}
 }
 
+func TestSemanticOpenCanvasArtifactSkipsPlanCanvas(t *testing.T) {
+	h := NewHub()
+	ch := "implement-scenarios"
+	h.CreateChannelWithType(ch, "", "", protocol.ChannelTypePublic, "user")
+
+	planMsg := protocol.NewMessage(protocol.MessageTypeChat, ch, protocol.AgentInfo{
+		ID: "be", Name: "BackendEngineer", Type: protocol.AgentTypeBackend,
+	}, "Plan for fixing Add")
+	planMsg.Metadata = map[string]interface{}{
+		protocol.MetaPlanID:   "fix_add_abc",
+		protocol.MetaPlanName: "Fix Add Test",
+		"artifact_ref": protocol.ArtifactReference{
+			ID: "plan-art-1", Title: "Fix Add Test", RendererID: "nj.document", Action: "created",
+		},
+	}
+	otherMsg := protocol.NewMessage(protocol.MessageTypeChat, ch, protocol.AgentInfo{
+		ID: "be", Name: "BackendEngineer", Type: protocol.AgentTypeBackend,
+	}, "here is a mermaid")
+	otherMsg.Metadata = map[string]interface{}{
+		"artifact_ref": protocol.ArtifactReference{
+			ID: "mermaid-1", Title: "Architecture", RendererID: "nj.mermaid", Action: "created",
+		},
+	}
+	h.mu.Lock()
+	h.messages[ch] = []*protocol.Message{otherMsg, planMsg}
+	h.mu.Unlock()
+
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, ch, protocol.AgentInfo{
+		ID: "user", Name: "User", Type: "human",
+	}, "Approve that plan and implement it now.")
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode: "agent",
+		"implementation_session":      true,
+	}
+	features := h.semanticTurnFeatures(msg)
+	if features.OpenArtifactID == "plan-art-1" {
+		t.Fatal("plan canvas must not seed open_artifact features")
+	}
+	if features.OpenArtifactID != "mermaid-1" {
+		t.Fatalf("open id=%q want mermaid-1 (skip plan, use prior non-plan)", features.OpenArtifactID)
+	}
+	if !features.ImplementationSession {
+		t.Fatal("expected ImplementationSession feature from metadata")
+	}
+}
+
 func TestSemanticTurnFeaturesDefaultsRendererWhenHistoryMissing(t *testing.T) {
 	h := NewHub()
 	ch := "dm-canvas-default"

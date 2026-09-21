@@ -81,6 +81,41 @@ func TestUserQuestionManager_HasPendingOnChannel(t *testing.T) {
 	}
 }
 
+func TestUserQuestionManager_DismissPendingOnChannel(t *testing.T) {
+	h := NewHub()
+	uqm := h.GetUserQuestionManager()
+	if uqm == nil {
+		t.Fatal("expected hub user question manager")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		ans, err := uqm.Ask("a1", "TestAgent", "implement-scenarios", "Clarify scope?", nil, 2*time.Second)
+		if err != nil {
+			t.Errorf("Ask: %v", err)
+		}
+		if ans != "channel history cleared" {
+			t.Errorf("answer=%q", ans)
+		}
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	if !uqm.HasPendingOnChannel("implement-scenarios") {
+		t.Fatal("expected pending before dismiss")
+	}
+	if n := uqm.DismissPendingOnChannel("implement-scenarios", "channel history cleared"); n != 1 {
+		t.Fatalf("DismissPendingOnChannel returned %d", n)
+	}
+	<-done
+	if uqm.HasPendingOnChannel("implement-scenarios") {
+		t.Fatal("expected no pending after dismiss")
+	}
+	if h.ShouldDeferAgents("implement-scenarios") {
+		t.Fatal("ShouldDeferAgents should clear after dismiss")
+	}
+}
+
 func TestUserQuestionManager_DedupSimilarAnswer(t *testing.T) {
 	h := NewHub()
 	uqm := h.GetUserQuestionManager()

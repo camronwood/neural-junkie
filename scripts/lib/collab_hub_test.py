@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib.collab_hub import (  # noqa: E402
     CHAT_REPLY_TYPES,
+    IMPLEMENT_REPLY_TYPES,
     _collect_bullet_findings,
     _is_turn_handoff_content,
     collaborate_agent_names,
@@ -24,6 +25,11 @@ class CollabHubAgentParseTest(unittest.TestCase):
         self.assertIn("user_question", CHAT_REPLY_TYPES)
         self.assertIn("chat", CHAT_REPLY_TYPES)
         self.assertIn("answer", CHAT_REPLY_TYPES)
+
+    def test_implement_reply_types_exclude_user_question(self) -> None:
+        self.assertNotIn("user_question", IMPLEMENT_REPLY_TYPES)
+        self.assertIn("chat", IMPLEMENT_REPLY_TYPES)
+        self.assertIn("answer", IMPLEMENT_REPLY_TYPES)
 
     def test_agent_messages_honors_explicit_types(self) -> None:
         from lib.collab_hub import agent_messages

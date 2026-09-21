@@ -29,9 +29,11 @@ Run the relevant gates for your change:
 | Go hub / agents | `make test-go` | `make test-all` |
 | Agent implement / IDE | `make implement-scenarios` | `make test-parity-stable` |
 | Collaboration | `make collab-smoke` | `make collab-scenarios-all` |
-| Desktop UI | `cd desktop && npm run test` | `make test-all` |
+| Desktop UI | `cd desktop && npm run test` | `make test-all` · optional `make desktop-e2e` |
 
 Full parity contract and scenario matrix: [docs/TESTING.md](docs/TESTING.md).
+
+Unsupervised overnight / morning RC: [docs/AWAY_OPERATIONS.md](docs/AWAY_OPERATIONS.md) and [AGENTS.md](AGENTS.md).
 
 ## Pull request expectations
 

@@ -63,7 +63,7 @@ export function ChatInputArea({
   );
 
   return (
-    <div className="flex-shrink-0 flex flex-col min-h-0">
+    <div className="flex-shrink-0 flex flex-col min-h-0" data-testid="chat-composer">
       <TurnTelemetryDrawer channel={channel} enabled={showTurnTelemetryDrawer} />
 
       <TypingIndicator

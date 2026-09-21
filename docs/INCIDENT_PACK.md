@@ -1,6 +1,6 @@
 # Incident management domain pack (v2)
 
-Official pack id: `incident-management` v2.0.0  
+Official pack id: `incident-management` v2.1.0  
 Repo: [neural-junkie-pack-incident-management](https://github.com/camronwood/neural-junkie-pack-incident-management)
 
 Requires the **software-development** pack.
@@ -14,6 +14,7 @@ Requires the **software-development** pack.
 - **Handoff runbooks** (markdown + JSON templates)
 - **Stack trace ingestion** via pack hub sidecar
 - **Postmortem workflow** (timeline + template draft)
+- **Pack-owned MCP** (`assets/mcp/tools.json` + hub `POST /mcp/call`); agent `implementation: pack/incident`
 
 Detailed setup: see pack `assets/WORKSPACE.md` after install.
 
@@ -27,18 +28,16 @@ Detailed setup: see pack `assets/WORKSPACE.md` after install.
 | `incident_parse_stack_trace` | Parse trace → suspect files + repro |
 | `incident_generate_postmortem` | Draft postmortem from template |
 
-Port **8093** when MCP enabled.
-
 ## Settings
 
 **Settings → Integrations:** Jira, GitHub Issues, Linear, PagerDuty, Sentry, and **Incident** (default provider, write mode).
 
 ## Release
 
-```bash
+```
 cd neural-junkie-pack-incident-management
 make verify && make pack-smoke && make pack-zip
-git tag v2.0.0 && git push origin v2.0.0
+git tag v2.1.0 && git push origin v2.1.0
 ```
 
 Update `packs/catalog.json` when bumping versions.

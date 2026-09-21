@@ -399,6 +399,7 @@ export function ChatToolbarActions({
         {onOpenSettings && (
           <button
             type="button"
+            data-testid="open-settings"
             onClick={() => onOpenSettings()}
             className={`${iconBtn} text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover focus-visible:outline-slack-accent`}
             title={`Settings (${formatChord('mod+,')})`}

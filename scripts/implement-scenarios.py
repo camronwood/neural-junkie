@@ -96,8 +96,15 @@ class ImplementContext:
 
 
 def _chat_baseline(ctx: ImplementContext, agent: str) -> int:
+    """Count implement-completing replies (chat/answer) for baseline slicing.
+
+    Must match step_wait_reply's pool (IMPLEMENT_REPLY_TYPES ∪ file_change) minus
+    file_change — otherwise a prior ask_user card inflates baseline past real chats.
+    """
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
-    return hub.count_chat_agent_messages(hub.chat_agent_messages(msgs), agent)
+    pool = hub.agent_messages(msgs, types=hub.IMPLEMENT_REPLY_TYPES)
+    want = agent.strip().lstrip("@")
+    return sum(1 for m in pool if (m.get("from") or {}).get("name") == want)
 
 
 def _file_hash(root: Path, rel: str) -> str:
@@ -123,6 +130,13 @@ def step_send(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     ctx.baseline_agent_count[from_name] = _chat_baseline(ctx, from_name)
     content = (step.get("content") or "").strip()
+    # Desktop composer answers pending ask_user cards before/instead of a free-form send.
+    # Harness must clear them too — otherwise agentsDeferred blocks the target agent and
+    # wait_reply reports "nudged silent" until timeout.
+    answered = hub.answer_pending_user_questions(ctx.base, ctx.channel, content or "proceed")
+    if answered:
+        print(f"  send: answered {len(answered)} pending ask_user card(s)", flush=True)
+        time.sleep(0.5)
     meta = enrich_send_metadata(step.get("metadata"), ctx.scenario, content=content)
     ctx.last_send_metadata = dict(meta) if isinstance(meta, dict) else {}
     code, _ = hub.send_message(ctx.base, ctx.channel, content, metadata=meta, from_name=DEFAULT_FROM)
@@ -191,10 +205,11 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
                 print(f"  wait_reply: auto-approved {n} file change(s) ids={ids}", flush=True)
         disk_ok, disk_detail = disk_wait_satisfied(root, step)
         msgs = hub.list_messages(ctx.base, ctx.channel, 200)
-        # Implementation turns often surface as file_change / user_question without a plain chat row.
+        # Prefer chat/answer (+ file_change). Do not treat ask_user cards as completion —
+        # that falsely advances plan waits while leaving the channel agentsDeferred.
         pool = hub.agent_messages(
             msgs,
-            types=hub.CHAT_REPLY_TYPES | {"file_change"},
+            types=hub.IMPLEMENT_REPLY_TYPES | {"file_change"},
         )
         candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
 
@@ -212,6 +227,13 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
             if until_meta_keys:
                 if not all(metadata_get(meta, key) is not None for key in until_meta_keys):
                     continue
+                # Canvas/plan turns may stamp implementation_session_outcome with
+                # session_not_run / implementation_skip without touching disk — keep waiting.
+                outcome = metadata_get(meta, "implementation_session_outcome")
+                if isinstance(outcome, dict):
+                    reason = str(outcome.get("routing_reason") or "")
+                    if outcome.get("implementation_skip") or reason == "session_not_run":
+                        continue
                 if has_disk and not disk_ok:
                     continue
                 suffix = f"; {disk_detail}" if disk_detail else ""
@@ -225,10 +247,19 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
                     return True, f"reply from {from_name} ({detail})"
             else:
                 return True, f"reply from {from_name}"
+        # Unblock ask_user so the agent can finish a chat/answer (and clear agentsDeferred).
+        pending_ids = hub.answer_pending_user_questions(
+            ctx.base,
+            ctx.channel,
+            "Please continue with your best plan; no further clarification needed.",
+        )
+        if pending_ids:
+            print(f"  wait_reply: answered {len(pending_ids)} pending ask_user card(s)", flush=True)
         # Mid-wait nudge once if the assignee is silent (common under Ollama soak).
         if not nudged and time.time() > deadline - (secs * 0.45):
             nudged = True
             nudge_meta, nudge_text = wait_reply_nudge(ctx.last_send_metadata, from_name)
+            hub.answer_pending_user_questions(ctx.base, ctx.channel, nudge_text)
             hub.send_message(
                 ctx.base,
                 ctx.channel,

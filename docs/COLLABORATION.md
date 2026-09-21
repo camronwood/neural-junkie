@@ -328,7 +328,7 @@ Git proposals appear in **Pending changes** alongside file proposals. **Push alw
 - **Collaboration sandbox (default):** When a plan is approved and execution starts, the hub creates `<assets-root>/<collaboration-id>/` (default assets root: `~/.neural-junkie/collaborations`), attaches it as `workspace_context` on `collaboration_task` messages **after you confirm**, and snapshots expose `working_directory` plus `workspace_acknowledged`.
 - **Git worktree (`--worktree`):** Execution uses `<assets-root>/worktrees/<collaboration-id>/` on branch `nj/collab-<prefix>`. Agents receive a real project tree in `workspace_context`. Source repo binding uses `--workspace` at start and/or the desktop active workspace at **Continue** (`POST /api/collaboration-workspace-ack` with optional `source_repo_path`).
 - Set the parent folder in **Settings → AI Providers → Collaboration output folder** (`collaboration.assets_root` in `config.json`) or via `NEURAL_JUNKIE_COLLAB_ASSETS_DIR`. **Agents do not receive task prompts until you confirm:** use the desktop **Continue** dialog on the collaboration channel, or run `/ack-collab-workspace <id>`.
-- **Shell commands:** During execution, agents should put runnable commands in fenced **bash** code blocks; the desktop surfaces **Run** and passes the collaboration sandbox as the working directory when executing suggestions.
+- **Shell commands:** Prefer `run_command` for non-destructive work (with approval). For long-running/dev servers, agents put commands in fenced **bash** blocks; the desktop surfaces **Run**, starts them in the terminal PTY when appropriate, and posts `command_output` so the suggesting agent continues. Bash fences do **not** execute until you approve.
 
 ## One executing collaboration per channel
 

@@ -15,8 +15,10 @@ describe('formatCommandOutputContent', () => {
     };
     const text = formatCommandOutputContent(result, 'Cursor');
     expect(text).toContain('@Cursor');
+    expect(text).toContain('suggested a terminal command');
     expect(text).toContain('ls -la');
     expect(text).toContain('Exit code: 0');
     expect(text).toContain('file.txt');
+    expect(text).toContain('@Cursor: continue from this result');
   });
 });

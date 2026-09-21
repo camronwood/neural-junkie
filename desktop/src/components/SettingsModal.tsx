@@ -80,7 +80,7 @@ export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: Set
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 p-4" role="presentation">
+    <div className="fixed inset-0 z-50 p-4" role="presentation" data-testid="settings-modal">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
       <div
         role="dialog"
@@ -118,6 +118,7 @@ export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: Set
                   <button
                     key={tab.id}
                     type="button"
+                    data-testid={`settings-tab-${tab.id}`}
                     onClick={() => {
                       if (tab.action === 'open-domain-packs') {
                         requestOpenDomainPacksModal();

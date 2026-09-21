@@ -25,38 +25,61 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
 DEFAULT_HUB = os.environ.get("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765").rstrip("/")
 SMOKE_CHANNEL = "collab-smoke"
-POLL_SECS = 90
+POLL_SECS = 150
 POLL_INTERVAL = 1.0
-EXECUTING_WAIT_SECS = 30
+EXECUTING_WAIT_SECS = 45
 MAX_CONCURRENT_COLLABS = 3
-FALLBACK_AGENTS = "@Assistant @Cursor"
+# Prefer discussion-capable specialists (matches planning-two-agent / collab-core).
+# First-two-in-list discovery previously chose vibe/CLI agents that stall in planning.
+PREFERRED_SMOKE_AGENTS = ("SoftwareArchitect", "BackendEngineer", "FrontendEngineer")
+FALLBACK_AGENTS = "@SoftwareArchitect @BackendEngineer"
+# Discussion needs enough turn budget: with --messages 2 the hub spends turns on
+# system handoffs and often never converges to reviewing within the poll window.
+COLLAB_MESSAGES = 6
+COLLAB_ROUNDS = 1
 
 
 def hub_request(base: str, method: str, path: str, body: dict | None = None) -> tuple[int, Any]:
+    """Authenticated hub call (API key / session) — live hubs reject unauthenticated writes."""
+    from lib.hub_auth import ensure_hub_auth_headers
+
     url = f"{base}{path}"
     data = None
-    headers = {"Accept": "application/json"}
+    headers = {"Accept": "application/json", **ensure_hub_auth_headers(base)}
     if body is not None:
         data = json.dumps(body).encode()
         headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            raw = resp.read().decode()
-            if resp.status == 204 or not raw.strip():
-                return resp.status, None
-            return resp.status, json.loads(raw)
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode()
+    last_err: Exception | None = None
+    for attempt in range(3):
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            parsed = json.loads(raw) if raw.strip() else raw
-        except json.JSONDecodeError:
-            parsed = raw
-        return e.code, parsed
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                raw = resp.read().decode()
+                if resp.status == 204 or not raw.strip():
+                    return resp.status, None
+                return resp.status, json.loads(raw)
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode()
+            try:
+                parsed = json.loads(raw) if raw.strip() else raw
+            except json.JSONDecodeError:
+                parsed = raw
+            if e.code in (429, 500, 502, 503, 504) and attempt + 1 < 3:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            return e.code, parsed
+        except (urllib.error.URLError, TimeoutError, TimeoutError) as e:
+            last_err = e
+            if attempt + 1 < 3:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+    return 0, str(last_err) if last_err else "request failed"
 
 
 def run_go_smoke() -> int:
@@ -82,24 +105,35 @@ def find_collab(collabs: list, collab_id: str) -> dict | None:
 
 
 def discover_collab_agents(base: str) -> str:
-    """Pick agent mentions from the live hub (or NJ_COLLAB_SMOKE_AGENTS)."""
+    """Pick agent mentions from the live hub (or NJ_COLLAB_SMOKE_AGENTS).
+
+    Prefer discussion specialists over CLI/vibe agents — first-two-in-list discovery
+    previously chose @Vibes-VibeCoder @Assistant and stalled in planning.
+    """
     env = os.environ.get("NJ_COLLAB_SMOKE_AGENTS", "").strip()
     if env:
         return env
     code, data = hub_request(base, "GET", "/api/agents")
     if code != 200 or not isinstance(data, list):
         return FALLBACK_AGENTS
-    picks: list[str] = []
+    by_name: dict[str, dict] = {}
     for a in data:
         if not isinstance(a, dict):
             continue
         if a.get("is_paused"):
             continue
-        if (a.get("type") or "").lower() == "moderator":
+        if (a.get("type") or "").lower() in ("moderator", "assistant", "cli"):
             continue
         name = (a.get("name") or "").strip()
-        if not name:
-            continue
+        if name:
+            by_name[name] = a
+    picks: list[str] = []
+    for want in PREFERRED_SMOKE_AGENTS:
+        if want in by_name:
+            picks.append(f"@{want}")
+        if len(picks) >= 2:
+            return " ".join(picks)
+    for name in sorted(by_name):
         mention = f"@{name}"
         if mention not in picks:
             picks.append(mention)
@@ -226,7 +260,11 @@ def collab_phase(base: str, channel: str, collab_id: str) -> str | None:
 def wait_phase(base: str, channel: str, collab_id: str, want: str, timeout: float) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
-        phase = collab_phase(base, channel, collab_id)
+        try:
+            phase = collab_phase(base, channel, collab_id)
+        except Exception:
+            time.sleep(POLL_INTERVAL)
+            continue
         if phase == want:
             return True
         time.sleep(POLL_INTERVAL)
@@ -248,6 +286,9 @@ def wait_planning_recap_ready(base: str, channel: str, collab_id: str, timeout: 
 
 
 def run_live(base: str, agents: str | None, channel: str) -> int:
+    from lib.hub_auth import refresh_hub_auth_after_restart
+
+    refresh_hub_auth_after_restart(base)
     if not agents:
         agents = discover_collab_agents(base)
     print(f"collab-smoke (live): hub={base} channel={channel} agents={agents}")
@@ -255,6 +296,9 @@ def run_live(base: str, agents: str | None, channel: str) -> int:
     if code != 200:
         print(f"FAIL: hub not healthy at {base} (status {code})", file=sys.stderr)
         print("Start with: make server", file=sys.stderr)
+        return 1
+    if not isinstance(health, dict):
+        print(f"FAIL: hub health payload unexpected: {health}", file=sys.stderr)
         return 1
     print(f"  health: {health.get('status')} agents={health.get('agent_count')}")
 
@@ -265,7 +309,7 @@ def run_live(base: str, agents: str | None, channel: str) -> int:
         return 1
 
     content = (
-        f"/collaborate --rounds 1 --messages 2 {agents} "
+        f"/collaborate --rounds {COLLAB_ROUNDS} --messages {COLLAB_MESSAGES} {agents} "
         "nj collab smoke live probe (auto cleanup)"
     )
     code, send = hub_request(

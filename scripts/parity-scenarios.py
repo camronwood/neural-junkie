@@ -69,7 +69,9 @@ class ParityContext:
 
 def _chat_baseline(ctx: ParityContext, agent: str) -> int:
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
-    return hub.count_chat_agent_messages(hub.chat_agent_messages(msgs), agent)
+    pool = hub.agent_messages(msgs, types=hub.IMPLEMENT_REPLY_TYPES)
+    want = agent.strip().lstrip("@")
+    return sum(1 for m in pool if (m.get("from") or {}).get("name") == want)
 
 
 def _file_hash(root: Path, rel: str) -> str:
@@ -94,6 +96,10 @@ def step_send(ctx: ParityContext, step: dict) -> tuple[bool, str]:
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     ctx.baseline_agent_count[from_name] = _chat_baseline(ctx, from_name)
     content = (step.get("content") or "").strip()
+    answered = hub.answer_pending_user_questions(ctx.base, ctx.channel, content or "proceed")
+    if answered:
+        print(f"  send: answered {len(answered)} pending ask_user card(s)", flush=True)
+        time.sleep(0.5)
     meta = enrich_send_metadata(step.get("metadata"), ctx.scenario, content=content)
     code, _ = hub.send_message(ctx.base, ctx.channel, content, metadata=meta, from_name=DEFAULT_FROM)
     return (True, "sent") if code == 200 else (False, f"send failed ({code})")
@@ -119,7 +125,7 @@ def step_wait_reply(ctx: ParityContext, step: dict) -> tuple[bool, str]:
         msgs = hub.list_messages(ctx.base, ctx.channel, 200)
         pool = hub.agent_messages(
             msgs,
-            types=hub.CHAT_REPLY_TYPES | {"file_change"},
+            types=hub.IMPLEMENT_REPLY_TYPES | {"file_change"},
         )
         candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
 

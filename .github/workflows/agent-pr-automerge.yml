@@ -1,0 +1,51 @@
+name: Agent PR auto-merge
+
+# Ensures PRs labeled agent-pr enable squash auto-merge when unit CI is green.
+
+on:
+  pull_request:
+    types: [labeled, synchronize, opened, reopened]
+  check_suite:
+    types: [completed]
+  workflow_run:
+    workflows: [Test]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  enable-automerge:
+    if: github.repository == 'camronwood/neural-junkie'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge for agent-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Resolve PR number from event
+          PR=""
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR="${{ github.event.pull_request.number }}"
+          elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            PR="$(gh pr list --repo "${{ github.repository }}" --state open --label agent-pr --json number -q '.[0].number' || true)"
+          elif [[ "${{ github.event_name }}" == "check_suite" ]]; then
+            PR="$(gh pr list --repo "${{ github.repository }}" --state open --label agent-pr --json number -q '.[0].number' || true)"
+          fi
+          if [[ -z "${PR}" || "${PR}" == "null" ]]; then
+            echo "No agent-pr to process"
+            exit 0
+          fi
+          labels="$(gh pr view "${PR}" --repo "${{ github.repository }}" --json labels -q '.labels[].name')"
+          if ! grep -qx 'agent-pr' <<<"${labels}"; then
+            echo "PR #${PR} missing agent-pr label"
+            exit 0
+          fi
+          # Only enable auto-merge; branch protection + required checks gate the actual merge.
+          gh pr merge "${PR}" --repo "${{ github.repository }}" --auto --squash || {
+            echo "auto-merge enable returned non-zero (may already be enabled or checks pending)"
+            exit 0
+          }

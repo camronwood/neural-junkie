@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "browser_screenshot",
+      "description": "Capture a PNG screenshot of a URL via the Playwright sidecar (localhost, workspace preview, or dev-server URLs). Returns dimensions and a short summary; image is stored for workbench use.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "URL to capture (http://localhost, hub workspace-preview URL, or file:// path)"},
+          "width": {"type": "string", "description": "Optional viewport width (default 1280)"},
+          "height": {"type": "string", "description": "Optional viewport height (default 800)"},
+          "full_page": {"type": "string", "description": "Optional: true for full-page capture"}
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "browser_navigate",
+      "description": "Open a URL in Playwright and return a session_id for follow-up click/fill actions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "URL to open"},
+          "width": {"type": "string", "description": "Optional viewport width"},
+          "height": {"type": "string", "description": "Optional viewport height"}
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "browser_click",
+      "description": "Click an element in an existing Playwright browser session.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "session_id": {"type": "string", "description": "Session id from browser_navigate"},
+          "selector": {"type": "string", "description": "CSS selector to click"}
+        },
+        "required": ["session_id", "selector"]
+      }
+    },
+    {
+      "name": "browser_fill",
+      "description": "Fill a form field in an existing Playwright browser session.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "session_id": {"type": "string", "description": "Session id from browser_navigate"},
+          "selector": {"type": "string", "description": "CSS selector for the input"},
+          "value": {"type": "string", "description": "Text value to fill"}
+        },
+        "required": ["session_id", "selector"]
+      }
+    },
+    {
+      "name": "browser_a11y_audit",
+      "description": "Run an axe-core accessibility audit on a URL. Returns WCAG violations summary.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "URL to audit"}
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "browser_metrics",
+      "description": "Collect Lighthouse-lite performance metrics (FCP, load time, DOM size) for a URL.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "URL to measure"}
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "browser_visual_diff",
+      "description": "Compare a page screenshot to a stored baseline PNG and report pixel differences.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "URL to capture and compare"},
+          "baseline_path": {"type": "string", "description": "Path to baseline PNG (absolute or workspace-relative)"},
+          "workspace_root": {"type": "string", "description": "Optional workspace root for relative baseline_path"},
+          "threshold": {"type": "string", "description": "Optional mismatch threshold (default 0.1)"},
+          "width": {"type": "string", "description": "Optional viewport width"},
+          "height": {"type": "string", "description": "Optional viewport height"}
+        },
+        "required": ["url", "baseline_path"]
+      }
+    },
+    {
+      "name": "browser_pick_element",
+      "description": "Return DOM info for an element at viewport coordinates on a URL.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "URL to open"},
+          "x": {"type": "string", "description": "X coordinate"},
+          "y": {"type": "string", "description": "Y coordinate"},
+          "width": {"type": "string", "description": "Optional viewport width"},
+          "height": {"type": "string", "description": "Optional viewport height"}
+        },
+        "required": ["url", "x", "y"]
+      }
+    }
+  ]
+}

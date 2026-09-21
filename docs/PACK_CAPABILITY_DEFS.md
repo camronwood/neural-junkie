@@ -2,7 +2,7 @@
 
 Custom packs declare **pack-local capabilities** in `pack.yaml` under `capability_defs`. Each entry in `capabilities:` that is not an NJ **platform** token must have a matching definition.
 
-Official domain packs continue to use platform tokens only (`ide-v2`, `cad-workbench`, etc.) — see [PACK_CAPABILITIES.md](./PACK_CAPABILITIES.md).
+Official domain packs also ship `capability_defs` for hub/MCP sidecars, viewers, and artifact renderers (music, maps, SD, life-sciences, web-browser, aws, …) — see [PACK_CAPABILITIES.md](./PACK_CAPABILITIES.md).
 
 ## Schema
 
@@ -24,7 +24,8 @@ capability_defs:
 | `hub-sidecar` | Hub REST routes served by pack Python sidecar | `routes`, `sidecar.module` |
 | `file-viewer` | Desktop opens matching workspace files in NJ viewer | `match_glob`, `viewer` |
 | `toolbar-chip` | Toolbar button (often combined with `ui` on hub-sidecar) | `ui.toolbar`, `ui.modal` |
-| `mcp-tools` | Biology MCP tools gated to this pack | `mcp_tools`, `mcp_tools_path` |
+| `mcp-tools` | Pack-owned MCP tool catalog / gating | `mcp_tools`, `mcp_tools_path` (e.g. `assets/mcp/tools.json`) |
+| `mcp-sidecar` | Pack binary that speaks Streamable HTTP MCP | `sidecar.binary`, `mcp_agents` |
 | `settings-schema` | Settings overlay keys surfaced in Domain packs UI | `settings` |
 | `artifact-renderer` | Maps pack artifacts to a trusted Neural Canvas renderer | `renderer`, `media_types`, `match_glob`, version fields, `fallback` |
 

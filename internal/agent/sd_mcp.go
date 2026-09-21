@@ -32,14 +32,18 @@ func isSDPackDomainAgentType(agentType string) bool {
 }
 
 func sdPackMCPSidecarActive() bool {
+	return packMCPSidecarActive(config.PackSoftwareDevelopment)
+}
+
+func packMCPSidecarActive(packID string) bool {
 	mgr := packsidecar.GlobalManager()
 	if mgr == nil {
 		return false
 	}
-	if !mgr.MCPSidecarActive(config.PackSoftwareDevelopment) {
+	if !mgr.MCPSidecarActive(packID) {
 		return false
 	}
-	inst := mgr.InstanceForPack(config.PackSoftwareDevelopment)
+	inst := mgr.InstanceForPack(packID)
 	if inst == nil || inst.BaseURL == "" {
 		return false
 	}
@@ -77,10 +81,22 @@ func (w *workspaceOnlyMCP) Start() error { return nil }
 // When neither sidecar nor localFn is available but attachWorkspace is true, attaches a
 // workspace-only MCP so file tools keep working (avoids "tool read_file not found" loops).
 func attachSDDomainMCP(agent *Agent, agentType, label string, attachWorkspace bool, localFn func() (MCPServerInterface, error)) {
+	attachPackOwnedMCP(agent, config.PackSoftwareDevelopment, agentType, label, attachWorkspace, localFn)
+}
+
+// attachPackOwnedMCP wires pack-owned MCP tools:
+//  1. mcp-sidecar binary (SD pattern) via packremote.NewRemoteMCP
+//  2. hub-sidecar tools.json catalog via packremote.NewHubPackMCP
+//  3. optional localFn fallback
+//  4. workspace-only MCP when attachWorkspace is set
+func attachPackOwnedMCP(agent *Agent, packID, agentType, label string, attachWorkspace bool, localFn func() (MCPServerInterface, error)) {
 	if agent == nil {
 		return
 	}
-	if isSDPackDomainAgentType(agentType) && sdPackMCPSidecarActive() {
+	packID = strings.TrimSpace(packID)
+	agentType = strings.TrimSpace(agentType)
+
+	if packID == config.PackSoftwareDevelopment && isSDPackDomainAgentType(agentType) && packMCPSidecarActive(packID) {
 		remote, err := packremote.NewRemoteMCP(agentType)
 		if err != nil {
 			log.Printf("Failed to create pack remote MCP for %s: %v", label, err)
@@ -89,6 +105,16 @@ func attachSDDomainMCP(agent *Agent, agentType, label string, attachWorkspace bo
 			return
 		}
 	}
+
+	if packID != "" && packID != config.PackSoftwareDevelopment {
+		if hub, err := packremote.NewHubPackMCP(packID, label); err == nil {
+			startAgentMCPWithOptions(agent, label, hub, attachWorkspace)
+			return
+		} else {
+			log.Printf("Pack hub MCP for %s (%s): %v", label, packID, err)
+		}
+	}
+
 	if localFn != nil {
 		srv, err := localFn()
 		if err != nil {
@@ -107,5 +133,5 @@ func attachSDDomainMCP(agent *Agent, agentType, label string, attachWorkspace bo
 		return
 	}
 	startAgentMCPWithOptions(agent, label, srv, true)
-	log.Printf("Workspace-only MCP attached for %s (software-development sidecar unavailable)", label)
+	log.Printf("Workspace-only MCP attached for %s (pack %s unavailable)", label, packID)
 }

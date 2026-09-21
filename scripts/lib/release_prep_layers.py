@@ -207,7 +207,7 @@ LAYERS: dict[str, LayerSpec] = {
     ),
     "user-flows": LayerSpec(
         name="user-flows",
-        description="Quarantine — product journeys until 2 consecutive green overnight runs",
+        description="Away primary — real-world product journeys (overnight bug hunt)",
         requires_hub=True,
         est_minutes=240,
         tier="quarantine",

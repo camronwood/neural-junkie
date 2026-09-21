@@ -227,17 +227,18 @@ func (h *Hub) semanticTurnFeatures(msg *protocol.Message) intent.TurnFeatures {
 	}
 	canMutate := mode == "agent" || mode == "export"
 	features := intent.TurnFeatures{
-		Text:                 strings.TrimSpace(msg.Content),
-		ComposerMode:         mode,
-		ExplicitRecipient:    strings.TrimSpace(msg.IdeRouteAgentType()),
-		ReplyTarget:          strings.TrimSpace(msg.ReplyTo),
-		CollaborationPhase:   strings.TrimSpace(msg.GetCollaborationPhase()),
-		IsSlashCommand:       strings.HasPrefix(strings.TrimSpace(msg.Content), "/"),
-		IsDirectMessage:      h.isChannelDM(msg.Channel),
-		HasExplicitMention:   len(msg.Mentions) > 0,
-		HasWorkspace:         semanticMessageHasWorkspace(msg),
-		CanProposeFiles:      canMutate,
-		CanRunImplementation: canMutate,
+		Text:                  strings.TrimSpace(msg.Content),
+		ComposerMode:          mode,
+		ExplicitRecipient:     strings.TrimSpace(msg.IdeRouteAgentType()),
+		ReplyTarget:           strings.TrimSpace(msg.ReplyTo),
+		CollaborationPhase:    strings.TrimSpace(msg.GetCollaborationPhase()),
+		IsSlashCommand:        strings.HasPrefix(strings.TrimSpace(msg.Content), "/"),
+		IsDirectMessage:       h.isChannelDM(msg.Channel),
+		HasExplicitMention:    len(msg.Mentions) > 0,
+		HasWorkspace:          semanticMessageHasWorkspace(msg),
+		CanProposeFiles:       canMutate,
+		CanRunImplementation:  canMutate,
+		ImplementationSession: msg.ImplementationSession(),
 	}
 	if msg.Metadata != nil {
 		if raw, ok := msg.Metadata["requested_action"].(string); ok {
@@ -337,6 +338,11 @@ func (h *Hub) semanticOpenCanvasArtifact(channel, skipID string) (id, renderer, 
 		if !ok || strings.TrimSpace(ref.ID) == "" {
 			continue
 		}
+		// Plan-mode Neural Canvas docs are not "open canvas to revise" — approving
+		// them must route to workspace implementation, not update_artifact.
+		if messageIsPlanCanvasArtifact(message) {
+			continue
+		}
 		rid := strings.TrimSpace(ref.RendererID)
 		if rid == "" {
 			continue
@@ -344,6 +350,20 @@ func (h *Hub) semanticOpenCanvasArtifact(channel, skipID string) (id, renderer, 
 		return ref.ID, rid, strings.TrimSpace(ref.Title)
 	}
 	return "", "", ""
+}
+
+// messageIsPlanCanvasArtifact reports plan-mode nj.document artifacts stamped with plan_id.
+func messageIsPlanCanvasArtifact(msg *protocol.Message) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	if id, _ := msg.Metadata[protocol.MetaPlanID].(string); strings.TrimSpace(id) != "" {
+		return true
+	}
+	if name, _ := msg.Metadata[protocol.MetaPlanName].(string); strings.TrimSpace(name) != "" {
+		return true
+	}
+	return false
 }
 
 // semanticOpenCanvasRendererForID finds renderer/title for a known open artifact id

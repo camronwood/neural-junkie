@@ -1,11 +1,13 @@
 /// Shell command allowlist/denylist for desktop execute_command (mirrors workspace MCP + protocol).
-pub fn command_allowed(command: &str) -> bool {
-    let cmd = normalize_command(command);
-    if cmd.is_empty() {
-        return false;
-    }
-    let lower = cmd.to_lowercase();
+///
+/// When `user_approved` is true (user clicked Run on an agent suggestion), only the hard
+/// denylist applies — the allowlist is skipped because approval already happened in the UI.
 
+pub fn command_hard_denied(command: &str) -> bool {
+    let lower = normalize_command(command).to_lowercase();
+    if lower.is_empty() {
+        return true;
+    }
     let denied = [
         "rm -rf", "rm -r ", "sudo ", "curl ", "wget ", "| sh", "| bash", ">/dev/", "chmod ",
         "mkfs", "rm ", "rmdir", "del ", "kill", "killall", "shutdown", "reboot", "dd if=",
@@ -13,45 +15,71 @@ pub fn command_allowed(command: &str) -> bool {
     ];
     for d in denied {
         if lower.contains(d) {
-            return false;
+            return true;
         }
     }
+    false
+}
+
+pub fn command_allowed(command: &str) -> bool {
+    command_allowed_with_approval(command, false)
+}
+
+pub fn command_allowed_with_approval(command: &str, user_approved: bool) -> bool {
+    let cmd = normalize_command(command);
+    if cmd.is_empty() {
+        return false;
+    }
+    if command_hard_denied(&cmd) {
+        return false;
+    }
+    if user_approved {
+        return true;
+    }
+    let lower = cmd.to_lowercase();
 
     let allowed_prefixes = [
         "npm test",
-        "npm run lint",
-        "npm run test",
-        "npm run build",
-        "npm run typecheck",
-        "npm exec -- tsc",
-        "./node_modules/.bin/tsc",
+        "npm run ",
+        "npm exec ",
+        "npx ",
+        "yarn ",
+        "pnpm ",
+        "bun ",
+        "cargo ",
+        "tauri ",
         "go test",
+        "go build",
         "go vet",
         "go list",
         "go version",
-        "cargo test",
-        "cargo check",
+        "go run ",
         "pytest",
         "python -m pytest",
+        "python -m ",
+        "make ",
         "ls",
         "pwd",
         "cat ",
         "head ",
         "tail ",
         "grep ",
+        "find ",
+        "which ",
         "git status",
         "git log",
         "git diff",
         "git show",
         "git branch",
-        "make test",
+        "./node_modules/.bin/",
     ];
     for p in allowed_prefixes {
-        if lower.starts_with(p) {
+        if lower == p.trim() || lower.starts_with(p) {
             return true;
         }
     }
-    false
+    // bare `ls` / `pwd` without trailing space
+    matches!(lower.as_str(), "ls" | "pwd" | "whoami" | "date" | "uname")
 }
 
 fn normalize_command(cmd: &str) -> String {
@@ -70,5 +98,19 @@ mod tests {
     #[test]
     fn denies_rm_rf() {
         assert!(!command_allowed("rm -rf /"));
+    }
+
+    #[test]
+    fn user_approved_allows_non_prefix_commands() {
+        assert!(!command_allowed("custom-tool bootstrap"));
+        assert!(command_allowed_with_approval("custom-tool bootstrap", true));
+        assert!(!command_allowed_with_approval("rm -rf /", true));
+        assert!(command_allowed("tauri dev"));
+    }
+
+    #[test]
+    fn allows_npm_run_prefix() {
+        assert!(command_allowed("npm run build"));
+        assert!(command_allowed("npm run tauri"));
     }
 }

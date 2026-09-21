@@ -678,20 +678,8 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 	st.applyReviewMetadata(responseMsg, msg)
 	ApplyCollaborationTaskMetadataOnReply(responseMsg, msg, response)
 
-	commandDetector := protocol.NewCommandDetector(nil)
-	suggestions := commandDetector.DetectCommands(response, a.Info.Name, responseMsg.ID)
-	suggestions = filterCollabCommandSuggestions(msg, suggestions)
-	if cwd := collaborationWorkingDirectoryForMessage(a, msg); cwd != "" && len(suggestions) > 0 {
-		for i := range suggestions {
-			suggestions[i].Cwd = cwd
-		}
-	}
-	if len(suggestions) > 0 {
-		if responseMsg.Metadata == nil {
-			responseMsg.Metadata = make(map[string]interface{})
-		}
-		responseMsg.Metadata["suggested_commands"] = suggestions
-	}
+	response = applySuggestedCommandsToResponse(a, msg, responseMsg, response)
+	st.response = response
 
 	st.responseHasImage = false
 	if a.isCLIAgent() {
@@ -793,10 +781,18 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 				}
 			}
 			if len(issues) > 0 {
+				original := strings.TrimSpace(st.response)
 				if literal, ok := tryCodebaseReturnLiteralAnswer(st.msg); ok {
 					st.response = literal
+					issues = nil
 				} else if literal, ok := tryModalAccessibilityFallback(st.msg, history); ok {
 					st.response = literal
+					issues = nil
+				} else if shouldKeepSubstantiveValidatedAnswer(original, issues) {
+					// Keep the streamed/original answer. Soft-fail replacement is for
+					// empty/shallow replies only — never wipe a usable diagnostic.
+					log.Printf("[%s] quality-gate exhausted; keeping substantive answer (%d chars, issues=%v)",
+						st.agent.Info.Name, len(original), validationIssueNames(issues))
 				} else {
 					st.response = "I couldn't produce a sufficiently grounded answer from the available context."
 				}
@@ -821,6 +817,10 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 			}
 			st.responseMsg.Metadata["response_validation_issues"] = names
 			delete(st.responseMsg.Metadata, "suggested_commands")
+		} else if _, ok := st.responseMsg.Metadata["suggested_commands"]; ok {
+			st.response = ensureAwaitingUserTerminalRunCue(st.response)
+			st.responseMsg.Content = st.response
+			softenTaskStatusWhileAwaitingTerminal(st.responseMsg, st.response)
 		}
 	}
 	return nil
@@ -850,6 +850,39 @@ func validationIssueNames(issues []responseValidationIssue) []string {
 		names = append(names, string(issue))
 	}
 	return names
+}
+
+// shouldKeepSubstantiveValidatedAnswer keeps a usable chat reply when quality-gate
+// retries fail. Soft-fail replacement is reserved for empty/shallow/deflection text.
+func shouldKeepSubstantiveValidatedAnswer(response string, issues []responseValidationIssue) bool {
+	trimmed := strings.TrimSpace(response)
+	if len(trimmed) < 80 {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+	if deflectRE.MatchString(trimmed) && len(trimmed) < 200 {
+		return false
+	}
+	for _, issue := range issues {
+		switch issue {
+		case issueUnsupportedArtifact, issueUnsupportedImage, issueUnsupportedEdit:
+			// These claim tools ran that did not — still soft-fail short claims,
+			// but keep long replies that mix diagnosis with a mistaken claim.
+			if len(trimmed) < 240 {
+				return false
+			}
+		case issueCorrectionIgnored:
+			return false
+		}
+	}
+	// Hollow stubs / pure denials should not survive.
+	if looksLikeGroundingOnlyStub(trimmed) {
+		return false
+	}
+	if strings.HasPrefix(lower, "i couldn't produce") || strings.HasPrefix(lower, "i wasn't able to") {
+		return false
+	}
+	return true
 }
 
 func (st *turnState) applyReviewMetadata(responseMsg, msg *protocol.Message) {

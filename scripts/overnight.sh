@@ -41,6 +41,10 @@ FORWARD_VARS=(
   NEURAL_JUNKIE_HUB_URL
   NJ_OVERNIGHT_TARGET
   MAX_ITER
+  MAX_ISSUES
+  AWAY_DEADLINE_CT
+  AWAY_GATE
+  SKIP_DESKTOP_E2E
   REPORT
   SKIP_RELEASE_PREP
   SKIP_AGENT
@@ -150,6 +154,12 @@ run_gate() {
         exit 1
       fi
       ;;
+    away|away-agent)
+      target="away"
+      : "${MAX_ITER:=3}"
+      : "${AWAY_DEADLINE_CT:=05:00}"
+      : "${AGENT_TIMEOUT:=18000}"
+      ;;
     test-everything)
       make_args+=(CONTINUE=1)
       ;;
@@ -159,10 +169,23 @@ run_gate() {
       ;;
     *)
       echo "FAIL: unknown NJ_OVERNIGHT_TARGET='${target}'" >&2
-      echo "  use: release-prep | release-prep-fix-loop | layer-fix-loop | sut-loop | test-everything | test-everything-full" >&2
+      echo "  use: release-prep | release-prep-fix-loop | layer-fix-loop | sut-loop | away | test-everything | test-everything-full" >&2
       exit 1
       ;;
   esac
+
+  if [[ "${target}" == "away" ]]; then
+    echo ">>> Gate: python3 scripts/away-overnight.py"
+    # shellcheck disable=SC1091
+    source load-env.sh
+    export NEURAL_JUNKIE_RATE_LIMIT=0
+    export AWAY_DEADLINE_CT="${AWAY_DEADLINE_CT:-05:00}"
+    export MAX_ITER="${MAX_ITER:-3}"
+    export SKIP_DESKTOP_E2E="${SKIP_DESKTOP_E2E:-}"
+    export AWAY_GATE="${AWAY_GATE:-user-flows}"
+    caffeinate -dimsu python3 "${ROOT}/scripts/away-overnight.py"
+    return
+  fi
 
   echo ">>> Gate: make ${target}"
   if ((${#make_args[@]})); then

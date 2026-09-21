@@ -297,6 +297,47 @@ func (uqm *UserQuestionManager) PendingAgentIDsOnChannel(channel string) []strin
 	return ids
 }
 
+// DismissPendingOnChannel resolves every pending ask_user on channel so agentsDeferred
+// clears when history is wiped or a scenario moves on without answering the card.
+func (uqm *UserQuestionManager) DismissPendingOnChannel(channel, reason string) int {
+	if uqm == nil || channel == "" {
+		return 0
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "dismissed"
+	}
+	uqm.mu.Lock()
+	now := time.Now()
+	var ids []string
+	var waiters []chan string
+	for id, q := range uqm.questions {
+		if q == nil || q.Status != UserQuestionPending || q.Channel != channel {
+			continue
+		}
+		q.Status = UserQuestionAnswered
+		q.Answer = reason
+		q.ResolvedAt = &now
+		ids = append(ids, id)
+		if w, ok := uqm.waiters[id]; ok {
+			waiters = append(waiters, w...)
+			delete(uqm.waiters, id)
+		}
+	}
+	uqm.mu.Unlock()
+	for _, ch := range waiters {
+		ch <- reason
+		close(ch)
+	}
+	for _, id := range ids {
+		uqm.broadcastQuestionUpdate(id)
+		if uqm.hub != nil {
+			uqm.hub.resolveDurableInput(id, "system", map[string]any{"answer": reason})
+		}
+	}
+	return len(ids)
+}
+
 func (uqm *UserQuestionManager) broadcastQuestion(q *UserQuestion) {
 	msg := &protocol.Message{
 		ID:      q.MessageID,

@@ -6,6 +6,24 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.30] - 2026-09-21
+
+Pack-owned MCP migration, terminal wait honesty, and away/RC automation.
+
+### Added
+- **Pack-owned MCP** — AWS, incident, life-sciences, maps, and web-browser tool servers move into pack sidecars (`assets/mcp/tools.json` + `/mcp`); core retains pack-remote bridge and catalog bumps.
+- **Away / overnight ops** — agent PR automerge, auto-RC tagging, morning RC script, desktop Playwright e2e, and AWAY operations docs.
+- **On-air campaign** — creatives and compose helper for marketing cut.
+
+### Changed
+- **Official pack catalog** — life-sciences 2.1.0, AWS 2.1.0, incident 2.1.0, web-browser 2.2.0, maps 1.3.0 with pack MCP paths mirrored in testdata.
+- **Agent turn UX** — ask-user, semantic routing, turn goals/pipeline, and response-echo hardening.
+
+### Fixed
+- **False terminal wait cue** — Incidental inline `` `npm start` `` mentions no longer create Run suggestions or the ⏳ wait footer; only fenced ```bash blocks do.
+- **Workspace-blind soft-fail** — “Haven’t shared files” replies with workspace shared are flagged for grounded retry; quality gate no longer replaces substantive streamed answers with the canned soft-fail.
+- **Agent terminal loop** — Prefer `run_command` for non-destructive shell; user **Run** posts results even on failure; long-running/dev commands start in the PTY.
+
 ## [1.2.0-beta.29] - 2026-09-19
 
 Edit-loop trust/streaming and collab operator UX.

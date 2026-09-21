@@ -1,0 +1,243 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "aws_get_caller_identity",
+      "description": "Return AWS account/ARN for the configured SSO profile (sts get-caller-identity).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "profile": {"type": "string", "description": "Optional profile override (must be allowed)"}
+        }
+      }
+    },
+    {
+      "name": "aws_list_profiles",
+      "description": "List named AWS profiles from ~/.aws/config.",
+      "input_schema": {"type": "object", "properties": {}}
+    },
+    {
+      "name": "aws_sso_login_hint",
+      "description": "Return the aws sso login command for the active or requested profile.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "profile": {"type": "string", "description": "Optional profile name"}
+        }
+      }
+    },
+    {
+      "name": "aws_cli_query",
+      "description": "Deprecated: prefer typed tools. Read-only AWS CLI passthrough when sidecar cannot serve a resource type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service": {"type": "string", "description": "AWS service, e.g. ec2, s3, lambda"},
+          "operation": {"type": "string", "description": "CLI operation, e.g. describe-instances"},
+          "extra_args": {
+            "type": "array",
+            "description": "Additional CLI args after operation",
+            "items": {"type": "string"}
+          }
+        },
+        "required": ["service", "operation"]
+      }
+    },
+    {
+      "name": "describe_ec2_instances",
+      "description": "Describe EC2 instances (typed boto3, paginated). Prefer over aws_cli_query.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {"type": "number", "description": "Page size (default 20, max 100)"},
+          "next_token": {"type": "string", "description": "Pagination token from prior response"},
+          "instance_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Optional instance IDs"
+          }
+        }
+      }
+    },
+    {
+      "name": "list_s3_buckets",
+      "description": "List S3 buckets (typed boto3, paginated).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {"type": "number"},
+          "next_token": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "get_lambda_config",
+      "description": "Get Lambda function configuration and code location.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "function_name": {"type": "string", "description": "Lambda function name or ARN"},
+          "qualifier": {"type": "string", "description": "Optional version or alias"}
+        },
+        "required": ["function_name"]
+      }
+    },
+    {
+      "name": "list_lambda_functions",
+      "description": "List Lambda functions (paginated).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {"type": "number"},
+          "next_token": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "describe_iam_role",
+      "description": "Get IAM role details and trust policy.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "role_name": {"type": "string", "description": "IAM role name"}
+        },
+        "required": ["role_name"]
+      }
+    },
+    {
+      "name": "describe_cloudformation_stack",
+      "description": "Describe a CloudFormation stack (status, outputs, parameters).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "stack_name": {"type": "string", "description": "Stack name"}
+        },
+        "required": ["stack_name"]
+      }
+    },
+    {
+      "name": "scan_iac_workspace",
+      "description": "Scan workspace for Terraform, CloudFormation, and CDK declared resources.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspace_root": {"type": "string", "description": "Optional workspace root path"}
+        }
+      }
+    },
+    {
+      "name": "correlate_iac_resource",
+      "description": "Compare declared IaC resource vs live AWS state (read-only drift check).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "resource_type": {"type": "string", "description": "Resource type e.g. aws_instance"},
+          "id_or_arn": {"type": "string", "description": "Physical ID or ARN"},
+          "declared": {"description": "Optional declared resource snapshot"}
+        },
+        "required": ["resource_type", "id_or_arn"]
+      }
+    },
+    {
+      "name": "get_cost_summary",
+      "description": "Cost Explorer summary grouped by dimension (requires ce:GetCostAndUsage).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start_date": {"type": "string", "description": "Start date YYYY-MM-DD"},
+          "end_date": {"type": "string", "description": "End date YYYY-MM-DD"},
+          "group_by": {"type": "string", "description": "SERVICE or LINKED_ACCOUNT"},
+          "granularity": {"type": "string", "description": "DAILY or MONTHLY"}
+        }
+      }
+    },
+    {
+      "name": "list_security_hub_findings",
+      "description": "List Security Hub findings (paginated, optional severity filter).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {"type": "number"},
+          "next_token": {"type": "string"},
+          "severity": {"type": "string", "description": "CRITICAL, HIGH, MEDIUM, LOW"}
+        }
+      }
+    },
+    {
+      "name": "list_guardduty_findings",
+      "description": "List GuardDuty findings in the configured region.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {"type": "number"},
+          "next_token": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "analyze_iam_policy",
+      "description": "Analyze IAM policy document or role for allowed/denied actions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "role_name": {"type": "string", "description": "IAM role name"},
+          "policy_document": {"description": "Optional policy JSON"},
+          "action_names": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Actions to evaluate"
+          }
+        }
+      }
+    },
+    {
+      "name": "list_organization_accounts",
+      "description": "List AWS Organization accounts (filtered by allowed_accounts if set).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "page_size": {"type": "number"},
+          "next_token": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "assume_account_context",
+      "description": "Validate access to a member account in the organization allowlist.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {"type": "string", "description": "12-digit AWS account ID"}
+        },
+        "required": ["account_id"]
+      }
+    },
+    {
+      "name": "ec2_stop_instance",
+      "description": "Stop an EC2 instance (requires write_enabled and confirm_token from user approval).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "instance_id": {"type": "string", "description": "EC2 instance ID"},
+          "confirm_token": {"type": "string", "description": "User approval string from chat"}
+        },
+        "required": ["instance_id", "confirm_token"]
+      }
+    },
+    {
+      "name": "lambda_update_function_configuration",
+      "description": "Update Lambda configuration (requires write_enabled and confirm_token).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "function_name": {"type": "string", "description": "Lambda function name"},
+          "timeout": {"type": "number", "description": "Optional timeout seconds"},
+          "memory_size": {"type": "number", "description": "Optional memory MB"},
+          "environment": {"description": "Optional {Variables: {...}}"},
+          "confirm_token": {"type": "string", "description": "User approval string from chat"}
+        },
+        "required": ["function_name", "confirm_token"]
+      }
+    }
+  ]
+}

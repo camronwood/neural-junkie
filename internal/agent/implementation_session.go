@@ -249,7 +249,16 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 				agentTypeCanShipFileChanges(a.Info.Type) &&
 				!userRequestsCodeReviewForMessage(msg)
 		case semantic.ActionArtifact:
-			// A stamped artifact turn is authoritative — it never enters the file-edit loop.
+			// Open-canvas promote often stamps artifact when a plan Neural Canvas is focused.
+			// Explicit implementation_session + agent mode still means workspace file edits.
+			if msg.ImplementationSession() && caps.CanRunImplSession &&
+				!msg.IdeEditorModeIsAsk() && !msg.IdeEditorModeIsPlan() &&
+				(a.Info.Type != protocol.AgentTypeAssistant || assistantAllowsImplementationSession(a, msg)) &&
+				agentTypeCanShipFileChanges(a.Info.Type) &&
+				!chatModeBlocksImplementationSession(a, msg) &&
+				!userRequestsCodeReviewForMessage(msg) {
+				return true
+			}
 			return false
 		default:
 			// Semantic Answer/etc. must not veto an explicit IDE/scenario session flag.

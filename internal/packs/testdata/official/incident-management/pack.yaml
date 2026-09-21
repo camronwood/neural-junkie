@@ -1,7 +1,7 @@
 id: incident-management
-version: "2.0.0"
+version: "2.1.0"
 title: Incident management
-description: IncidentManager — multi-provider ticketing, severity rubric, handoff runbooks, stack trace ingestion, and postmortem workflows.
+description: IncidentManager — multi-provider ticketing, severity rubric, handoff runbooks, stack trace ingestion, and postmortem workflows (pack-owned MCP).
 layout_profile: team
 capabilities:
   - incident-api
@@ -23,10 +23,35 @@ capability_defs:
     exposure: sensitive
     mcp_agents:
       - incident
+    mcp_tools_path: assets/mcp/tools.json
+    mcp_tools:
+      - jira_get_issue
+      - jira_search_issues
+      - jira_add_comment
+      - jira_summarize_issue
+      - jira_create_issue
+      - jira_assign_issue
+      - jira_transition_issue
+      - jira_set_priority
+      - ticket_get
+      - ticket_search
+      - ticket_comment
+      - ticket_create
+      - ticket_transition
+      - ticket_assign
+      - ticket_set_priority
+      - pagerduty_get_incident
+      - pagerduty_list_incidents
+      - sentry_get_issue
+      - sentry_get_event
+      - incident_parse_stack_trace
+      - incident_link_code_locations
+      - incident_generate_postmortem
   incident-sidecar:
     kind: hub-sidecar
     routes:
       - /api/incident
+      - /mcp
     sidecar:
       module: assets/hub/server.py
     settings:
@@ -36,7 +61,8 @@ capability_defs:
   incident-timeline-canvas:
     kind: artifact-renderer
     renderer: nj.timeline
-    media_types: [application/vnd.neural-junkie.timeline+json]
+    media_types:
+      - application/vnd.neural-junkie.timeline+json
     renderer_api_version: 1
     schema_version_min: 1
     schema_version_max: 1
@@ -44,7 +70,7 @@ capability_defs:
 agents:
   - type: incident
     name: IncidentManager
-    implementation: builtin/incident
+    implementation: pack/incident
     ollama_model: qwen2.5-coder:14b
     compose:
       tool_model: qwen3.5:9b

@@ -9,7 +9,6 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/artifacts"
 	mapssideecar "github.com/camronwood/neural-junkie/internal/maps"
-	mapsmcp "github.com/camronwood/neural-junkie/internal/mcp/maps"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -116,7 +115,7 @@ func (a *Agent) executeMapsCreateTool(ctx context.Context, msg *protocol.Message
 	if err != nil {
 		return "", fmt.Errorf("invalid maps_create input: %w", err)
 	}
-	payload, err := mapsmcp.BuildMapPayload(ctx, mapssideecar.DefaultSidecarClient, args)
+	payload, err := mapssideecar.BuildMapPayload(ctx, mapssideecar.DefaultSidecarClient, args)
 	if err != nil {
 		return "", err
 	}
@@ -140,9 +139,9 @@ func (a *Agent) executeMapsCreateTool(ctx context.Context, msg *protocol.Message
 			ChannelID:   messageChannel(msg),
 		},
 		Renderer: artifacts.Renderer{
-			ID:         mapsmcp.RendererID,
+			ID:         mapssideecar.RendererID,
 			APIVersion: "1",
-			MediaType:  mapsmcp.MediaType,
+			MediaType:  mapssideecar.MediaType,
 		},
 		Payload: raw,
 		Provenance: []artifacts.SourceReference{{
@@ -197,7 +196,7 @@ func (a *Agent) executeMapsUpdateTool(ctx context.Context, msg *protocol.Message
 		return "", err
 	}
 
-	mergeArgs := mapsmcp.StripMetaArgs(args)
+	mergeArgs := mapssideecar.StripMetaArgs(args)
 	// Seed from existing payload so partial updates keep center/markers.
 	if len(current.Payload) > 0 {
 		var existing map[string]any
@@ -213,7 +212,7 @@ func (a *Agent) executeMapsUpdateTool(ctx context.Context, msg *protocol.Message
 		}
 	}
 
-	payload, err := mapsmcp.BuildMapPayload(ctx, mapssideecar.DefaultSidecarClient, mergeArgs)
+	payload, err := mapssideecar.BuildMapPayload(ctx, mapssideecar.DefaultSidecarClient, mergeArgs)
 	if err != nil {
 		return "", err
 	}
@@ -224,8 +223,8 @@ func (a *Agent) executeMapsUpdateTool(ctx context.Context, msg *protocol.Message
 	if title, _ := payload["title"].(string); strings.TrimSpace(title) != "" {
 		current.Title = strings.TrimSpace(title)
 	}
-	current.Renderer.ID = mapsmcp.RendererID
-	current.Renderer.MediaType = mapsmcp.MediaType
+	current.Renderer.ID = mapssideecar.RendererID
+	current.Renderer.MediaType = mapssideecar.MediaType
 	current.Payload = raw
 	updated, err := store.Update(*current, expectedRevision)
 	if err != nil {

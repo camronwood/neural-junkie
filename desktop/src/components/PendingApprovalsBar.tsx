@@ -246,6 +246,7 @@ export function PendingApprovalsBar({
             <>
               <button
                 type="button"
+                data-testid="approval-reject"
                 disabled={busyKey === active.key}
                 onClick={() => void rejectTool(activeTool.id)}
                 className="px-2.5 py-1 text-[11px] font-medium rounded bg-red-700/80 hover:bg-red-600 text-white disabled:opacity-50"
@@ -254,6 +255,7 @@ export function PendingApprovalsBar({
               </button>
               <button
                 type="button"
+                data-testid="approval-approve"
                 disabled={busyKey === active.key}
                 onClick={() => void approveTool(activeTool.id, 'once')}
                 className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50"

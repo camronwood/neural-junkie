@@ -43,8 +43,12 @@ func (h *Hub) ClearChannelHistory(channelName string) error {
 	}
 	h.channelPersistEpoch[channelName]++
 	store := h.persistentStore
+	uqm := h.userQuestionManager
 	h.mu.Unlock()
 
+	if uqm != nil {
+		uqm.DismissPendingOnChannel(channelName, "channel history cleared")
+	}
 	if store != nil {
 		h.persistMu.Lock()
 		err := store.ClearChannelMessages(channelName)

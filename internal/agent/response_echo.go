@@ -34,6 +34,18 @@ func (a *Agent) buildEchoRetryPrompt(msg *protocol.Message) string {
 	return system + ai.SystemPromptSeparator + user
 }
 
+// buildShellCapabilityRetryPrompt corrects false "I cannot run commands" denials.
+func (a *Agent) buildShellCapabilityRetryPrompt(msg *protocol.Message) string {
+	system := fmt.Sprintf(
+		"You are %s. You CAN run non-destructive shell commands via the run_command tool (user may approve).\n"+
+			"Never say you cannot execute commands or open a terminal. Call run_command or put long-running commands in ```bash fences for the host Run button.\n"+
+			"Answer the user's request with concrete next steps grounded in their project.\n",
+		a.Info.Name,
+	)
+	user := strings.TrimSpace(msg.Content)
+	return system + ai.SystemPromptSeparator + user
+}
+
 // looksLikeEchoOfPriorUserTurn reports replies that repeat an earlier user line or session-summary phrasing.
 func looksLikeEchoOfPriorUserTurn(msg *protocol.Message, response string, history []*protocol.Message) bool {
 	if msg == nil {
@@ -204,8 +216,45 @@ func looksLikeAsksUserToPasteWorkspaceFiles(msg *protocol.Message, response stri
 		"cannot browse your local filesystem",
 		"can't browse your local file system",
 		"can't browse your local filesystem",
+		"haven't shared the specific code",
+		"have not shared the specific code",
+		"haven't shared the specific",
+		"you haven't shared",
+		"you have not shared",
+		"since you haven't shared",
+		"since you have not shared",
+		"share the contents of your",
+		"please share:",
+		"to give you a specific fix, please share",
 	}
 	for _, m := range denyMarkers {
+		if strings.Contains(r, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeFalseShellCapabilityDenial reports replies that claim the agent cannot run
+// shell commands even though the host exposes run_command / terminal Run. Used for
+// conversational retry only — not soft-fail replacement of a substantive answer.
+func looksLikeFalseShellCapabilityDenial(response string) bool {
+	r := strings.ToLower(strings.TrimSpace(response))
+	if r == "" {
+		return false
+	}
+	markers := []string{
+		"cannot directly execute commands",
+		"cannot execute commands on your machine",
+		"can't execute commands on your machine",
+		"cannot run commands on your machine",
+		"can't run commands on your machine",
+		"i cannot directly execute",
+		"i can't directly execute",
+		"i cannot open applications for you",
+		"i can't open applications for you",
+	}
+	for _, m := range markers {
 		if strings.Contains(r, m) {
 			return true
 		}
@@ -320,6 +369,13 @@ func (a *Agent) maybeRetryConversationalQuality(ctx context.Context, msg *protoc
 			!looksLikeAsksUserToPasteWorkspaceFiles(msg, retry) &&
 			!looksLikeGroundingOnlyStub(retry) {
 			log.Printf("[%s] Workspace denial/hollow grounding detected; used grounded retry", a.Info.Name)
+			return retry
+		}
+	}
+	if looksLikeFalseShellCapabilityDenial(response) {
+		retry, err := eff.GenerateResponse(approvalCtx, a.buildShellCapabilityRetryPrompt(msg), nil)
+		if err == nil && strings.TrimSpace(retry) != "" && !looksLikeFalseShellCapabilityDenial(retry) {
+			log.Printf("[%s] False shell-capability denial detected; used capability retry", a.Info.Name)
 			return retry
 		}
 	}

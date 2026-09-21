@@ -9,7 +9,6 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/mcp"
-	biologymcp "github.com/camronwood/neural-junkie/internal/mcp/biology"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -30,13 +29,8 @@ func TestFormatChannelToolsListWithBiologyTools(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bioMCP, err := biologymcp.NewBiologyMCP()
-	if err != nil {
-		t.Fatal(err)
-	}
 	ollama := ai.NewOllamaProviderWithConfig("http://localhost:11434", "koesn/llama3-openbiollm-8b:latest")
 	bioAgent := agent.NewBiologyAgent("BiologyExpert", ollama, h)
-	bioAgent.MCPServer = bioMCP
 	bioAgent.Info.ID = "bio-test-id"
 	ch.runtimeAgents[bioAgent.Info.ID] = bioAgent
 
@@ -103,13 +97,8 @@ func TestListChannelToolCapabilitiesResolvesDMAgentWithoutJoin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bioMCP, err := biologymcp.NewBiologyMCP()
-	if err != nil {
-		t.Fatal(err)
-	}
 	ollama := ai.NewOllamaProviderWithConfig("http://localhost:11434", "koesn/llama3-openbiollm-8b:latest")
 	bioAgent := agent.NewBiologyAgent("BiologyExpert", ollama, h)
-	bioAgent.MCPServer = bioMCP
 	bioAgent.Info.ID = "bio-dm-id"
 	ch.runtimeAgents[bioAgent.Info.ID] = bioAgent
 	if err := h.RegisterAgent(&bioAgent.Info); err != nil {

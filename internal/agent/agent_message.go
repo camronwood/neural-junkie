@@ -210,6 +210,10 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	if msg.Type == protocol.MessageTypeUserQuestion {
 		return false
 	}
+	// Terminal Run results: wake only the agent that suggested the command.
+	if msg.Type == protocol.MessageTypeCommandOutput {
+		return shouldRespondToSuggestedCommandOutput(a, msg)
+	}
 	// Repopulate Mentions before collab turn-prompt routing (history replay may drop them).
 	a.backfillMentionsFromContent(msg)
 	// Slack bridge policy routing (e.g. always → Assistant on every line).

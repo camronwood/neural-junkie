@@ -255,6 +255,41 @@ func TestValidateResponseExhaustsLocalsWithFrontierBlocked(t *testing.T) {
 	}
 }
 
+func TestValidateResponseKeepsSubstantiveAnswerWhenLadderExhausts(t *testing.T) {
+	primary := &validationRetryProvider{MockProvider: ai.NewMockProvider(), response: ""}
+	primary.Model = "primary-local:9b"
+	heavy := &validationRetryProvider{MockProvider: ai.NewMockProvider(), response: ""}
+	heavy.Model = "reliable-local:27b"
+	router := &validationLadderRouting{
+		locals: []ai.AIProvider{primary, heavy}, allowFrontier: false,
+	}
+	st, _, _ := newValidationLadderState(t, router)
+	substantive := "The app boots but the window never appears. Check that Vite is reachable on the configured port, that Tauri webview loads the same origin, and that no CSP/CORS error blocks the UI shell."
+	st.response = substantive
+	st.responseMsg.Content = substantive
+
+	if err := st.stepValidateResponse(st.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if st.response != substantive {
+		t.Fatalf("expected substantive answer kept, got %q", st.response)
+	}
+}
+
+func TestLooksLikeAsksUserToPasteDoesNotFlagShellCapabilityDenial(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "ch", protocol.AgentInfo{ID: "u", Name: "Camron", Type: "human"}, "debug my tauri app")
+	msg.Metadata = map[string]interface{}{
+		"workspace_context": map[string]interface{}{"workspace_path": "/tmp/app", "file_tree": "src/"},
+	}
+	resp := "I cannot directly execute commands on your machine. However, check tauri.conf.json and run tauri dev to see if the webview loads."
+	if looksLikeAsksUserToPasteWorkspaceFiles(msg, resp) {
+		t.Fatal("shell-capability denial must not be treated as paste-workspace denial")
+	}
+	if !looksLikeFalseShellCapabilityDenial(resp) {
+		t.Fatal("expected false shell-capability denial detector to match")
+	}
+}
+
 func TestValidateResponseUsesConsentedFrontierAfterLocalExhaustion(t *testing.T) {
 	primary := &validationRetryProvider{MockProvider: ai.NewMockProvider(), response: ""}
 	primary.Model = "primary-local:9b"

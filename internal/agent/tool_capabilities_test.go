@@ -7,7 +7,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/mcp"
-	biologymcp "github.com/camronwood/neural-junkie/internal/mcp/biology"
+	"github.com/camronwood/neural-junkie/internal/mcp/packremote"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -111,9 +111,12 @@ func TestDescribeToolCapabilitiesBiologyMCP(t *testing.T) {
 	cfg.Packs.Enabled[config.PackLifeSciences] = true
 	cfg.SyncAgentsFromPacks()
 	mcp.SetAppConfig(cfg)
-	bioMCP, err := biologymcp.NewBiologyMCP()
+	srv, err := mcp.NewInProcessMCPServer("bio-cap-describe", "1.0.0")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !packremote.AttachHubPackTools(srv, config.PackLifeSciences) {
+		t.Fatal("expected life-sciences hub tools")
 	}
 	ollama := ai.NewOllamaProviderWithConfig("http://localhost:11434", "koesn/llama3-openbiollm-8b:latest")
 	a := &Agent{
@@ -125,7 +128,7 @@ func TestDescribeToolCapabilitiesBiologyMCP(t *testing.T) {
 			AIModel:    "koesn/llama3-openbiollm-8b:latest",
 		},
 		AI:        ollama,
-		MCPServer: bioMCP,
+		MCPServer: &rawMCPServer{srv: srv},
 	}
 	cap := a.DescribeToolCapabilities()
 	if cap.ToolCount < 2 {

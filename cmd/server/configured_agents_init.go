@@ -117,13 +117,27 @@ func initializeConfiguredAgents() {
 		}
 
 		agentType := protocol.AgentType(acfg.Type)
-		if builtinType, ok := packs.ParseBuiltinImplementation(acfg.Implementation); ok {
-			agentType = protocol.AgentType(builtinType)
-		}
-		agentObj, err := agent.AgentFactory(agentType, acfg.Name, aiProvider, chatHub)
-		if err != nil {
-			log.Printf("❌ Failed to create agent %s (type=%s): %v", acfg.Name, acfg.Type, err)
-			continue
+		var agentObj *agent.Agent
+		if packSlug, ok := packs.ParsePackImplementation(acfg.Implementation); ok {
+			packID := packs.PackIDForAgentType(packSlug)
+			if packID == "" {
+				packID = packs.PackIDForAgentType(acfg.Type)
+			}
+			if packID == "" {
+				log.Printf("❌ Failed to create agent %s: pack implementation %q has no owning pack", acfg.Name, acfg.Implementation)
+				continue
+			}
+			agentObj = agent.NewPackSpecialistAgent(packSlug, acfg.Name, packID, aiProvider, chatHub)
+		} else {
+			if builtinType, ok := packs.ParseBuiltinImplementation(acfg.Implementation); ok {
+				agentType = protocol.AgentType(builtinType)
+			}
+			var factoryErr error
+			agentObj, factoryErr = agent.AgentFactory(agentType, acfg.Name, aiProvider, chatHub)
+			if factoryErr != nil {
+				log.Printf("❌ Failed to create agent %s (type=%s): %v", acfg.Name, acfg.Type, factoryErr)
+				continue
+			}
 		}
 		agentObj.SetCollabClient(chatHub.NewCollaborationClientAdapter())
 

@@ -811,6 +811,67 @@ func TestPrefersChatOverOpenCanvas(t *testing.T) {
 	}
 }
 
+func TestPrefersWorkspaceImplementOverOpenCanvas(t *testing.T) {
+	if !PrefersWorkspaceImplementOverOpenCanvas("Approve that plan and implement it now.") {
+		t.Fatal("approve+implement must prefer workspace over open plan canvas")
+	}
+	if !PrefersWorkspaceImplementOverOpenCanvas("please implement the plan") {
+		t.Fatal("implement the plan must prefer workspace")
+	}
+	if PrefersWorkspaceImplementOverOpenCanvas("add weather to the canvas") {
+		t.Fatal("canvas fill must stay on canvas")
+	}
+}
+
+func TestPolicyOpenCanvasDoesNotPromoteApprovePlanImplement(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:                 "Approve that plan and implement it now.",
+		ComposerMode:         "agent",
+		HasWorkspace:         true,
+		CanProposeFiles:      true,
+		CanRunImplementation: true,
+		OpenArtifactID:       "plan-art-1",
+		OpenArtifactRenderer: "nj.document",
+		OpenArtifactTitle:    "Fix Add Test",
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionTask,
+		RequestedAction:   ActionEdit,
+		MutationRequested: MutationWorkspace,
+		Confidence:        0.9,
+		Retrieval:         []RetrievalTarget{RetrievalCodebase},
+	}, SourceLocalModel)
+	if decision.Action == ActionArtifact {
+		t.Fatalf("approve+implement must not become artifact via open_canvas: %+v", decision)
+	}
+	if containsString(decision.PolicyOverrides, "open_canvas_artifact") {
+		t.Fatalf("overrides=%v must not include open_canvas_artifact", decision.PolicyOverrides)
+	}
+}
+
+func TestPolicyOpenCanvasDoesNotPromoteWhenImplementationSession(t *testing.T) {
+	decision := ResolvePolicy(TurnFeatures{
+		Text:                  "continue",
+		ComposerMode:          "agent",
+		HasWorkspace:          true,
+		CanProposeFiles:       true,
+		CanRunImplementation:  true,
+		ImplementationSession: true,
+		OpenArtifactID:        "plan-art-1",
+		OpenArtifactRenderer:  "nj.document",
+		OpenArtifactTitle:     "Fix Add Test",
+	}, SemanticIntent{
+		SchemaVersion:     SchemaVersion,
+		Interaction:       InteractionContinuation,
+		RequestedAction:   ActionContinue,
+		MutationRequested: MutationWorkspace,
+		Confidence:        1,
+	}, SourceLocalModel)
+	if decision.Action == ActionArtifact {
+		t.Fatalf("implementation_session must not be promoted to artifact: %+v", decision)
+	}
+}
+
 func TestLooksLikeProjectOverviewAsk(t *testing.T) {
 	if !LooksLikeProjectOverviewAsk("review and summerize the project I have open please") {
 		t.Fatal("expected typo summerize + project open")

@@ -9,7 +9,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/mcp"
-	biologymcp "github.com/camronwood/neural-junkie/internal/mcp/biology"
+	"github.com/camronwood/neural-junkie/internal/mcp/packremote"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -29,13 +29,16 @@ func TestCapabilityToolsLazyActivationAndTurnIsolation(t *testing.T) {
 		mcp.SetAppConfig(nil)
 	})
 
-	server, err := biologymcp.NewBiologyMCP()
+	server, err := mcp.NewInProcessMCPServer("bio-capability-test", "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !packremote.AttachHubPackTools(server, config.PackLifeSciences) {
+		t.Fatal("expected life-sciences hub tools from pack catalog")
+	}
 	a := &Agent{
 		Info:      protocol.AgentInfo{ID: "bio-1", Name: "BiologyExpert", Type: protocol.AgentTypeBiology},
-		MCPServer: server,
+		MCPServer: &rawMCPServer{srv: server},
 	}
 	unrelated := &protocol.Message{ID: "m1", Content: "hello there"}
 	if toolNamesInclude(a.agentToolDefinitions(unrelated), "analyze_sequence") {

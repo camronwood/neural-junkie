@@ -4,8 +4,8 @@ import (
 	"log"
 
 	"github.com/camronwood/neural-junkie/internal/config"
-	"github.com/camronwood/neural-junkie/internal/mcp/browser"
-	mapsmcp "github.com/camronwood/neural-junkie/internal/mcp/maps"
+	mapsloc "github.com/camronwood/neural-junkie/internal/maps"
+	"github.com/camronwood/neural-junkie/internal/mcp/packremote"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -21,16 +21,18 @@ func attachEnabledPackToolsToAssistant(mcpServer *server.MCPServer) {
 		return
 	}
 	if cfg.IsPackEnabled(config.PackMaps) || cfg.HasPackCapability("maps-tools") {
-		mapsmcp.AttachGeocodeRouteTools(mcpServer)
-		log.Printf("Assistant: attached maps geocode/route tools (maps pack enabled)")
+		if packremote.AttachHubPackTools(mcpServer, config.PackMaps) {
+			log.Printf("Assistant: attached maps geocode/route tools (maps pack enabled)")
+		}
 	}
 	if cfg.IsPackEnabled(config.PackMaps) || cfg.HasPackCapability("maps-location") {
-		mapsmcp.AttachLocateTool(mcpServer)
+		mapsloc.AttachLocateTool(mcpServer)
 		log.Printf("Assistant: attached maps_locate (maps-location capability; sensitive grant required)")
 	}
 	if cfg.IsPackEnabled(config.PackWebBrowser) || cfg.HasPackCapability("web-browser") {
-		browser.AttachAutomationTools(mcpServer)
-		log.Printf("Assistant: attached browser automation tools (web-browser pack enabled)")
+		if packremote.AttachHubPackTools(mcpServer, config.PackWebBrowser) {
+			log.Printf("Assistant: attached browser automation tools (web-browser pack enabled)")
+		}
 	}
 }
 

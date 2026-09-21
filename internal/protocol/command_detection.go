@@ -36,45 +36,53 @@ func NewCommandDetector(_ interface{}) *CommandDetector {
 	return &CommandDetector{}
 }
 
-// DetectCommands scans message content for shell commands and returns suggestions
+// DetectCommands scans message content for intentional shell commands and returns suggestions.
+// Only fenced ```bash|sh|shell|zsh|fish blocks create suggestions — incidental inline
+// backticks (e.g. `npm start` in prose) must not surface Run / wait cues.
+// Illustrative / example fences (preceded by "Example", "for example", etc.) are skipped
+// so agents that paste sample code do not append the awaiting-user-terminal wait cue.
 func (cd *CommandDetector) DetectCommands(content, agentName, messageID string) []CommandSuggestion {
 	var suggestions []CommandSuggestion
 
-	// Look for code blocks with bash, sh, or shell tags
-	codeBlockRegex := regexp.MustCompile("```(?:bash|sh|shell|zsh|fish)\n(.*?)\n```")
-	matches := codeBlockRegex.FindAllStringSubmatch(content, -1)
+	codeBlockRegex := regexp.MustCompile("(?s)```(?:bash|sh|shell|zsh|fish)\\n(.*?)\\n```")
+	matches := codeBlockRegex.FindAllStringSubmatchIndex(content, -1)
 
-	for _, match := range matches {
-		if len(match) > 1 {
-			command := strings.TrimSpace(match[1])
-			if command != "" && cd.shouldSuggestCodeBlock(command) {
-				suggestion := cd.createCommandSuggestion(command, agentName, messageID, content)
-				suggestions = append(suggestions, suggestion)
-			}
+	for _, loc := range matches {
+		if len(loc) < 4 {
+			continue
 		}
-	}
-
-	// Look for inline commands (single backticks with shell commands)
-	inlineRegex := regexp.MustCompile("`([^`]+)`")
-	inlineMatches := inlineRegex.FindAllStringSubmatch(content, -1)
-
-	for _, match := range inlineMatches {
-		if len(match) > 1 {
-			command := strings.TrimSpace(match[1])
-			if isHubMCPToolCommand(command) {
-				continue
-			}
-			if looksLikeNonShellReference(command) {
-				continue
-			}
-			if cd.isShellCommand(command) {
-				suggestion := cd.createCommandSuggestion(command, agentName, messageID, content)
-				suggestions = append(suggestions, suggestion)
-			}
+		blockStart := loc[0]
+		command := strings.TrimSpace(content[loc[2]:loc[3]])
+		if command == "" {
+			continue
 		}
+		if looksLikeIllustrativeCodeFence(content, blockStart) {
+			continue
+		}
+		if !cd.shouldSuggestCodeBlock(command) {
+			continue
+		}
+		suggestion := cd.createCommandSuggestion(command, agentName, messageID, content)
+		suggestions = append(suggestions, suggestion)
 	}
 
 	return suggestions
+}
+
+var illustrativeFenceCue = regexp.MustCompile(`(?i)(example\s+fix|example:|for example|e\.g\.|here'?s an example|sample\s+(code|fix)|illustrative)`)
+
+// looksLikeIllustrativeCodeFence reports whether a fenced block is documentation/example
+// rather than a host-terminal Run suggestion the user must execute.
+func looksLikeIllustrativeCodeFence(content string, blockStart int) bool {
+	if blockStart <= 0 {
+		return false
+	}
+	windowStart := blockStart - 240
+	if windowStart < 0 {
+		windowStart = 0
+	}
+	prefix := content[windowStart:blockStart]
+	return illustrativeFenceCue.MatchString(prefix)
 }
 
 // isShellCommand checks if a command looks like a shell command

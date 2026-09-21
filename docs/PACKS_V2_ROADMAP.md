@@ -2,10 +2,23 @@
 
 Planning document for the next generation of official domain packs.
 
-**Last updated:** July 2026  
+**Last updated:** September 2026  
 **Principle:** **Fat packs, thin core** — Neural Junkie without any packs installed must remain fully useful (Assistant, Moderator, CLI agents, chat, collab, Pack dev studio). Domain depth ships in pack repos, not in core.
 
 **Related:** [PACKS.md](./PACKS.md) · [PACK_CAPABILITY_DEFS.md](./PACK_CAPABILITY_DEFS.md) · [PACK_CAPABILITIES.md](./PACK_CAPABILITIES.md) · [ROADMAP-Q3-2026.md](./ROADMAP-Q3-2026.md)
+
+---
+
+## Status snapshot (Wave 1)
+
+| Phase | Status |
+|-------|--------|
+| **Phase 1** — Playwright+a11y, incident handoff runbooks, life-sciences PDB viewer / specialists | **Shipped** in catalog (web-browser 2.2+, incident 2.0, life-sciences 2.0) |
+| **Phase 2 Wave 1** — eliminate core domain MCP dual paths for web-browser + AWS | **Done** — pack `assets/mcp/tools.json` + hub `/mcp/call`; SD already used `mcp-sidecar` |
+| **Phase 2 Waves 2–4** — incident/biology/maps pack MCP; `implementation: pack/<slug>`; file-viewer workbench host | **Done** |
+| **Phase 3** — specialist-tuning Qwen LoRA; music stems workbench depth | Open |
+
+**Reference implementation:** [music-creation](https://github.com/camronwood/neural-junkie-pack-music-creation) for hub sidecars; [software-development](https://github.com/camronwood/neural-junkie-pack-software-development) for `mcp-sidecar` binaries; web-browser / aws for hub MCP tool catalogs.
 
 ---
 
@@ -172,19 +185,17 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ### 5. AWS (`aws`)
 
-**v1 today:** **AWSExpert**, read-only `aws_cli_query`, SSO profile picker, four MCP tools.
+**Today (2.1.0):** Pack-owned MCP via `assets/mcp/tools.json` + hub `/mcp/call`. Typed boto3, IaC, cost/security, gated writes live in the pack Python sidecar. Core no longer ships `internal/mcp/aws`.
 
-**v2 goals:**
+**v1 was:** **AWSExpert**, read-only `aws_cli_query`, SSO profile picker, four MCP tools in core Go.
 
-- **Structured tools** — typed `describe_ec2_instances`, `list_s3_buckets`, `get_lambda_config` with schemas and pagination (more reliable than free-form CLI passthrough).
-- **IaC awareness** — parse workspace `terraform/` / `cdk/` / CloudFormation; correlate live state vs declared.
-- **Cost and security lenses** — Cost Explorer summaries, Security Hub / GuardDuty read-only findings, IAM policy analyzer.
-- **Multi-account** — Organizations traversal with explicit account allowlists.
-- **Gated write mode** — opt-in mutating ops with confirmation + audit log (v1 is read-only only).
-- **Collab with incident-management** — prod alarm → AWSExpert traces resource → IncidentManager files Jira (pack-owned scenario).
-- **Role clarity vs PlatformEngineer** — AWS pack owns cloud **account truth**; PlatformEngineer owns **repo/k8s/CI** — document and wire consult triggers in pack assets.
+**Remaining v2 polish:**
 
-**North star:** v1 is SSO + describe. v2 is an **account-aware SRE copilot** paired with eng and incident packs.
+- Deeper multi-account Organizations UX and alarm→incident collab hardening
+- Optional further move of SSO policy helpers entirely behind pack settings (already mostly pack-owned)
+- Role clarity docs vs PlatformEngineer (shipped in pack runbooks)
+
+**North star:** account-aware SRE copilot paired with eng and incident packs.
 
 **Repo:** [neural-junkie-pack-aws](https://github.com/camronwood/neural-junkie-pack-aws)
 
@@ -215,18 +226,15 @@ Core changes for v2 are **extension plumbing** (new `capability_defs` kinds, vie
 
 ### 7. Web browser (`web-browser`)
 
-**v1 today:** Ability pack — Playwright automation + HTML preview workbench tools attach to **Assistant** when enabled (Composition grants for custom experts). Requires software-development pack.
+**Today (2.2.0):** Ability pack — Playwright automation, a11y, visual-diff, perf, DOM pick, responsive toolbar. Tools attach to **Assistant** via pack-owned `assets/mcp/tools.json` + hub `/mcp/call`. Core no longer ships `internal/mcp/browser`. Workbench UI remains in desktop for now.
 
-**v2 goals:**
+**Remaining polish:**
 
-- **Real browser automation** — Playwright sidecar (screenshot, click, fill forms) — bridge between fetch HTML and test my app.
-- **A11y audit** — axe-core integration, WCAG report in workbench.
-- **Visual regression** — screenshot diff across breakpoints; ties to collab scenarios like `make-me-a-website`.
-- **Performance panel** — Lighthouse-lite metrics for localhost previews.
-- **DOM inspector** — select element in preview → inject into chat context for FrontendEngineer.
-- **Responsive toolbar** — mobile/tablet/desktop presets in workbench.
+- Stronger collab gate tied to `make-me-a-website`
+- Migrate `HtmlBrowserWorkbench` to pack-registered viewer (Wave 2+)
+- Optional full Lighthouse vs lightweight Navigation Timing metrics
 
-**North star:** v1 is preview static HTML. v2 is **verify the site actually works** — the frontend QA layer for the SD pack.
+**North star:** verify the site actually works — the frontend QA layer for the SD pack.
 
 **Repo:** [neural-junkie-pack-web-browser](https://github.com/camronwood/neural-junkie-pack-web-browser)
 
@@ -288,15 +296,15 @@ Prioritized by impact vs effort and alignment with collab reliability work (Q3 2
 
 ```mermaid
 graph LR
-  subgraph phase1 [Phase 1 — pack assets]
+  subgraph phase1 [Phase 1 — shipped]
     WB[Web browser: Playwright + a11y]
     IM[Incident: handoff runbooks]
     LS[Life sciences: PDB viewer]
   end
   subgraph phase2 [Phase 2 — migrate domain logic]
-    SD[SD: MCP + scenarios into pack]
-    AWS[AWS: typed tools sidecar]
-    CAD[CAD: printability + eval]
+    SD[SD: mcp-sidecar shipped]
+    AWS[AWS + browser: hub MCP catalog shipped]
+    Next[Next: incident biology MCP extract]
   end
   subgraph phase3 [Phase 3 — platform-dependent]
     ST[Specialist tuning: Qwen LoRA]
@@ -342,9 +350,11 @@ These are platform changes that **enable** fat packs without shipping domain fea
 ## Success criteria for v2
 
 - [ ] Fresh Neural Junkie install with **zero packs** passes core smoke (chat, Assistant, collab, Pack dev studio).
+- [x] Web-browser and AWS domain MCP live in pack repos (tools.json + hub `/mcp/call`); SD uses pack `mcp-sidecar` binary.
+- [x] Incident, life-sciences, and maps domain MCP live in pack repos; agent `implementation: pack/<slug>` + file-viewer workbench host.
 - [ ] Each official pack v2 zip is **self-describing**: `make verify` + `make pack-smoke` green without core domain code for that pack.
 - [ ] New domain feature PRs default to **pack repo first**; core PRs only for extension plumbing.
-- [ ] Music creation pattern is the template, not the exception.
+- [ ] Music creation / SD mcp-sidecar patterns are the template, not the exception.
 
 ---
 

@@ -2,6 +2,8 @@
 
 **Start here:** `make release-help` — canonical list of release/testing commands (layers, overnight, full gate).
 
+**Away overnight (real user scenarios → fix → morning RC by 7AM CT):** [AWAY_OPERATIONS.md](AWAY_OPERATIONS.md) · [AGENTS.md](../AGENTS.md) · [DESKTOP_E2E.md](DESKTOP_E2E.md).
+
 **Portfolio / thinning:** [TEST_PORTFOLIO.md](TEST_PORTFOLIO.md) — Tier A climb vs soak vs quarantine, overlap clusters, cost reality (clean overnight ~4h; ~30h is thrashing).
 
 ## Layered release workflow
@@ -27,14 +29,16 @@ make layer-gate LAYER=collab-full       # all collab (~24)
 make layer-gate LAYER=parity            # 3× implement with hub restart (≠ scenarios/parity/)
 ```
 
-**Quarantine** (invokable, not ship gates — see TEST_PORTFOLIO.md):
+**Away primary / quarantine** (invokable — user-flows are the overnight bug-hunt default):
 
 ```bash
 make layer-gate LAYER=bundle            # overlaps implement+chat; prefer climb
-make layer-gate LAYER=user-flows        # product journeys until 2 consecutive green overnight runs
+make layer-gate LAYER=user-flows        # real product journeys (away overnight primary)
+make desktop-e2e                        # Playwright UI click journeys
+make overnight NJ_OVERNIGHT_TARGET=away
 ```
 
-**User-flow suite** (quarantine — see [USER_FLOW_SCENARIOS.md](USER_FLOW_SCENARIOS.md)):
+**User-flow suite** (see [USER_FLOW_SCENARIOS.md](USER_FLOW_SCENARIOS.md)):
 
 ```bash
 make user-flow-scenarios-list

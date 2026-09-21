@@ -15,7 +15,7 @@ export function formatCommandOutputContent(
   agentName?: string
 ): string {
   const who = agentName?.trim() ? `@${agentName.trim()}` : 'An agent';
-  let body = `${who} ran a terminal command.\n\n`;
+  let body = `${who} suggested a terminal command. Here is the result after you ran it.\n\n`;
   body += `Command: \`${result.command}\`\n`;
   body += `Exit code: ${result.exit_code} (${result.success ? 'success' : 'failed'})\n`;
   if (result.stdout?.trim()) {
@@ -26,6 +26,11 @@ export function formatCommandOutputContent(
   }
   if (!result.stdout?.trim() && !result.stderr?.trim()) {
     body += '\n(no output)\n';
+  }
+  if (agentName?.trim()) {
+    body += `\n@${agentName.trim()}: continue from this result — cite the exit code and any relevant stdout/stderr.`;
+  } else {
+    body += '\nContinue from this result — cite the exit code and any relevant stdout/stderr.';
   }
   return body.trim();
 }

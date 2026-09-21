@@ -503,6 +503,10 @@ func (ra *RepoAgent) shouldRespondToRepo(msg *protocol.Message) bool {
 		return false
 	}
 
+	if msg.Type == protocol.MessageTypeCommandOutput {
+		return shouldRespondToSuggestedCommandOutput(ra.Agent, msg)
+	}
+
 	// Collaboration coordination messages can originate from System and still
 	// be actionable, so evaluate this before generic system-message rejection.
 	if collabID := msg.GetCollaborationID(); collabID != "" && ra.Collab != nil {
