@@ -181,14 +181,29 @@ function normalizeProseText(text: string): string {
   // Subsequent numbered items glued to prior list text (2., 3., … — avoids "Section 1. The")
   s = s.replace(/(\S)\s+(?=[2-9]\d*\.\s+)/g, '$1\n\n');
 
-  // Sub-bullets after list-item colons: "1. Foo: - Bar"
-  s = s.replace(/:\s+-\s+/g, ':\n\n- ');
+  // Sub-bullets after list-item colons: "1. Foo: - Bar" / "1. Foo: * Bar"
+  s = s.replace(/:\s+[-*]\s+/g, ':\n\n- ');
 
-  // Sub-bullets after closing paren: "(admin.google.com) - Navigate"
-  s = s.replace(/\)\s+-\s+/g, ')\n\n- ');
+  // Sub-bullets after closing paren: "(admin.google.com) - Navigate" / "* Navigate"
+  s = s.replace(/\)\s+[-*]\s+/g, ')\n\n- ');
 
-  // Inline dash sub-bullets mid paragraph: "… - Log into … - Navigate"
+  // Glued asterisk bullets: capital start (avoids "width * height" / "2 * 3")
+  s = s.replace(/\s+\*\s+(?=[A-Z])/g, '\n\n- ');
+  // Same-line follow-ups after a list item: "- First * second * third"
+  for (let i = 0; i < 8; i++) {
+    const next = s.replace(/((?:^|\n)-\s+[^\n]*?)[ \t]+\*[ \t]+(?=[a-zA-Z0-9])/gm, '$1\n\n- ');
+    if (next === s) break;
+    s = next;
+  }
+
+  // Inline dash bullets: capital start (original) or repeated lowercase list markers
   s = s.replace(/\s+-\s+(?=[A-Z])/g, '\n\n- ');
+  // "Steps:\n\n- first - second" / "… - first - second - third" (same-line only)
+  for (let i = 0; i < 8; i++) {
+    const next = s.replace(/((?:^|\n)-\s+[^\n]*?)[ \t]+-[ \t]+(?=[a-z0-9])/gm, '$1\n\n- ');
+    if (next === s) break;
+    s = next;
+  }
 
   // Bold subsection labels inline: "#### Benefits 1. Enhanced"
   s = s.replace(/(#{4,6}\s+[A-Za-z][^\n]*?)\s+(\d+\.\s+)/g, '$1\n\n$2');
@@ -196,9 +211,10 @@ function normalizeProseText(text: string): string {
   return s.replace(/\n{4,}/g, '\n\n\n');
 }
 
-/** True when inline chat text likely needs full GFM rendering (headings, lists, HR). */
+/** True when inline chat text likely needs full GFM rendering (headings, lists, HR, tables, quotes). */
 export function looksLikeBlockMarkdown(text: string): boolean {
-  return /(^|\n|\s)(#{1,6}\s|[-*]\s|\d+\.\s|\(\d+\)\s|---\s*$)/m.test(text);
+  return /(^|\n|\s)(#{1,6}\s|[-*]\s|\d+\.\s|\(\d+\)\s|>\s|---\s*$)/m.test(text) ||
+    /(^|\n)\s*\|.+\|/.test(text);
 }
 
 export function normalizeAgentMessageMarkdown(raw: string): string {

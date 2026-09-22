@@ -664,6 +664,11 @@ func getResponseLengthGuidance(content string, implementation ...bool) string {
 			"Keep chat text to 2-4 sentences unless you need approval context."
 	}
 
+	// Explicit format requests win over generic sentence caps (deep/brief/default).
+	if userRequestsResponseFormat(content) {
+		return getResponseFormatGuidance(content)
+	}
+
 	// Deep analysis keywords -- user wants thorough output
 	deepKeywords := []string{
 		"review", "audit", "analyze", "explain", "walk through",
