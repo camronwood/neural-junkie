@@ -8,11 +8,14 @@ Where to edit what. Prefer this over guessing from file size or similar names.
 
 | If you need to change… | Start here | Notes |
 |------------------------|------------|-------|
-| Hub HTTP client (desktop) | `desktop/src/api/domains/*` then thin facade `desktop/src/api/chatAPI.ts` | Keep public `ChatAPI` method names stable; put new endpoints in a domain module |
+| Hub HTTP client (desktop) | `desktop/src/api/domains/*` then thin facade `desktop/src/api/chatAPI.ts` | Keep public `ChatAPI` method names stable; put new endpoints in a domain module — see [Domain convention](#domain-convention) |
 | Protocol / shared TS types | `desktop/src/types/protocol.ts` | ChatAPI-local DTOs live under `desktop/src/api/types/` |
-| Chat UI (messages, composer, channel toolbar) | `desktop/src/components/ChatWindow.tsx` and `desktop/src/components/chat/` (`ChatMessageList`, `ChatInputArea`, `ChatChannelToolbar`) | Prefer extracting into `chat/` over growing ChatWindow |
-| Collab UI | `desktop/src/components/CollaborationPanel.tsx` | Phase machine is hub-side |
-| File explorer / IDE chrome | `desktop/src/components/FileExplorerPanel.tsx`, IDE pack panels | |
+| Chat UI (messages, composer, channel toolbar) | `desktop/src/components/ChatWindow.tsx` (re-export) → `desktop/src/components/chat/ChatWindowRoot.tsx` plus `chat/` (`ChatMessageList`, `ChatInputArea`, `ChatChannelToolbar`, `ChatModalHost`) | Prefer extracting into `chat/` over growing ChatWindowRoot |
+| Chat send / inbound / command / DM wiring | `desktop/src/hooks/createChat*.ts` and `useChat*.ts` | Orchestration lives in hooks; ChatWindow composes them |
+| Chat client state | `desktop/src/stores/chatStore.ts` | Channel, agents, connection — not hub phase machine |
+| Collab UI | `desktop/src/components/CollaborationPanel.tsx` | |
+| Collab phase machine (hub) | `internal/collaboration/manager.go` | High flake risk; prefer surgical fixes with evidence |
+| File explorer / IDE chrome | `desktop/src/components/FileExplorerPanel.tsx` (shell) + `desktop/src/components/fileExplorer/` (`useFileExplorerPanelModel`, `FileExplorerTree`, `FileExplorerContextMenu`, add-workspace / remove confirm, utils) | Prefer extracting into `fileExplorer/` over growing the panel |
 | Native FS / window / updater | `desktop/src-tauri/src/main.rs` | High risk; security + signing |
 | Thin browser hub UI | `public/` | Chat + pending file-change only — **not** the desktop IDE |
 | Message / agent dispatch | `internal/hub/hub_dispatch.go` | Lifecycle + routing into agents |
@@ -23,8 +26,18 @@ Where to edit what. Prefer this over guessing from file size or similar names.
 | Turn intent stamps | `internal/intent/` | Semantic stamps for eval — **not** model/knowledge routing |
 | Knowledge / model routing | `internal/routing/` | Separate from `internal/intent` |
 | Assistant agent | `internal/agent/assistant_agent.go` | Reminders, tasks, notes |
+| Hub WS/HTTP package tests | `test/hub_websocket_test.go` | Formerly misnamed `gui_test.go` — **not** Tauri GUI |
 | Live scenarios | `scenarios/` + `make layer-gate` / `make *-scenario` | Do not weaken asserts to go green |
 | Away / overnight agent rules | `AGENTS.md`, `docs/AWAY_OPERATIONS.md` | |
+
+## Domain convention
+
+New hub HTTP endpoint for the desktop client:
+
+1. Add or extend a module under `desktop/src/api/domains/*Api.ts` (e.g. `workspaceApi`, `filesApi`, `ideApi`).
+2. Add a one-line delegate on `ChatAPI` only if callers still use the facade (keep method names stable).
+3. Put shared DTOs in `desktop/src/api/types/` or `desktop/src/types/protocol.ts` when cross-cutting.
+4. Do **not** grow real `hubFetch` bodies inside `chatAPI.ts` (transport + delegates only).
 
 ## Naming traps
 
@@ -33,7 +46,7 @@ Where to edit what. Prefer this over guessing from file size or similar names.
 | `LAYER=parity` | Test portfolio layer name — **not** the same as `scenarios/parity/` |
 | `internal/intent` vs `internal/routing` | Intent = turn stamps; routing = knowledge/model selection |
 | Chat message with code fences | Does **not** write files; needs tools / `[FILE_CHANGE]` + Pending changes approval |
-| `make gui` / “GUI test” | Tauri desktop; `test/gui_test.go` is hub WebSocket legacy naming |
+| `make gui` / “GUI test” | Tauri desktop app via Makefile; hub WS/HTTP unit tests live in `test/hub_websocket_test.go` (renamed from `gui_test.go`) |
 | Web UI at `/` | Thin chat shell; full IDE is Tauri `desktop/` |
 | `implementation_intent.go` “deprecated” stubs | Intentionally false / museum — do not “fix” them into live heuristics without product review |
 
@@ -44,6 +57,7 @@ Where to edit what. Prefer this over guessing from file size or similar names.
 - Auth / ACL / security routes without review
 - Secrets, `.env`, API keys in commits
 - Drive-by refactors outside the issue/failure brief
+- Broad rewrites of `hub_dispatch.go`, `implementation_session.go`, `collaboration/manager.go`, or `main.rs`
 
 ## Hub slash ownership
 

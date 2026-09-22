@@ -1,5 +1,13 @@
 package agent
 
+// Package-local implementation intent helpers.
+//
+// Deprecated stubs in this file (userRequestsImplementation, userRequestsFileExport,
+// isBareWorkspaceDirective, userAffirmsPendingImplementation, isWeakImplementationAffirmation,
+// messageHasBootOrBuildError, userRequestsImplementationStatusCheck, and related always-false
+// helpers) are intentional museums: they must stay false. Routing trusts stamped TurnDecision
+// / classifier paths. Do not revive natural-language phrase heuristics here without product review.
+
 import (
 	"fmt"
 	"os"
@@ -15,20 +23,18 @@ import (
 const maxRecentlyAppliedFilePaths = 8
 
 var (
-	implementationAffirmRE      = regexp.MustCompile(`(?i)\b(approved|approve(d| it)?|keep going|please continue|continue(?: with (it|this|that|the work))?|looks good|that sounds good|sounds good|go[- ]?ahead|goadhead|do it( now)?|yes please|please do|proceed|make (the |those )?(changes|them)|apply (that|it|your plan)|do that now|ok please|sure,?\s*please|let's do it|please implement|sounds good[,!]?\s*(go|do)|that works[,!]?\s*(go|do)?|you can (start|begin|proceed)|yeah go ahead|yes[,!]?\s*(keep going|that sounds good|use that|please))\b`)
-	weakImplementationAffirmRE  = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:ok|okay|looks good|that works|sounds good|nice|great|cool|perfect)[!.?\s]*$`)
-	themeImplementationRE       = regexp.MustCompile(`(?i)(?:\b(theme|themes|dark[/ ]?light|dark mode|light mode|ui theme)\b.{0,64}\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|toggle|finish)\b|\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|finish)\b.{0,64}\b(theme|themes|ui theme|dark mode|light mode|font size)\b)`)
-	implementTypoRE             = regexp.MustCompile(`(?i)\bimpl[e]?ment\b`)
-	workspaceDirectiveRE        = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
-	bootErrorIntentRE           = regexp.MustCompile(`(?i)(not booting|won't boot|will not boot|cannot boot|can't boot|fails? to boot|does not boot|failed to scan|esbuild|✘\s*\[ERROR\]|\[ERROR\].*Expected|make start-all|vite dev|syntax error|white screen|blank screen|exit_code=)`)
+	implementationAffirmRE = regexp.MustCompile(`(?i)\b(approved|approve(d| it)?|keep going|please continue|continue(?: with (it|this|that|the work))?|looks good|that sounds good|sounds good|go[- ]?ahead|goadhead|do it( now)?|yes please|please do|proceed|make (the |those )?(changes|them)|apply (that|it|your plan)|do that now|ok please|sure,?\s*please|let's do it|please implement|sounds good[,!]?\s*(go|do)|that works[,!]?\s*(go|do)?|you can (start|begin|proceed)|yeah go ahead|yes[,!]?\s*(keep going|that sounds good|use that|please))\b`)
+	themeImplementationRE  = regexp.MustCompile(`(?i)(?:\b(theme|themes|dark[/ ]?light|dark mode|light mode|ui theme)\b.{0,64}\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|toggle|finish)\b|\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|finish)\b.{0,64}\b(theme|themes|ui theme|dark mode|light mode|font size)\b)`)
+	implementTypoRE        = regexp.MustCompile(`(?i)\bimpl[e]?ment\b`)
+	workspaceDirectiveRE   = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
 	// errorLogMarkerRE detects actual command/build output markers (not user phrasing) in a raw
 	// transcript — used only for housekeeping like stale-summary scrubbing, never turn routing.
-	errorLogMarkerRE = regexp.MustCompile(`(?i)(✘\s*\[ERROR\]|\[ERROR\].*Expected|esbuild|exit_code=\d|syntax error|panic:|fatal error:|traceback \(most recent call last\))`)
+	errorLogMarkerRE            = regexp.MustCompile(`(?i)(✘\s*\[ERROR\]|\[ERROR\].*Expected|esbuild|exit_code=\d|syntax error|panic:|fatal error:|traceback \(most recent call last\))`)
 	implementationStatusCheckRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:is it fixed|did (?:that|it) fix|does it work(?: now)?|is it working(?: now)?|still broken|still not (?:booting|working)|working now)\??[!.?\s]*$`)
 	destructiveCommandRE        = regexp.MustCompile(`(?i)\brm\s+-rf\b|\brm\s+-r\b|\brmdir\s+/\b|>\s*/dev/`)
 	contentDeliveryRE           = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
-	fileExportRE                = regexp.MustCompile(`(?i)\b(store (?:that|it|in|the)|save (?:it|as|in|the)|fill (?:the file|.* with)|create (?:that |the )?file|please create (?:that |the )?file|write (?:it |that ).*(?:file|\.md)|markdown file)\b`)
-	bareWorkspaceWrapperRE = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
+	// fileExportRE is still used by prior_reference.go (not the deprecated stub path).
+	fileExportRE = regexp.MustCompile(`(?i)\b(store (?:that|it|in|the)|save (?:it|as|in|the)|fill (?:the file|.* with)|create (?:that |the )?file|please create (?:that |the )?file|write (?:it |that ).*(?:file|\.md)|markdown file)\b`)
 )
 
 var workspaceDirectiveDocSeeds = []string{"README.md", "DOCS.md", "docs/README.md"}

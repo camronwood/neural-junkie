@@ -20,7 +20,7 @@ var legacySemanticRecognizerFiles = map[string]bool{
 	// Conversation trust / playbook helpers still hold NL cues (not stamp overrides).
 	"internal/agent/conversation_trust.go":       true,
 	"internal/agent/implementation_fallback.go":  true,
-	"internal/agent/implementation_intent.go":    true, // unused RE vars pending delete
+	"internal/agent/implementation_intent.go":    true, // deprecated always-false stubs + remaining NL helpers
 	"internal/agent/implementation_session.go":   true, // export continuation RE
 	"internal/routing/knowledge_router.go":       true,
 	"internal/routing/keywords.go":               true, // legacy task-router cues; stamp consumers preferred
