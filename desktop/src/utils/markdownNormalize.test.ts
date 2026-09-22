@@ -121,6 +121,11 @@ describe('normalizeProseMarkdownBlocks glued bullets', () => {
     expect(normalizeProseMarkdownBlocks(input)).toBe(input);
   });
 
+  it('does not treat multiplication asterisks as list markers', () => {
+    const input = 'Compute width * height and then scale by 2 * 3.';
+    expect(normalizeProseMarkdownBlocks(input)).toBe(input);
+  });
+
   it('renders a pipe table after detection', () => {
     const md = '| Name | Status |\n| --- | --- |\n| alpha | ok |';
     expect(looksLikeBlockMarkdown(md)).toBe(true);

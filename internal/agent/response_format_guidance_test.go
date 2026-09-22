@@ -24,6 +24,7 @@ func TestUserRequestsResponseFormat(t *testing.T) {
 		{name: "plain question", content: "What is TLS?", want: false},
 		{name: "empty", content: "", want: false},
 		{name: "bullet alone in prose", content: "The silver bullet approach failed", want: false},
+		{name: "checklist noun only", content: "Did we update the launch checklist yesterday?", want: false},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -69,6 +70,12 @@ func TestGetResponseLengthGuidance_FormatRequests(t *testing.T) {
 			content:    "Give me a checklist for the release",
 			wantSubstr: "checklist",
 			wantNot:    "2-5 sentences",
+		},
+		{
+			name:       "checklist noun stays concise",
+			content:    "Did we update the launch checklist yesterday?",
+			wantSubstr: "2-5 sentences",
+			wantNot:    "Honor it with real GitHub-flavored markdown",
 		},
 		{
 			name:       "plain question stays concise",

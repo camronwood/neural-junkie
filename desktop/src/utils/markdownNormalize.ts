@@ -187,8 +187,14 @@ function normalizeProseText(text: string): string {
   // Sub-bullets after closing paren: "(admin.google.com) - Navigate" / "* Navigate"
   s = s.replace(/\)\s+[-*]\s+/g, ')\n\n- ');
 
-  // Glued asterisk bullets mid paragraph: "Tips: * First * Second"
-  s = s.replace(/\s+\*\s+(?=[A-Za-z0-9])/g, '\n\n- ');
+  // Glued asterisk bullets: capital start (avoids "width * height" / "2 * 3")
+  s = s.replace(/\s+\*\s+(?=[A-Z])/g, '\n\n- ');
+  // Same-line follow-ups after a list item: "- First * second * third"
+  for (let i = 0; i < 8; i++) {
+    const next = s.replace(/((?:^|\n)-\s+[^\n]*?)[ \t]+\*[ \t]+(?=[a-zA-Z0-9])/gm, '$1\n\n- ');
+    if (next === s) break;
+    s = next;
+  }
 
   // Inline dash bullets: capital start (original) or repeated lowercase list markers
   s = s.replace(/\s+-\s+(?=[A-Z])/g, '\n\n- ');
