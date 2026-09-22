@@ -375,6 +375,64 @@ describe('ChatAPI facade delegates workspace', () => {
   });
 });
 
+describe('CommandsApi', () => {
+  it('fetchCommands calls /api/commands and caches', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ name: '/help' }],
+    });
+    const { CommandsApi } = await import('./domains/commandsApi');
+    const api = new CommandsApi(hubFetch);
+    const first = await api.fetchCommands();
+    const second = await api.fetchCommands();
+    expect(hubFetch).toHaveBeenCalledTimes(1);
+    expect(hubFetch).toHaveBeenCalledWith('/api/commands');
+    expect(first).toHaveLength(1);
+    expect(second).toEqual(first);
+  });
+
+  it('fetchCommands throws on non-ok', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Server Error',
+    });
+    const { CommandsApi } = await import('./domains/commandsApi');
+    const api = new CommandsApi(hubFetch);
+    await expect(api.fetchCommands()).rejects.toThrow(/Server Error/);
+  });
+});
+
+describe('HubDataApi', () => {
+  it('readHubDataAccess posts to /api/hub-data/read', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ root: '/tmp', entries: [] }),
+    });
+    const { HubDataApi } = await import('./domains/hubDataApi');
+    const api = new HubDataApi(hubFetch);
+    const data = await api.readHubDataAccess([{ kind: 'file', relative_path: 'a.txt' }]);
+    expect(hubFetch).toHaveBeenCalledWith(
+      '/api/hub-data/read',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(data.root).toBe('/tmp');
+  });
+
+  it('readHubDataAccess surfaces 404 hint', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      text: async () => '',
+    });
+    const { HubDataApi } = await import('./domains/hubDataApi');
+    const api = new HubDataApi(hubFetch);
+    await expect(
+      api.readHubDataAccess([{ kind: 'file', relative_path: 'a.txt' }])
+    ).rejects.toThrow(/hub-data\/read/);
+  });
+});
+
 describe('ChatAPI hubFetch 401', () => {
   beforeEach(() => {
     setHubSessionToken('test-token');
