@@ -1,5 +1,7 @@
 package test
 
+// Hub HTTP/WebSocket unit tests (renamed from gui_test.go — not Tauri GUI).
+
 import (
 	"encoding/json"
 	"net/http"
