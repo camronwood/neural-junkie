@@ -33,7 +33,7 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "=========================================="
 	@echo ""
 	@echo "See docs/TEST_PORTFOLIO.md for tiers (climb / soak / quarantine)."
-	@echo "Away ops (morning RC by 7AM CT): docs/AWAY_OPERATIONS.md"
+	@echo "Away ops (morning bug report by 7AM CT): docs/AWAY_OPERATIONS.md"
 	@echo ""
 	@echo "PRIMARY (Tier A climb — each boots Ollama + hub automatically)"
 	@echo "  make layer-list                         # climb + soak + quarantine estimates"
@@ -44,7 +44,7 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  #   progress: docs/testing/layer-climb-status.txt  (tail -f)"
 	@echo "  make overnight-preflight                # afternoon check before overnight"
 	@echo "  make overnight                          # walk-away release-prep (tmux; clean ~4h)"
-	@echo "  make overnight NJ_OVERNIGHT_TARGET=away # real user scenarios → fix → morning RC"
+	@echo "  make overnight NJ_OVERNIGHT_TARGET=away # real user scenarios → morning bug report"
 	@echo "  make layer-overnight LAYER=implement    # walk-away layer fix loop"
 	@echo ""
 	@echo "RELEASE-ENG / META (not ship gates)"
@@ -68,7 +68,7 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "LAYERS (make layer-gate LAYER=<name>)"
 	@echo "  climb:  ci → implement → collab-core → chat (canary)"
 	@echo "  soak:   chat-full | collab | collab-full | parity (implement×3)"
-	@echo "  away:   user-flows (real journeys) + desktop-e2e — see AWAY_OPERATIONS.md"
+	@echo "  away:   user-flows + desktop-e2e → morning report (no fix-loop) — AWAY_OPERATIONS.md"
 	@echo ""
 	@echo "DEBUG (single scenario)"
 	@echo "  make implement-scenario SCENARIO=go-handler"
@@ -429,8 +429,8 @@ overnight: ## Walk-away clean gate: reset + hub + preflight + release-prep in tm
 	 MODEL='$(MODEL)' PREFER_SDK='$(PREFER_SDK)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
 	 NO_COMMIT='$(NO_COMMIT)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
 	 LAYER='$(LAYER)' SKIP_GATE='$(SKIP_GATE)' \
-  AWAY_DEADLINE_CT='$(AWAY_DEADLINE_CT)' AWAY_GATE='$(AWAY_GATE)' SKIP_DESKTOP_E2E='$(SKIP_DESKTOP_E2E)' \
-	 SKIP_MORNING_RC='$(SKIP_MORNING_RC)' \
+	 AWAY_DEADLINE_CT='$(AWAY_DEADLINE_CT)' AWAY_GATE='$(AWAY_GATE)' SKIP_DESKTOP_E2E='$(SKIP_DESKTOP_E2E)' \
+	 SKIP_MORNING_RC='$(SKIP_MORNING_RC)' MORNING_RC='$(MORNING_RC)' \
 	 ./scripts/overnight.sh
 
 away-agent: ## Claim one agent-ready GitHub issue → Cursor → PR (auto-merge)

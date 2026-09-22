@@ -46,6 +46,7 @@ FORWARD_VARS=(
   AWAY_GATE
   SKIP_DESKTOP_E2E
   SKIP_MORNING_RC
+  MORNING_RC
   REPORT
   SKIP_RELEASE_PREP
   SKIP_AGENT
@@ -185,6 +186,10 @@ run_gate() {
     export SKIP_DESKTOP_E2E="${SKIP_DESKTOP_E2E:-}"
     export AWAY_GATE="${AWAY_GATE:-user-flows}"
     away_args=()
+    # Report-only default: no morning RC unless MORNING_RC=1.
+    if [[ "${MORNING_RC:-}" == "1" && "${SKIP_MORNING_RC:-}" != "1" ]]; then
+      away_args+=(--morning-rc)
+    fi
     if [[ "${SKIP_MORNING_RC:-}" == "1" ]]; then
       away_args+=(--skip-morning-rc)
     fi

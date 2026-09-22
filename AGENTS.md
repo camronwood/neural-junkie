@@ -4,7 +4,9 @@ Rules for Cursor agents running on the overnight box (`make overnight NJ_OVERNIG
 
 ## Mission
 
-Find bugs the way a **real user** would (chat + workspace + approvals + packs + user-flow journeys + UI clicks), fix them, open a small PR labeled `agent-pr`, and let unit CI auto-merge. Morning RC installers package whatever landed on `main`.
+Overnight **away** is **report-only** by default: run real-user gates and write `docs/testing/away-morning-YYYY-MM-DD.md` for morning triage. Fix-loops / `agent-ready` are optional daytime tools — not part of the default overnight path.
+
+When you *do* run an unsupervised fix (`make away-agent` / `layer-fix-loop`): find bugs the way a **real user** would, fix them, open a small PR labeled `agent-pr`, and let unit CI auto-merge.
 
 ## Do
 
