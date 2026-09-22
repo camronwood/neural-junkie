@@ -16,6 +16,8 @@ var (
 	rustUndeclaredCrateRE  = regexp.MustCompile("(?i)error\\[e0433\\][^\\n]*`([a-z][a-z0-9_-]*)`")
 	rustCannotFindCrateRE  = regexp.MustCompile("(?i)(?:cannot find crate|could not find) `([a-z][a-z0-9_-]*)`")
 	invalidRustCrateNameRE = regexp.MustCompile(`[^a-z0-9_-]+`)
+	rustDebugNotImplForRE  = regexp.MustCompile("(?i)trait `Debug` is not implemented for `([A-Za-z_][A-Za-z0-9_]*)`")
+	rustDebugAnnotateRE    = regexp.MustCompile("(?i)annotating `([A-Za-z_][A-Za-z0-9_]*)` with `#\\[derive\\(Debug\\)\\]`")
 )
 
 var rustStdPseudoCrates = map[string]bool{
@@ -349,4 +351,190 @@ func (a *Agent) attemptMissingRustCrateFix(
 	state.SetPlaybookUsed("rust_missing_crate")
 	log.Printf("[%s] rust_missing_crate_fix(crate=%s)", a.Info.Name, crate)
 	return true, []string{"Cargo.toml"}
+}
+
+func extractMissingRustDebugTypes(output string) []string {
+	seen := make(map[string]bool)
+	var types []string
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		types = append(types, name)
+	}
+	for _, re := range []*regexp.Regexp{rustDebugAnnotateRE, rustDebugNotImplForRE} {
+		for _, m := range re.FindAllStringSubmatch(output, -1) {
+			if len(m) >= 2 {
+				add(m[1])
+			}
+		}
+	}
+	return types
+}
+
+// addDeriveDebugToRustSource inserts or merges #[derive(Debug)] on struct/enum typeName.
+func addDeriveDebugToRustSource(src, typeName string) (string, bool) {
+	typeName = strings.TrimSpace(typeName)
+	if typeName == "" || src == "" {
+		return "", false
+	}
+	declRE := regexp.MustCompile(`(?m)^([ \t]*)((?:pub(?:\([^)]*\))?\s+)?)(struct|enum)\s+` + regexp.QuoteMeta(typeName) + `\b`)
+	loc := declRE.FindStringSubmatchIndex(src)
+	if loc == nil {
+		return "", false
+	}
+	lineStart := loc[0]
+	indent := src[loc[2]:loc[3]]
+
+	// Scan attribute lines immediately above the declaration.
+	before := src[:lineStart]
+	lines := strings.Split(before, "\n")
+	i := len(lines) - 1
+	if i >= 0 && lines[i] == "" {
+		i--
+	}
+	for i >= 0 {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" {
+			break
+		}
+		if strings.HasPrefix(trimmed, "#[") || strings.HasPrefix(trimmed, "#![") {
+			if strings.Contains(trimmed, "derive(") && strings.Contains(trimmed, "Debug") {
+				return "", false
+			}
+			if strings.HasPrefix(trimmed, "#[derive(") && strings.HasSuffix(trimmed, ")]") && !strings.Contains(trimmed, "Debug") {
+				inner := trimmed[len("#[derive(") : len(trimmed)-2]
+				inner = strings.TrimSpace(inner)
+				lead := lines[i][:len(lines[i])-len(strings.TrimLeft(lines[i], " \t"))]
+				if inner == "" {
+					lines[i] = lead + "#[derive(Debug)]"
+				} else {
+					lines[i] = lead + "#[derive(" + inner + ", Debug)]"
+				}
+				newBefore := strings.Join(lines, "\n")
+				if strings.HasSuffix(before, "\n") && !strings.HasSuffix(newBefore, "\n") {
+					newBefore += "\n"
+				}
+				return newBefore + src[lineStart:], true
+			}
+			i--
+			continue
+		}
+		break
+	}
+	insert := indent + "#[derive(Debug)]\n"
+	return src[:lineStart] + insert + src[lineStart:], true
+}
+
+func rustSourceFilesForDebugFix(wsPath string) []string {
+	var out []string
+	preferred := []string{
+		filepath.Join(wsPath, "src", "main.rs"),
+		filepath.Join(wsPath, "src", "lib.rs"),
+		filepath.Join(wsPath, "main.rs"),
+		filepath.Join(wsPath, "lib.rs"),
+	}
+	for _, p := range preferred {
+		if _, err := os.Stat(p); err == nil {
+			out = append(out, p)
+		}
+	}
+	if len(out) > 0 {
+		return out
+	}
+	_ = filepath.Walk(wsPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".rs") {
+			out = append(out, path)
+		}
+		return nil
+	})
+	return out
+}
+
+// tryMissingRustDebugFix adds #[derive(Debug)] when cargo build reports E0277 missing Debug.
+func (a *Agent) tryMissingRustDebugFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState, evidence string) bool {
+	ok, _ := a.attemptMissingRustDebugFix(ctx, msg, wsPath, msg.Channel, state, evidence)
+	return ok
+}
+
+func (a *Agent) attemptMissingRustDebugFix(
+	ctx context.Context,
+	msg *protocol.Message,
+	wsPath, channel string,
+	state *ImplementationSessionState,
+	evidence string,
+) (bool, []string) {
+	if a == nil || msg == nil || state == nil || wsPath == "" {
+		return false, nil
+	}
+	if channel == "" {
+		channel = "general"
+	}
+	evidence = rustMissingCrateEvidence(state, evidence)
+	if evidence == "" {
+		evidence = msg.Content
+	}
+	if commandOutputMatchesPlaybook(evidence) != "rust_missing_debug" {
+		return false, nil
+	}
+	types := extractMissingRustDebugTypes(evidence)
+	if len(types) == 0 {
+		return false, nil
+	}
+	typeName := types[0]
+	var changed []string
+	for _, abs := range rustSourceFilesForDebugFix(wsPath) {
+		existing, err := os.ReadFile(abs)
+		if err != nil {
+			continue
+		}
+		body, ok := addDeriveDebugToRustSource(string(existing), typeName)
+		if !ok {
+			continue
+		}
+		rel, relErr := filepath.Rel(wsPath, abs)
+		if relErr != nil || rel == "" || strings.HasPrefix(rel, "..") {
+			rel = filepath.Base(abs)
+		}
+		rel = filepath.ToSlash(rel)
+		oldContent := string(existing)
+		if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
+			continue
+		}
+		if msg.Metadata == nil {
+			msg.Metadata = map[string]interface{}{}
+		}
+		msg.Metadata["deterministic_edit"] = true
+		if _, err := a.proposeFileEditInChannel(ctx, channel, rel, oldContent, body, msg); err != nil {
+			continue
+		}
+		onDisk, readErr := os.ReadFile(abs)
+		if readErr != nil || !strings.Contains(string(onDisk), "Debug") {
+			if resolveImplementationTrustMode(msg) != editorTrustAutoApply {
+				continue
+			}
+			if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+				continue
+			}
+			onDisk, readErr = os.ReadFile(abs)
+			if readErr != nil || !strings.Contains(string(onDisk), "Debug") {
+				continue
+			}
+			state.releaseSnapshot(rel)
+			log.Printf("[%s] rust_missing_debug_direct_apply(type=%s file=%s)", a.Info.Name, typeName, rel)
+		}
+		state.ProposedCount++
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+		state.RecordEdit(rel)
+		changed = append(changed, rel)
+		state.SetPlaybookUsed("rust_missing_debug")
+		log.Printf("[%s] rust_missing_debug_fix(type=%s file=%s)", a.Info.Name, typeName, rel)
+		return true, changed
+	}
+	return false, nil
 }

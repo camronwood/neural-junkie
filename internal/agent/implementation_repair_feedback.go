@@ -47,6 +47,13 @@ func rustBuildRepairHints(output string) string {
 			"If the task asked for std-only Rust, remove `use rand` and shuffle with std-only logic; otherwise add e.g. `rand = \"0.8\"` under [dependencies] in Cargo.toml.",
 		)
 	}
+	if strings.Contains(lower, "trait `debug` is not implemented") ||
+		strings.Contains(lower, "doesn't implement `debug`") ||
+		(strings.Contains(lower, "e0277") && strings.Contains(lower, "`debug`")) {
+		hints = append(hints,
+			"Rust E0277 Debug: add `#[derive(Debug)]` (or merge `Debug` into an existing derive) on the type named in the rustc help — common for Card/Suit/Rank when using `println!(\"{:?}\", …)`.",
+		)
+	}
 	if strings.Contains(lower, "e0507") || strings.Contains(lower, "does not implement the `copy` trait") {
 		hints = append(hints,
 			"Rust E0507: derive `Copy, Clone` (and `Debug` when printed) on small enums used in iterators (e.g. `#[derive(Copy, Clone, Debug)]` on Suit/Rank/Card) or clone values explicitly.",

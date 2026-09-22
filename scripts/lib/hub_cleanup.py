@@ -20,6 +20,8 @@ DEFAULT_OVERNIGHT_ROSTER = (
     "FrontendEngineer",
     "SoftwareArchitect",
     "PlatformEngineer",
+    "SecurityReviewer",
+    "DatabaseSpecialist",
 )
 
 REGRESSION_ROSTER_TYPES = {

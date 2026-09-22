@@ -108,6 +108,82 @@ func TestCommandOutputMatchesPlaybook_rustMissingCrate(t *testing.T) {
 	}
 }
 
+func TestCommandOutputMatchesPlaybook_rustMissingDebug_beatsExplanationE0433(t *testing.T) {
+	// Overnight blackjack: Debug is the real failure; rustc also lists E0433 in explanations.
+	out := "error[E0277]: `Card` doesn't implement `Debug`\n" +
+		"the trait `Debug` is not implemented for `Card`\n" +
+		"help: consider annotating `Card` with `#[derive(Debug)]`\n" +
+		"Some errors have detailed explanations: E0081, E0277, E0369, E0433, E0599.\n"
+	if got := commandOutputMatchesPlaybook(out); got != "rust_missing_debug" {
+		t.Fatalf("got %q want rust_missing_debug", got)
+	}
+}
+
+func TestAddDeriveDebugToRustSource_insertsAndMerges(t *testing.T) {
+	src := "fn main() {}\n\nstruct Card {\n    rank: u8,\n}\n"
+	body, ok := addDeriveDebugToRustSource(src, "Card")
+	if !ok || !strings.Contains(body, "#[derive(Debug)]\nstruct Card") {
+		t.Fatalf("insert body=%q ok=%v", body, ok)
+	}
+	merged, ok := addDeriveDebugToRustSource("#[derive(Clone)]\nstruct Card {}\n", "Card")
+	if !ok || !strings.Contains(merged, "#[derive(Clone, Debug)]") {
+		t.Fatalf("merge body=%q ok=%v", merged, ok)
+	}
+	_, ok = addDeriveDebugToRustSource("#[derive(Debug, Clone)]\nstruct Card {}\n", "Card")
+	if ok {
+		t.Fatal("expected no-op when Debug already present")
+	}
+}
+
+func TestTryMissingRustDebugFix(t *testing.T) {
+	dir := t.TempDir()
+	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mainRS := "struct Card { rank: u8 }\nfn main() { println!(\"{:?}\", Card{rank:1}); }\n"
+	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte(mainRS), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
+		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
+		"build failed")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     editorTrustAutoApply,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	state := &ImplementationSessionState{
+		StackManifest: DetectStackManifest(dir),
+		TrustMode:     editorTrustAutoApply,
+	}
+	state.RecordReadPath("src/main.rs")
+	evidence := "error[E0277]: `Card` doesn't implement `Debug`\n" +
+		"the trait `Debug` is not implemented for `Card`\n" +
+		"help: consider annotating `Card` with `#[derive(Debug)]`\n"
+	state.RecordCommandRun("cargo build", 101, evidence)
+	ctx := withImplementationSessionState(context.Background(), state)
+
+	if !ag.tryMissingRustDebugFix(ctx, msg, dir, state, evidence) {
+		t.Fatal("expected rust debug fix")
+	}
+	onDisk, err := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(onDisk), "#[derive(Debug)]") {
+		t.Fatalf("main.rs = %q", onDisk)
+	}
+	if state.PlaybookUsed() != "rust_missing_debug" {
+		t.Fatalf("playbook = %q", state.PlaybookUsed())
+	}
+}
+
 func TestDeriveCargoPackageName(t *testing.T) {
 	if got := deriveCargoPackageName("/tmp/user-flow-empty"); got != "user-flow-empty" {
 		t.Fatalf("got %q", got)

@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-26T22:00:09Z",
-  "count": 84,
+  "updated": "2026-09-22T12:16:42Z",
+  "count": 85,
   "items": [
     {
       "id": "edge-ide-agents-panel",
@@ -136,6 +136,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-beta-download-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-beta20-1200",
+      "src": "../media/gallery/ads/neural-junkie-beta20-1200.png",
+      "title": "Beta20 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-beta20-1200.png"
     },
     {
       "id": "neural-junkie-beta21-ad-1200",

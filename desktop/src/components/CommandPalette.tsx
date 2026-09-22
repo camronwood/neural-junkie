@@ -65,9 +65,10 @@ export function CommandPalette({
   // Reset query when opened; auto-open /collaborate form when filter targets it.
   useEffect(() => {
     if (isOpen) {
-      setQuery(initialFilter);
+      const safeInitial = typeof initialFilter === 'string' ? initialFilter : '';
+      setQuery(safeInitial);
       setSelectedIndex(0);
-      const filter = initialFilter.trim().toLowerCase().replace(/^\//, '');
+      const filter = safeInitial.trim().toLowerCase().replace(/^\//, '');
       if (filter === 'collaborate') {
         const collabCmd =
           commands.find((c) => c.name === '/collaborate') ??

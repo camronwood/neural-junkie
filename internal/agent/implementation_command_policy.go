@@ -379,11 +379,18 @@ func commandOutputMatchesPlaybook(output string) string {
 		return "python_module_not_found"
 	case strings.Contains(output, "undefined:") && strings.Contains(output, ".go:"):
 		return "go_undefined_symbol"
+	// Debug before missing-crate: cargo often lists E0433 in "detailed explanations"
+	// even when the real failure is E0277 missing Debug (blackjack CLI user-flows).
+	case strings.Contains(output, "trait `debug` is not implemented"),
+		strings.Contains(output, "doesn't implement `debug`"),
+		strings.Contains(output, "annotating `") && strings.Contains(output, "derive(debug)"):
+		return "rust_missing_debug"
 	case strings.Contains(output, "error[e0432]"),
-		strings.Contains(output, "error[e0433]"),
+		strings.Contains(output, "error[e0433]") && (strings.Contains(output, "undeclared crate") ||
+			strings.Contains(output, "unresolved import") ||
+			strings.Contains(output, "failed to resolve")),
 		strings.Contains(output, "undeclared crate"),
-		strings.Contains(output, "cannot find crate"),
-		strings.Contains(output, "could not find `"):
+		strings.Contains(output, "cannot find crate"):
 		return "rust_missing_crate"
 	case strings.Contains(output, "assertionerror"),
 		strings.Contains(output, "assertion failed"),

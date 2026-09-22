@@ -429,7 +429,8 @@ overnight: ## Walk-away clean gate: reset + hub + preflight + release-prep in tm
 	 MODEL='$(MODEL)' PREFER_SDK='$(PREFER_SDK)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
 	 NO_COMMIT='$(NO_COMMIT)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
 	 LAYER='$(LAYER)' SKIP_GATE='$(SKIP_GATE)' \
-	 AWAY_DEADLINE_CT='$(AWAY_DEADLINE_CT)' AWAY_GATE='$(AWAY_GATE)' SKIP_DESKTOP_E2E='$(SKIP_DESKTOP_E2E)' \
+  AWAY_DEADLINE_CT='$(AWAY_DEADLINE_CT)' AWAY_GATE='$(AWAY_GATE)' SKIP_DESKTOP_E2E='$(SKIP_DESKTOP_E2E)' \
+	 SKIP_MORNING_RC='$(SKIP_MORNING_RC)' \
 	 ./scripts/overnight.sh
 
 away-agent: ## Claim one agent-ready GitHub issue → Cursor → PR (auto-merge)

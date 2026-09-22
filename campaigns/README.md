@@ -44,4 +44,4 @@ Product screenshots stay in `assets/screenshots/` (synced into the gallery as sc
 | `byom` / `community` / `test-harness` / `try-local-ai` / `product` | Product feature ads |
 | `the-habit` | 7-day LinkedIn letters — The Habit (week 1) |
 | `walk-into-a-room` | 7-day LinkedIn jokes — Walk Into a Room (week 2) |
-| `on-air` | Station-ID heroes — On Air (baseline + team differentiator) |
+| `on-air` | Station-ID heroes — On Air (baseline + team + features readout) |

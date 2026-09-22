@@ -190,6 +190,15 @@ def try_cursor_sdk_agent(
     return 0, text
 
 
+def _named_model_plan_blocked(output: str) -> bool:
+    lower = (output or "").lower()
+    return (
+        "named models unavailable" in lower
+        or "free plans can only use auto" in lower
+        or ("actionrequirederror" in lower and "auto" in lower and "model" in lower)
+    )
+
+
 def run_fix_agent(
     prompt: str,
     *,
@@ -202,11 +211,27 @@ def run_fix_agent(
     if prefer_sdk:
         sdk = try_cursor_sdk_agent(prompt, cwd=cwd, model=model or "composer-2.5")
         if sdk is not None:
+            rc, out = sdk
+            if rc != 0 and _named_model_plan_blocked(out) and (model or "composer-2.5") != "auto":
+                print(">>> Cursor named model blocked — retrying SDK with model=auto", flush=True)
+                retry = try_cursor_sdk_agent(prompt, cwd=cwd, model="auto")
+                if retry is not None:
+                    return retry
             return sdk
-    return invoke_cursor_agent(
+    rc, out = invoke_cursor_agent(
         prompt,
         cwd=cwd,
         model=model,
         timeout_s=timeout_s,
         log_path=log_path,
     )
+    if rc != 0 and _named_model_plan_blocked(out) and model != "auto":
+        print(">>> Cursor named model blocked — retrying CLI with --model auto", flush=True)
+        return invoke_cursor_agent(
+            prompt,
+            cwd=cwd,
+            model="auto",
+            timeout_s=timeout_s,
+            log_path=log_path,
+        )
+    return rc, out

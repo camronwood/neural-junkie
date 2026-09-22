@@ -114,8 +114,10 @@ export function createChatCommandActions(deps: ChatCommandActionsDeps) {
     }
   };
 
-  const openCommandPalette = (filter = '') => {
-    deps.setCommandPaletteFilter(filter);
+  const openCommandPalette = (filter: unknown = '') => {
+    // Toolbar onClick can pass a MouseEvent if wired as onClick={openCommandPalette}.
+    const safeFilter = typeof filter === 'string' ? filter : '';
+    deps.setCommandPaletteFilter(safeFilter);
     deps.setCommandPaletteOpen(true);
     void ensureCommandDefs(true);
     void deps.loadCollaborations(deps.channel);

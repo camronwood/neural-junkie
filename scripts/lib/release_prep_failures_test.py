@@ -65,6 +65,23 @@ CHAT_TAIL = """
 === FAIL: thanks-closure ===
 """
 
+USER_FLOW_MIXED_TAIL = """
+=== user-flow [collab/user-flows]: collaboration-station-branded ===
+>>> python3 scripts/collab-scenarios.py --scenario collaboration-station-branded
+=== PASS: collaboration-station-branded ===
+
+=== user-flow [implement/user-flows]: rust-blackjack-2d ===
+>>> python3 scripts/implement-scenarios.py --scenario rust-blackjack-2d --hub http://127.0.0.1:18765
+=== implement: rust-blackjack-2d ===
+  ✗ [6] assert_shell: exit 101: doesn't implement `Debug`
+=== FAIL: rust-blackjack-2d ===
+
+=== user-flow [implement/user-flows]: ios-trivia-swift ===
+>>> python3 scripts/implement-scenarios.py --scenario ios-trivia-swift --hub http://127.0.0.1:18765
+  ✗ [2] wait_reply: timeout waiting for SoftwareArchitect
+=== FAIL: ios-trivia-swift ===
+"""
+
 
 class ReleasePrepFailuresTest(unittest.TestCase):
     def test_extract_collab_scenario_from_tail(self) -> None:
@@ -130,6 +147,22 @@ class ReleasePrepFailuresTest(unittest.TestCase):
             default_stage="chat-scenarios-regression",
         )
         self.assertTrue(any(f.name == "chat:thanks-closure" for f in found))
+
+    def test_user_flow_mixed_log_routes_implement_not_collab(self) -> None:
+        found = _extract_scenarios_from_text(
+            USER_FLOW_MIXED_TAIL,
+            "http://127.0.0.1:18765",
+            default_stage="user-flow-scenarios",
+        )
+        by_name = {f.name: f for f in found}
+        self.assertIn("implement:rust-blackjack-2d", by_name)
+        rust = by_name["implement:rust-blackjack-2d"]
+        self.assertEqual(rust.rerun_cmd[:3], ["python3", "scripts/implement-scenarios.py", "--scenario"])
+        self.assertEqual(rust.kind, FailureKind.CODE)
+        self.assertIn("implement:ios-trivia-swift", by_name)
+        ios = by_name["implement:ios-trivia-swift"]
+        self.assertEqual(ios.kind, FailureKind.FLAKE)
+        self.assertNotIn("collab:rust-blackjack-2d", by_name)
 
     def test_parse_live_report_includes_collab_scenarios(self) -> None:
         if not FIXTURE.is_file():

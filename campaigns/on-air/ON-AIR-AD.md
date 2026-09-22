@@ -10,15 +10,17 @@ Station ID, not a feature sheet. Neural Junkie as a late-night **callsign**: bra
 **Regenerate:**
 
 ```bash
-./scripts/compose-on-air-ad.sh all          # baseline + team
+./scripts/compose-on-air-ad.sh all          # baseline + team + features
 ./scripts/compose-on-air-ad.sh baseline
 ./scripts/compose-on-air-ad.sh team
+./scripts/compose-on-air-ad.sh features
 ```
 
 | Variant | Asset | Job |
 |---------|-------|-----|
 | **baseline** | `creatives/on-air-hero-1080.png` | Brand callsign |
 | **team** | `creatives/on-air-team-1080.png` | Differentiates beyond “runs local AI” |
+| **features** | `creatives/on-air-features-1080.png` | Major pillars as a station readout |
 
 ---
 
@@ -29,15 +31,15 @@ Station ID, not a feature sheet. Neural Junkie as a late-night **callsign**: bra
 | Field | `#0d0f14` | Full-bleed ground (site `--bg-deep`) |
 | Signal | `#e94560` | One thin horizontal carrier + center mark |
 | Ink | `#e8eaef` | Brand wordmark + primary line |
-| Quiet | `#8b93a7` | Sub-line + footer |
+| Quiet | `#8b93a7` | Sub-line + footer + feature readout |
 | Display | Avenir Next Condensed Heavy | Brand |
-| Readout | Menlo | Support lines + footer |
+| Readout | Menlo | Support lines + footer + feature stack |
 
 **Layout**
 
 - Brand wordmark dominates the upper half — edge-to-edge presence
 - Middle: one rose carrier line with a small diamond at center
-- Below: one hard line (team adds one quiet sub-line)
+- Below: one hard line (team adds one quiet sub-line; features adds a stacked mono readout)
 - Bottom micro + release URL
 - Subtle procedural grain only
 
@@ -51,6 +53,10 @@ Station ID, not a feature sheet. Neural Junkie as a late-night **callsign**: bra
 **Positioning note (team)**
 
 Lots of apps run local models. Neural Junkie’s wedge is a **multi-agent desktop hub**: specialist agents from domain packs, human approval on file/tool changes, BYOM (local *or* cloud, per agent) — not a single local chatbot.
+
+**Positioning note (features)**
+
+Same callsign vocabulary — a **program guide**, not a marketing grid. Six quiet Menlo lines map the README “What you get” pillars. Brand still owns the frame; the list is the readout under the carrier. Below that: **MODELS** (homepage provider tiles) and **CONNECTED** (Slack, Google Meet notes, GitHub, Confluence, Jira) — BYOM + workspace integrations without colored marketing cards.
 
 ---
 
@@ -68,6 +74,23 @@ Lots of apps run local models. Neural Junkie’s wedge is a **multi-agent deskto
 - **Line:** Not another local chat.  
 - **Sub:** Specialists. Approvals. Your models.  
 - **Footer:** MULTI-AGENT · HUMAN-IN-THE-LOOP · BYOM  
+
+### Features (major pillars)
+
+- **Brand:** NEURAL JUNKIE  
+- **Line:** One desk. Full stack.  
+- **Readout:**
+  - BYOM
+  - MULTI-AGENT · APPROVALS
+  - DOMAIN PACKS
+  - IDE V4 · FIX LOOP
+  - SLACK CONNECT · COLLAB
+  - NEURAL CANVAS
+- **Supported strip** (same marks as site hero — `docs/assets/providers/`):  
+  Claude · GPT · Gemini · Ollama · HF · Cursor · LM Studio  
+- **Connected strip** (`docs/assets/integrations/` — framed to match providers):  
+  Slack · Meet · GitHub · Confluence · Jira  
+- **Footer:** OPEN SOURCE · LOCAL FIRST  
 
 ---
 
@@ -108,3 +131,22 @@ https://github.com/camronwood/neural-junkie/releases/latest
 
 **Image:** `on-air-team-1080.png`  
 **First comment (optional):** “Local is the floor. Specialists + approvals are the product.”
+
+---
+
+## LinkedIn / X paste — features
+
+### PASTE START
+
+Most AI products pick one lane: a chat, an IDE plugin, a Slack bot, a pack of specialists.
+
+Neural Junkie is the desk those lanes share. Bring your own model. Run multi-agent work with human approval. Install domain packs. Open IDE v4 when you need an editor. Connect Slack, pull Google Meet notes into Assistant, wire GitHub / Confluence / Jira when your team already lives there. Keep durable reports on Neural Canvas.
+
+One workspace. Full stack. On yours.
+
+https://github.com/camronwood/neural-junkie/releases/latest
+
+### PASTE END
+
+**Image:** `on-air-features-1080.png`  
+**First comment (optional):** “Station readout — the pillars, not a feature grid.”

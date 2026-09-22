@@ -112,4 +112,39 @@ describe('createChatCommandActions', () => {
     expect(fetchAssistantState).toHaveBeenCalledWith('general');
     expect(fetchPendingChanges).toHaveBeenCalledWith('camron');
   });
+
+  it('openCommandPalette ignores non-string filter args (e.g. click events)', () => {
+    const setCommandPaletteFilter = vi.fn();
+    const setCommandPaletteOpen = vi.fn();
+
+    const { openCommandPalette } = createChatCommandActions({
+      api: {
+        fetchCommands: vi.fn().mockResolvedValue([]),
+        fetchAssistantState: vi.fn().mockResolvedValue({ tasks: [], reminders: [] }),
+      } as unknown as ChatAPI,
+      channel: 'general',
+      username: 'camron',
+      commandDefsLength: 1,
+      setCommandDefs: vi.fn(),
+      setCommandPaletteFilter,
+      setCommandPaletteOpen,
+      setModelLibraryOpen: vi.fn(),
+      setCodeEditorOpen: vi.fn(),
+      setFileExplorerOpen: vi.fn(),
+      setAssistantTasks: vi.fn(),
+      setAssistantReminders: vi.fn(),
+      updateLayoutSettings: vi.fn(),
+      appendLocalSlashCommand: vi.fn(),
+      handleSendMessage: vi.fn(),
+      loadCollaborations: vi.fn().mockResolvedValue(undefined),
+      fetchPendingChanges: vi.fn().mockResolvedValue(undefined),
+      addToast: vi.fn(),
+      inputRef: createRef(),
+    });
+
+    openCommandPalette({ type: 'click' } as unknown as string);
+
+    expect(setCommandPaletteFilter).toHaveBeenCalledWith('');
+    expect(setCommandPaletteOpen).toHaveBeenCalledWith(true);
+  });
 });

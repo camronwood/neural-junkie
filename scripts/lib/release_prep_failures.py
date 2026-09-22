@@ -11,7 +11,10 @@ PHASE_ROW_RE = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*(FAIL|OK|SKIPPED)", re.MULTIL
 STAGE_ROW_RE = PHASE_ROW_RE
 ARTIFACT_BULLET_RE = re.compile(r"^- `([^`]+)`", re.MULTILINE)
 OVERALL_FAIL_RE = re.compile(r"Overall:\s+\*\*FAIL\*\*", re.IGNORECASE)
-SCENARIO_START_RE = re.compile(r"^=== scenario: (\S+) ===", re.MULTILINE)
+SCENARIO_START_RE = re.compile(
+    r"^=== (?:scenario: |implement: |(?:chat|collab): |"
+    r"user-flow \[(?P<uf_kind>implement|collab|chat)/[^\]]+\]: )(?P<name>\S+) ==="
+)
 SCENARIO_FAIL_RE = re.compile(r"^=== FAIL: (\S+)(?: \(solo leg\))? ===", re.MULTILINE)
 STAGE_INVOCATION_RE = re.compile(
     r"^>>> (?:\[(?P<bracket>[^\]]+)\]|python3 scripts/(?P<script>[\w-]+)\.py(?: .*)?)$"
@@ -20,6 +23,15 @@ CHANNEL_COLLAB_RE = re.compile(r"channel=collab-scenarios\b")
 CHANNEL_CHAT_RE = re.compile(r"channel=(?:chat-scenarios|dm-[\w-]+)\b|agent=\w+")
 CHANNEL_IMPLEMENT_RE = re.compile(r"channel=implement-scenarios\b")
 COLLAB_AGENTS_RE = re.compile(r"agents=@")
+USER_FLOW_HEADER_RE = re.compile(
+    r"=== user-flow \[(?P<kind>implement|collab|chat)/[^\]]+\]: (?P<name>\S+) ==="
+)
+IMPLEMENT_HEADER_RE = re.compile(r"=== implement: (?P<name>\S+) ===")
+IMPLEMENT_SCRIPT_RE = re.compile(
+    r"python3 scripts/implement-scenarios\.py --scenario (?P<name>\S+)"
+)
+COLLAB_SCRIPT_RE = re.compile(r"python3 scripts/collab-scenarios\.py --scenario (?P<name>\S+)")
+CHAT_SCRIPT_RE = re.compile(r"python3 scripts/chat-scenarios\.py --scenario (?P<name>\S+)")
 
 FLAKE_MARKERS = (
     "could not complete this turn",
@@ -147,10 +159,14 @@ STAGE_HARNESS = {
     "collab-scenario-regression": "collab",
     "chat-scenarios-regression": "chat",
     "conversation-scenarios-regression": "chat",
+    "user-flow-scenarios": "implement",
 }
 
 
 def _harness_from_block(block: str, *, stage_hint: str | None = None) -> str:
+    uf = USER_FLOW_HEADER_RE.search(block)
+    if uf:
+        return uf.group("kind")
     if CHANNEL_COLLAB_RE.search(block) or COLLAB_AGENTS_RE.search(block):
         return "collab"
     if CHANNEL_IMPLEMENT_RE.search(block):
@@ -168,7 +184,35 @@ def _harness_from_block(block: str, *, stage_hint: str | None = None) -> str:
         return "implement"
     if "collaboration_discussion" in head or "started collab" in head:
         return "collab"
+    if "=== implement:" in head or "user-flow [implement/" in head:
+        return "implement"
     return "unknown"
+
+
+def _harness_for_scenario_fail(text: str, scenario: str, fail_start: int) -> str:
+    """Prefer nearest preceding harness for this scenario (user-flow logs mix implement+collab)."""
+    window = text[max(0, fail_start - 12_000) : fail_start]
+    # Last matching header / script invocation for this scenario wins.
+    candidates: list[tuple[int, str]] = []
+    for m in USER_FLOW_HEADER_RE.finditer(window):
+        if m.group("name") == scenario:
+            candidates.append((m.start(), m.group("kind")))
+    for m in IMPLEMENT_HEADER_RE.finditer(window):
+        if m.group("name") == scenario:
+            candidates.append((m.start(), "implement"))
+    for m in IMPLEMENT_SCRIPT_RE.finditer(window):
+        if m.group("name") == scenario:
+            candidates.append((m.start(), "implement"))
+    for m in COLLAB_SCRIPT_RE.finditer(window):
+        if m.group("name") == scenario:
+            candidates.append((m.start(), "collab"))
+    for m in CHAT_SCRIPT_RE.finditer(window):
+        if m.group("name") == scenario:
+            candidates.append((m.start(), "chat"))
+    if candidates:
+        candidates.sort(key=lambda x: x[0])
+        return candidates[-1][1]
+    return _harness_from_block(window)
 
 
 def _extract_scenarios_from_text(
@@ -197,7 +241,8 @@ def _extract_scenarios_from_text(
 
         start = SCENARIO_START_RE.match(line.strip())
         if start:
-            scenario = start.group(1)
+            scenario = start.group("name")
+            uf_kind = start.groupdict().get("uf_kind")
             block_lines = [line]
             j = i + 1
             failed = False
@@ -208,12 +253,14 @@ def _extract_scenarios_from_text(
                     failed = True
                     fail_detail_end = j
                     break
-                if SCENARIO_START_RE.match(lines[j].strip()) or STAGE_INVOCATION_RE.match(lines[j].strip()):
+                # Do not stop on `>>> python3 scripts/…` — user-flow / implement
+                # blocks nest a harness invocation inside the scenario run.
+                if SCENARIO_START_RE.match(lines[j].strip()):
                     break
                 j += 1
             if failed:
                 block = "\n".join(block_lines)
-                prefix = _harness_from_block(block, stage_hint=current_stage)
+                prefix = uf_kind or _harness_from_block(block, stage_hint=current_stage)
                 if prefix == "unknown" and current_harness:
                     prefix = current_harness
                 if prefix != "unknown":
@@ -255,16 +302,9 @@ def _extract_orphan_scenario_failures(
     """Parse trailing ``=== FAIL:`` blocks (collab-scenarios batches these after the run loop)."""
     if seen is None:
         seen = set()
-    harness = STAGE_HARNESS.get(default_stage or "", "") or SCRIPT_HARNESS.get(default_stage or "", "")
-    if not harness:
-        if CHANNEL_COLLAB_RE.search(text) or "collab-scenarios" in text:
-            harness = "collab"
-        elif CHANNEL_IMPLEMENT_RE.search(text):
-            harness = "implement"
-        elif CHANNEL_CHAT_RE.search(text) or "chat-scenarios" in text:
-            harness = "chat"
-    if not harness or harness == "unknown":
-        return []
+    default_harness = STAGE_HARNESS.get(default_stage or "", "") or SCRIPT_HARNESS.get(
+        default_stage or "", ""
+    )
 
     out: list[ParsedFailure] = []
     matches = list(SCENARIO_FAIL_RE.finditer(text))
@@ -273,6 +313,19 @@ def _extract_orphan_scenario_failures(
         start = match.start()
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
         detail = text[start:end].strip()
+        harness = _harness_for_scenario_fail(text, scenario, start)
+        if harness == "unknown":
+            harness = default_harness
+        if not harness or harness == "unknown":
+            # Last resort: whole-file heuristics (legacy)
+            if CHANNEL_COLLAB_RE.search(text) or "collab-scenarios" in text:
+                harness = "collab"
+            elif CHANNEL_IMPLEMENT_RE.search(text) or "implement-scenarios" in text:
+                harness = "implement"
+            elif CHANNEL_CHAT_RE.search(text) or "chat-scenarios" in text:
+                harness = "chat"
+            else:
+                continue
         key = f"{harness}:{scenario}"
         if key in seen:
             continue

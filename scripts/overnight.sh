@@ -45,6 +45,7 @@ FORWARD_VARS=(
   AWAY_DEADLINE_CT
   AWAY_GATE
   SKIP_DESKTOP_E2E
+  SKIP_MORNING_RC
   REPORT
   SKIP_RELEASE_PREP
   SKIP_AGENT
@@ -183,7 +184,15 @@ run_gate() {
     export MAX_ITER="${MAX_ITER:-3}"
     export SKIP_DESKTOP_E2E="${SKIP_DESKTOP_E2E:-}"
     export AWAY_GATE="${AWAY_GATE:-user-flows}"
-    caffeinate -dimsu python3 "${ROOT}/scripts/away-overnight.py"
+    away_args=()
+    if [[ "${SKIP_MORNING_RC:-}" == "1" ]]; then
+      away_args+=(--skip-morning-rc)
+    fi
+    if [[ "${SKIP_DESKTOP_E2E:-}" == "1" ]]; then
+      away_args+=(--skip-desktop-e2e)
+    fi
+    # With set -u, "${arr[@]}" errors on empty arrays — expand only when set.
+    caffeinate -dimsu python3 "${ROOT}/scripts/away-overnight.py" ${away_args[@]+"${away_args[@]}"}
     return
   fi
 

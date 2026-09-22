@@ -132,7 +132,7 @@ export function ChatToolbarActions({
       <div className={groupClass} aria-label="Commands">
         <button
           type="button"
-          onClick={onOpenCommandPalette}
+          onClick={() => onOpenCommandPalette()}
           className={`${iconBtn} bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs font-bold focus-visible:outline-indigo-400`}
           title={`Command palette (${formatChord('mod+shift+p')})`}
           aria-label="Open command palette with Cmd+Shift+P or Ctrl+Shift+P"
