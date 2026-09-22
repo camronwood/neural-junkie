@@ -40,6 +40,10 @@ Write outcomes a user would recognize:
 > Acceptance: …  
 > Out of scope: …
 
+## Where to edit
+
+Before changing code, use the ownership map: [docs/AGENT_CODEMAP.md](docs/AGENT_CODEMAP.md) (edit-here-for-X, naming traps, slash command files, do-not-touch).
+
 ## Verify
 
 See [docs/AWAY_OPERATIONS.md](docs/AWAY_OPERATIONS.md) and [docs/TESTING.md](docs/TESTING.md).

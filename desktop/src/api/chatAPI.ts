@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, FileChangeRequest, GitChangeProposal, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, RunbookDefinitionBundle, RunbookRunProvenance, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, ResolvedCapability, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, FileChangeRequest, GitChangeProposal, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, RunbookDefinitionBundle, RunbookRunProvenance, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
 export type { ResolvedCapability } from '../types/protocol';
 import {
   getHubBaseURL,
@@ -22,433 +22,120 @@ import { AssistantApi } from './domains/assistantApi';
 import { SlackApi } from './domains/slackApi';
 import { ProvidersApi } from './domains/providersApi';
 import { WebSearchApi } from './domains/webSearchApi';
+import { WorkspaceApi } from './domains/workspaceApi';
+import { FilesApi } from './domains/filesApi';
+import { CadApi } from './domains/cadApi';
+import { GitWorkspaceApi } from './domains/gitWorkspaceApi';
+import { IdeApi } from './domains/ideApi';
+import { ToolApprovalsApi } from './domains/toolApprovalsApi';
+import { MapsApi } from './domains/mapsApi';
+import { PlansApi } from './domains/plansApi';
+import { FileChangesApi } from './domains/fileChangesApi';
+import { PackExtrasApi } from './domains/packExtrasApi';
+import { PhoenixApi } from './domains/phoenixApi';
+import { LoraApi } from './domains/loraApi';
+import { SecondaryAnalysisApi } from './domains/secondaryAnalysisApi';
+import { LearningsApi } from './domains/learningsApi';
+import { AgentsExtrasApi } from './domains/agentsExtrasApi';
+import type {
+  PacksAPIResponse,
+  AgentShareBundle,
+  CadParam,
+  ACEStepStatus,
+  ArenaSidecarStatus,
+  AIInterviewProgressResponse,
+  ImageGenStatus,
+  PackValidationReport,
+  CustomerPackContextResponse,
+  ExpertPresetOption,
+  LoraExpertContext,
+  LoraTrainingBase,
+  LoraTrainDatasetPreview,
+  LoraTrainJob,
+  LoraTrainStartRequest,
+  UserLearning,
+  LearningCategory,
+  LearningScope,
+  LearningStats,
+  InstallACEStepResponse,
+  InstallArenaSidecarResponse,
+  SendMessageResponse,
+  PackCatalogEntry,
+  PackUpdatesResponse,
+  InstallPackLoRAsResponse,
+} from './types/chatApiTypes';
 
-/** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
-export interface SendMessageResponse {
-  status?: string;
-  collaboration_channel?: string;
-  collaboration_id?: string;
-  /** Set when /create-expert succeeds; client should open this DM. */
-  dm_channel?: string;
-}
-
-export interface PackStatus {
-  id: string;
-  title: string;
-  description: string;
-  installed: boolean;
-  enabled: boolean;
-  layout_profile?: string;
-  capabilities?: string[];
-  expert_slug?: string;
-  expert_label?: string;
-  version?: string;
-  custom?: boolean;
-  requires_packs?: string[];
-  dev_linked?: boolean;
-  dev_source_path?: string;
-}
-
-export interface PackManifestSummary {
-  id: string;
-  version?: string;
-  title: string;
-  description?: string;
-  publisher?: string;
-  pack_kind?: string;
-  layout_profile?: string;
-  capabilities?: string[];
-  requires_packs?: string[];
-  settings_overlay?: Record<string, string>;
-  agents?: Array<{ type: string; name?: string; implementation?: string; ollama_model?: string }>;
-  mcp_agents?: string[];
-}
-
-export interface PackValidationReport {
-  valid: boolean;
-  errors?: string[];
-  warnings?: string[];
-  manifest?: PackManifestSummary;
-  assets: {
-    workspace_guide_found: boolean;
-    workspace_guide_path?: string;
-    workspace_guide_preview?: string;
-    runbooks_count: number;
-    runbook_paths?: string[];
-  };
-  resolved_overlay?: Record<string, string>;
-  requires_packs?: Array<{ id: string; installed: boolean; enabled: boolean }>;
-  preview?: {
-    agents?: Array<{ type: string; name?: string }>;
-    effective_capabilities?: string[];
-  };
-}
-
-export interface CustomerPackContext {
-  id: string;
-  title: string;
-  publisher?: string;
-  version?: string;
-  requires_packs?: string[];
-  workspace_guide?: string;
-  settings_overlay?: Record<string, string>;
-}
-
-export interface CustomerPackContextResponse {
-  packs: CustomerPackContext[];
-}
-
-export interface PackCatalogEntry {
-  id: string;
-  version: string;
-  installed_version?: string;
-  update_available?: boolean;
-  title: string;
-  description: string;
-  icon_key?: string;
-  publisher?: string;
-  builtin?: boolean;
-  custom?: boolean;
-  requires_packs?: string[];
-  installed: boolean;
-  enabled: boolean;
-  lora_adapter_count?: number;
-  lora_base_tags?: string[];
-}
-
-export interface InstallPackLoRAResult {
-  agent_type?: string;
-  repo_id: string;
-  ollama_tag: string;
-  status: string;
-  error?: string;
-}
-
-export interface InstallPackLoRAsResponse {
-  status: string;
-  pack_id: string;
-  results: InstallPackLoRAResult[];
-}
-
-export interface ACEStepPaths {
-  music_root: string;
-  venv: string;
-  project: string;
-  checkpoint: string;
-  setup_script?: string;
-}
-
-export interface ACEStepStatus {
-  ready: boolean;
-  demo_mode: boolean;
-  installing: boolean;
-  python_ok: boolean;
-  venv_ready: boolean;
-  project_ready: boolean;
-  checkpoint_ready: boolean;
-  model_variant?: string;
-  python_version?: string;
-  last_error?: string;
-  install_progress?: { phase: string; detail: string; updated_at?: string };
-  paths: ACEStepPaths;
-}
-
-export interface InstallACEStepResponse {
-  status: string;
-  pack_id: string;
-  acestep: ACEStepStatus;
-}
-
-export interface ArenaSidecarPaths {
-  venv: string;
-  python: string;
-  requirements?: string;
-}
-
-export interface ArenaSidecarStatus {
-  chess_available: boolean;
-  venv_ready: boolean;
-  installing: boolean;
-  python_ok: boolean;
-  python_version?: string;
-  last_error?: string;
-  paths: ArenaSidecarPaths;
-}
-
-export interface InstallArenaSidecarResponse {
-  status: string;
-  pack_id: string;
-  sidecar: ArenaSidecarStatus;
-}
-
-export interface AIInterviewDayStatus {
-  status?: string;
-  concept?: boolean;
-  drill?: boolean;
-  completed_at?: string;
-}
-
-export interface AIInterviewProgressResponse {
-  progress: {
-    version?: number;
-    started_at?: string;
-    current_day: number;
-    phase: number;
-    days?: Record<string, AIInterviewDayStatus>;
-    gates?: Record<string, { status?: string; passed_at?: string | null }>;
-    certification?: { status?: string; badge_path?: string | null; issued_at?: string | null };
-    streak_days?: number;
-    last_active_at?: string | null;
-  };
-  today: {
-    day: number;
-    phase?: number;
-    title?: string;
-    kind?: string;
-    summary?: string;
-    has_drill?: boolean;
-    day_status?: AIInterviewDayStatus;
-    complete?: boolean;
-  };
-  stats?: {
-    completed_days?: number;
-    total_days?: number;
-    phase?: number;
-    streak_days?: number;
-  };
-}
-
-export interface ImageGenStatus {
-  ready: boolean;
-  provider: string;
-  model: string;
-  endpoint?: string;
-  disabled: boolean;
-  ollama_running: boolean;
-  model_pulled: boolean;
-  openai_key_set: boolean;
-  pull_command?: string;
-}
-
-export interface PackUpdateInfo {
-  id: string;
-  title: string;
-  installed_version: string;
-  latest_version: string;
-  enabled: boolean;
-}
-
-export interface PackUpdatesResponse {
-  updates: PackUpdateInfo[];
-  count: number;
-}
-
-export interface LoraTrainingBase {
-  ollama_tag: string;
-  hf_model: string;
-  label: string;
-  description: string;
-  code_focused: boolean;
-  recommended?: boolean;
-  size_hint?: string;
-}
-
-export interface LoraExpertContext {
-  agent_id: string;
-  agent_name: string;
-  agent_type: string;
-  source: 'repo' | 'channel' | 'collaboration';
-  source_id?: string;
-  suggested_base_ollama_tag: string;
-  suggested_ollama_tag?: string;
-  supported_bases?: LoraTrainingBase[];
-  preview_rows: number;
-  min_rows: number;
-  ready: boolean;
-  refresh_suggested?: boolean;
-  active_adapter_version?: number;
-  prior_adapter_id?: string;
-  chat_rows?: number;
-  learning_rows?: number;
-  delta_rows?: number;
-  turns?: number;
-  suggest_training?: boolean;
-  include_learnings_default?: boolean;
-  eval_min_score?: number;
-  require_eval_to_assign?: boolean;
-}
-
-export interface LoraTrainJob {
-  id: string;
-  status: string;
-  source: string;
-  source_id: string;
-  base_ollama_tag: string;
-  ollama_tag: string;
-  row_count?: number;
-  queue_position?: number;
-  adapter_id?: string;
-  eval_score?: number;
-  log_tail?: string[];
-  error?: string;
-}
-
-export type LearningCategory = 'preference' | 'fact' | 'workflow' | 'communication';
-export type LearningScope = 'agent' | 'global' | 'collaboration';
-
-export interface UserLearning {
-  id: string;
-  scope?: LearningScope;
-  user_id?: string;
-  agent_id: string;
-  agent_type?: string;
-  agent_name?: string;
-  collaboration_id?: string;
-  content: string;
-  category: LearningCategory;
-  source_channel?: string;
-  source_message_id?: string;
-  created_at: string;
-  confirmed_at: string;
-  updated_at?: string;
-  use_count?: number;
-  active: boolean;
-}
-
-/** Share Agent bundle: extended MCP export with custom rules, learnings, and LoRA metadata. */
-export interface AgentShareBundle {
-  version: string;
-  agent: {
-    name: string;
-    type: string;
-    expertise?: string[];
-    description?: string;
-    createdAt?: string;
-    repository?: string;
-  };
-  resources: Array<{ uri: string; name: string; mimeType: string; content: string; size?: number }>;
-  prompts: Array<{ name: string; description: string; prompt: string }>;
-  systemPrompt: string;
-  exportedAt?: string;
-  lora?: { composed_tag?: string; base_ollama_tag?: string; hf_repo_id?: string; training_manifest?: unknown };
-  custom_rules_markdown?: string;
-  learnings?: Array<{ content: string; category?: string; scope?: string; agent_name?: string; agent_type?: string }>;
-  hydrated_from_resources?: boolean;
-}
-
-export interface LearningStats {
-  agent_id: string;
-  learning_count: number;
-  global_count?: number;
-  collab_count?: number;
-  embedding_index_ready?: boolean;
-  preview_rows: number;
-  min_rows: number;
-  ready_for_lora: boolean;
-  refresh_suggested?: boolean;
-  suggest_training?: boolean;
-  active_adapter_version?: number;
-}
-
-export interface LearningProposalAction {
-  type: 'learning_proposal';
-  source?: string;
-  agent_id: string;
-  agent_name: string;
-  agent_type?: string;
-  draft?: string;
-  category?: LearningCategory;
-  scope?: LearningScope;
-  source_message_id?: string;
-  source_channel?: string;
-  collaboration_id?: string;
-}
-
-export interface LoraTrainStartRequest {
-  source: 'channel' | 'collaboration' | 'repo';
-  source_id: string;
-  thread_id?: string;
-  agent_name?: string;
-  agent_id?: string;
-  include_learnings?: boolean;
-  incremental?: boolean;
-  prior_adapter_id?: string;
-  row_ids?: string[];
-  extra_rows?: Array<{
-    row_id?: string;
-    instruction: string;
-    input?: string;
-    output: string;
-    source_kind?: string;
-    source_ref?: string;
-  }>;
-  approved_tasks_only?: boolean;
-  base_ollama_tag: string;
-  ollama_tag: string;
-  hyperparams?: { rank?: number; epochs?: number; learning_rate?: number; max_seq_len?: number };
-}
-
-export interface LoraTrainDatasetRow {
-  row_id?: string;
-  instruction: string;
-  input?: string;
-  output: string;
-  source_kind?: string;
-  source_ref?: string;
-  included?: boolean;
-  message_at?: string;
-}
-
-export interface LoraTrainDatasetPreview {
-  rows: LoraTrainDatasetRow[];
-  count: number;
-  min_rows: number;
-}
-
-export interface PacksAPIResponse {
-  packs: PackStatus[];
-  pack_id?: string;
-  layout_owner?: string;
-  layout_profile?: string;
-  capabilities?: string[];
-  capability_registry?: ResolvedCapability[];
-  short_id_collisions?: string[];
-}
-
-export interface ExpertPresetOption {
-  slug: string;
-  label: string;
-  from_pack?: string;
-}
-
-export type CadParam = {
-  name: string;
-  value: string;
-  section?: string;
-  comment?: string;
-  min?: number;
-  max?: number;
-  step?: number;
-};
+export type {
+  SendMessageResponse,
+  PackStatus,
+  PackManifestSummary,
+  PackValidationReport,
+  CustomerPackContext,
+  CustomerPackContextResponse,
+  PackCatalogEntry,
+  InstallPackLoRAResult,
+  InstallPackLoRAsResponse,
+  ACEStepPaths,
+  ACEStepStatus,
+  InstallACEStepResponse,
+  ArenaSidecarPaths,
+  ArenaSidecarStatus,
+  InstallArenaSidecarResponse,
+  AIInterviewDayStatus,
+  AIInterviewProgressResponse,
+  ImageGenStatus,
+  PackUpdateInfo,
+  PackUpdatesResponse,
+  LoraTrainingBase,
+  LoraExpertContext,
+  LoraTrainJob,
+  LearningCategory,
+  LearningScope,
+  UserLearning,
+  AgentShareBundle,
+  LearningStats,
+  LearningProposalAction,
+  LoraTrainStartRequest,
+  LoraTrainDatasetRow,
+  LoraTrainDatasetPreview,
+  PacksAPIResponse,
+  ExpertPresetOption,
+  CadParam,
+} from './types/chatApiTypes';
 
 export class ChatAPI {
   private baseURL: string;
   private commandsCache: CommandDefinition[] | null = null;
-  private readonly packsApi: PacksApi;
-  private readonly channelsApi: ChannelsApi;
-  private readonly messagesApi: MessagesApi;
-  private readonly collabApi: CollabApi;
-  private readonly agentsApi: AgentsApi;
-  private readonly artifactsApi: ArtifactsApi;
-  private readonly runbooksApi: RunbooksApi;
-  private readonly roomsApi: RoomsApi;
-  private readonly connectorsApi: ConnectorsApi;
-  private readonly streamsApi: StreamsApi;
-  private readonly gitChangesApi: GitChangesApi;
-  private readonly assistantApi: AssistantApi;
-  private readonly slackApi: SlackApi;
-  private readonly providersApi: ProvidersApi;
-  private readonly webSearchApi: WebSearchApi;
+  private packsApi: PacksApi;
+  private channelsApi: ChannelsApi;
+  private messagesApi: MessagesApi;
+  private collabApi: CollabApi;
+  private agentsApi: AgentsApi;
+  private artifactsApi: ArtifactsApi;
+  private runbooksApi: RunbooksApi;
+  private roomsApi: RoomsApi;
+  private connectorsApi: ConnectorsApi;
+  private streamsApi: StreamsApi;
+  private gitChangesApi: GitChangesApi;
+  private assistantApi: AssistantApi;
+  private slackApi: SlackApi;
+  private providersApi: ProvidersApi;
+  private webSearchApi: WebSearchApi;
+  private workspaceApi: WorkspaceApi;
+  private filesApi: FilesApi;
+  private cadApi: CadApi;
+  private gitWorkspaceApi: GitWorkspaceApi;
+  private ideApi: IdeApi;
+  private toolApprovalsApi: ToolApprovalsApi;
+  private mapsApi: MapsApi;
+  private plansApi: PlansApi;
+  private fileChangesApi: FileChangesApi;
+  private packExtrasApi: PackExtrasApi;
+  private phoenixApi: PhoenixApi;
+  private loraApi: LoraApi;
+  private secondaryAnalysisApi: SecondaryAnalysisApi;
+  private learningsApi: LearningsApi;
+  private agentsExtrasApi: AgentsExtrasApi;
 
   constructor(serverAddr: string = getHubBaseURL()) {
     this.baseURL = normalizeHubBaseURL(serverAddr);
@@ -468,9 +155,23 @@ export class ChatAPI {
     this.slackApi = new SlackApi(hubFetch);
     this.providersApi = new ProvidersApi(hubFetch);
     this.webSearchApi = new WebSearchApi(hubFetch);
+    this.workspaceApi = new WorkspaceApi(hubFetch);
+    this.filesApi = new FilesApi(hubFetch);
+    this.cadApi = new CadApi(hubFetch);
+    this.gitWorkspaceApi = new GitWorkspaceApi(hubFetch);
+    this.ideApi = new IdeApi(hubFetch);
+    this.toolApprovalsApi = new ToolApprovalsApi(hubFetch);
+    this.mapsApi = new MapsApi(hubFetch);
+    this.plansApi = new PlansApi(hubFetch);
+    this.fileChangesApi = new FileChangesApi(hubFetch);
+    this.packExtrasApi = new PackExtrasApi(hubFetch);
+    this.phoenixApi = new PhoenixApi(hubFetch);
+    this.loraApi = new LoraApi(hubFetch);
+    this.secondaryAnalysisApi = new SecondaryAnalysisApi(hubFetch);
+    this.learningsApi = new LearningsApi(hubFetch);
+    this.agentsExtrasApi = new AgentsExtrasApi(hubFetch);
   }
 
-  /** JSON + hub token + session for authenticated hub calls. */
   private hubHeaders(extra?: Record<string, string>): Record<string, string> {
     return {
       'Content-Type': 'application/json',
@@ -480,7 +181,6 @@ export class ChatAPI {
     };
   }
 
-  /** Hub fetch with auth headers on every request. Clears session on 401. */
   private async hubFetch(path: string, init?: RequestInit): Promise<Response> {
     const extra = (init?.headers as Record<string, string> | undefined) ?? {};
     const url = path.startsWith('http') ? path : `${this.baseURL}${path}`;
@@ -495,7 +195,6 @@ export class ChatAPI {
     return response;
   }
 
-  /** Create or refresh a hub user session (channel ACL). */
   async createSession(username: string): Promise<{ token: string; username: string; role?: string }> {
     return this.roomsApi.createSession(username);
   }
@@ -532,7 +231,6 @@ export class ChatAPI {
     return this.roomsApi.joinRoom(hostHubUrl, joinCode, username);
   }
 
-  /** Mint an admin session using the hub bootstrap secret (API keys, ACL admin). */
   async createAdminSession(
     username: string,
     bootstrapToken: string
@@ -540,7 +238,6 @@ export class ChatAPI {
     return this.roomsApi.createAdminSession(username, bootstrapToken);
   }
 
-  // Fetch existing messages for a channel
   async fetchMessages(channel: string, limit: number = 50, beforeId?: string): Promise<Message[]> {
     return this.messagesApi.fetchMessages(channel, limit, beforeId);
   }
@@ -624,12 +321,10 @@ export class ChatAPI {
     return this.artifactsApi.exportArtifact(id, workspaceId, path, channel);
   }
 
-  /** Load a Neural Canvas artifact asset as a data URL (auth via hub session). */
   async fetchArtifactAssetDataUrl(artifactId: string, name: string): Promise<string> {
     return this.artifactsApi.fetchArtifactAssetDataUrl(artifactId, name);
   }
 
-  /** Read user-granted files/directories under ~/.neural-junkie for agent context. */
   async readHubDataAccess(
     targets: Array<{ kind: 'file' | 'directory'; relative_path: string }>
   ): Promise<{ root: string; entries: unknown[] }> {
@@ -649,7 +344,6 @@ export class ChatAPI {
     return response.json();
   }
 
-  /** Confirm collaboration sandbox so the hub sends task prompts to agents (after /approve-plan). */
   async acknowledgeCollaborationWorkspace(
     collaborationId: string,
     sourceRepoPath?: string
@@ -840,12 +534,10 @@ export class ChatAPI {
     return this.collabApi.denyCollabParticipantRequest(collabId, agentId);
   }
 
-  /** Cursor-style Stop: pause agents on a channel until the user sends a message. */
   async channelInterject(channel: string, heldBy?: string): Promise<{ channel: string; held: boolean }> {
     return this.messagesApi.channelInterject(channel, heldBy);
   }
 
-  // Send a message to the server
   async sendMessage(
     channel: string,
     content: string,
@@ -856,7 +548,6 @@ export class ChatAPI {
     return this.messagesApi.sendMessage(channel, content, from, type, credentials);
   }
 
-  /** Classify a turn and return a context_request before uploading payloads. */
   async prepareTurn(
     channel: string,
     content: string,
@@ -871,7 +562,6 @@ export class ChatAPI {
     return this.messagesApi.prepareTurn(channel, content, from, type, metadata);
   }
 
-  /** Finalize a prepared turn after uploading requested context. */
   async dispatchTurn(
     channel: string,
     content: string,
@@ -882,7 +572,6 @@ export class ChatAPI {
     return this.messagesApi.dispatchTurn(channel, content, from, type, metadata);
   }
 
-  // Fetch list of active agents
   async fetchAgents(options?: { includeToolCounts?: boolean }): Promise<AgentInfo[]> {
     return this.agentsApi.fetchAgents(options);
   }
@@ -903,12 +592,10 @@ export class ChatAPI {
     return this.agentsApi.updateCapabilityPolicy(update);
   }
 
-  // Fetch list of channels
   async fetchChannels(): Promise<Channel[]> {
     return this.channelsApi.fetchChannels();
   }
 
-  // Fetch command definitions (cached unless forceRefresh is true)
   async fetchCommands(forceRefresh: boolean = false): Promise<CommandDefinition[]> {
     if (!forceRefresh && this.commandsCache) {
       return this.commandsCache;
@@ -1059,12 +746,10 @@ export class ChatAPI {
     return this.slackApi.saveSlackInbox(body);
   }
 
-  /** Toggle manual away mode for human DM away (GET + merge + PUT). */
   async setSlackInboxAwayEnabled(awayEnabled: boolean): Promise<SlackInboxConfig> {
     return this.slackApi.setSlackInboxAwayEnabled(awayEnabled);
   }
 
-  /** Toggle channel message forwarding into the personal inbox (reply from NJ). */
   async setSlackInboxForwardEnabled(forwardEnabled: boolean): Promise<SlackInboxConfig> {
     return this.slackApi.setSlackInboxForwardEnabled(forwardEnabled);
   }
@@ -1088,7 +773,6 @@ export class ChatAPI {
     return this.slackApi.runSlackSmoke(options);
   }
 
-  // Create a new channel
   async createChannel(
     name: string,
     description: string,
@@ -1099,12 +783,10 @@ export class ChatAPI {
     return this.channelsApi.createChannel(name, description, type, members, createdBy);
   }
 
-  /** Find-or-create DM with an agent (rate-limit exempt on the hub). */
   async openDM(agentId: string, createdBy: string): Promise<Channel> {
     return this.channelsApi.openDM(agentId, createdBy);
   }
 
-  /** Create a new expert or CLI agent scoped to a fresh DM channel. */
   async createDMAgent(payload: {
     created_by: string;
     mode: 'expert' | 'cli';
@@ -1123,30 +805,10 @@ export class ChatAPI {
     return this.channelsApi.createDMAgent(payload);
   }
 
-  /** CLI agent registry keys and whether each binary appears on the server PATH. */
   async fetchCliAgentTypes(): Promise<{ types: string[]; installed: Record<string, boolean> }> {
-    const response = await this.hubFetch(`/api/cli-agent-types`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch CLI agent types: ${response.status} ${response.statusText}`);
-    }
-    const text = await response.text();
-    let data: unknown;
-    try {
-      data = JSON.parse(text) as unknown;
-    } catch {
-      const preview = text.replace(/\s+/g, ' ').slice(0, 160);
-      throw new Error(
-        `Hub returned non-JSON from /api/cli-agent-types (wrong NEURAL_JUNKIE_HUB_URL / VITE_NJ_HUB_URL or stale sidecar?). ${preview}`
-      );
-    }
-    if (!data || typeof data !== 'object' || !Array.isArray((data as { types?: unknown }).types)) {
-      throw new Error('Hub JSON for CLI types is missing a "types" array.');
-    }
-    const obj = data as { types: string[]; installed?: Record<string, boolean> };
-    return { types: obj.types, installed: obj.installed ?? {} };
+    return this.agentsExtrasApi.fetchCliAgentTypes();
   }
 
-  // Delete a channel
   async clearChannelHistory(name: string): Promise<void> {
     return this.channelsApi.clearChannelHistory(name);
   }
@@ -1171,32 +833,26 @@ export class ChatAPI {
     return this.channelsApi.archiveChannel(name);
   }
 
-  // Add agents to a channel
   async addAgentsToChannel(channelName: string, agentIds: string[]): Promise<void> {
     return this.channelsApi.addAgentsToChannel(channelName, agentIds);
   }
 
-  // Remove an agent from a channel
   async removeAgentFromChannel(channelName: string, agentId: string): Promise<void> {
     return this.channelsApi.removeAgentFromChannel(channelName, agentId);
   }
 
-  // Test server connection
   async testConnection(): Promise<boolean> {
     return this.channelsApi.testConnection();
   }
 
-  // Get WebSocket URL for a channel. extraChannels are additional hub channels to watch on the same socket.
   getWebSocketURL(channel: string, extraChannels: string[] = []): string {
     return this.channelsApi.getWebSocketURL(channel, extraChannels);
   }
 
-  // Get WebSocket URL for a thread
   getThreadWebSocketURL(channel: string, threadId: string): string {
     return this.channelsApi.getThreadWebSocketURL(channel, threadId);
   }
 
-  // Fetch messages from a thread
   async fetchThreadMessages(threadId: string, limit: number = 50): Promise<Message[]> {
     return this.messagesApi.fetchThreadMessages(threadId, limit);
   }
@@ -1211,41 +867,26 @@ export class ChatAPI {
     return this.messagesApi.sendThreadReply(threadId, channel, content, from, metadata);
   }
 
-  // Fetch thread metadata
   async fetchThreadMetadata(threadId: string): Promise<ThreadMetadata> {
     return this.messagesApi.fetchThreadMetadata(threadId);
   }
 
-  // Fetch my agents
   async fetchMyAgents(): Promise<CachedAgentInfo[]> {
     return this.agentsApi.fetchMyAgents();
   }
 
-  /** Delete a cached agent entry (repo index, CLI record) without loading it. */
   async deleteCachedAgent(payload: {
     type: string;
     name: string;
     path?: string;
   }): Promise<void> {
-    const response = await this.hubFetch(`/api/my-agents`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (response.status === 404) {
-      throw new Error('Cached agent not found');
-    }
-    if (!response.ok) {
-      throw new Error(`Failed to delete cached agent: ${response.statusText}`);
-    }
+    return this.agentsExtrasApi.deleteCachedAgent(payload);
   }
 
-  // Fetch removed agents
   async fetchRemovedAgents(): Promise<AgentInfo[]> {
     return this.agentsApi.fetchRemovedAgents();
   }
 
-  // Remove an agent from conversation
   async removeAgent(
     channel: string,
     agentName: string,
@@ -1255,7 +896,6 @@ export class ChatAPI {
     await this.sendMessage(channel, command, from, 'question');
   }
 
-  /** Permanently delete an agent (unregister, cleanup repo cache when applicable). */
   async deleteAgent(
     channel: string,
     agentName: string,
@@ -1265,7 +905,6 @@ export class ChatAPI {
     await this.sendMessage(channel, command, from, 'question');
   }
 
-  // Recall a removed agent
   async recallAgent(
     channel: string,
     agentName: string,
@@ -1275,7 +914,6 @@ export class ChatAPI {
     await this.sendMessage(channel, command, from, 'question');
   }
 
-  // Export an agent to MCP format
   async exportAgent(channel: string, agentName: string): Promise<void> {
     await this.sendMessage(
       channel,
@@ -1285,108 +923,58 @@ export class ChatAPI {
     );
   }
 
-  /**
-   * Build a Share Agent bundle (export + custom rules + agent-scoped
-   * learnings + LoRA metadata, when present) for a repo agent so it can be
-   * offered as a download from Agent Info -> Share.
-   */
   async shareAgent(agentId: string): Promise<AgentShareBundle> {
-    const response = await this.hubFetch(`/api/agents/${agentId}/share`, { method: 'POST' });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.agentsExtrasApi.shareAgent(agentId);
   }
 
-  /**
-   * Import an agent from an MCP export / Share Agent bundle file already
-   * accessible on the hub's filesystem. Set `hydrate` to rebuild the
-   * agent's knowledge from the bundle's embedded resources instead of
-   * re-indexing the original repository path; the hub auto-hydrates when
-   * the original path isn't available even if this isn't set.
-   */
   async importAgentBundle(options: {
     filePath: string;
     hydrate?: boolean;
     repositoryPath?: string;
   }): Promise<{ success: boolean; message: string; name?: string; lora_train_suggestion?: unknown }> {
-    const response = await this.hubFetch('/api/import', {
-      method: 'POST',
-      body: JSON.stringify({
-        file_path: options.filePath,
-        hydrate: options.hydrate ?? false,
-        repository_path: options.repositoryPath ?? '',
-      }),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.agentsExtrasApi.importAgentBundle(options);
   }
 
-  // Test Anthropic connection
   async testAnthropicConnection(apiKey: string, useAIHub: boolean = true, aiHubEndpoint?: string): Promise<ConnectionTestResult> {
     return this.providersApi.testAnthropicConnection(apiKey, useAIHub, aiHubEndpoint);
   }
 
-  // Test GitHub connection
   async testGitHubConnection(personalAccessToken: string): Promise<ConnectionTestResult> {
     return this.providersApi.testGitHubConnection(personalAccessToken);
   }
 
-  // Test Confluence connection
   async testConfluenceConnection(domain: string, email: string, apiToken: string): Promise<ConnectionTestResult> {
     return this.providersApi.testConfluenceConnection(domain, email, apiToken);
   }
 
-  // Test Ollama connection
   async testOllamaConnection(endpoint: string, model: string): Promise<ConnectionTestResult> {
     return this.providersApi.testOllamaConnection(endpoint, model);
   }
 
-  // Switch agent provider
   async switchAgentProvider(agentId: string, provider: string, model: string): Promise<void> {
-    const response = await this.hubFetch(`/api/agents/${agentId}/provider`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ provider, model }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to switch agent provider: ${response.statusText}`);
-    }
+    return this.agentsExtrasApi.switchAgentProvider(agentId, provider, model);
   }
 
-  // Switch all agents to same provider
   async switchAllAgentProviders(provider: string, model: string): Promise<void> {
     return this.providersApi.switchAllAgentProviders(provider, model);
   }
 
-  // Get Ollama status
   async fetchOllamaStatus(): Promise<{ running: boolean; endpoint: string; error?: string }> {
     return this.providersApi.fetchOllamaStatus();
   }
 
-  // Get available Ollama models
   async fetchOllamaModels(endpoint?: string): Promise<string[]> {
     return this.providersApi.fetchOllamaModels(endpoint);
   }
 
-  // Test LM Studio connection
   async testLMStudioConnection(endpoint: string, model: string): Promise<ConnectionTestResult> {
     return this.providersApi.testLMStudioConnection(endpoint, model);
   }
 
-  // Get LM Studio status
   async fetchLMStudioStatus(): Promise<{ running: boolean; endpoint: string; error?: string }> {
     return this.providersApi.fetchLMStudioStatus();
   }
 
-  // Get available LM Studio models
   async fetchLMStudioModels(endpoint?: string): Promise<string[]> {
     return this.providersApi.fetchLMStudioModels(endpoint);
   }
@@ -1418,7 +1006,6 @@ export class ChatAPI {
     return this.providersApi.fetchProviders();
   }
 
-  // Send message with credentials for agent creation
   async sendMessageWithCredentials(
     channel: string,
     content: string,
@@ -1428,20 +1015,12 @@ export class ChatAPI {
     return this.sendMessage(channel, content, from, 'question', credentials);
   }
 
-  // Utility function to clear credentials from memory
   static clearCredentials(credentials: Record<string, any>): void {
     ProvidersApi.clearCredentials(credentials);
   }
 
-  // Workspace API methods
   async fetchWorkspaces(): Promise<any[]> {
-    const response = await this.hubFetch(`/api/workspaces`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch workspaces: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.workspaceApi.fetchWorkspaces();
   }
 
   async addWorkspace(
@@ -1449,34 +1028,11 @@ export class ChatAPI {
     path: string,
     options?: { create?: boolean; parentPath?: string },
   ): Promise<any> {
-    const response = await this.hubFetch(`/api/workspaces`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name,
-        path,
-        create: options?.create === true,
-        parent_path: options?.parentPath?.trim() || undefined,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to add workspace: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.workspaceApi.addWorkspace(name, path, options);
   }
 
   async removeWorkspace(workspaceId: string): Promise<void> {
-    const response = await this.hubFetch(`/api/workspaces?id=${encodeURIComponent(workspaceId)}`, {
-      method: 'DELETE',
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to remove workspace: ${response.statusText}`);
-    }
+    return this.workspaceApi.removeWorkspace(workspaceId);
   }
 
   async connectRemoteWorkspace(params: {
@@ -1488,120 +1044,35 @@ export class ChatAPI {
     token: string;
     kind?: 'ssh' | 'devcontainer';
   }): Promise<any> {
-    const response = await this.hubFetch('/api/workspaces/connect-remote', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: params.name,
-        remote_host: params.remoteHost,
-        remote_user: params.remoteUser,
-        remote_path: params.remotePath,
-        sidecar_url: params.sidecarUrl,
-        token: params.token,
-        kind: params.kind ?? 'ssh',
-      }),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Failed to connect remote workspace: ${response.statusText}`);
-    }
-    return response.json();
+    return this.workspaceApi.connectRemoteWorkspace(params);
   }
 
   async fetchDevcontainerPlan(workspaceId: string): Promise<any> {
-    const response = await this.hubFetch(
-      `/api/workspaces/devcontainer-plan?workspace=${encodeURIComponent(workspaceId)}`
-    );
-    if (!response.ok) {
-      throw new Error(`Failed to fetch devcontainer plan: ${response.statusText}`);
-    }
-    return response.json();
+    return this.workspaceApi.fetchDevcontainerPlan(workspaceId);
   }
 
   async fetchDevcontainerPlanByPath(repoPath: string): Promise<any> {
-    const response = await this.hubFetch(
-      `/api/workspaces/devcontainer-plan?path=${encodeURIComponent(repoPath)}`
-    );
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Failed to fetch devcontainer plan: ${response.statusText}`);
-    }
-    return response.json();
+    return this.workspaceApi.fetchDevcontainerPlanByPath(repoPath);
   }
 
   async pingSidecar(sidecarUrl: string, token?: string): Promise<boolean> {
-    const url = `${sidecarUrl.replace(/\/$/, '')}/health`;
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
-    try {
-      const res = await fetch(url, { headers });
-      return res.ok;
-    } catch {
-      return false;
-    }
+    return this.workspaceApi.pingSidecar(sidecarUrl, token);
   }
 
-  // File system API methods
   async fetchFiles(workspaceId: string, path: string = '/'): Promise<any[]> {
-    const response = await this.hubFetch(`/api/files?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch files: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.filesApi.fetchFiles(workspaceId, path);
   }
 
   async fetchFileContent(workspaceId: string, path: string): Promise<string> {
-    const response = await this.hubFetch(`/api/file-content?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`
-    );
-    
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      const detail = body.trim();
-      if (response.status === 403) {
-        throw new Error(
-          detail || 'Forbidden: path is outside the workspace. Use a path relative to the workspace root.'
-        );
-      }
-      if (response.status === 404) {
-        throw new Error(detail || `Not Found: ${path}`);
-      }
-      throw new Error(
-        detail
-          ? `Failed to fetch file content (${response.status}): ${detail}`
-          : `Failed to fetch file content: ${response.statusText}`
-      );
-    }
-    
-    const data = await response.json();
-    return data.content;
+    return this.filesApi.fetchFileContent(workspaceId, path);
   }
 
-  /** Load a workspace image as a data URL (for editor preview in browser dev). */
   async fetchScanSummaryWellImage(
     workspaceId: string,
     summaryDir: string,
     well: string
   ): Promise<string> {
-    const params = new URLSearchParams({
-      workspace: workspaceId,
-      dir: summaryDir,
-      well,
-    });
-    const response = await this.hubFetch(`/api/scan-summary/well-image?${params.toString()}`
-    );
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Failed to load well image: ${response.statusText}`);
-    }
-    const data = (await response.json()) as { mime?: string; content_base64?: string };
-    const b64 = data.content_base64 ?? '';
-    if (!b64) {
-      throw new Error('Empty well image payload from hub');
-    }
-    const mime = data.mime || 'image/png';
-    return `data:${mime};base64,${b64}`;
+    return this.filesApi.fetchScanSummaryWellImage(workspaceId, summaryDir, well);
   }
 
   async fetchWorkspaceImageDataUrl(workspaceId: string, path: string): Promise<string> {
@@ -1613,37 +1084,11 @@ export class ChatAPI {
     path: string,
     fallbackMime = 'application/octet-stream',
   ): Promise<string> {
-    const response = await this.hubFetch(
-      `/api/file-content?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}&binary=1`,
-    );
-    if (!response.ok) {
-      throw new Error(`Failed to load file: ${response.statusText}`);
-    }
-    const data = (await response.json()) as { mime?: string; content_base64?: string };
-    const b64 = data.content_base64 ?? '';
-    if (!b64) {
-      throw new Error('Empty binary payload from hub');
-    }
-    const mime = data.mime || fallbackMime;
-    return `data:${mime};base64,${b64}`;
+    return this.filesApi.fetchWorkspaceBinaryDataUrl(workspaceId, path, fallbackMime);
   }
 
   async saveFileContent(workspaceId: string, path: string, content: string): Promise<void> {
-    const response = await this.hubFetch(`/api/file-content`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        workspace_id: workspaceId,
-        path,
-        content,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to save file content: ${response.statusText}`);
-    }
+    return this.filesApi.saveFileContent(workspaceId, path, content);
   }
 
   async renderCAD(body: {
@@ -1653,16 +1098,7 @@ export class ChatAPI {
     params?: Record<string, string>;
     output_path?: string;
   }): Promise<{ content_base64: string; params?: unknown[]; scad_path?: string; stl_path?: string }> {
-    const response = await this.hubFetch('/api/cad/render', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `CAD render failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.cadApi.renderCAD(body);
   }
 
   async fetchCADMesh(
@@ -1670,13 +1106,7 @@ export class ChatAPI {
     scadPath: string,
     projectId?: string
   ): Promise<{ content_base64: string }> {
-    const params = new URLSearchParams({ workspace: workspaceId, path: scadPath });
-    if (projectId) params.set('project_id', projectId);
-    const response = await this.hubFetch(`/api/cad/mesh?${params.toString()}`);
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-    return response.json();
+    return this.cadApi.fetchCADMesh(workspaceId, scadPath, projectId);
   }
 
   async fetchCADParams(
@@ -1684,21 +1114,11 @@ export class ChatAPI {
     scadPath: string,
     projectId?: string
   ): Promise<{ params: CadParam[] }> {
-    const params = new URLSearchParams({ workspace: workspaceId, path: scadPath });
-    if (projectId) params.set('project_id', projectId);
-    const response = await this.hubFetch(`/api/cad/params?${params.toString()}`);
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-    return response.json();
+    return this.cadApi.fetchCADParams(workspaceId, scadPath, projectId);
   }
 
   async fetchCADVersions(projectId: string): Promise<{ versions: Array<{ id: string; label: string; created_at: string }> }> {
-    const response = await this.hubFetch(`/api/cad/versions?project_id=${encodeURIComponent(projectId)}`);
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-    return response.json();
+    return this.cadApi.fetchCADVersions(projectId);
   }
 
   async saveCADVersion(body: {
@@ -1708,40 +1128,18 @@ export class ChatAPI {
     label: string;
     params?: Record<string, string>;
   }): Promise<unknown> {
-    const response = await this.hubFetch('/api/cad/versions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-    return response.json();
+    return this.cadApi.saveCADVersion(body);
   }
 
   async restoreCADVersion(
     projectId: string,
     versionId: string
   ): Promise<{ content?: string; scad_path?: string }> {
-    const response = await this.hubFetch('/api/cad/versions/restore', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project_id: projectId, version_id: versionId }),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-    return response.json();
+    return this.cadApi.restoreCADVersion(projectId, versionId);
   }
 
   async testOpenSCAD(path?: string): Promise<{ ok: boolean; message: string }> {
-    const response = await this.hubFetch('/api/cad/test-openscad', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: path ?? '' }),
-    });
-    const data = (await response.json()) as { ok: boolean; message: string };
-    return data;
+    return this.cadApi.testOpenSCAD(path);
   }
 
   async checkCADPrintability(body: {
@@ -1753,106 +1151,34 @@ export class ChatAPI {
     overhang?: { max_angle_deg?: number; faces_over_limit?: number };
     estimated_min_wall_mm?: number;
   }> {
-    const response = await this.hubFetch('/api/cad/printability', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-    return response.json();
+    return this.cadApi.checkCADPrintability(body);
   }
 
   async validateCADAssembly(body: {
     manifest_path: string;
     clearance_mm?: number;
   }): Promise<{ ok?: boolean; bom?: Array<{ part_id: string; name: string }>; fit_issues?: unknown[] }> {
-    const response = await this.hubFetch('/api/cad/assembly/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-    return response.json();
+    return this.cadApi.validateCADAssembly(body);
   }
 
   async createFile(workspaceId: string, path: string, content: string = '', isDir = false): Promise<void> {
-    const response = await this.hubFetch(`/api/file-create`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        workspace_id: workspaceId,
-        path,
-        content,
-        is_dir: isDir,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to create file: ${response.statusText}`);
-    }
+    return this.filesApi.createFile(workspaceId, path, content, isDir);
   }
 
   async renameFile(workspaceId: string, oldPath: string, newPath: string): Promise<void> {
-    const response = await this.hubFetch(`/api/file-rename`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        workspace_id: workspaceId,
-        old_path: oldPath,
-        new_path: newPath,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to rename file: ${response.statusText}`);
-    }
+    return this.filesApi.renameFile(workspaceId, oldPath, newPath);
   }
 
   async deleteFile(workspaceId: string, path: string): Promise<void> {
-    const response = await this.hubFetch(`/api/file-delete?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`,
-      {
-        method: 'DELETE',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete file: ${response.statusText}`);
-    }
+    return this.filesApi.deleteFile(workspaceId, path);
   }
 
-  // Git operations API methods (stubs for now)
   async getGitStatus(workspaceId: string): Promise<any> {
-    const response = await this.hubFetch(`/api/git-status?workspace=${encodeURIComponent(workspaceId)}`, {
-      method: 'POST',
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get git status: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.gitWorkspaceApi.getGitStatus(workspaceId);
   }
 
   async getGitDiff(workspaceId: string, path: string, staged = false): Promise<string> {
-    const params = new URLSearchParams({
-      workspace: workspaceId,
-      path,
-    });
-    if (staged) params.set('staged', 'true');
-    const response = await this.hubFetch(`/api/git-diff?${params}`, { method: 'POST' });
-    if (!response.ok) {
-      throw new Error(`Failed to get git diff: ${response.statusText}`);
-    }
-    const data = await response.json();
-    return data.diff;
+    return this.gitWorkspaceApi.getGitDiff(workspaceId, path, staged);
   }
 
   async getGitFileSides(
@@ -1860,87 +1186,27 @@ export class ChatAPI {
     path: string,
     staged: boolean
   ): Promise<{ original: string; modified: string }> {
-    const params = new URLSearchParams({
-      workspace: workspaceId,
-      path,
-    });
-    if (staged) params.set('staged', 'true');
-    const response = await this.hubFetch(`/api/git-file-sides?${params}`, { method: 'GET' });
-    if (!response.ok) {
-      throw new Error(`Failed to get file sides: ${response.statusText}`);
-    }
-    return response.json();
+    return this.gitWorkspaceApi.getGitFileSides(workspaceId, path, staged);
   }
 
   async gitAdd(workspaceId: string, paths: string[]): Promise<void> {
-    const response = await this.hubFetch('/api/git-add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspace_id: workspaceId, paths }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to stage: ${response.statusText}`);
-    }
+    return this.gitWorkspaceApi.gitAdd(workspaceId, paths);
   }
 
   async gitReset(workspaceId: string, paths: string[]): Promise<void> {
-    const response = await this.hubFetch('/api/git-reset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspace_id: workspaceId, paths }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to unstage: ${response.statusText}`);
-    }
+    return this.gitWorkspaceApi.gitReset(workspaceId, paths);
   }
 
   async commitChanges(workspaceId: string, message: string): Promise<void> {
-    const response = await this.hubFetch(`/api/git-commit`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        workspace_id: workspaceId,
-        message,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to commit changes: ${response.statusText}`);
-    }
+    return this.gitWorkspaceApi.commitChanges(workspaceId, message);
   }
 
   async pushChanges(workspaceId: string): Promise<void> {
-    const response = await this.hubFetch(`/api/git-push`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        workspace_id: workspaceId,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to push changes: ${response.statusText}`);
-    }
+    return this.gitWorkspaceApi.pushChanges(workspaceId);
   }
 
   async pullChanges(workspaceId: string): Promise<void> {
-    const response = await this.hubFetch(`/api/git-pull`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        workspace_id: workspaceId,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to pull changes: ${response.statusText}`);
-    }
+    return this.gitWorkspaceApi.pullChanges(workspaceId);
   }
 
   async searchWorkspaceFiles(
@@ -1948,19 +1214,7 @@ export class ChatAPI {
     query: string,
     limit = 50
   ): Promise<string[]> {
-    const params = new URLSearchParams({
-      workspace: workspaceId,
-      q: query,
-      limit: String(limit),
-    });
-    const response = await this.hubFetch(`/api/workspaces/files/search?${params}`, {
-      method: 'GET',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to search files: ${response.statusText}`);
-    }
-    const data = (await response.json()) as { paths?: string[] };
-    return data.paths ?? [];
+    return this.ideApi.searchWorkspaceFiles(workspaceId, query, limit);
   }
 
   async searchWorkspaceSymbols(
@@ -1970,25 +1224,7 @@ export class ChatAPI {
   ): Promise<
     Array<{ name: string; path: string; line: number; kind: string; language: string }>
   > {
-    const params = new URLSearchParams({
-      workspace: workspaceId,
-      q: query,
-      limit: String(limit),
-    });
-    const response = await this.hubFetch(`/api/workspaces/symbols/search?${params}`, {
-      method: 'GET',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to search symbols: ${response.statusText}`);
-    }
-    const data = (await response.json()) as { symbols?: Array<{
-      name: string;
-      path: string;
-      line: number;
-      kind: string;
-      language: string;
-    }> };
-    return data.symbols ?? [];
+    return this.ideApi.searchWorkspaceSymbols(workspaceId, query, limit);
   }
 
   async devFastEdit(params: {
@@ -2005,23 +1241,7 @@ export class ChatAPI {
     agent?: string;
     agent_type?: string;
   }> {
-    const response = await this.hubFetch('/api/dev/fast-edit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        workspace_id: params.workspaceId,
-        path: params.path,
-        instruction: params.instruction,
-        selection: params.selection,
-        agent_type: params.agentType,
-        metadata: params.metadata,
-      }),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Fast edit failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.ideApi.devFastEdit(params);
   }
 
   async getGoLSPDiagnostics(
@@ -2029,23 +1249,7 @@ export class ChatAPI {
   ): Promise<
     Array<{ path: string; line: number; column: number; message: string; severity: string }>
   > {
-    const params = new URLSearchParams({ workspace: workspaceId });
-    const response = await this.hubFetch(`/api/lsp/go/diagnostics?${params}`, {
-      method: 'GET',
-    });
-    if (!response.ok) {
-      return [];
-    }
-    const data = (await response.json()) as {
-      diagnostics?: Array<{
-        path: string;
-        line: number;
-        column: number;
-        message: string;
-        severity: string;
-      }>;
-    };
-    return data.diagnostics ?? [];
+    return this.ideApi.getGoLSPDiagnostics(workspaceId);
   }
 
   async getLSPDiagnostics(
@@ -2054,21 +1258,7 @@ export class ChatAPI {
   ): Promise<
     Array<{ path: string; line: number; column: number; message: string; severity: string }>
   > {
-    const params = new URLSearchParams({ workspace: workspaceId });
-    const response = await this.hubFetch(`/api/lsp/${lang}/diagnostics?${params}`, {
-      method: 'GET',
-    });
-    if (!response.ok) return [];
-    const data = (await response.json()) as {
-      diagnostics?: Array<{
-        path: string;
-        line: number;
-        column: number;
-        message: string;
-        severity: string;
-      }>;
-    };
-    return data.diagnostics ?? [];
+    return this.ideApi.getLSPDiagnostics(lang, workspaceId);
   }
 
   async devComplete(params: {
@@ -2082,31 +1272,9 @@ export class ChatAPI {
     n?: number;
     signal?: AbortSignal;
   }): Promise<{ completion: string; completions?: string[]; model?: string }> {
-    const response = await this.hubFetch('/api/dev/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prefix: params.prefix,
-        suffix: params.suffix ?? '',
-        language: params.language,
-        path: params.path,
-        context: params.context,
-        model: params.model,
-        neighbor_snippets: params.neighbor_snippets,
-        n: params.n ?? 2,
-      }),
-      signal: params.signal,
-    });
-    if (!response.ok) {
-      return { completion: '' };
-    }
-    return response.json();
+    return this.ideApi.devComplete(params);
   }
 
-  /**
-   * Stream ghost-text completion via NDJSON (`/api/dev/complete/stream`).
-   * Falls back to non-stream `devComplete` when the stream endpoint is unavailable.
-   */
   async devCompleteStream(
     params: {
       prefix: string;
@@ -2121,90 +1289,7 @@ export class ChatAPI {
     },
     onChunk?: (text: string) => void
   ): Promise<{ completion: string; completions: string[]; model?: string; streamed: boolean }> {
-    const body = {
-      prefix: params.prefix,
-      suffix: params.suffix ?? '',
-      language: params.language,
-      path: params.path,
-      context: params.context,
-      model: params.model,
-      neighbor_snippets: params.neighbor_snippets,
-      n: params.n ?? 2,
-    };
-    try {
-      const response = await this.hubFetch('/api/dev/complete/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
-        body: JSON.stringify(body),
-        signal: params.signal,
-      });
-      if (!response.ok || !response.body) {
-        throw new Error(`stream unavailable: ${response.status}`);
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let completion = '';
-      let completions: string[] = [];
-      let model: string | undefined;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          let evt: {
-            type?: string;
-            text?: string;
-            completion?: string;
-            completions?: string[];
-            model?: string;
-            error?: string;
-          };
-          try {
-            evt = JSON.parse(trimmed);
-          } catch {
-            continue;
-          }
-          if (evt.type === 'chunk' && evt.text) {
-            completion += evt.text;
-            onChunk?.(evt.text);
-          } else if (evt.type === 'done') {
-            if (evt.completion) completion = evt.completion;
-            if (Array.isArray(evt.completions) && evt.completions.length > 0) {
-              completions = evt.completions;
-            }
-            model = evt.model;
-          } else if (evt.type === 'error') {
-            throw new Error(evt.error || 'stream error');
-          }
-        }
-      }
-      if (completions.length === 0 && completion) {
-        completions = [completion];
-      }
-      return { completion: completion.trim(), completions, model, streamed: true };
-    } catch {
-      if (params.signal?.aborted) {
-        return { completion: '', completions: [], streamed: false };
-      }
-      const fallback = await this.devComplete({ ...params, signal: params.signal });
-      const completions =
-        Array.isArray(fallback.completions) && fallback.completions.length > 0
-          ? fallback.completions
-          : fallback.completion
-            ? [fallback.completion]
-            : [];
-      return {
-        completion: fallback.completion ?? '',
-        completions,
-        model: fallback.model,
-        streamed: false,
-      };
-    }
+    return this.ideApi.devCompleteStream(params, onChunk);
   }
 
   async devAgentTurn(params: {
@@ -2226,26 +1311,7 @@ export class ChatAPI {
     agent?: string;
     agent_type?: string;
   }> {
-    const response = await this.hubFetch('/api/dev/agent-turn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        workspace_id: params.workspaceId,
-        instruction: params.instruction,
-        session_id: params.sessionId,
-        mode: params.mode ?? 'agent',
-        path: params.path,
-        selection: params.selection,
-        agent_type: params.agentType,
-        metadata: params.metadata,
-        attachments: params.attachments,
-      }),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Agent turn failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.ideApi.devAgentTurn(params);
   }
 
   async repoSemanticSearch(params: {
@@ -2256,23 +1322,7 @@ export class ChatAPI {
   }): Promise<{
     chunks: Array<{ path: string; content: string; repo_path?: string; repo_name?: string }>;
   }> {
-    const paths =
-      params.repoPaths?.filter((p) => p?.trim()).map((p) => p.trim()) ??
-      (params.repoPath?.trim() ? [params.repoPath.trim()] : []);
-    const response = await this.hubFetch('/api/repo/search/semantic', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        repo_paths: paths.length > 1 ? paths : undefined,
-        repo_path: paths.length === 1 ? paths[0] : params.repoPath,
-        query: params.query,
-        limit: params.limit ?? 8,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error(`Semantic search failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.ideApi.repoSemanticSearch(params);
   }
 
   async repoIndexStatus(repoPath: string): Promise<{
@@ -2281,21 +1331,11 @@ export class ChatAPI {
     chunk_count: number;
     embedding_model?: string;
   }> {
-    const params = new URLSearchParams({ repo_path: repoPath });
-    const response = await this.hubFetch(`/api/repo/index/status?${params}`);
-    if (!response.ok) {
-      throw new Error(`Index status failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.ideApi.repoIndexStatus(repoPath);
   }
 
   async repoGraph(repoPath: string): Promise<import('../components/knowledge-graph/types').KnowledgeGraphSummary> {
-    const params = new URLSearchParams({ repo_path: repoPath });
-    const response = await this.hubFetch(`/api/repo/graph?${params}`);
-    if (!response.ok) {
-      throw new Error(`Knowledge graph failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.ideApi.repoGraph(repoPath);
   }
 
   async repoGraphSubgraph(
@@ -2304,17 +1344,7 @@ export class ChatAPI {
     hops = 1,
     limit = 120,
   ): Promise<import('../components/knowledge-graph/types').KnowledgeGraphSummary & { query?: string; nodes: import('../components/knowledge-graph/types').KnowledgeGraphNode[]; edges: import('../components/knowledge-graph/types').KnowledgeGraphEdge[] }> {
-    const params = new URLSearchParams({
-      repo_path: repoPath,
-      q,
-      hops: String(hops),
-      limit: String(limit),
-    });
-    const response = await this.hubFetch(`/api/repo/graph/subgraph?${params}`);
-    if (!response.ok) {
-      throw new Error(`Graph subgraph failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.ideApi.repoGraphSubgraph(repoPath, q, hops, limit);
   }
 
   async repoGraphPath(
@@ -2328,40 +1358,22 @@ export class ChatAPI {
     nodes: import('../components/knowledge-graph/types').KnowledgeGraphNode[];
     edges: import('../components/knowledge-graph/types').KnowledgeGraphEdge[];
   }> {
-    const params = new URLSearchParams({ repo_path: repoPath, from, to });
-    const response = await this.hubFetch(`/api/repo/graph/path?${params}`);
-    if (!response.ok) {
-      throw new Error(`Graph path failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.ideApi.repoGraphPath(repoPath, from, to);
   }
 
   async repoGraphExplain(
     repoPath: string,
     node: string,
   ): Promise<import('../components/knowledge-graph/types').KnowledgeGraphExplain> {
-    const params = new URLSearchParams({ repo_path: repoPath, node });
-    const response = await this.hubFetch(`/api/repo/graph/explain?${params}`);
-    if (!response.ok) {
-      throw new Error(`Graph explain failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.ideApi.repoGraphExplain(repoPath, node);
   }
 
   async repoGraphStatus(
     repoPath: string,
     rebuild = false,
   ): Promise<import('../components/knowledge-graph/types').KnowledgeGraphMeta> {
-    const params = new URLSearchParams({ repo_path: repoPath });
-    if (rebuild) params.set('rebuild', '1');
-    const response = await this.hubFetch(`/api/repo/graph/status?${params}`);
-    if (!response.ok) {
-      throw new Error(`Graph status failed: ${response.statusText}`);
-    }
-    return response.json();
+    return this.ideApi.repoGraphStatus(repoPath, rebuild);
   }
-
-  // Tool approval API methods
 
   async fetchPendingToolApprovals(): Promise<
     Array<{
@@ -2375,35 +1387,15 @@ export class ChatAPI {
       created_at: string;
     }>
   > {
-    const response = await this.hubFetch('/api/tool-approvals/pending');
-    if (!response.ok) {
-      throw new Error(`Failed to list pending tool approvals: ${response.statusText}`);
-    }
-    return response.json();
+    return this.toolApprovalsApi.fetchPendingToolApprovals();
   }
 
   async approveToolCall(approvalId: string, scope: 'once' | 'always' = 'once'): Promise<void> {
-    const response = await this.hubFetch(`/api/tool-approvals/approve/${approvalId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scope }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to approve tool call: ${response.statusText}`);
-    }
+    return this.toolApprovalsApi.approveToolCall(approvalId, scope);
   }
 
   async rejectToolCall(approvalId: string, reason: string = 'User rejected'): Promise<void> {
-    const response = await this.hubFetch(`/api/tool-approvals/reject/${approvalId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to reject tool call: ${response.statusText}`);
-    }
+    return this.toolApprovalsApi.rejectToolCall(approvalId, reason);
   }
 
   async publishDeviceLocation(body: {
@@ -2416,22 +1408,11 @@ export class ChatAPI {
     shared?: boolean;
     source?: string;
   }): Promise<{ ok: boolean; location?: Record<string, unknown> }> {
-    const response = await this.hubFetch('/api/maps/device-location', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to publish device location: ${response.statusText}`);
-    }
-    return response.json();
+    return this.mapsApi.publishDeviceLocation(body);
   }
 
   async clearDeviceLocation(): Promise<void> {
-    const response = await this.hubFetch('/api/maps/device-location', { method: 'DELETE' });
-    if (!response.ok) {
-      throw new Error(`Failed to clear device location: ${response.statusText}`);
-    }
+    return this.mapsApi.clearDeviceLocation();
   }
 
   async fetchPendingLocationRequests(): Promise<
@@ -2444,11 +1425,7 @@ export class ChatAPI {
       status: string;
     }>
   > {
-    const response = await this.hubFetch('/api/maps/location-requests/pending');
-    if (!response.ok) {
-      throw new Error(`Failed to list location requests: ${response.statusText}`);
-    }
-    return response.json();
+    return this.mapsApi.fetchPendingLocationRequests();
   }
 
   async fulfillLocationRequest(
@@ -2461,37 +1438,15 @@ export class ChatAPI {
       captured_at?: string;
     },
   ): Promise<void> {
-    const response = await this.hubFetch(`/api/maps/location-requests/${requestId}/fulfill`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to fulfill location request: ${response.statusText}`);
-    }
+    return this.mapsApi.fulfillLocationRequest(requestId, body);
   }
 
   async rejectLocationRequest(requestId: string, reason?: string): Promise<void> {
-    const response = await this.hubFetch(`/api/maps/location-requests/${requestId}/reject`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: reason ?? 'User declined to share location' }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to reject location request: ${response.statusText}`);
-    }
+    return this.mapsApi.rejectLocationRequest(requestId, reason);
   }
 
   async reverseGeocode(lat: number, lon: number): Promise<{ display_name?: string }> {
-    const response = await this.hubFetch('/api/maps/reverse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat, lon }),
-    });
-    if (!response.ok) {
-      return {};
-    }
-    return response.json();
+    return this.mapsApi.reverseGeocode(lat, lon);
   }
 
   async answerUserQuestion(questionId: string, answer: string): Promise<void> {
@@ -2499,48 +1454,19 @@ export class ChatAPI {
   }
 
   async setAgentApprovalMode(agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo'): Promise<void> {
-    const response = await this.hubFetch(`/api/agents/${agentId}/approval-mode`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to set approval mode: ${response.statusText}`);
-    }
+    return this.plansApi.setAgentApprovalMode(agentId, mode);
   }
 
   async setAgentCustomRulesMarkdown(agentId: string, markdown: string): Promise<void> {
-    const response = await this.hubFetch(`/api/agents/${encodeURIComponent(agentId)}/rules`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markdown }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to save agent rules: ${response.statusText}`);
-    }
+    return this.plansApi.setAgentCustomRulesMarkdown(agentId, markdown);
   }
 
   async setUserRulesMarkdown(markdown: string): Promise<void> {
-    const response = await this.hubFetch('/api/user-rules', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markdown }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to save user rules: ${response.statusText}`);
-    }
+    return this.plansApi.setUserRulesMarkdown(markdown);
   }
 
   async getUserRulesMarkdown(): Promise<string> {
-    const response = await this.hubFetch('/api/user-rules');
-    if (!response.ok) {
-      throw new Error(`Failed to load user rules: ${response.statusText}`);
-    }
-    const data = (await response.json()) as { markdown?: string };
-    return data.markdown ?? '';
+    return this.plansApi.getUserRulesMarkdown();
   }
 
   async getPlan(id: string): Promise<{
@@ -2550,11 +1476,7 @@ export class ChatAPI {
     todos: Array<{ id: string; content: string; status: string }>;
     markdown: string;
   }> {
-    const response = await this.hubFetch(`/api/plans/${encodeURIComponent(id)}`);
-    if (!response.ok) {
-      throw new Error(`Failed to load plan: ${response.statusText}`);
-    }
-    return response.json();
+    return this.plansApi.getPlan(id);
   }
 
   async putPlan(
@@ -2567,20 +1489,9 @@ export class ChatAPI {
     todos: Array<{ id: string; content: string; status: string }>;
     markdown: string;
   }> {
-    const response = await this.hubFetch(`/api/plans/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markdown }),
-    });
-    if (!response.ok) {
-      throw new Error((await response.text()) || `Failed to save plan: ${response.statusText}`);
-    }
-    return response.json();
+    return this.plansApi.putPlan(id, markdown);
   }
 
-  // File change API methods
-
-  // Create a file change proposal directly from an agent message
   async proposeFileChangeFromMessage(params: {
     channel: string;
     messageId: string;
@@ -2588,76 +1499,23 @@ export class ChatAPI {
     targetPath?: string;
     userId?: string;
   }): Promise<FileChange> {
-    const response = await this.hubFetch(`/api/file-changes/propose-from-message`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        channel: params.channel,
-        message_id: params.messageId,
-        workspace_id: params.workspaceId,
-        target_path: params.targetPath || '',
-        user_id: params.userId || 'default',
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || `Failed to create proposal from message: ${response.statusText}`);
-    }
-
-    return response.json();
+    return this.fileChangesApi.proposeFileChangeFromMessage(params);
   }
 
-  // List pending file changes
   async listPendingFileChanges(userId: string = 'default'): Promise<FileChange[]> {
-    const response = await this.hubFetch(`/api/file-changes?user_id=${encodeURIComponent(userId)}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch file changes: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.fileChangesApi.listPendingFileChanges(userId);
   }
 
-  // Approve a file change (optional new_content when editor buffer was partially edited)
   async approveFileChange(
     changeId: string,
     userId: string = 'default',
     newContent?: string
   ): Promise<FileChange> {
-    const body =
-      newContent !== undefined && newContent !== ''
-        ? JSON.stringify({ new_content: newContent })
-        : undefined;
-    const response = await this.hubFetch(`/api/file-changes/approve/${changeId}?user_id=${encodeURIComponent(userId)}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body,
-    });
-
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to approve file change: ${response.statusText}`);
-    }
-
-    return response.json();
+    return this.fileChangesApi.approveFileChange(changeId, userId, newContent);
   }
 
   async approveFileChangeRequest(requestId: string, userId: string = 'default'): Promise<FileChangeRequest> {
-    const response = await this.hubFetch(
-      `/api/file-changes/requests/${encodeURIComponent(requestId)}/approve?user_id=${encodeURIComponent(userId)}`,
-      { method: 'POST' },
-    );
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to approve file change request: ${response.statusText}`);
-    }
-    return response.json();
+    return this.fileChangesApi.approveFileChangeRequest(requestId, userId);
   }
 
   async rejectFileChangeRequest(
@@ -2665,70 +1523,19 @@ export class ChatAPI {
     reason: string = 'No reason provided',
     userId: string = 'default',
   ): Promise<FileChangeRequest> {
-    const response = await this.hubFetch(
-      `/api/file-changes/requests/${encodeURIComponent(requestId)}/reject`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, reason }),
-      },
-    );
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to reject file change request: ${response.statusText}`);
-    }
-    return response.json();
+    return this.fileChangesApi.rejectFileChangeRequest(requestId, reason, userId);
   }
 
-  // Update pending file change content (partial hunk accept)
   async updateFileChangeContent(changeId: string, newContent: string): Promise<FileChangeDiff> {
-    const response = await this.hubFetch(`/api/file-changes/${changeId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ new_content: newContent }),
-    });
-
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to update file change: ${response.statusText}`);
-    }
-
-    return response.json();
+    return this.fileChangesApi.updateFileChangeContent(changeId, newContent);
   }
 
-  // Reject a file change
   async rejectFileChange(changeId: string, reason: string = 'No reason provided', userId: string = 'default'): Promise<FileChange> {
-    const response = await this.hubFetch(`/api/file-changes/reject/${changeId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        reason: reason,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to reject file change: ${response.statusText}`);
-    }
-
-    return response.json();
+    return this.fileChangesApi.rejectFileChange(changeId, reason, userId);
   }
 
-  // Get file change diff
   async getFileDiff(changeId: string): Promise<FileChangeDiff> {
-    const response = await this.hubFetch(`/api/file-changes/${changeId}`);
-    
-    if (!response.ok) {
-      const detail = (await response.text()).trim();
-      throw new Error(detail || `Failed to get file diff: ${response.statusText}`);
-    }
-    
-    return response.json();
+    return this.fileChangesApi.getFileDiff(changeId);
   }
 
   async fetchPacks(): Promise<PacksAPIResponse> {
@@ -2756,16 +1563,7 @@ export class ChatAPI {
   }
 
   async installPackFromZip(packZipBase64: string): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs/install-zip`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pack_zip_base64: packZipBase64 }),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return this.parsePacksMutationResponse(await response.json());
+    return this.packExtrasApi.installPackFromZip(packZipBase64);
   }
 
   async installPackLoRAs(packId: string): Promise<InstallPackLoRAsResponse> {
@@ -2773,182 +1571,75 @@ export class ChatAPI {
   }
 
   async fetchACEStepStatus(packId = 'music-creation'): Promise<ACEStepStatus> {
-    const response = await this.hubFetch(
-      `/api/packs/${encodeURIComponent(packId)}/acestep-status`,
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.fetchACEStepStatus(packId);
   }
 
   async installACEStep(
     packId = 'music-creation',
     modelVariant?: string,
   ): Promise<InstallACEStepResponse> {
-    const response = await this.hubFetch(
-      `/api/packs/${encodeURIComponent(packId)}/install-acestep`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model_variant: modelVariant ?? 'sft' }),
-      },
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.installACEStep(packId, modelVariant);
   }
 
   async restartMusicSidecar(packId = 'music-creation'): Promise<{ status: string; acestep: ACEStepStatus }> {
-    const response = await this.hubFetch(
-      `/api/packs/${encodeURIComponent(packId)}/restart-sidecar`,
-      { method: 'POST' },
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.restartMusicSidecar(packId);
   }
 
   async fetchArenaSidecarStatus(packId = 'model-arena'): Promise<ArenaSidecarStatus> {
-    const response = await this.hubFetch(
-      `/api/packs/${encodeURIComponent(packId)}/sidecar-status`,
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.fetchArenaSidecarStatus(packId);
   }
 
   async installArenaSidecarDeps(
     packId = 'model-arena',
   ): Promise<InstallArenaSidecarResponse> {
-    const response = await this.hubFetch(
-      `/api/packs/${encodeURIComponent(packId)}/install-sidecar-deps`,
-      { method: 'POST' },
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.installArenaSidecarDeps(packId);
   }
 
   async restartArenaSidecar(
     packId = 'model-arena',
   ): Promise<{ status: string; sidecar: ArenaSidecarStatus }> {
-    const response = await this.hubFetch(
-      `/api/packs/${encodeURIComponent(packId)}/arena-restart-sidecar`,
-      { method: 'POST' },
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.restartArenaSidecar(packId);
   }
 
   async fetchAIInterviewProgress(): Promise<AIInterviewProgressResponse> {
-    const response = await this.hubFetch('/api/ai-interview/progress');
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.fetchAIInterviewProgress();
   }
 
   async startAIInterviewDay(): Promise<AIInterviewProgressResponse> {
-    const response = await this.hubFetch('/api/ai-interview/start', { method: 'POST' });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.startAIInterviewDay();
   }
 
   async completeAIInterviewDay(
     day: number,
     body: { concept?: boolean; drill?: boolean; complete?: boolean; advance?: boolean },
   ): Promise<AIInterviewProgressResponse> {
-    const response = await this.hubFetch(`/api/ai-interview/days/${day}/complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.completeAIInterviewDay(day, body);
   }
 
   async submitAIInterviewGate(
     gateId: string,
     body: { eval_notes?: string; mock_notes?: string; score?: number },
   ): Promise<AIInterviewProgressResponse> {
-    const response = await this.hubFetch(
-      `/api/ai-interview/gates/${encodeURIComponent(gateId)}/submit`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.submitAIInterviewGate(gateId, body);
   }
 
   async unlockAIInterviewCert(): Promise<{
     certification: Record<string, unknown>;
     credential: Record<string, unknown>;
   }> {
-    const response = await this.hubFetch('/api/ai-interview/cert/unlock', { method: 'POST' });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.unlockAIInterviewCert();
   }
 
   async fetchImageGenStatus(): Promise<ImageGenStatus> {
-    const response = await this.hubFetch('/api/image-gen/status');
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.fetchImageGenStatus();
   }
 
   async uninstallPack(packId: string): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return this.parsePacksMutationResponse(await response.json());
+    return this.packExtrasApi.uninstallPack(packId);
   }
 
   async setPackEnabled(packId: string, enabled: boolean): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled }),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return this.parsePacksMutationResponse(await response.json());
+    return this.packExtrasApi.setPackEnabled(packId, enabled);
   }
 
   async setLayoutOwner(packId: string): Promise<PacksAPIResponse> {
@@ -2960,64 +1651,23 @@ export class ChatAPI {
     pack_dir?: string;
     pack_yaml?: string;
   }): Promise<PackValidationReport> {
-    const response = await this.hubFetch(`/api/packs/validate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.validatePack(body);
   }
 
   async devLinkPack(packDir: string): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs/dev-link`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pack_dir: packDir }),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return this.parsePacksMutationResponse(await response.json());
+    return this.packExtrasApi.devLinkPack(packDir);
   }
 
   async devReloadPack(packId: string): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs/dev-reload`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pack_id: packId }),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return this.parsePacksMutationResponse(await response.json());
+    return this.packExtrasApi.devReloadPack(packId);
   }
 
   async devUnlinkPack(packId: string): Promise<PacksAPIResponse> {
-    const response = await this.hubFetch(`/api/packs/dev-unlink`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pack_id: packId }),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return this.parsePacksMutationResponse(await response.json());
+    return this.packExtrasApi.devUnlinkPack(packId);
   }
 
   async fetchCustomerPackContext(): Promise<CustomerPackContextResponse> {
-    const response = await this.hubFetch(`/api/packs/customer-context`);
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.packExtrasApi.fetchCustomerPackContext();
   }
 
   async fetchPhoenixStatus(): Promise<{
@@ -3028,32 +1678,15 @@ export class ChatAPI {
     identity?: string;
     hint?: string;
   }> {
-    const response = await this.hubFetch('/api/phoenix/status');
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.phoenixApi.fetchPhoenixStatus();
   }
 
   async fetchPhoenixAnalyses(): Promise<Array<{ id: string; label: string }>> {
-    const response = await this.hubFetch('/api/phoenix/analyses');
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    const data = (await response.json()) as { analyses?: Array<{ id: string; label: string }> };
-    return data.analyses ?? [];
+    return this.phoenixApi.fetchPhoenixAnalyses();
   }
 
   async fetchPhoenixScanResults(): Promise<Array<{ id: string; label: string }>> {
-    const response = await this.hubFetch('/api/phoenix/scan-results');
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    const data = (await response.json()) as { scan_results?: Array<{ id: string; label: string }> };
-    return data.scan_results ?? [];
+    return this.phoenixApi.fetchPhoenixScanResults();
   }
 
   async phoenixLoginStart(): Promise<{
@@ -3063,12 +1696,7 @@ export class ChatAPI {
     expires_in: number;
     environment: string;
   }> {
-    const response = await this.hubFetch('/api/phoenix/login/start', { method: 'POST' });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.phoenixApi.phoenixLoginStart();
   }
 
   async phoenixLoginPoll(sessionId: string): Promise<{
@@ -3077,22 +1705,11 @@ export class ChatAPI {
     hint?: string;
     expires_in?: number;
   }> {
-    const response = await this.hubFetch(
-      `/api/phoenix/login/poll?session_id=${encodeURIComponent(sessionId)}`,
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.phoenixApi.phoenixLoginPoll(sessionId);
   }
 
   async phoenixLogout(): Promise<void> {
-    const response = await this.hubFetch('/api/phoenix/logout', { method: 'POST' });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
+    return this.phoenixApi.phoenixLogout();
   }
 
   async phoenixImport(body: {
@@ -3108,16 +1725,7 @@ export class ChatAPI {
     files_written?: string[];
     attachment_notes?: string[];
   }> {
-    const response = await this.hubFetch('/api/phoenix/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.phoenixApi.phoenixImport(body);
   }
 
   async phoenixImportScan(body: {
@@ -3130,64 +1738,23 @@ export class ChatAPI {
     scan_results_id?: string;
     files_written?: string[];
   }> {
-    const response = await this.hubFetch('/api/phoenix/import-scan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
-  }
-
-  private parsePacksMutationResponse(data: Record<string, unknown>): PacksAPIResponse {
-    return {
-      packs: (data.packs as PackStatus[]) ?? [],
-      pack_id: data.pack_id as string | undefined,
-      layout_owner: data.layout_owner as string | undefined,
-      layout_profile: data.layout_profile as string | undefined,
-      capabilities: (data.capabilities as string[]) ?? [],
-      capability_registry: (data.capability_registry as ResolvedCapability[]) ?? [],
-      short_id_collisions: (data.short_id_collisions as string[]) ?? [],
-    };
+    return this.phoenixApi.phoenixImportScan(body);
   }
 
   async fetchExpertPresets(): Promise<ExpertPresetOption[]> {
-    const response = await this.hubFetch(`/api/expert-presets`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch expert presets: ${response.statusText}`);
-    }
-    return response.json();
+    return this.packExtrasApi.fetchExpertPresets();
   }
 
   async restartConfiguredAgents(): Promise<void> {
-    const response = await this.hubFetch(`/api/agents/restart`, { method: 'POST' });
-    if (!response.ok) {
-      throw new Error(`Failed to restart agents: ${response.statusText}`);
-    }
+    return this.agentsExtrasApi.restartConfiguredAgents();
   }
 
   async fetchLoraExpertContext(agentId: string): Promise<LoraExpertContext> {
-    const response = await this.hubFetch(
-      `/api/lora/train/expert-context?agent_id=${encodeURIComponent(agentId)}`,
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.loraApi.fetchLoraExpertContext(agentId);
   }
 
   async fetchLoraTrainBases(): Promise<LoraTrainingBase[]> {
-    const response = await this.hubFetch('/api/lora/train/bases');
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    const data = await response.json();
-    return Array.isArray(data.bases) ? data.bases : [];
+    return this.loraApi.fetchLoraTrainBases();
   }
 
   async previewLoraTrain(params: {
@@ -3199,22 +1766,7 @@ export class ChatAPI {
     include_learnings?: boolean;
     incremental?: boolean;
   }): Promise<number> {
-    const q = new URLSearchParams({
-      source: params.source,
-      source_id: params.source_id,
-    });
-    if (params.thread_id) q.set('thread_id', params.thread_id);
-    if (params.agent_name) q.set('agent_name', params.agent_name);
-    if (params.agent_id) q.set('agent_id', params.agent_id);
-    if (params.include_learnings) q.set('include_learnings', '1');
-    if (params.incremental) q.set('incremental', '1');
-    const response = await this.hubFetch(`/api/lora/train/preview?${q.toString()}`);
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    const data = await response.json();
-    return Number(data.row_count ?? 0);
+    return this.loraApi.previewLoraTrain(params);
   }
 
   async previewLoraTrainDataset(
@@ -3223,72 +1775,23 @@ export class ChatAPI {
       ollama_tag?: string;
     },
   ): Promise<LoraTrainDatasetPreview> {
-    const response = await this.hubFetch('/api/lora/train/dataset-preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    const data = await response.json();
-    return {
-      rows: Array.isArray(data.rows) ? data.rows : [],
-      count: Number(data.count ?? 0),
-      min_rows: Number(data.min_rows ?? 10),
-    };
+    return this.loraApi.previewLoraTrainDataset(body);
   }
 
   async bootstrapLoraTrainFromIndex(agentId: string): Promise<LoraTrainDatasetPreview> {
-    const response = await this.hubFetch('/api/lora/train/index-bootstrap', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent_id: agentId }),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    const data = await response.json();
-    return {
-      rows: Array.isArray(data.rows) ? data.rows : [],
-      count: Number(data.count ?? 0),
-      min_rows: 10,
-    };
+    return this.loraApi.bootstrapLoraTrainFromIndex(agentId);
   }
 
   async startLoraTrain(body: LoraTrainStartRequest): Promise<LoraTrainJob> {
-    const response = await this.hubFetch(`/api/lora/train`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.loraApi.startLoraTrain(body);
   }
 
   async fetchLoraTrainJob(jobId: string): Promise<LoraTrainJob> {
-    const response = await this.hubFetch(`/api/lora/train/${encodeURIComponent(jobId)}`);
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.loraApi.fetchLoraTrainJob(jobId);
   }
 
   async cancelLoraTrainJob(jobId: string): Promise<LoraTrainJob> {
-    const response = await this.hubFetch(`/api/lora/train/${encodeURIComponent(jobId)}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.loraApi.cancelLoraTrainJob(jobId);
   }
 
   async run12PlexQC(body: {
@@ -3296,16 +1799,7 @@ export class ChatAPI {
     analysis_dir: string;
     write_report?: boolean;
   }): Promise<import('../utils/secondaryAnalysis').PanelQCReport> {
-    const response = await this.hubFetch('/api/secondary-analysis/12plex-qc', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.secondaryAnalysisApi.run12PlexQC(body);
   }
 
   async runSecondaryAnalysis(body: {
@@ -3313,58 +1807,26 @@ export class ChatAPI {
     workspace_id: string;
     config?: Record<string, unknown>;
   }): Promise<import('../utils/secondaryAnalysis').SecondaryAnalysisJob> {
-    const response = await this.hubFetch('/api/secondary-analysis/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.secondaryAnalysisApi.runSecondaryAnalysis(body);
   }
 
   async fetchSecondaryAnalysisJob(
     jobId: string
   ): Promise<import('../utils/secondaryAnalysis').SecondaryAnalysisJob> {
-    const response = await this.hubFetch(
-      `/api/secondary-analysis/jobs/${encodeURIComponent(jobId)}`
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.secondaryAnalysisApi.fetchSecondaryAnalysisJob(jobId);
   }
 
   async cancelSecondaryAnalysisJob(
     jobId: string
   ): Promise<import('../utils/secondaryAnalysis').SecondaryAnalysisJob> {
-    const response = await this.hubFetch(
-      `/api/secondary-analysis/jobs/${encodeURIComponent(jobId)}`,
-      { method: 'DELETE' }
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.secondaryAnalysisApi.cancelSecondaryAnalysisJob(jobId);
   }
 
   async fetchComparatorSummary(
     workspaceId: string,
     dir: string
   ): Promise<import('../utils/secondaryAnalysis').ComparatorSummary> {
-    const params = new URLSearchParams({ workspace: workspaceId, dir });
-    const response = await this.hubFetch(
-      `/api/secondary-analysis/comparator-summary?${params.toString()}`
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.secondaryAnalysisApi.fetchComparatorSummary(workspaceId, dir);
   }
 
   async fetchLearnings(options?: {
@@ -3372,17 +1834,7 @@ export class ChatAPI {
     agentType?: string;
     agentName?: string;
   }): Promise<UserLearning[]> {
-    const params = new URLSearchParams();
-    if (options?.agentId) params.set('agent_id', options.agentId);
-    if (options?.agentType) params.set('agent_type', options.agentType);
-    if (options?.agentName) params.set('agent_name', options.agentName);
-    const q = params.toString() ? `?${params.toString()}` : '';
-    const response = await this.hubFetch(`/api/learnings${q}`);
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.learningsApi.fetchLearnings(options);
   }
 
   async createLearning(body: {
@@ -3396,37 +1848,15 @@ export class ChatAPI {
     source_channel?: string;
     source_message_id?: string;
   }): Promise<UserLearning> {
-    const response = await this.hubFetch(`/api/learnings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.learningsApi.createLearning(body);
   }
 
   async deleteLearning(id: string): Promise<void> {
-    const response = await this.hubFetch(`/api/learnings/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
+    return this.learningsApi.deleteLearning(id);
   }
 
   async fetchLearningStats(agentId: string): Promise<LearningStats> {
-    const response = await this.hubFetch(
-      `/api/learnings/stats?agent_id=${encodeURIComponent(agentId)}`,
-    );
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.learningsApi.fetchLearningStats(agentId);
   }
 
   async updateLearning(
@@ -3438,16 +1868,7 @@ export class ChatAPI {
       collaboration_id?: string;
     },
   ): Promise<UserLearning> {
-    const response = await this.hubFetch(`/api/learnings/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.learningsApi.updateLearning(id, body);
   }
 
   async queryLearnings(params: {
@@ -3457,40 +1878,15 @@ export class ChatAPI {
     channel?: string;
     collaboration_id?: string;
   }): Promise<{ query: string; count: number; results: UserLearning[] }> {
-    const q = new URLSearchParams();
-    if (params.q) q.set('q', params.q);
-    if (params.agent_id) q.set('agent_id', params.agent_id);
-    if (params.scope) q.set('scope', params.scope);
-    if (params.channel) q.set('channel', params.channel);
-    if (params.collaboration_id) q.set('collaboration_id', params.collaboration_id);
-    const response = await this.hubFetch(`/api/learnings/query?${q.toString()}`);
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.learningsApi.queryLearnings(params);
   }
 
   async exportLearnings(): Promise<{ version: number; user_id: string; entries: UserLearning[] }> {
-    const response = await this.hubFetch(`/api/learnings/export`, { method: 'POST' });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.learningsApi.exportLearnings();
   }
 
   async importLearnings(bundle: { entries: UserLearning[] }): Promise<{ added: number; skipped: number }> {
-    const response = await this.hubFetch(`/api/learnings/import`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bundle),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.learningsApi.importLearnings(bundle);
   }
-}
 
+}

@@ -1,5 +1,5 @@
 import type { Message, ThreadMetadata } from '../../types/protocol';
-import type { SendMessageResponse } from '../chatAPI';
+import type { SendMessageResponse } from '../types/chatApiTypes';
 import type { ContextRequestPayload } from '../../utils/contextRequestAttach';
 import type { HubFetchFn } from './packsApi';
 
