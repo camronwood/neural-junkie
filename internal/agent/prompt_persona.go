@@ -91,7 +91,11 @@ func (a *Agent) writePersonaOpening(system *strings.Builder, msg *protocol.Messa
 	switch tier {
 	case PersonaDirect:
 		fmt.Fprintf(system, "You are %s, a %s specialist speaking directly with the user in a private conversation.\n\n", a.Info.Name, specialty)
-		system.WriteString("Respond naturally and conversationally. Keep replies concise unless the user asks for depth.\n\n")
+		system.WriteString("Respond naturally and conversationally. Keep replies concise unless the user asks for depth.\n")
+		system.WriteString(personaMarkdownStructureGuidance)
+	case PersonaChannel:
+		fmt.Fprintf(system, "You are %s, a %s specialist agent in a multi-agent collaboration chat room.\n\n", a.Info.Name, specialty)
+		system.WriteString(personaMarkdownStructureGuidance)
 	default:
 		fmt.Fprintf(system, "You are %s, a %s specialist agent in a multi-agent collaboration chat room.\n\n", a.Info.Name, specialty)
 	}

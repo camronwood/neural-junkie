@@ -86,6 +86,55 @@ describe('looksLikeBlockMarkdown', () => {
     expect(looksLikeBlockMarkdown('### Hello')).toBe(true);
     expect(looksLikeBlockMarkdown('plain chat reply')).toBe(false);
   });
+
+  it('detects pipe tables and blockquotes for streaming GFM', () => {
+    expect(looksLikeBlockMarkdown('| Name | Status |\n| --- | --- |\n| a | ok |')).toBe(true);
+    expect(looksLikeBlockMarkdown('> quoted finding')).toBe(true);
+    expect(looksLikeBlockMarkdown('Intro then | col |')).toBe(false);
+  });
+});
+
+describe('normalizeProseMarkdownBlocks glued bullets', () => {
+  it('breaks glued asterisk bullets into a list', () => {
+    const input = 'Tips: * First tip * Second tip * Third tip';
+    const normalized = normalizeProseMarkdownBlocks(input);
+    expect(normalized).toContain('Tips:\n\n- First tip');
+    expect(normalized).toContain('\n\n- Second tip');
+    expect(normalized).toContain('\n\n- Third tip');
+    const html = renderChatMarkdown(normalized);
+    expect(html).toContain('<ul');
+    expect(html).toContain('<li');
+  });
+
+  it('breaks lowercase dash sequences after a list intro', () => {
+    const input = 'Steps: - first do this - second do that - third finish';
+    const normalized = normalizeProseMarkdownBlocks(input);
+    expect(normalized).toContain('Steps:\n\n- first do this');
+    expect(normalized).toContain('\n\n- second do that');
+    expect(normalized).toContain('\n\n- third finish');
+    const html = renderChatMarkdown(normalized);
+    expect(html).toContain('<ul');
+  });
+
+  it('does not treat a single prose dash as a list', () => {
+    const input = 'This is a cost - benefit tradeoff for the team.';
+    expect(normalizeProseMarkdownBlocks(input)).toBe(input);
+  });
+
+  it('renders a pipe table after detection', () => {
+    const md = '| Name | Status |\n| --- | --- |\n| alpha | ok |';
+    expect(looksLikeBlockMarkdown(md)).toBe(true);
+    const html = renderChatMarkdown(md);
+    expect(html).toContain('<table');
+    expect(html).toContain('<th');
+  });
+
+  it('renders blockquotes when streaming detector matches', () => {
+    const md = '> Important note about the deploy';
+    expect(looksLikeBlockMarkdown(md)).toBe(true);
+    const html = renderChatMarkdown(md);
+    expect(html).toContain('<blockquote');
+  });
 });
 
 describe('promoteStandaloneImageFilePaths', () => {
