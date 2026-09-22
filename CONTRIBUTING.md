@@ -45,6 +45,8 @@ Unsupervised overnight / morning RC: [docs/AWAY_OPERATIONS.md](docs/AWAY_OPERATI
 
 ## Code layout
 
+Where to edit what (agent- and human-friendly ownership map): [docs/AGENT_CODEMAP.md](docs/AGENT_CODEMAP.md).
+
 Internal architecture and design decisions: [docs/DEVELOPMENT_NOTES.md](docs/DEVELOPMENT_NOTES.md).
 
 ## Reporting issues

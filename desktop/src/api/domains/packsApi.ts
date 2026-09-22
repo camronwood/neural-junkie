@@ -3,7 +3,7 @@ import type {
   PackCatalogEntry,
   PackUpdatesResponse,
   PacksAPIResponse,
-} from '../chatAPI';
+} from '../types/chatApiTypes';
 
 export type HubFetchFn = (path: string, init?: RequestInit) => Promise<Response>;
 

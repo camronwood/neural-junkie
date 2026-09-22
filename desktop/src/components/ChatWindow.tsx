@@ -50,6 +50,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { useSidebarAutoUnhide } from '../hooks/useSidebarAutoUnhide';
 import { ChatMessageList } from './chat/ChatMessageList';
 import { ChatInputArea } from './chat/ChatInputArea';
+import { ChatChannelToolbar } from './chat/ChatChannelToolbar';
 import { isSlackHubChannelName } from '../utils/slackChannelDisplay';
 import { ThreadPanel } from './ThreadPanel';
 import { MyAgentsPanel } from './MyAgentsPanel';
@@ -94,7 +95,6 @@ import { isTerminalCollaborationPhase as isTerminalCollabPhaseHelper } from '../
 import { LearningProposalModal } from './LearningProposalModal';
 import type { LearningProposalAction } from '../api/chatAPI';
 import type { LoraTrainPrefill } from './LoraTrainingPanel';
-import { LeftSidebarIcon, RightSidebarIcon, ChatPanelIcon } from './Icons';
 import { ChatToolbarActions } from './ChatToolbarActions';
 import { ChatToolbarSidebar } from './ChatToolbarSidebar';
 import type {
@@ -112,7 +112,6 @@ import {
   OUTPUT_LENGTH_CONTINUATION_PROMPT,
 } from '../types/protocol';
 import { findThreadParentMessage } from '../utils/slackThread';
-import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
 import { useSuggestedCommands } from '../hooks/useSuggestedCommands';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
@@ -130,7 +129,6 @@ import { useHorizontalPanelResize } from '../hooks/useHorizontalPanelResize';
 import { useChatShortcutHandlers } from '../hooks/useChatShortcutHandlers';
 import { useChatShortcutOverlays } from '../hooks/useChatShortcutOverlays';
 import { useShortcutDispatcher } from '../shortcuts/useShortcutDispatcher';
-import { formatChord } from '../shortcuts/format';
 import type { LayoutPreset } from '../stores/settingsStore';
 import {
   loadComposerMode,
@@ -1640,32 +1638,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   };
 
-  const getStatusColor = () => {
-    switch (status) {
-      case 'connected':
-        return 'bg-green-500';
-      case 'connecting':
-        return 'bg-yellow-500';
-      case 'error':
-        return 'bg-red-500';
-      default:
-        return 'bg-gray-500';
-    }
-  };
-
-  const getStatusText = () => {
-    switch (status) {
-      case 'connected':
-        return 'Connected';
-      case 'connecting':
-        return 'Connecting...';
-      case 'error':
-        return 'Connection Error';
-      default:
-        return 'Disconnected';
-    }
-  };
-
   const loadAssistantState = useCallback(async () => {
     try {
       const state = await api.fetchAssistantState(channel);
@@ -1825,105 +1797,20 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         onNotNow={handleWorkspaceGateDismiss}
       />
       {/* Top Toolbar - always visible, spans full width */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-slack-border bg-slack-bgHover flex-shrink-0">
-        <div className="flex items-center gap-2">
-          {(() => {
-            const ch = channels.find(c => c.name === channel);
-            const isDM = ch?.type === 'dm';
-            const agentCount = ch?.agents?.length ?? 0;
-            return (
-              <>
-                <h1 className="text-sm font-bold text-slack-text">
-                  {isDM
-                    ? `@ ${ch?.agents?.[0]?.name ?? channel}`
-                    : ch && isSlackMirrorChannelName(ch.name)
-                      ? slackChannelDisplayName(ch)
-                      : `# ${channel}`}
-                </h1>
-                {ch && showSlackHubChannelIdInHeader(ch.name) && (
-                  <span
-                    className="text-xs text-slack-textMuted hidden sm:inline truncate max-w-[200px] font-mono"
-                    title="Hub channel id"
-                  >
-                    {ch.name}
-                  </span>
-                )}
-                {ch?.description && !isSlackMirrorChannelName(ch.name) && (
-                  <span className="text-xs text-slack-textMuted hidden sm:inline truncate max-w-[200px]" title={ch.description}>
-                    {ch.description}
-                  </span>
-                )}
-                {agentCount > 0 && !isDM && (
-                  <span className="text-xs text-slack-textMuted bg-slack-bgHover px-1.5 py-0.5 rounded">
-                    {agentCount} agent{agentCount !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </>
-            );
-          })()}
-          <div className="flex items-center gap-1.5 text-xs">
-            <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor()}`} />
-            <span className="text-slack-textMuted">{getStatusText()}</span>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-1.5 shrink min-w-0 max-w-[min(100%,72rem)] justify-end" aria-label="Sidebar toggles">
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={toggleChannelSidebar}
-              className={`w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 ${
-                channelSidebarOpen
-                  ? 'bg-slack-accent text-white'
-                  : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
-              }`}
-              title="Toggle channels sidebar (⌘B)"
-              aria-label="Toggle channels sidebar"
-              aria-pressed={channelSidebarOpen}
-            >
-              <LeftSidebarIcon className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => void updateLayoutSettings({ chatPanelVisible: !chatPanelVisible })}
-              className={`w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 ${
-                chatPanelVisible
-                  ? 'bg-slack-accent text-white'
-                  : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
-              }`}
-              title={`${chatPanelVisible ? 'Hide main chat' : 'Show main chat'} (${formatChord('mod+shift+c')})`}
-              aria-label={chatPanelVisible ? 'Hide main chat panel' : 'Show main chat panel'}
-              aria-pressed={chatPanelVisible}
-            >
-              <ChatPanelIcon className="w-3.5 h-3.5" />
-            </button>
-            {useSidebarChips && (
-              <button
-                type="button"
-                onClick={toggleToolbarSidebar}
-                className={`w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 ${
-                  toolbarSidebarOpen
-                    ? 'bg-slack-accent text-white'
-                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
-                }`}
-                title={toolbarSidebarOpen ? 'Close toolbar panel' : 'Open toolbar panel'}
-                aria-label={toolbarSidebarOpen ? 'Close toolbar panel' : 'Open toolbar panel'}
-                aria-pressed={toolbarSidebarOpen}
-              >
-                <RightSidebarIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          {showTopToolbarChips && (
-            <>
-              <div className="w-px h-5 bg-slack-border shrink-0" />
-              <div className="flex min-w-0 overflow-x-auto overflow-y-visible">
-                <ChatToolbarActions layout="horizontal" {...toolbarActionsProps} />
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      <ChatChannelToolbar
+        channel={channel}
+        channels={channels}
+        status={status}
+        channelSidebarOpen={channelSidebarOpen}
+        onToggleChannelSidebar={toggleChannelSidebar}
+        chatPanelVisible={chatPanelVisible}
+        onToggleChatPanel={() => void updateLayoutSettings({ chatPanelVisible: !chatPanelVisible })}
+        useSidebarChips={useSidebarChips}
+        toolbarSidebarOpen={toolbarSidebarOpen}
+        onToggleToolbarSidebar={toggleToolbarSidebar}
+        showTopToolbarChips={showTopToolbarChips}
+        toolbarActionsProps={toolbarActionsProps}
+      />
 
       <PendingApprovalsBar
         channel={channel}

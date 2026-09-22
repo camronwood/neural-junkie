@@ -293,6 +293,88 @@ describe('SlackApi', () => {
   });
 });
 
+describe('WorkspaceApi', () => {
+  it('fetchWorkspaces calls /api/workspaces', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 'ws-1', path: '/tmp' }],
+    });
+    const { WorkspaceApi } = await import('./domains/workspaceApi');
+    const api = new WorkspaceApi(hubFetch);
+    const data = await api.fetchWorkspaces();
+    expect(hubFetch).toHaveBeenCalledWith('/api/workspaces');
+    expect(data).toHaveLength(1);
+  });
+
+  it('fetchWorkspaces throws on non-ok', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Bad Gateway',
+    });
+    const { WorkspaceApi } = await import('./domains/workspaceApi');
+    const api = new WorkspaceApi(hubFetch);
+    await expect(api.fetchWorkspaces()).rejects.toThrow(/Bad Gateway/);
+  });
+});
+
+describe('FileChangesApi', () => {
+  it('listPendingFileChanges calls /api/file-changes', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ id: 'fc-1' }],
+    });
+    const { FileChangesApi } = await import('./domains/fileChangesApi');
+    const api = new FileChangesApi(hubFetch);
+    const data = await api.listPendingFileChanges('user-1');
+    expect(hubFetch).toHaveBeenCalledWith('/api/file-changes?user_id=user-1');
+    expect(data).toHaveLength(1);
+  });
+
+  it('approveFileChange throws on non-ok', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Forbidden',
+      text: async () => 'nope',
+    });
+    const { FileChangesApi } = await import('./domains/fileChangesApi');
+    const api = new FileChangesApi(hubFetch);
+    await expect(api.approveFileChange('fc-1')).rejects.toThrow();
+  });
+});
+
+describe('FilesApi', () => {
+  it('fetchFiles calls /api/files', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ name: 'a.ts', path: 'a.ts', is_dir: false }],
+    });
+    const { FilesApi } = await import('./domains/filesApi');
+    const api = new FilesApi(hubFetch);
+    const data = await api.fetchFiles('ws-1', '.');
+    expect(hubFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/files?workspace=ws-1')
+    );
+    expect(data).toHaveLength(1);
+  });
+});
+
+describe('ChatAPI facade delegates workspace', () => {
+  it('fetchWorkspaces reaches /api/workspaces via domain', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => [],
+    } as Response);
+    const api = new ChatAPI('http://127.0.0.1:18765');
+    await api.fetchWorkspaces();
+    expect(fetchMock).toHaveBeenCalled();
+    const url = String(fetchMock.mock.calls[0]?.[0] ?? '');
+    expect(url).toContain('/api/workspaces');
+    fetchMock.mockRestore();
+  });
+});
+
 describe('ChatAPI hubFetch 401', () => {
   beforeEach(() => {
     setHubSessionToken('test-token');
