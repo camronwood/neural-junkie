@@ -37,6 +37,8 @@ import { LoraApi } from './domains/loraApi';
 import { SecondaryAnalysisApi } from './domains/secondaryAnalysisApi';
 import { LearningsApi } from './domains/learningsApi';
 import { AgentsExtrasApi } from './domains/agentsExtrasApi';
+import { HubDataApi } from './domains/hubDataApi';
+import { CommandsApi } from './domains/commandsApi';
 import type {
   PacksAPIResponse,
   AgentShareBundle,
@@ -105,7 +107,6 @@ export type {
 
 export class ChatAPI {
   private baseURL: string;
-  private commandsCache: CommandDefinition[] | null = null;
   private packsApi: PacksApi;
   private channelsApi: ChannelsApi;
   private messagesApi: MessagesApi;
@@ -136,6 +137,8 @@ export class ChatAPI {
   private secondaryAnalysisApi: SecondaryAnalysisApi;
   private learningsApi: LearningsApi;
   private agentsExtrasApi: AgentsExtrasApi;
+  private hubDataApi: HubDataApi;
+  private commandsApi: CommandsApi;
 
   constructor(serverAddr: string = getHubBaseURL()) {
     this.baseURL = normalizeHubBaseURL(serverAddr);
@@ -170,6 +173,8 @@ export class ChatAPI {
     this.secondaryAnalysisApi = new SecondaryAnalysisApi(hubFetch);
     this.learningsApi = new LearningsApi(hubFetch);
     this.agentsExtrasApi = new AgentsExtrasApi(hubFetch);
+    this.hubDataApi = new HubDataApi(hubFetch);
+    this.commandsApi = new CommandsApi(hubFetch);
   }
 
   private hubHeaders(extra?: Record<string, string>): Record<string, string> {
@@ -328,20 +333,7 @@ export class ChatAPI {
   async readHubDataAccess(
     targets: Array<{ kind: 'file' | 'directory'; relative_path: string }>
   ): Promise<{ root: string; entries: unknown[] }> {
-    const response = await this.hubFetch(`/api/hub-data/read`, {
-      method: 'POST',
-      body: JSON.stringify({ targets }),
-    });
-    if (!response.ok) {
-      const t = await response.text();
-      if (response.status === 404) {
-        throw new Error(
-          'Hub does not expose /api/hub-data/read (404). Restart the hub (`make server`) or rebuild the packaged sidecar (`make build-sidecar`).'
-        );
-      }
-      throw new Error(t.trim() || response.statusText);
-    }
-    return response.json();
+    return this.hubDataApi.readHubDataAccess(targets);
   }
 
   async acknowledgeCollaborationWorkspace(
@@ -597,22 +589,11 @@ export class ChatAPI {
   }
 
   async fetchCommands(forceRefresh: boolean = false): Promise<CommandDefinition[]> {
-    if (!forceRefresh && this.commandsCache) {
-      return this.commandsCache;
-    }
-
-    const response = await this.hubFetch(`/api/commands`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch commands: ${response.statusText}`);
-    }
-
-    this.commandsCache = await response.json();
-    return this.commandsCache!;
+    return this.commandsApi.fetchCommands(forceRefresh);
   }
 
   clearCommandsCache(): void {
-    this.commandsCache = null;
+    this.commandsApi.clearCommandsCache();
   }
 
   async fetchAssistantState(channel?: string): Promise<AssistantStateResponse> {
