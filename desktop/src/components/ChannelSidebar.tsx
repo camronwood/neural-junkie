@@ -563,7 +563,12 @@ export function ChannelSidebar({
     const isTyping = (channelThinkingAgents.get(ch.name)?.size ?? 0) > 0;
     const agent = ch.agents?.[0];
     const displayName = parseDMDisplayName(ch);
-    const color = agent ? getAgentColor(agent.type) : '#a9b9ba';
+    const liveAgent =
+      (agent && agents.find((a) => a.id === agent.id)) ||
+      agents.find((a) => a.name.toLowerCase() === displayName.toLowerCase());
+    const markerAgent = liveAgent ?? agent;
+    const color = markerAgent ? getAgentColor(markerAgent.type) : '#a9b9ba';
+    const toolCount = liveAgent?.tool_count ?? agent?.tool_count;
     const isHiddenRow = hiddenDmSet.has(ch.name) && normalizedQuery.length > 0;
 
     return (
@@ -580,8 +585,16 @@ export function ChannelSidebar({
           }`}
           title={`DM with ${displayName}`}
         >
-          <AgentSidebarMarker agent={agent} fallbackColor={color} />
+          <AgentSidebarMarker agent={markerAgent} fallbackColor={color} />
           <span className="truncate">{displayName}</span>
+          {toolCount != null && toolCount > 0 && (
+            <span
+              className="text-[10px] px-1 rounded bg-white/10 text-white/70 shrink-0"
+              title={`${toolCount} hub tool(s)`}
+            >
+              {toolCount}
+            </span>
+          )}
           {isHiddenRow && (
             <span className="text-[10px] uppercase text-white/50 shrink-0">hidden</span>
           )}

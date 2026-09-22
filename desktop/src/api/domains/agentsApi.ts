@@ -6,6 +6,7 @@ import type {
   CapabilityPolicyUpdate,
   ChannelToolsResponse,
 } from '../../types/protocol';
+import { isUserFacingCachedAgent } from '../../utils/agentVisibility';
 import type { HubFetchFn } from './packsApi';
 
 /** Agent roster and capability HTTP surface. */
@@ -31,7 +32,9 @@ export class AgentsApi {
       throw new Error(`Failed to fetch my agents: ${response.statusText}`);
     }
     const data = await response.json();
-    return data.my_agents || [];
+    const agents: CachedAgentInfo[] = data.my_agents || [];
+    // Workspace auto-indexes are infrastructure; keep them out of My Agents UI/counts.
+    return agents.filter(isUserFacingCachedAgent);
   }
 
   async fetchRemovedAgents(): Promise<AgentInfo[]> {

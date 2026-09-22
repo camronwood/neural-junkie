@@ -13,7 +13,7 @@ import {
   findLiveAgentForCached,
   isCachedAgentAlreadyLoaded,
 } from '../utils/cachedAgentLoaded';
-import { isUserFacingAgent } from '../utils/agentVisibility';
+import { isUserFacingAgent, isUserFacingCachedAgent } from '../utils/agentVisibility';
 
 interface MyAgentsPanelProps {
   onClose: () => void;
@@ -182,8 +182,11 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
   const isCachedLoaded = (cached: CachedAgentInfo) =>
     isCachedAgentAlreadyLoaded(cached, agents, loadingAgents);
 
-  // Hide disk-cache rows that already have a live hub agent (same repo path or name).
-  const unloadedMyAgents = myAgents.filter((cached) => !isCachedLoaded(cached));
+  // Hide disk-cache rows that already have a live hub agent (same repo path or name),
+  // and workspace auto-indexes (index-* / consult-only) which are not chat agents.
+  const unloadedMyAgents = myAgents.filter(
+    (cached) => !isCachedLoaded(cached) && isUserFacingCachedAgent(cached)
+  );
 
   const listSource = activeTab === 'active'
     ? ([...activeAgents, ...loadingAgentsList] as AgentInfo[])

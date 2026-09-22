@@ -2,6 +2,22 @@ import { useEffect, useState } from 'react';
 import type { AgentInfo, Channel } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 import { ChatAPI } from '../api/chatAPI';
+import { formatModelDisplayName } from '../utils/modelDisplayNames';
+
+function resolveLiveAgent(agent: AgentInfo, globalAgents: AgentInfo[]): AgentInfo {
+  return globalAgents.find((a) => a.id === agent.id) ?? agent;
+}
+
+function agentModelLabel(agent: AgentInfo): string | null {
+  const model = (agent.ai_model || agent.model || '').trim();
+  if (!model) return null;
+  const display = formatModelDisplayName(model);
+  const provider = (agent.ai_provider || '').trim();
+  if (provider && provider !== 'cursor-cli') {
+    return `${provider} · ${display}`;
+  }
+  return display;
+}
 
 interface ChannelInfoModalProps {
   channel: Channel;
@@ -185,31 +201,59 @@ export function ChannelInfoModal({ channel: ch, agents: globalAgents, api, onClo
               In this channel ({inRoom.size + memberOnlyRows.length})
             </div>
             <ul className="space-y-2">
-              {Array.from(inRoom.values()).map((a) => (
-                <li key={a.id} className="flex items-center gap-2 min-w-0">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: getAgentColor(a.type) }}
-                  />
-                  <span className="truncate font-medium">{a.name}</span>
-                  <span className="text-xs text-slack-textMuted shrink-0">{a.type}</span>
-                  <span className="text-xs text-slack-textMuted shrink-0 ml-auto">{a.status}</span>
-                </li>
-              ))}
-              {memberOnlyRows.map(({ id, agent }) => (
-                <li key={id} className="flex items-center gap-2 min-w-0 text-slack-textMuted">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-white/30" />
-                  {agent ? (
-                    <>
-                      <span className="truncate font-medium text-slack-text">{agent.name}</span>
-                      <span className="text-xs shrink-0">{agent.type}</span>
-                      <span className="text-xs shrink-0 ml-auto">member</span>
-                    </>
-                  ) : (
-                    <span className="truncate">Member ID: {id}</span>
-                  )}
-                </li>
-              ))}
+              {Array.from(inRoom.values()).map((raw) => {
+                const a = resolveLiveAgent(raw, globalAgents);
+                const modelLabel = agentModelLabel(a);
+                return (
+                  <li key={a.id} className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: getAgentColor(a.type) }}
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      <span className="font-medium">{a.name}</span>
+                      {modelLabel ? (
+                        <span
+                          className="block text-xs text-slack-textMuted truncate"
+                          title={a.ai_model || a.model}
+                        >
+                          {modelLabel}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="text-xs text-slack-textMuted shrink-0">{a.type}</span>
+                    <span className="text-xs text-slack-textMuted shrink-0">{a.status}</span>
+                  </li>
+                );
+              })}
+              {memberOnlyRows.map(({ id, agent: raw }) => {
+                const agent = raw ? resolveLiveAgent(raw, globalAgents) : undefined;
+                const modelLabel = agent ? agentModelLabel(agent) : null;
+                return (
+                  <li key={id} className="flex items-center gap-2 min-w-0 text-slack-textMuted">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-white/30" />
+                    {agent ? (
+                      <>
+                        <span className="min-w-0 flex-1 truncate">
+                          <span className="font-medium text-slack-text">{agent.name}</span>
+                          {modelLabel ? (
+                            <span
+                              className="block text-xs truncate"
+                              title={agent.ai_model || agent.model}
+                            >
+                              {modelLabel}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="text-xs shrink-0">{agent.type}</span>
+                        <span className="text-xs shrink-0">member</span>
+                      </>
+                    ) : (
+                      <span className="truncate">Member ID: {id}</span>
+                    )}
+                  </li>
+                );
+              })}
               {inRoom.size === 0 && memberOnlyRows.length === 0 && (
                 <li className="text-slack-textMuted text-xs">No agents listed for this channel yet.</li>
               )}
