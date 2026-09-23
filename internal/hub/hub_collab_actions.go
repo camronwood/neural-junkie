@@ -109,6 +109,10 @@ func (h *Hub) executeCollabActionTaskOpts(snap *collaboration.Collaboration, tas
 			return true
 		}
 	}
+	// Single-flight claim so overlapping approve/dispatch cannot double-send.
+	if !h.collabManager.ClaimActionExecution(collabID, task.ID) {
+		return false
+	}
 	runner := h.collabActionRunner()
 	out, err := runner.Execute(context.Background(), snap, task)
 	if err != nil {

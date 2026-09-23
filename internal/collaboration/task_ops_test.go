@@ -129,6 +129,28 @@ func TestApproveTaskDispatchClearsGate(t *testing.T) {
 			t.Fatal("approval should clear awaiting_approval")
 		}
 	}
+	if _, err := cm.ApproveTaskDispatch(c.ID, "t1"); err == nil {
+		t.Fatal("second approve should fail when not awaiting")
+	}
+}
+
+func TestClaimActionExecutionSingleFlight(t *testing.T) {
+	h := newRunbookMockHub()
+	h.addAgent("a1", "A", protocol.AgentTypeBackend, nil)
+	cm := NewCollaborationManager(h)
+	c, _ := cm.CreateRunbook("rb", []string{"a1"}, "general", "u", DiscussionConfig{}, CreateOptions{})
+	now := time.Now()
+	if _, err := cm.UpdateRunbook(c.ID, RunbookUpdatePayload{Tasks: []CollaborationTask{
+		{ID: "t1", Title: "Send", Status: TaskInProgress, CreatedAt: now, UpdatedAt: now},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if !cm.ClaimActionExecution(c.ID, "t1") {
+		t.Fatal("first claim should succeed")
+	}
+	if cm.ClaimActionExecution(c.ID, "t1") {
+		t.Fatal("second claim should fail")
+	}
 }
 
 func TestMarkTaskPromptDispatchedAdvancesPending(t *testing.T) {

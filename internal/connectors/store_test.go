@@ -22,6 +22,39 @@ func TestApplyToSMSConfig(t *testing.T) {
 	}
 }
 
+func TestApplyToSMSConfigHTTPAuthWebhook(t *testing.T) {
+	httpProf := &Profile{
+		Type: TypeHTTPAuth,
+		Config: map[string]string{
+			"url":         "https://hooks.example/sms",
+			"header_name": "X-Api-Key",
+		},
+		Secret: "sekret",
+	}
+	out := ApplyToSMSConfig(map[string]interface{}{"to": "+1", "body": "hi"}, httpProf)
+	if out["url"] != "https://hooks.example/sms" {
+		t.Fatalf("url = %#v", out["url"])
+	}
+	headers, _ := out["headers"].(map[string]interface{})
+	if headers["X-Api-Key"] != "sekret" {
+		t.Fatalf("headers = %#v", headers)
+	}
+
+	wh := &Profile{
+		Type:   TypeWebhook,
+		Config: map[string]string{"url": "https://hooks.example/wh"},
+		Secret: "Bearer abc",
+	}
+	out2 := ApplyToSMSConfig(nil, wh)
+	if out2["url"] != "https://hooks.example/wh" {
+		t.Fatalf("webhook url = %#v", out2["url"])
+	}
+	h2, _ := out2["headers"].(map[string]interface{})
+	if h2["Authorization"] != "Bearer abc" {
+		t.Fatalf("webhook headers = %#v", h2)
+	}
+}
+
 func TestApplyToEmailConfig(t *testing.T) {
 	prof := &Profile{
 		Type: TypeEmail,

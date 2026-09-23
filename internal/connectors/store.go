@@ -273,7 +273,9 @@ func ApplyToHTTPConfig(cfg map[string]interface{}, profile *Profile) map[string]
 	return out
 }
 
-// ApplyToSMSConfig merges an SMS connector into action config (url, from, auth headers).
+// ApplyToSMSConfig merges an SMS (or reusable HTTP) connector into action config
+// (url, from, auth headers). Accepts type sms, http_auth, and webhook so the
+// runbook editor can reuse HTTP notify endpoints for SMS delivery.
 func ApplyToSMSConfig(cfg map[string]interface{}, profile *Profile) map[string]interface{} {
 	if profile == nil {
 		return cfg
@@ -284,7 +286,10 @@ func ApplyToSMSConfig(cfg map[string]interface{}, profile *Profile) map[string]i
 			out[k] = v
 		}
 	}
-	if profile.Type != TypeSMS {
+	switch profile.Type {
+	case TypeSMS, TypeHTTPAuth, TypeWebhook:
+		// ok
+	default:
 		return out
 	}
 	if u := profile.Config["url"]; u != "" {
@@ -312,6 +317,9 @@ func ApplyToSMSConfig(cfg map[string]interface{}, profile *Profile) map[string]i
 		// Twilio-style Absolute auth uses Basic; callers may set Authorization=Basic …
 		if strings.HasPrefix(strings.ToLower(profile.Secret), "basic ") ||
 			strings.HasPrefix(strings.ToLower(profile.Secret), "bearer ") {
+			headers["Authorization"] = profile.Secret
+		} else if profile.Type == TypeHTTPAuth || profile.Type == TypeWebhook {
+			// Match ApplyToHTTPConfig: pass secret as Authorization as-is when no scheme.
 			headers["Authorization"] = profile.Secret
 		} else {
 			headers["Authorization"] = "Bearer " + profile.Secret
