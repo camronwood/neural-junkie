@@ -4,6 +4,7 @@ export type SettingsTab =
   | 'keyboard'
   | 'chat'
   | 'connection'
+  | 'connectors'
   | 'providers'
   | 'models-performance'
   | 'inference-usage'
@@ -52,6 +53,7 @@ export const SETTINGS_ESSENTIALS_GROUP: SettingsNavGroup = {
   items: [
     { id: 'appearance', label: 'Appearance' },
     { id: 'connection', label: 'Connection' },
+    { id: 'connectors', label: 'Connectors' },
     { id: 'providers', label: 'Providers' },
     { id: 'collab-routing', label: 'Routing & collab' },
     { id: 'domain-packs', label: 'Domain packs', action: 'open-domain-packs' },

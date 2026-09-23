@@ -57,9 +57,18 @@ Example:
 }
 ```
 
+### Setting up Email / SMS connectors (Settings UI)
+
+1. Open **Settings → Connectors** (Essentials in the left nav).
+2. **Email (SMTP):** choose type Email (SMTP), enter host, port (default 587), username, optional From, and SMTP password. Save.
+3. **SMS:** choose type SMS, enter your gateway URL (HTTP POST target you control), optional From / format, and optional auth token. Save.
+4. In a runbook action task, set type `email` or `sms` and pick the connector profile.
+
+Secrets stay in the connector store (`~/.neural-junkie/connectors.json`); do not put passwords in runbook JSON. Hand-editing that file remains an advanced fallback.
+
 ### `sms` config (HTTP notify — no vendor SDK)
 
-SMS is a first-class action that **POSTs** to a URL from an **SMS connector** (or inline `url`). Typical endpoints: Twilio Messages API, TextBelt, Zapier/Make catch hooks.
+SMS is a first-class action that **POSTs** to a URL from an **SMS connector** (or inline `url`). Point the connector at **your** gateway (self-hosted bridge, modem companion, or any HTTP SMS API). No vendor SDK in the hub.
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -82,7 +91,7 @@ Webhook/SMS/email pause for **desktop approval**, then execute once. In the Coll
 | `body` | yes* | Plain-text body |
 | `host` / `port` / `username` / `from` / `password` | via connector | SMTP settings |
 
-Connector (`type: email`): `config.host`, `port` (default 587), `username`, optional `from`; `secret` is the SMTP password. Port `465` uses implicit TLS; otherwise `net/smtp` (STARTTLS when advertised).
+Connector (`type: email`): configure under Settings → Connectors, or set `config.host`, `port` (default 587), `username`, optional `from`; `secret` is the SMTP password. Use any SMTP you control (Postfix, Workspace, SES SMTP, etc.). Port `465` uses implicit TLS; otherwise `net/smtp` (STARTTLS when advertised).
 
 Example:
 
@@ -120,7 +129,7 @@ make runbook-scenario SCENARIO=notify-webhook-approve
 make runbook-scenario SCENARIO=notify-sms-http
 ```
 
-Opt-in live email (requires an `email` SMTP connector in `~/.neural-junkie/connectors.json`):
+Opt-in live email (requires an `email` SMTP connector via Settings → Connectors, or `~/.neural-junkie/connectors.json`):
 
 ```text
 RUNBOOK_LIVE_EMAIL=1 make runbook-scenario SCENARIO=notify-email-smtp

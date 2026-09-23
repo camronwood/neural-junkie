@@ -210,7 +210,7 @@ export function StreamsSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
       <section className="border border-slack-border rounded p-3 space-y-2">
         <h4 className="text-sm font-medium">Broker connectors</h4>
         <p className="text-xs text-slack-textMuted">
-          Create MQTT/Kafka connectors under Integrations → Connectors (or below via Settings → Integrations).
+          Create MQTT/Kafka connectors under Settings → Connectors.
         </p>
         {brokerConnectors.length === 0 ? (
           <p className="text-xs text-amber-500">No mqtt/kafka connectors yet.</p>

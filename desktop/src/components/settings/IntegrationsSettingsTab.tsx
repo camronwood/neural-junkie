@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePacksStore } from '../../stores/packsStore';
 import { PACK_CAP } from '../../stores/packCapabilities';
-import { ChatAPI } from '../../api/chatAPI';
 import { mergeSettingsPut, openExternalLink, type SettingsTabProps } from './settingsShared';
-import { ConnectorsSettingsTab } from './ConnectorsSettingsTab';
 
 type AWSForm = {
   default_region: string;
@@ -25,7 +23,6 @@ type JiraForm = {
 };
 
 export function IntegrationsSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
-  const connectorsApi = useMemo(() => new ChatAPI(hubHttp), [hubHttp]);
   const hasAWS = usePacksStore((s) => s.hasCapability(PACK_CAP.AWS_SSO));
   const hasJira = usePacksStore((s) => s.hasCapability(PACK_CAP.JIRA_INTEGRATION));
   const hasGitHub = usePacksStore((s) => s.hasCapability(PACK_CAP.GITHUB_ISSUES_INTEGRATION));
@@ -282,12 +279,10 @@ export function IntegrationsSettingsTab({ hubHttp, isActive }: SettingsTabProps)
 
   return (
     <div className="max-w-3xl space-y-8">
-      <div className="rounded-lg border border-slack-border p-6">
-        <h4 className="text-base font-semibold text-slack-text">Runbook connectors</h4>
-        <p className="mt-1 mb-4 text-sm text-slack-textMuted">
-          Store webhook tokens and auth secrets outside runbook JSON. Reference connectors by ID in action tasks.
-        </p>
-        <ConnectorsSettingsTab api={connectorsApi} />
+      <div className="rounded-lg border border-slack-border p-4 text-sm text-slack-textMuted">
+        Runbook SMTP, SMS, and webhook secrets live under{' '}
+        <strong className="text-slack-text">Settings → Connectors</strong> (Essentials in the left
+        nav).
       </div>
 
       {!hasAWS && !hasJira ? (

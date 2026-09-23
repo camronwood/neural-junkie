@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useChatStore } from '../stores/chatStore';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
+import { ChatAPI } from '../api/chatAPI';
 import {
   type SettingsTab,
   SETTINGS_ESSENTIALS_GROUP,
@@ -22,6 +23,7 @@ import { MemoryLearningSettingsTab } from './settings/MemoryLearningSettingsTab'
 import { CapabilitiesSettingsTab } from './settings/CapabilitiesSettingsTab';
 import { ApiCredentialsSettingsTab } from './settings/ApiCredentialsSettingsTab';
 import { IntegrationsSettingsTab } from './settings/IntegrationsSettingsTab';
+import { ConnectorsSettingsTab } from './settings/ConnectorsSettingsTab';
 import { WebSearchSettingsTab } from './settings/WebSearchSettingsTab';
 import { AssistantToolsSettingsTab } from './settings/AssistantToolsSettingsTab';
 import { SlackSettingsTab } from './settings/SlackSettingsTab';
@@ -47,6 +49,7 @@ export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: Set
   const chatServerAddr = useChatStore((s) => s.serverAddr);
   const hubHttp =
     chatServerAddr.startsWith('http') ? chatServerAddr : `http://${chatServerAddr}`;
+  const connectorsApi = useMemo(() => new ChatAPI(hubHttp), [hubHttp]);
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -179,6 +182,18 @@ export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: Set
             <KeyboardSettingsTab hubHttp={hubHttp} isActive={activeTab === 'keyboard'} />
             <ChatSettingsTab hubHttp={hubHttp} isActive={activeTab === 'chat'} />
             <ConnectionSettingsTab hubHttp={hubHttp} isActive={activeTab === 'connection'} />
+            {activeTab === 'connectors' ? (
+              <div className="max-w-3xl space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-slack-text">Connectors</h3>
+                  <p className="mt-1 text-sm text-slack-textMuted">
+                    SMTP, SMS gateways, webhooks, and other secrets for runbook notify actions.
+                    Pick a saved connector when editing an email or SMS runbook step.
+                  </p>
+                </div>
+                <ConnectorsSettingsTab api={connectorsApi} />
+              </div>
+            ) : null}
             <ProvidersSettingsTab hubHttp={hubHttp} isActive={activeTab === 'providers'} />
             <ModelsPerformanceSettingsTab hubHttp={hubHttp} isActive={activeTab === 'models-performance'} />
             <InferenceUsageSettingsTab hubHttp={hubHttp} isActive={activeTab === 'inference-usage'} />

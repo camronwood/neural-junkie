@@ -174,6 +174,29 @@ describe('ConnectorsApi', () => {
     expect(hubFetch).toHaveBeenCalledWith('/api/connectors');
     expect(data).toHaveLength(1);
   });
+
+  it('deleteConnector DELETEs /api/connectors/:id', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'deleted' }),
+      text: async () => '',
+    });
+    const api = new ConnectorsApi(hubFetch);
+    await api.deleteConnector('conn-abc');
+    expect(hubFetch).toHaveBeenCalledWith('/api/connectors/conn-abc', {
+      method: 'DELETE',
+    });
+  });
+
+  it('deleteConnector throws when response is not ok', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Forbidden',
+      text: async () => 'mutation denied',
+    });
+    const api = new ConnectorsApi(hubFetch);
+    await expect(api.deleteConnector('conn-abc')).rejects.toThrow('mutation denied');
+  });
 });
 
 describe('StreamsApi', () => {
