@@ -434,6 +434,41 @@ describe('CollaborationPanel', () => {
     );
   });
 
+  it('awaiting_approval task shows Approve and calls collabTaskApprove', async () => {
+    const onAfter = vi.fn().mockResolvedValue(undefined);
+    const collab = makeCollaboration({
+      phase: 'executing',
+      tasks: [
+        {
+          id: 'sms1',
+          title: 'Send Message',
+          description: 'd',
+          assigned_to: 'ag1',
+          assigned_name: 'Assistant',
+          status: 'in_progress',
+          awaiting_approval: true,
+          kind: 'action',
+          action: { type: 'sms', config: { to: '9716785014', body: 'hi' } },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    });
+
+    render(
+      <CollaborationPanel collaboration={collab} onClose={() => {}} onAfterCollaborationCommand={onAfter} />
+    );
+
+    expect(screen.getByTestId('collaboration-task-awaiting-approval-sms1')).toBeInTheDocument();
+    expect(screen.getByText('Awaiting approval')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+
+    await waitFor(() => {
+      expect(collabTaskApproveMock).toHaveBeenCalledWith(fullCollabId, 'sms1');
+    });
+    expect(collabTaskCompleteMock).not.toHaveBeenCalled();
+  });
+
   it('completed phase shows dismiss and hides resume', () => {
     const collab = makeCollaboration({ phase: 'completed' });
     render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);

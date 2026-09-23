@@ -71,7 +71,7 @@ SMS is a first-class action that **POSTs** to a URL from an **SMS connector** (o
 
 Connector (`type: sms`): `config.url`, optional `from` / `format` / `header_name`; `secret` becomes `Authorization` (Bearer unless already `Basic …` / `Bearer …`).
 
-Webhook/SMS/email pause for **desktop approval**, then execute once.
+Webhook/SMS/email pause for **desktop approval**, then execute once. In the Collaboration panel task row, use **Approve** (not Task Management’s plan Resume) — it calls `POST /api/collaborations/:id/tasks/:taskId/approve`.
 
 ### `email` config (SMTP connector)
 

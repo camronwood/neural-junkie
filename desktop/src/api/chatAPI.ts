@@ -498,6 +498,10 @@ export class ChatAPI {
     return this.collabApi.collabTaskComplete(collabId, taskId);
   }
 
+  async collabTaskApprove(collabId: string, taskId: string): Promise<Collaboration> {
+    return this.collabApi.collabTaskApprove(collabId, taskId);
+  }
+
   async collabTaskSkip(collabId: string, taskId: string): Promise<Collaboration> {
     return this.collabApi.collabTaskSkip(collabId, taskId);
   }
