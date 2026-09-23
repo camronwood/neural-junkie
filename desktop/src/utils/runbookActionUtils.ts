@@ -7,6 +7,7 @@ export const RUNBOOK_ACTION_TYPES = [
   { value: 'web_search', label: 'Web search' },
   { value: 'slack_message', label: 'Slack message' },
   { value: 'sms', label: 'SMS' },
+  { value: 'email', label: 'Email' },
   { value: 'mcp_tool', label: 'MCP tool' },
   { value: 'shell', label: 'Shell command' },
   { value: 'wait_human', label: 'Wait for human approval' },
@@ -28,6 +29,8 @@ export function defaultActionConfig(type: string): Record<string, unknown> {
       return { channel_id: '', text: '' };
     case 'sms':
       return { to: '', body: '' };
+    case 'email':
+      return { to: '', subject: '', body: '' };
     case 'shell':
       return { command: '' };
     case 'mcp_tool':

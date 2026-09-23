@@ -1,0 +1,46 @@
+{
+  "name": "notify-email-smtp",
+  "description": "Opt-in live SMTP email (RUNBOOK_LIVE_EMAIL=1 + email connector env)",
+  "hub_url": "http://127.0.0.1:18765",
+  "agents": ["@Assistant"],
+  "steps": [
+    { "action": "skip_unless_env", "env": "RUNBOOK_LIVE_EMAIL" },
+    {
+      "action": "create_connector",
+      "type": "email",
+      "label": "scenario-live-email",
+      "config": {
+        "host": "{{ENV:RUNBOOK_SMTP_HOST}}",
+        "port": "{{ENV:RUNBOOK_SMTP_PORT}}",
+        "username": "{{ENV:RUNBOOK_SMTP_USER}}",
+        "from": "{{ENV:RUNBOOK_SMTP_FROM}}"
+      },
+      "secret": "{{ENV:RUNBOOK_SMTP_PASS}}"
+    },
+    { "action": "save_definition", "fixture": "scenarios/fixtures/notify-email-smtp.json" },
+    {
+      "action": "instantiate_definition",
+      "definition_id": "notify-email-smtp",
+      "inputs": { "email_to": "camronwood@gmail.com" }
+    },
+    { "action": "submit_runbook" },
+    {
+      "action": "start_runbook",
+      "inputs": { "email_to": "camronwood@gmail.com" }
+    },
+    { "action": "wait_phase", "phase": "executing", "timeout_sec": 30 },
+    {
+      "action": "wait_task",
+      "task_title_contains": "Email Camron",
+      "awaiting_approval": true,
+      "timeout_sec": 30
+    },
+    { "action": "approve_task", "task_title_contains": "Email Camron" },
+    {
+      "action": "wait_task",
+      "task_title_contains": "Email Camron",
+      "status": "completed",
+      "timeout_sec": 60
+    }
+  ]
+}

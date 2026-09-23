@@ -38,6 +38,18 @@ make desktop-e2e                        # Playwright UI click journeys
 make overnight NJ_OVERNIGHT_TARGET=away
 ```
 
+**Runbook action scenarios** (hub on `127.0.0.1:18765`; see [RUNBOOK_ACTIONS.md](RUNBOOK_ACTIONS.md)):
+
+```bash
+make runbook-scenario SCENARIO=health-check-branch
+make runbook-scenario SCENARIO=notify-webhook-approve
+make runbook-scenario SCENARIO=notify-sms-http
+make runbook-scenario SCENARIO=notify-sms-missing-url
+# Opt-in live SMTP:
+RUNBOOK_LIVE_EMAIL=1 RUNBOOK_SMTP_HOST=… RUNBOOK_SMTP_USER=… RUNBOOK_SMTP_PASS=… \
+  RUNBOOK_SMTP_FROM=… RUNBOOK_SMTP_PORT=587 make runbook-scenario SCENARIO=notify-email-smtp
+```
+
 **User-flow suite** (see [USER_FLOW_SCENARIOS.md](USER_FLOW_SCENARIOS.md)):
 
 ```bash

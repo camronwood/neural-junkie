@@ -1,0 +1,26 @@
+{
+  "id": "notify-sms-http",
+  "title": "SMS HTTP notify",
+  "description": "SMS action POSTs form body to httpbin via SMS connector.",
+  "source": "user",
+  "execution_policy": {
+    "blocked_upstream_policy": "block",
+    "strict_task_status": true
+  },
+  "tasks": [
+    {
+      "id": "sms1",
+      "title": "SMS ping",
+      "kind": "action",
+      "action": {
+        "type": "sms",
+        "connector_id": "{{connector_id}}",
+        "config": {
+          "to": "+19716785014",
+          "body": "NJ runbook SMS scenario ping",
+          "format": "json"
+        }
+      }
+    }
+  ]
+}

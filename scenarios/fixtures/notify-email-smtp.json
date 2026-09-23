@@ -1,0 +1,31 @@
+{
+  "id": "notify-email-smtp",
+  "title": "Live email SMTP",
+  "description": "Opt-in live email to camronwood@gmail.com via existing email connector.",
+  "source": "user",
+  "inputs": [
+    {
+      "key": "email_to",
+      "type": "string",
+      "label": "To",
+      "default": "camronwood@gmail.com",
+      "required": true
+    }
+  ],
+  "tasks": [
+    {
+      "id": "email1",
+      "title": "Email Camron",
+      "kind": "action",
+      "action": {
+        "type": "email",
+        "connector_id": "{{connector_id}}",
+        "config": {
+          "to": "{{inputs.email_to}}",
+          "subject": "Neural Junkie runbook live email test",
+          "body": "Runbook notify-email-smtp scenario succeeded."
+        }
+      }
+    }
+  ]
+}

@@ -6,11 +6,13 @@ Examples:
   ./scripts/runbook-scenarios.py --list
   ./scripts/runbook-scenarios.py --scenario health-check-branch
   make runbook-scenario SCENARIO=health-check-branch
+  RUNBOOK_LIVE_EMAIL=1 make runbook-scenario SCENARIO=notify-email-smtp
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -21,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SCENARIOS_DIR = ROOT / "scenarios" / "runbook"
 
 
-def api(base: str, method: str, path: str, body: dict | None = None) -> dict:
+def api(base: str, method: str, path: str, body: dict | None = None) -> dict | list:
     url = base.rstrip("/") + path
     data = None
     headers = {"Content-Type": "application/json"}
@@ -31,29 +33,67 @@ def api(base: str, method: str, path: str, body: dict | None = None) -> dict:
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             raw = resp.read().decode("utf-8")
-            return json.loads(raw) if raw.strip() else {}
+            if not raw.strip():
+                return {}
+            return json.loads(raw)
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
+        # 204 No Content is success for workspace ack.
+        if e.code == 204:
+            return {}
         raise RuntimeError(f"{method} {path} -> {e.code}: {detail}") from e
 
 
 def resolve_agents(base: str, names: list[str]) -> list[str]:
-    agents = api(base, "GET", "/api/agents").get("agents") or []
-    by_name = {a.get("name", "").lower(): a.get("id") for a in agents}
+    raw = api(base, "GET", "/api/agents")
+    if isinstance(raw, list):
+        agents = raw
+    elif isinstance(raw, dict):
+        agents = raw.get("agents") or []
+    else:
+        agents = []
+    by_name = {a.get("name", "").lower(): a.get("id") for a in agents if isinstance(a, dict)}
     ids: list[str] = []
     for n in names:
         key = n.lstrip("@").lower()
         if key in by_name and by_name[key]:
             ids.append(by_name[key])
     if not ids:
-        raise RuntimeError(f"Could not resolve agents {names}")
+        raise RuntimeError(f"Could not resolve agents {names}; known={sorted(by_name)}")
     return ids
+
+
+def collab_tasks(snap: dict) -> list[dict]:
+    return snap.get("tasks") or snap.get("collaboration", {}).get("tasks") or []
+
+
+def find_task(tasks: list[dict], title_contains: str = "", task_id: str = "") -> dict | None:
+    needle = (title_contains or "").lower()
+    for t in tasks:
+        if task_id and t.get("id") == task_id:
+            return t
+        if needle and needle in (t.get("title") or "").lower():
+            return t
+    return None
+
+
+def expand_env_placeholders(obj):
+    """Replace {{ENV:NAME}} strings with os.environ values (empty if unset)."""
+    if isinstance(obj, dict):
+        return {k: expand_env_placeholders(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [expand_env_placeholders(v) for v in obj]
+    if isinstance(obj, str) and obj.startswith("{{ENV:") and obj.endswith("}}"):
+        key = obj[len("{{ENV:") : -2]
+        return os.environ.get(key, "")
+    return obj
 
 
 def run_scenario(base: str, scenario: dict, verbose: bool = False) -> None:
     channel = scenario.get("channel") or "runbook-scenarios"
     collab_id = ""
     saved_definition_id = ""
+    saved_connector_id = ""
     agent_ids = resolve_agents(base, scenario.get("agents") or ["@Assistant"])
 
     for step in scenario.get("steps") or []:
@@ -61,12 +101,44 @@ def run_scenario(base: str, scenario: dict, verbose: bool = False) -> None:
         if verbose:
             print(f"  step: {action}")
 
+        if action == "skip_unless_env":
+            key = step.get("env") or ""
+            if not key or os.environ.get(key, "").strip() in ("", "0", "false", "False"):
+                print(f"SKIP: set {key}=1 to run this scenario")
+                return
+            continue
+
+        if action == "create_connector":
+            body = expand_env_placeholders({
+                "type": step.get("type") or "sms",
+                "label": step.get("label") or "scenario-connector",
+                "config": step.get("config") or {},
+                "secret": step.get("secret") or "",
+            })
+            if body.get("type") == "email":
+                host = (body.get("config") or {}).get("host") or ""
+                secret = body.get("secret") or ""
+                if not host or not secret:
+                    raise RuntimeError(
+                        "create_connector email: set RUNBOOK_SMTP_HOST and RUNBOOK_SMTP_PASS "
+                        "(and typically RUNBOOK_SMTP_USER / RUNBOOK_SMTP_FROM / RUNBOOK_SMTP_PORT)"
+                    )
+            created = api(base, "POST", "/api/connectors", body)
+            saved_connector_id = created.get("id") or ""
+            if not saved_connector_id:
+                raise RuntimeError("create_connector: missing id")
+            continue
+
         if action == "save_definition":
             fixture = step.get("fixture") or step.get("path")
             if not fixture:
                 raise RuntimeError("save_definition: fixture path required")
             fixture_path = ROOT / fixture if not Path(fixture).is_absolute() else Path(fixture)
             def_body = json.loads(fixture_path.read_text(encoding="utf-8"))
+            # Patch connector_id placeholders after create_connector.
+            if saved_connector_id:
+                raw = json.dumps(def_body).replace("{{connector_id}}", saved_connector_id)
+                def_body = json.loads(raw)
             saved = api(base, "POST", "/api/runbook-definitions", def_body)
             saved_definition_id = saved.get("id") or def_body.get("id") or ""
             if not saved_definition_id:
@@ -96,6 +168,18 @@ def run_scenario(base: str, scenario: dict, verbose: bool = False) -> None:
         if action == "start_runbook":
             body = {"inputs": step.get("inputs") or {}}
             api(base, "POST", f"/api/runbooks/{collab_id}/start", body)
+            # Dispatch is gated on workspace ack for some runbooks; always ack in scenarios.
+            try:
+                api(base, "POST", "/api/collaboration-workspace-ack", {"collaboration_id": collab_id})
+            except RuntimeError as e:
+                # 204 No Content may come back as empty; urllib may still succeed via api().
+                if "204" not in str(e) and "No Content" not in str(e):
+                    # Some hubs return empty body with 204 — api() already handles empty as {}.
+                    pass
+            continue
+
+        if action == "ack_workspace":
+            api(base, "POST", "/api/collaboration-workspace-ack", {"collaboration_id": collab_id})
             continue
 
         if action == "wait_phase":
@@ -112,9 +196,46 @@ def run_scenario(base: str, scenario: dict, verbose: bool = False) -> None:
                 raise RuntimeError(f"wait_phase: timed out waiting for {want}")
             continue
 
+        if action == "wait_task":
+            needle = step.get("task_title_contains") or ""
+            task_id = step.get("task_id") or ""
+            want_status = step.get("status")
+            want_awaiting = step.get("awaiting_approval")
+            timeout = float(step.get("timeout_sec", 60))
+            deadline = time.time() + timeout
+            last = None
+            while time.time() < deadline:
+                snap = api(base, "GET", f"/api/runbooks/{collab_id}")
+                tasks = collab_tasks(snap if isinstance(snap, dict) else {})
+                t = find_task(tasks, needle, task_id)
+                last = t
+                if t is None:
+                    time.sleep(0.5)
+                    continue
+                ok = True
+                if want_status is not None and t.get("status") != want_status:
+                    ok = False
+                if want_awaiting is not None and bool(t.get("awaiting_approval")) != bool(want_awaiting):
+                    ok = False
+                if ok:
+                    break
+                time.sleep(0.5)
+            else:
+                raise RuntimeError(f"wait_task: timed out; last={last!r}")
+            continue
+
+        if action == "approve_task":
+            snap = api(base, "GET", f"/api/runbooks/{collab_id}")
+            tasks = collab_tasks(snap if isinstance(snap, dict) else {})
+            t = find_task(tasks, step.get("task_title_contains") or "", step.get("task_id") or "")
+            if t is None or not t.get("id"):
+                raise RuntimeError("approve_task: task not found")
+            api(base, "POST", f"/api/collaborations/{collab_id}/tasks/{t['id']}/approve", {})
+            continue
+
         if action == "assert_task_status":
             snap = api(base, "GET", f"/api/runbooks/{collab_id}")
-            tasks = snap.get("tasks") or snap.get("collaboration", {}).get("tasks") or []
+            tasks = collab_tasks(snap if isinstance(snap, dict) else {})
             needle = (step.get("task_title_contains") or "").lower()
             want = step.get("status")
             matched = [
@@ -126,6 +247,38 @@ def run_scenario(base: str, scenario: dict, verbose: bool = False) -> None:
             continue
 
         raise RuntimeError(f"unknown step action: {action}")
+
+    # Free the concurrent-collab slot so scenarios can be chained.
+    # Slash commands go through POST /api/send (not /api/messages, which is history GET).
+    # Post on the collaboration's own channel (collab-<id>).
+    if collab_id:
+        try:
+            snap = api(base, "GET", f"/api/runbooks/{collab_id}")
+            cancel_ch = ""
+            if isinstance(snap, dict):
+                cancel_ch = (
+                    snap.get("channel")
+                    or (snap.get("collaboration") or {}).get("channel")
+                    or ""
+                )
+            if not cancel_ch:
+                cancel_ch = f"collab-{collab_id}"
+            api(
+                base,
+                "POST",
+                "/api/send",
+                {
+                    "channel": cancel_ch,
+                    "content": f"/cancel-plan {collab_id[:8]}",
+                    "type": "question",
+                    "from": {"name": "runbook-scenario", "type": "human"},
+                },
+            )
+            # Brief settle so the concurrent-collab counter drops before the next scenario.
+            time.sleep(0.4)
+        except Exception as e:
+            if verbose:
+                print(f"  cleanup cancel-plan note: {e}")
 
 
 def main() -> int:

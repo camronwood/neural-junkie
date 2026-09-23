@@ -1,0 +1,26 @@
+{
+  "name": "notify-sms-missing-url",
+  "description": "SMS without connector URL blocks after approve",
+  "hub_url": "http://127.0.0.1:18765",
+  "agents": ["@Assistant"],
+  "steps": [
+    { "action": "save_definition", "fixture": "scenarios/fixtures/notify-sms-missing-url.json" },
+    { "action": "instantiate_definition", "definition_id": "notify-sms-missing-url" },
+    { "action": "submit_runbook" },
+    { "action": "start_runbook" },
+    { "action": "wait_phase", "phase": "executing", "timeout_sec": 30 },
+    {
+      "action": "wait_task",
+      "task_title_contains": "SMS no url",
+      "awaiting_approval": true,
+      "timeout_sec": 30
+    },
+    { "action": "approve_task", "task_title_contains": "SMS no url" },
+    {
+      "action": "wait_task",
+      "task_title_contains": "SMS no url",
+      "status": "blocked",
+      "timeout_sec": 30
+    }
+  ]
+}

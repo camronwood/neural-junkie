@@ -1,0 +1,33 @@
+{
+  "name": "notify-sms-http",
+  "description": "SMS action via HTTP connector to httpbin (approve → complete)",
+  "hub_url": "http://127.0.0.1:18765",
+  "agents": ["@Assistant"],
+  "steps": [
+    {
+      "action": "create_connector",
+      "type": "sms",
+      "label": "scenario-sms-httpbin",
+      "config": { "url": "https://httpbin.org/post", "format": "json" },
+      "secret": ""
+    },
+    { "action": "save_definition", "fixture": "scenarios/fixtures/notify-sms-http.json" },
+    { "action": "instantiate_definition", "definition_id": "notify-sms-http" },
+    { "action": "submit_runbook" },
+    { "action": "start_runbook" },
+    { "action": "wait_phase", "phase": "executing", "timeout_sec": 30 },
+    {
+      "action": "wait_task",
+      "task_title_contains": "SMS ping",
+      "awaiting_approval": true,
+      "timeout_sec": 30
+    },
+    { "action": "approve_task", "task_title_contains": "SMS ping" },
+    {
+      "action": "wait_task",
+      "task_title_contains": "SMS ping",
+      "status": "completed",
+      "timeout_sec": 45
+    }
+  ]
+}

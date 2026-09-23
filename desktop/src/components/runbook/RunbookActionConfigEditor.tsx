@@ -124,7 +124,8 @@ export function RunbookActionConfigEditor({
         actionType === 'http_post' ||
         actionType === 'webhook' ||
         actionType === 'slack_message' ||
-        actionType === 'sms') ? (
+        actionType === 'sms' ||
+        actionType === 'email') ? (
         <label style={labelStyle}>
           Connector profile (optional)
           <select
@@ -136,7 +137,14 @@ export function RunbookActionConfigEditor({
             style={inputStyle}
           >
             <option value="">None — inline config</option>
-            {connectors.map((c) => (
+            {connectors
+              .filter((c) => {
+                if (actionType === 'sms') return c.type === 'sms' || c.type === 'http_auth' || c.type === 'webhook';
+                if (actionType === 'email') return c.type === 'email';
+                if (actionType === 'slack_message') return c.type === 'slack';
+                return c.type === 'http_auth' || c.type === 'webhook' || c.type === 'sms';
+              })
+              .map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label} ({c.type})
               </option>
@@ -223,6 +231,49 @@ export function RunbookActionConfigEditor({
               style={{ ...inputStyle, resize: 'vertical' }}
             />
           </label>
+          <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>
+            SMS posts to the URL on your SMS connector (Twilio, Zapier, etc.). Approval required before send.
+          </p>
+        </>
+      ) : null}
+
+      {actionType === 'email' ? (
+        <>
+          <label style={labelStyle}>
+            To
+            <input
+              type="text"
+              value={actionConfigString(config, 'to')}
+              onChange={(e) => updateConfig('to', e.target.value)}
+              disabled={disabled}
+              placeholder="you@example.com"
+              style={inputStyle}
+            />
+          </label>
+          <label style={labelStyle}>
+            Subject
+            <input
+              type="text"
+              value={actionConfigString(config, 'subject')}
+              onChange={(e) => updateConfig('subject', e.target.value)}
+              disabled={disabled}
+              placeholder="Runbook alert"
+              style={inputStyle}
+            />
+          </label>
+          <label style={labelStyle}>
+            Body
+            <textarea
+              value={actionConfigString(config, 'body')}
+              onChange={(e) => updateConfig('body', e.target.value)}
+              disabled={disabled}
+              rows={3}
+              style={{ ...inputStyle, resize: 'vertical' }}
+            />
+          </label>
+          <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>
+            Requires an email connector (SMTP host/port/username + secret). Approval required before send.
+          </p>
         </>
       ) : null}
 
