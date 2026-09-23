@@ -28,6 +28,9 @@ export function taskOrchestrationLabel(
   if (task.status === 'completed') {
     return null;
   }
+  if (task.awaiting_approval) {
+    return 'Awaiting approval';
+  }
   const blocked = taskBlockedByTitles(task, tasks);
   if (blocked.length > 0) {
     return `Waiting on: ${blocked.join(', ')}`;

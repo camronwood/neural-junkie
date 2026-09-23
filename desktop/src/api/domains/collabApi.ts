@@ -37,6 +37,11 @@ export class CollabApi {
     return this.collabTaskPost(collabId, taskId, 'complete');
   }
 
+  /** Clears awaiting_approval and runs gated notify actions (webhook/sms/email). */
+  async collabTaskApprove(collabId: string, taskId: string): Promise<Collaboration> {
+    return this.collabTaskPost(collabId, taskId, 'approve');
+  }
+
   async collabTaskSkip(collabId: string, taskId: string): Promise<Collaboration> {
     return this.collabTaskPost(collabId, taskId, 'skip');
   }

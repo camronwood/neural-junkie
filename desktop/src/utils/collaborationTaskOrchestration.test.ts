@@ -42,6 +42,23 @@ describe('collaborationTaskOrchestration', () => {
     expect(taskOrchestrationLabel(tasks[1], tasks, 'executing')).toBe('Ready');
   });
 
+  it('taskOrchestrationLabel shows Awaiting approval when gated', () => {
+    const tasks = [
+      {
+        id: 'a',
+        title: 'SMS',
+        description: '',
+        assigned_to: 'x',
+        assigned_name: 'A',
+        status: 'in_progress' as const,
+        awaiting_approval: true,
+        created_at: '',
+        updated_at: '',
+      },
+    ];
+    expect(taskOrchestrationLabel(tasks[0], tasks, 'executing')).toBe('Awaiting approval');
+  });
+
   it('taskOrchestrationLabel shows Dispatched when prompt sent', () => {
     const tasks = [
       task({ id: 'a', title: 'A', status: 'completed' }),

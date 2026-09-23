@@ -283,6 +283,12 @@ export function CollaborationPanel({
     });
   };
 
+  const handleTaskApprove = async (task: CollaborationTask) => {
+    await runCollabAction('Could not approve task', async () => {
+      await api.collabTaskApprove(c.id, task.id);
+    });
+  };
+
   const handleTaskSkip = async (task: CollaborationTask) => {
     await runCollabAction('Could not skip task', async () => {
       await api.collabTaskSkip(c.id, task.id);
@@ -1026,8 +1032,27 @@ export function CollaborationPanel({
                         <strong>{FILE_PROPOSAL_QUEUE_LABEL}</strong> (toolbar). Chat-only replies do not write to disk.
                       </div>
                     ) : null}
+                    {c.phase === 'executing' && task.awaiting_approval ? (
+                      <div
+                        data-testid={`collaboration-task-awaiting-approval-${task.id}`}
+                        style={{ fontSize: 11, color: '#fbbf24', marginTop: 4, lineHeight: 1.4 }}
+                      >
+                        Requires your approval before this action runs (webhook / SMS / email / wait_human).
+                      </div>
+                    ) : null}
                     {!isTerminal && task.status !== 'completed' && c.phase === 'executing' && (
                       <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {task.awaiting_approval ? (
+                          <button
+                            type="button"
+                            data-testid={`collaboration-task-approve-${task.id}`}
+                            onClick={() => void handleTaskApprove(task)}
+                            disabled={isSubmitting}
+                            style={taskActionBtnStyle('#f59e0b')}
+                          >
+                            Approve
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => void handleTaskDone(task)}
