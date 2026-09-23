@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -106,14 +107,142 @@ func TestWebSearchUsesProvider(t *testing.T) {
 	}
 }
 
-func TestSMSDisabledByDefault(t *testing.T) {
-	r := NewRunner(Config{SMSEnabled: false})
+func TestSMSRequiresURL(t *testing.T) {
+	r := NewRunner(Config{})
 	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
 		Kind:   collaboration.TaskKindAction,
-		Action: &collaboration.TaskActionSpec{Type: "sms", Config: map[string]interface{}{"to": "+1", "body": "hi"}},
+		Action: &collaboration.TaskActionSpec{Type: "sms", Config: map[string]interface{}{"to": "+19716785014", "body": "hi"}},
 	})
-	if err == nil || !strings.Contains(err.Error(), "disabled") {
-		t.Fatalf("expected disabled, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "url") {
+		t.Fatalf("expected url required, got %v", err)
+	}
+}
+
+func TestSMSPostsForm(t *testing.T) {
+	var gotMethod, gotCT, gotBody string
+	r := testRunnerWithTransport(func(req *http.Request) (*http.Response, error) {
+		gotMethod = req.Method
+		gotCT = req.Header.Get("Content-Type")
+		b, _ := io.ReadAll(req.Body)
+		gotBody = string(b)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+	out, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
+		Kind: collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "sms", Config: map[string]interface{}{
+			"url":  "https://example.com/sms",
+			"to":   "+19716785014",
+			"from": "+15551212",
+			"body": "ping",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %s", gotMethod)
+	}
+	if !strings.Contains(gotCT, "application/x-www-form-urlencoded") {
+		t.Fatalf("content-type = %q", gotCT)
+	}
+	if !strings.Contains(gotBody, "To=%2B19716785014") || !strings.Contains(gotBody, "Body=ping") {
+		t.Fatalf("body = %q", gotBody)
+	}
+	if !strings.Contains(out, "SMS sent") {
+		t.Fatalf("output = %s", out)
+	}
+}
+
+func TestSMSHTTPError(t *testing.T) {
+	r := testRunnerWithTransport(func(_ *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(`nope`)),
+			Header:     make(http.Header),
+		}, nil
+	})
+	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
+		Kind: collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "sms", Config: map[string]interface{}{
+			"url": "https://example.com/sms", "to": "+1", "body": "hi",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "400") {
+		t.Fatalf("expected HTTP 400, got %v", err)
+	}
+}
+
+func TestSMSBlocksLocalhost(t *testing.T) {
+	r := NewRunner(Config{})
+	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
+		Kind: collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "sms", Config: map[string]interface{}{
+			"url": "http://127.0.0.1:9/sms", "to": "+1", "body": "hi",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "SSRF") {
+		t.Fatalf("expected SSRF, got %v", err)
+	}
+}
+
+func TestEmailRequiresHost(t *testing.T) {
+	r := NewRunner(Config{})
+	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
+		Kind: collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "email", Config: map[string]interface{}{
+			"to": "camronwood@gmail.com", "subject": "hi", "body": "test",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "host") {
+		t.Fatalf("expected host required, got %v", err)
+	}
+}
+
+func TestEmailSendInjected(t *testing.T) {
+	var got EmailMessage
+	r := NewRunner(Config{
+		EmailSend: func(_ context.Context, msg EmailMessage) error {
+			got = msg
+			return nil
+		},
+	})
+	out, err := r.Execute(context.Background(), &collaboration.Collaboration{RunInputs: map[string]string{"dest": "camronwood@gmail.com"}}, collaboration.CollaborationTask{
+		Kind: collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "email", Config: map[string]interface{}{
+			"to": "{{inputs.dest}}", "subject": "NJ {{task.title}}", "body": "hello",
+			"host": "smtp.example.com", "port": "587", "from": "nj@example.com", "username": "nj", "password": "x",
+		}},
+		Title: "alert",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.To != "camronwood@gmail.com" || got.Subject != "NJ alert" || got.Body != "hello" {
+		t.Fatalf("got = %#v", got)
+	}
+	if !strings.Contains(out, "Email sent") {
+		t.Fatalf("output = %s", out)
+	}
+}
+
+func TestEmailSendFailure(t *testing.T) {
+	r := NewRunner(Config{
+		EmailSend: func(_ context.Context, _ EmailMessage) error {
+			return fmt.Errorf("smtp refused")
+		},
+	})
+	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
+		Kind: collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "email", Config: map[string]interface{}{
+			"to": "a@b.c", "subject": "s", "body": "b", "host": "smtp.example.com", "from": "nj@example.com",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "refused") {
+		t.Fatalf("expected refused, got %v", err)
 	}
 }
 
@@ -238,17 +367,6 @@ func TestWebSearchRequiresProvider(t *testing.T) {
 	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
 		Kind:   collaboration.TaskKindAction,
 		Action: &collaboration.TaskActionSpec{Type: "web_search", Config: map[string]interface{}{"query": "neural junkie"}},
-	})
-	if err == nil || !strings.Contains(err.Error(), "not configured") {
-		t.Fatalf("expected not configured error, got %v", err)
-	}
-}
-
-func TestSMSEnabledStillRequiresProvider(t *testing.T) {
-	r := NewRunner(Config{SMSEnabled: true})
-	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
-		Kind:   collaboration.TaskKindAction,
-		Action: &collaboration.TaskActionSpec{Type: "sms", Config: map[string]interface{}{"to": "+1", "body": "hi"}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "not configured") {
 		t.Fatalf("expected not configured error, got %v", err)

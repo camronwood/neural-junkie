@@ -151,6 +151,7 @@ func (cm *CollaborationManager) SetDispatchPaused(collabID string, paused bool) 
 }
 
 // ApproveTaskDispatch clears awaiting_approval for a task pending user gate.
+// Returns an error if the task is not currently awaiting approval (idempotent reject).
 func (cm *CollaborationManager) ApproveTaskDispatch(collabID, taskID string) (*Collaboration, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -160,18 +161,49 @@ func (cm *CollaborationManager) ApproveTaskDispatch(collabID, taskID string) (*C
 		return nil, fmt.Errorf("collaboration %s not found", collabID)
 	}
 	for i := range c.Tasks {
-		if c.Tasks[i].ID == taskID {
-			c.Tasks[i].AwaitingApproval = false
-			c.Tasks[i].UpdatedAt = time.Now()
-			c.UpdatedAt = time.Now()
-			if c.Tasks[i].Action != nil && strings.ToLower(strings.TrimSpace(c.Tasks[i].Action.Type)) == "wait_human" {
-				c.Tasks[i].Status = TaskCompleted
-				c.Tasks[i].Output = "Approved by user"
-			}
-			return cloneCollaborationMust(c)
+		if c.Tasks[i].ID != taskID {
+			continue
 		}
+		if !c.Tasks[i].AwaitingApproval {
+			return nil, fmt.Errorf("task %s is not awaiting approval", taskID)
+		}
+		c.Tasks[i].AwaitingApproval = false
+		c.Tasks[i].UpdatedAt = time.Now()
+		c.UpdatedAt = time.Now()
+		if c.Tasks[i].Action != nil && strings.ToLower(strings.TrimSpace(c.Tasks[i].Action.Type)) == "wait_human" {
+			c.Tasks[i].Status = TaskCompleted
+			c.Tasks[i].Output = "Approved by user"
+		}
+		return cloneCollaborationMust(c)
 	}
 	return nil, fmt.Errorf("task %s not found", taskID)
+}
+
+// ClaimActionExecution marks an action task as claimed for a single outbound run.
+// Returns false if the task is already completed, blocked, or previously claimed.
+func (cm *CollaborationManager) ClaimActionExecution(collabID, taskID string) bool {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return false
+	}
+	for i := range c.Tasks {
+		if c.Tasks[i].ID != taskID {
+			continue
+		}
+		if c.Tasks[i].Status == TaskCompleted || c.Tasks[i].Status == TaskBlocked {
+			return false
+		}
+		if c.Tasks[i].PromptDispatched {
+			return false
+		}
+		c.Tasks[i].PromptDispatched = true
+		c.Tasks[i].UpdatedAt = time.Now()
+		c.UpdatedAt = time.Now()
+		return true
+	}
+	return false
 }
 
 // SetTaskAwaitingApproval toggles the approval gate on a task.

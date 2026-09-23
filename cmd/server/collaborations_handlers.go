@@ -210,7 +210,9 @@ func handleCollabTaskApprove(w http.ResponseWriter, collabID, taskID string) {
 		return
 	}
 	chatHub.ResolveCollabTaskApproval(collabID, taskID, "user", "approved", "")
-	chatHub.DispatchReadyCollabTasksForSnapshot(snap, false)
+	// Gated notify actions (webhook/sms/email) execute directly so they do not
+	// stay stuck in_progress after approval. Other approvals redispatch ready tasks.
+	chatHub.AfterCollabTaskApproved(collabID, taskID)
 	snap, _ = cm.GetCollaborationSnapshot(collabID)
 	writeCollabJSON(w, snap)
 }

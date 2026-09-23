@@ -1,0 +1,31 @@
+{
+  "name": "notify-webhook-approve",
+  "description": "Gated webhook executes after task approval",
+  "hub_url": "http://127.0.0.1:18765",
+  "agents": ["@Assistant"],
+  "steps": [
+    { "action": "save_definition", "fixture": "scenarios/fixtures/notify-webhook-approve.json" },
+    { "action": "instantiate_definition", "definition_id": "notify-webhook-approve" },
+    { "action": "submit_runbook" },
+    { "action": "start_runbook" },
+    { "action": "wait_phase", "phase": "executing", "timeout_sec": 30 },
+    {
+      "action": "wait_task",
+      "task_title_contains": "Notify webhook",
+      "awaiting_approval": true,
+      "timeout_sec": 30
+    },
+    { "action": "approve_task", "task_title_contains": "Notify webhook" },
+    {
+      "action": "wait_task",
+      "task_title_contains": "Notify webhook",
+      "status": "completed",
+      "timeout_sec": 30
+    },
+    {
+      "action": "assert_task_status",
+      "task_title_contains": "Notify webhook",
+      "status": "completed"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ const (
 	TypeWebhook  ProfileType = "webhook"
 	TypeHTTPAuth ProfileType = "http_auth"
 	TypeSMS      ProfileType = "sms"
+	TypeEmail    ProfileType = "email"
 	TypeMQTT     ProfileType = "mqtt"
 	TypeKafka    ProfileType = "kafka"
 )
@@ -267,6 +269,91 @@ func ApplyToHTTPConfig(cfg map[string]interface{}, profile *Profile) map[string]
 			headers["Authorization"] = profile.Secret
 		}
 		out["headers"] = headers
+	}
+	return out
+}
+
+// ApplyToSMSConfig merges an SMS (or reusable HTTP) connector into action config
+// (url, from, auth headers). Accepts type sms, http_auth, and webhook so the
+// runbook editor can reuse HTTP notify endpoints for SMS delivery.
+func ApplyToSMSConfig(cfg map[string]interface{}, profile *Profile) map[string]interface{} {
+	if profile == nil {
+		return cfg
+	}
+	out := map[string]interface{}{}
+	if cfg != nil {
+		for k, v := range cfg {
+			out[k] = v
+		}
+	}
+	switch profile.Type {
+	case TypeSMS, TypeHTTPAuth, TypeWebhook:
+		// ok
+	default:
+		return out
+	}
+	if u := profile.Config["url"]; u != "" {
+		if existing, _ := out["url"].(string); existing == "" {
+			out["url"] = u
+		}
+	}
+	if from := profile.Config["from"]; from != "" {
+		if existing, _ := out["from"].(string); existing == "" {
+			out["from"] = from
+		}
+	}
+	if format := profile.Config["format"]; format != "" {
+		if existing, _ := out["format"].(string); existing == "" {
+			out["format"] = format
+		}
+	}
+	headers, _ := out["headers"].(map[string]interface{})
+	if headers == nil {
+		headers = map[string]interface{}{}
+	}
+	if auth := profile.Config["header_name"]; auth != "" && profile.Secret != "" {
+		headers[auth] = profile.Secret
+	} else if profile.Secret != "" {
+		// Twilio-style Absolute auth uses Basic; callers may set Authorization=Basic …
+		if strings.HasPrefix(strings.ToLower(profile.Secret), "basic ") ||
+			strings.HasPrefix(strings.ToLower(profile.Secret), "bearer ") {
+			headers["Authorization"] = profile.Secret
+		} else if profile.Type == TypeHTTPAuth || profile.Type == TypeWebhook {
+			// Match ApplyToHTTPConfig: pass secret as Authorization as-is when no scheme.
+			headers["Authorization"] = profile.Secret
+		} else {
+			headers["Authorization"] = "Bearer " + profile.Secret
+		}
+	}
+	if len(headers) > 0 {
+		out["headers"] = headers
+	}
+	return out
+}
+
+// ApplyToEmailConfig merges an email SMTP connector into action config.
+func ApplyToEmailConfig(cfg map[string]interface{}, profile *Profile) map[string]interface{} {
+	if profile == nil {
+		return cfg
+	}
+	out := map[string]interface{}{}
+	if cfg != nil {
+		for k, v := range cfg {
+			out[k] = v
+		}
+	}
+	if profile.Type != TypeEmail {
+		return out
+	}
+	for _, key := range []string{"host", "port", "username", "from"} {
+		if v := profile.Config[key]; v != "" {
+			if existing, _ := out[key].(string); existing == "" {
+				out[key] = v
+			}
+		}
+	}
+	if profile.Secret != "" {
+		out["password"] = profile.Secret
 	}
 	return out
 }

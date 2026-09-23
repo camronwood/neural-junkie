@@ -1,0 +1,26 @@
+{
+  "id": "notify-webhook-approve",
+  "title": "Webhook notify with approval",
+  "description": "Single webhook action: gate → approve → POST httpbin.",
+  "source": "user",
+  "execution_policy": {
+    "blocked_upstream_policy": "block",
+    "strict_task_status": true,
+    "max_concurrent_tasks": 2
+  },
+  "tasks": [
+    {
+      "id": "notify",
+      "title": "Notify webhook",
+      "description": "POST to httpbin after approval",
+      "kind": "action",
+      "action": {
+        "type": "webhook",
+        "config": {
+          "url": "https://httpbin.org/post",
+          "payload": { "text": "runbook notify webhook approve" }
+        }
+      }
+    }
+  ]
+}

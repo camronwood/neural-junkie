@@ -3,13 +3,16 @@ package actions
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/smtp"
 	"net/url"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,14 +36,31 @@ type SlackPostFunc func(ctx context.Context, channelID, text, threadTS, username
 // ValidateSlackChannelFunc checks that the bot can post to channelID.
 type ValidateSlackChannelFunc func(channelID string) error
 
+// EmailMessage is the payload for outbound email actions.
+type EmailMessage struct {
+	From     string
+	To       string
+	Subject  string
+	Body     string
+	SMTPHost string
+	SMTPPort int
+	Username string
+	Password string
+}
+
+// EmailSendFunc sends email (injectable for tests). When nil, net/smtp is used.
+type EmailSendFunc func(ctx context.Context, msg EmailMessage) error
+
 // Config holds hub-level limits for action execution.
 type Config struct {
 	AllowedHosts         []string
-	SMSEnabled           bool
+	SMSEnabled           bool // deprecated: SMS runs when a connector/url is present
 	SlackEnabled         bool
 	SlackPost            SlackPostFunc
 	ValidateSlackChannel ValidateSlackChannelFunc
 	WebSearchQuery       func(ctx context.Context, query string) ([]map[string]interface{}, error)
+	EmailSend            EmailSendFunc
+	HTTPClient           *http.Client // optional; tests inject RoundTrip
 }
 
 // Runner executes collaboration action tasks.
@@ -50,9 +70,13 @@ type Runner struct {
 }
 
 func NewRunner(cfg Config) *Runner {
+	client := cfg.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: 60 * time.Second}
+	}
 	return &Runner{
 		Config: cfg,
-		Client: &http.Client{Timeout: 60 * time.Second},
+		Client: client,
 	}
 }
 
@@ -65,7 +89,14 @@ func (r *Runner) Execute(ctx context.Context, collab *collaboration.Collaboratio
 	cfg := interpolateConfig(task.Action.Config, collab, task)
 	if task.Action.ConnectorID != "" {
 		if prof, err := connectors.Get(task.Action.ConnectorID); err == nil {
-			cfg = connectors.ApplyToHTTPConfig(cfg, prof)
+			switch typ {
+			case "sms":
+				cfg = connectors.ApplyToSMSConfig(cfg, prof)
+			case "email":
+				cfg = connectors.ApplyToEmailConfig(cfg, prof)
+			default:
+				cfg = connectors.ApplyToHTTPConfig(cfg, prof)
+			}
 		}
 	}
 
@@ -81,7 +112,9 @@ func (r *Runner) Execute(ctx context.Context, collab *collaboration.Collaboratio
 	case "web_search":
 		res, err = r.webSearch(ctx, cfg)
 	case "sms":
-		res, err = r.sms(cfg)
+		res, err = r.sms(ctx, cfg)
+	case "email":
+		res, err = r.email(ctx, cfg)
 	case "slack_message":
 		res, err = r.slackMessage(ctx, cfg)
 	case "mcp_tool":
@@ -194,16 +227,195 @@ func (r *Runner) webSearch(ctx context.Context, cfg map[string]interface{}) (Res
 	return Result{}, fmt.Errorf("web_search is not configured; set WebSearchQuery on the hub or remove this action task")
 }
 
-func (r *Runner) sms(cfg map[string]interface{}) (Result, error) {
-	if !r.Config.SMSEnabled {
-		return Result{}, fmt.Errorf("sms actions are disabled; enable in server config")
-	}
+func (r *Runner) sms(ctx context.Context, cfg map[string]interface{}) (Result, error) {
 	to := stringVal(cfg, "to")
 	body := stringVal(cfg, "body")
 	if to == "" || body == "" {
 		return Result{}, fmt.Errorf("sms requires to and body")
 	}
-	return Result{}, fmt.Errorf("sms provider is not configured; enable a real SMS provider or remove this action task")
+	u := stringVal(cfg, "url")
+	if u == "" {
+		return Result{}, fmt.Errorf("sms requires a connector with url (or url in action config)")
+	}
+	if err := r.checkHost(u); err != nil {
+		return Result{}, err
+	}
+	from := stringVal(cfg, "from")
+	format := strings.ToLower(strings.TrimSpace(stringVal(cfg, "format")))
+	if format == "" {
+		format = "form"
+	}
+
+	var reqBody io.Reader
+	contentType := "application/x-www-form-urlencoded"
+	switch format {
+	case "json":
+		payload := map[string]string{"to": to, "body": body}
+		if from != "" {
+			payload["from"] = from
+		}
+		b, err := json.Marshal(payload)
+		if err != nil {
+			return Result{}, err
+		}
+		reqBody = bytes.NewReader(b)
+		contentType = "application/json"
+	default:
+		form := url.Values{}
+		form.Set("To", to)
+		form.Set("Body", body)
+		if from != "" {
+			form.Set("From", from)
+		}
+		reqBody = strings.NewReader(form.Encode())
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, reqBody)
+	if err != nil {
+		return Result{}, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	applyHeaders(req, cfg)
+	resp, err := r.Client.Do(req)
+	if err != nil {
+		return Result{}, err
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return Result{}, fmt.Errorf("sms HTTP %d: %s", resp.StatusCode, truncate(string(respBody), 200))
+	}
+	return Result{
+		Summary: fmt.Sprintf("SMS sent to %s", to),
+		Data: map[string]interface{}{
+			"to":          to,
+			"status_code": resp.StatusCode,
+			"body":        string(respBody),
+		},
+	}, nil
+}
+
+func (r *Runner) email(ctx context.Context, cfg map[string]interface{}) (Result, error) {
+	to := stringVal(cfg, "to")
+	subject := stringVal(cfg, "subject")
+	body := stringVal(cfg, "body")
+	if to == "" {
+		return Result{}, fmt.Errorf("email requires to")
+	}
+	if subject == "" && body == "" {
+		return Result{}, fmt.Errorf("email requires subject or body")
+	}
+	host := stringVal(cfg, "host")
+	if host == "" {
+		return Result{}, fmt.Errorf("email requires an SMTP connector with host (or host in action config)")
+	}
+	port := 587
+	if p := stringVal(cfg, "port"); p != "" {
+		n, err := strconv.Atoi(p)
+		if err != nil || n <= 0 {
+			return Result{}, fmt.Errorf("email invalid port %q", p)
+		}
+		port = n
+	}
+	from := stringVal(cfg, "from")
+	if from == "" {
+		from = stringVal(cfg, "username")
+	}
+	if from == "" {
+		return Result{}, fmt.Errorf("email requires from (or username on the SMTP connector)")
+	}
+	msg := EmailMessage{
+		From:     from,
+		To:       to,
+		Subject:  subject,
+		Body:     body,
+		SMTPHost: host,
+		SMTPPort: port,
+		Username: stringVal(cfg, "username"),
+		Password: stringVal(cfg, "password"),
+	}
+	send := r.Config.EmailSend
+	if send == nil {
+		send = defaultSMTPSend
+	}
+	if err := send(ctx, msg); err != nil {
+		return Result{}, err
+	}
+	return Result{
+		Summary: fmt.Sprintf("Email sent to %s", to),
+		Data: map[string]interface{}{
+			"to":      to,
+			"subject": subject,
+			"from":    from,
+		},
+	}, nil
+}
+
+func defaultSMTPSend(_ context.Context, msg EmailMessage) error {
+	addr := fmt.Sprintf("%s:%d", msg.SMTPHost, msg.SMTPPort)
+	var auth smtp.Auth
+	if msg.Username != "" {
+		auth = smtp.PlainAuth("", msg.Username, msg.Password, msg.SMTPHost)
+	}
+	raw := buildRFC822(msg.From, msg.To, msg.Subject, msg.Body)
+
+	// Port 465: implicit TLS. Otherwise STARTTLS when possible via smtp.SendMail
+	// (Go's SendMail uses STARTTLS on 587 when the server advertises it).
+	if msg.SMTPPort == 465 {
+		tlsCfg := &tls.Config{ServerName: msg.SMTPHost}
+		conn, err := tls.Dial("tcp", addr, tlsCfg)
+		if err != nil {
+			return fmt.Errorf("smtp tls dial: %w", err)
+		}
+		defer conn.Close()
+		c, err := smtp.NewClient(conn, msg.SMTPHost)
+		if err != nil {
+			return err
+		}
+		defer c.Close()
+		if auth != nil {
+			if err := c.Auth(auth); err != nil {
+				return err
+			}
+		}
+		if err := c.Mail(msg.From); err != nil {
+			return err
+		}
+		if err := c.Rcpt(msg.To); err != nil {
+			return err
+		}
+		w, err := c.Data()
+		if err != nil {
+			return err
+		}
+		if _, err := w.Write(raw); err != nil {
+			return err
+		}
+		if err := w.Close(); err != nil {
+			return err
+		}
+		return c.Quit()
+	}
+	return smtp.SendMail(addr, auth, msg.From, []string{msg.To}, raw)
+}
+
+func buildRFC822(from, to, subject, body string) []byte {
+	var b strings.Builder
+	b.WriteString("From: " + from + "\r\n")
+	b.WriteString("To: " + to + "\r\n")
+	b.WriteString("Subject: " + subject + "\r\n")
+	b.WriteString("MIME-Version: 1.0\r\n")
+	b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+	b.WriteString("\r\n")
+	b.WriteString(body)
+	return []byte(b.String())
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 func (r *Runner) slackMessage(ctx context.Context, cfg map[string]interface{}) (Result, error) {

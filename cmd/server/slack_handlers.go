@@ -70,7 +70,6 @@ func applyCollabActionConfig() {
 	}
 	cfg := actions.Config{
 		AllowedHosts: nil,
-		SMSEnabled:   false,
 	}
 	if slackBridge != nil {
 		cfg.SlackEnabled = true

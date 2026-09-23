@@ -24,7 +24,6 @@ func (h *Hub) SetCollabActionRunnerConfig(cfg actions.Config) {
 func (h *Hub) collabActionRunner() *actions.Runner {
 	cfg := actions.Config{
 		AllowedHosts: nil,
-		SMSEnabled:   false,
 	}
 	if h != nil {
 		h.collabActionConfigMu.RLock()
@@ -34,9 +33,58 @@ func (h *Hub) collabActionRunner() *actions.Runner {
 	return actions.NewRunner(cfg)
 }
 
+func isGatedNotifyAction(typ string) bool {
+	switch strings.ToLower(strings.TrimSpace(typ)) {
+	case "webhook", "sms", "email":
+		return true
+	default:
+		return false
+	}
+}
+
+// AfterCollabTaskApproved runs a gated notify action after user approval, or
+// redispatches ready tasks for wait_human / other approvals.
+func (h *Hub) AfterCollabTaskApproved(collabID, taskID string) {
+	if h == nil || h.collabManager == nil {
+		return
+	}
+	snap, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || snap == nil {
+		return
+	}
+	var task *collaboration.CollaborationTask
+	for i := range snap.Tasks {
+		if snap.Tasks[i].ID == taskID {
+			task = &snap.Tasks[i]
+			break
+		}
+	}
+	if task == nil {
+		return
+	}
+	typ := ""
+	if task.Action != nil {
+		typ = strings.ToLower(strings.TrimSpace(task.Action.Type))
+	}
+	if isGatedNotifyAction(typ) {
+		h.executeCollabActionTaskOpts(snap, *task, true)
+		return
+	}
+	h.dispatchReadyCollabTasks(snap, nil, false)
+}
+
 // executeCollabActionTask runs a hub action task and marks it complete on success.
 func (h *Hub) executeCollabActionTask(snap *collaboration.Collaboration, task collaboration.CollaborationTask) bool {
+	return h.executeCollabActionTaskOpts(snap, task, false)
+}
+
+// executeCollabActionTaskOpts runs an action task. When approved is true, gated
+// notify actions (webhook/sms/email) execute immediately without re-entering the approval gate.
+func (h *Hub) executeCollabActionTaskOpts(snap *collaboration.Collaboration, task collaboration.CollaborationTask, approved bool) bool {
 	if h.collabManager == nil || snap == nil {
+		return false
+	}
+	if task.Status == collaboration.TaskCompleted {
 		return false
 	}
 	collabID := snap.ID
@@ -51,15 +99,19 @@ func (h *Hub) executeCollabActionTask(snap *collaboration.Collaboration, task co
 		h.broadcastCollabSystem(snap.Channel, collabID, fmt.Sprintf("⏸ **%s** — waiting for your approval.", task.Title))
 		return true
 	}
-	if task.AwaitingApproval {
+	if task.AwaitingApproval && !approved {
 		return false
 	}
-	if typ == "webhook" || typ == "sms" {
+	if !approved && isGatedNotifyAction(typ) {
 		if err := h.collabManager.SetTaskAwaitingApproval(collabID, task.ID, true); err == nil {
 			h.persistCollabTaskApproval(snap, task)
 			h.broadcastCollabSystem(snap.Channel, collabID, fmt.Sprintf("⏸ Action **%s** requires approval before running.", task.Title))
 			return true
 		}
+	}
+	// Single-flight claim so overlapping approve/dispatch cannot double-send.
+	if !h.collabManager.ClaimActionExecution(collabID, task.ID) {
+		return false
 	}
 	runner := h.collabActionRunner()
 	out, err := runner.Execute(context.Background(), snap, task)

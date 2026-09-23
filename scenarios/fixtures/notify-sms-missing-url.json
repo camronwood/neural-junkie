@@ -1,0 +1,17 @@
+{
+  "id": "notify-sms-missing-url",
+  "title": "SMS missing connector URL",
+  "description": "SMS without url/connector should block after approval.",
+  "source": "user",
+  "tasks": [
+    {
+      "id": "sms-bad",
+      "title": "SMS no url",
+      "kind": "action",
+      "action": {
+        "type": "sms",
+        "config": { "to": "+19716785014", "body": "should fail" }
+      }
+    }
+  ]
+}
