@@ -611,7 +611,9 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 		prompt.WriteString("The user shared a high-level view of their project (name, path, file tree). ")
 		prompt.WriteString("This workspace is available on disk at the Path below — use read_file tools or REFERENCED FILES sections; ")
 		prompt.WriteString("NEVER ask the user to paste or share file contents from this project. ")
-		prompt.WriteString("When REFERENCED FILES or WORKSPACE SOURCE FILES sections appear below, those are real disk content — use them.\n\n")
+		prompt.WriteString("When REFERENCED FILES or WORKSPACE SOURCE FILES sections appear below, those are real disk content — use them. ")
+		prompt.WriteString("When the user asks about boot, UI, or runtime failures, cite Project: and concrete paths from the file tree ")
+		prompt.WriteString("(e.g. package.json, src-tauri, Makefile, App.tsx) before generic troubleshooting steps.\n\n")
 	case ContextScopeFocus:
 		prompt.WriteString("The user shared limited code context (referenced paths and/or active file). ")
 		prompt.WriteString("Stay within the files shown; do not assume other parts of the repo. ")
