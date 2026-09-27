@@ -50,6 +50,8 @@ func (a *Agent) attemptCommandFailurePlaybook(
 		return a.attemptTauriVitePortPlaybook(ctx, msg, wsPath, channel, state)
 	case "rust_missing_debug":
 		return a.attemptMissingRustDebugFix(ctx, msg, wsPath, channel, state, "")
+	case "rust_missing_partialeq":
+		return a.attemptMissingRustPartialEqFix(ctx, msg, wsPath, channel, state, "")
 	case "rust_missing_crate":
 		return a.attemptMissingRustCrateFix(ctx, msg, wsPath, channel, state, "")
 	default:
