@@ -262,6 +262,78 @@ func looksLikeFalseShellCapabilityDenial(response string) bool {
 	return false
 }
 
+// workspaceGroundingTokens are cues that the reply used the injected workspace
+// (Project:/file tree/fixture paths). Absence of all of these while giving
+// generic troubleshooting is an ungrounded-advice failure.
+var workspaceGroundingTokens = []string{
+	"project:",
+	"file tree",
+	"src-tauri",
+	"tauri",
+	"makefile",
+	"package.json",
+	"app.tsx",
+	"vite",
+	"workspace",
+}
+
+// ungroundedAdvisoryMarkers detect generic desktop/debug troubleshooting that
+// never cites the shared project tree (see dm-debug-desktop-ui-missing-with-workspace).
+var ungroundedAdvisoryMarkers = []string{
+	"troubleshoot",
+	"check for error",
+	"check the console",
+	"look at the console",
+	"console or debug",
+	"error messages",
+	"debug output",
+	"diagnose",
+	"here are a few steps",
+	"here are some steps",
+	"steps you can follow",
+	"steps you can take",
+	"happy to help you troubleshoot",
+	"help you troubleshoot",
+}
+
+func responseHasWorkspaceGroundingToken(response string) bool {
+	r := strings.ToLower(response)
+	for _, tok := range workspaceGroundingTokens {
+		if strings.Contains(r, tok) {
+			return true
+		}
+	}
+	return false
+}
+
+func responseLooksLikeGenericAdvisory(response string) bool {
+	r := strings.ToLower(response)
+	for _, m := range ungroundedAdvisoryMarkers {
+		if strings.Contains(r, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeUngroundedWorkspaceAdvice reports helpful-but-generic troubleshooting
+// replies that ignore an injected workspace (no Project:/tree/path tokens).
+// Soft-retry uses buildWorkspaceGroundedRetryPrompt; paste/denial still uses
+// looksLikeAsksUserToPasteWorkspaceFiles.
+func looksLikeUngroundedWorkspaceAdvice(msg *protocol.Message, response string) bool {
+	if msg == nil || !messageHasWorkspaceContext(msg) {
+		return false
+	}
+	r := strings.TrimSpace(response)
+	if r == "" {
+		return false
+	}
+	if responseHasWorkspaceGroundingToken(r) {
+		return false
+	}
+	return responseLooksLikeGenericAdvisory(r)
+}
+
 // looksLikeGroundingOnlyStub reports replies that only echoed the forced grounding
 // opener (and maybe a hollow "Changes:" heading) without answering the user.
 func looksLikeGroundingOnlyStub(response string) bool {
@@ -360,15 +432,17 @@ func (a *Agent) maybeRetryConversationalQuality(ctx context.Context, msg *protoc
 	}
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 	if looksLikeAsksUserToPasteWorkspaceFiles(msg, response) ||
+		looksLikeUngroundedWorkspaceAdvice(msg, response) ||
 		(messageHasWorkspaceContext(msg) && looksLikeGroundingOnlyStub(response)) {
 		// Always retry when workspace is shared — including Assistant. Claiming the
-		// project is unavailable after injection is a grounding failure, not an
-		// implementation-session gate.
+		// project is unavailable after injection, or giving generic debug steps
+		// without citing the tree, is a grounding failure.
 		retry, err := eff.GenerateResponse(approvalCtx, a.buildWorkspaceGroundedRetryPrompt(msg), nil)
 		if err == nil && strings.TrimSpace(retry) != "" &&
 			!looksLikeAsksUserToPasteWorkspaceFiles(msg, retry) &&
+			!looksLikeUngroundedWorkspaceAdvice(msg, retry) &&
 			!looksLikeGroundingOnlyStub(retry) {
-			log.Printf("[%s] Workspace denial/hollow grounding detected; used grounded retry", a.Info.Name)
+			log.Printf("[%s] Workspace denial/hollow/ungrounded advice detected; used grounded retry", a.Info.Name)
 			return retry
 		}
 	}
