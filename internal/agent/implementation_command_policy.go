@@ -385,6 +385,13 @@ func commandOutputMatchesPlaybook(output string) string {
 		strings.Contains(output, "doesn't implement `debug`"),
 		strings.Contains(output, "annotating `") && strings.Contains(output, "derive(debug)"):
 		return "rust_missing_debug"
+	// PartialEq/Eq before missing-crate (blackjack Rank/Suit == comparisons).
+	case strings.Contains(output, "trait `partialeq` is not implemented"),
+		strings.Contains(output, "trait `eq` is not implemented"),
+		strings.Contains(output, ": partialeq` is not satisfied"),
+		strings.Contains(output, "annotating `") && strings.Contains(output, "derive(partialeq)"),
+		strings.Contains(output, "binary operation `==`") && strings.Contains(output, "cannot be applied"):
+		return "rust_missing_partialeq"
 	case strings.Contains(output, "error[e0432]"),
 		strings.Contains(output, "error[e0433]") && (strings.Contains(output, "undeclared crate") ||
 			strings.Contains(output, "unresolved import") ||

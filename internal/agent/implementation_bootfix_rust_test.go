@@ -119,6 +119,19 @@ func TestCommandOutputMatchesPlaybook_rustMissingDebug_beatsExplanationE0433(t *
 	}
 }
 
+func TestCommandOutputMatchesPlaybook_rustMissingPartialEq(t *testing.T) {
+	out := "error[E0369]: binary operation `==` cannot be applied to type `Rank`\n" +
+		"the trait `PartialEq` is not implemented for `Rank`\n"
+	if got := commandOutputMatchesPlaybook(out); got != "rust_missing_partialeq" {
+		t.Fatalf("got %q want rust_missing_partialeq", got)
+	}
+	// Crate noise must not win when PartialEq is the real failure.
+	noisy := out + "Some errors have detailed explanations: E0369, E0433.\n"
+	if got := commandOutputMatchesPlaybook(noisy); got != "rust_missing_partialeq" {
+		t.Fatalf("noisy got %q want rust_missing_partialeq", got)
+	}
+}
+
 func TestAddDeriveDebugToRustSource_insertsAndMerges(t *testing.T) {
 	src := "fn main() {}\n\nstruct Card {\n    rank: u8,\n}\n"
 	body, ok := addDeriveDebugToRustSource(src, "Card")
@@ -132,6 +145,125 @@ func TestAddDeriveDebugToRustSource_insertsAndMerges(t *testing.T) {
 	_, ok = addDeriveDebugToRustSource("#[derive(Debug, Clone)]\nstruct Card {}\n", "Card")
 	if ok {
 		t.Fatal("expected no-op when Debug already present")
+	}
+}
+
+func TestAddDerivePartialEqToRustSource_multiTrait(t *testing.T) {
+	src := "enum Rank { Ace, Two }\nenum Suit { Hearts }\n"
+	body, ok := addDerivePartialEqToRustSource(src, "Rank")
+	if !ok || !strings.Contains(body, "#[derive(PartialEq, Eq)]\nenum Rank") {
+		t.Fatalf("insert body=%q ok=%v", body, ok)
+	}
+	merged, ok := addDerivePartialEqToRustSource("#[derive(Debug, Clone)]\nenum Rank { Ace }\n", "Rank")
+	if !ok || !strings.Contains(merged, "PartialEq") || !strings.Contains(merged, "Eq") {
+		t.Fatalf("merge body=%q ok=%v", merged, ok)
+	}
+}
+
+func TestExtractMissingRustDebugTypes_multi(t *testing.T) {
+	out := "the trait `Debug` is not implemented for `Card`\n" +
+		"the trait `Debug` is not implemented for `Hand`\n"
+	got := extractMissingRustDebugTypes(out)
+	if len(got) != 2 || got[0] != "Card" || got[1] != "Hand" {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestTryMissingRustDebugFix_multiType(t *testing.T) {
+	dir := t.TempDir()
+	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mainRS := "struct Card { rank: u8 }\nstruct Hand { cards: Vec<Card> }\nfn main() {}\n"
+	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte(mainRS), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
+		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
+		"build failed")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     editorTrustAutoApply,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	state := &ImplementationSessionState{
+		StackManifest: DetectStackManifest(dir),
+		TrustMode:     editorTrustAutoApply,
+	}
+	state.RecordReadPath("src/main.rs")
+	evidence := "the trait `Debug` is not implemented for `Card`\n" +
+		"the trait `Debug` is not implemented for `Hand`\n" +
+		"help: consider annotating `Card` with `#[derive(Debug)]`\n"
+	state.RecordCommandRun("cargo build", 101, evidence)
+	ctx := withImplementationSessionState(context.Background(), state)
+
+	if !ag.tryMissingRustDebugFix(ctx, msg, dir, state, evidence) {
+		t.Fatal("expected rust debug fix")
+	}
+	onDisk, err := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(onDisk)
+	if !strings.Contains(body, "#[derive(Debug)]\nstruct Card") {
+		t.Fatalf("Card missing Debug: %q", body)
+	}
+	if !strings.Contains(body, "#[derive(Debug)]\nstruct Hand") {
+		t.Fatalf("Hand missing Debug: %q", body)
+	}
+}
+
+func TestTryMissingRustPartialEqFix(t *testing.T) {
+	dir := t.TempDir()
+	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mainRS := "enum Rank { Ace, Two }\nfn main() {}\n"
+	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte(mainRS), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
+		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
+		"build failed")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     editorTrustAutoApply,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	state := &ImplementationSessionState{
+		StackManifest: DetectStackManifest(dir),
+		TrustMode:     editorTrustAutoApply,
+	}
+	state.RecordReadPath("src/main.rs")
+	evidence := "error[E0369]: binary operation `==` cannot be applied to type `Rank`\n" +
+		"the trait `PartialEq` is not implemented for `Rank`\n"
+	state.RecordCommandRun("cargo build", 101, evidence)
+	ctx := withImplementationSessionState(context.Background(), state)
+
+	if !ag.tryMissingRustPartialEqFix(ctx, msg, dir, state, evidence) {
+		t.Fatal("expected rust PartialEq fix")
+	}
+	onDisk, err := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(onDisk), "PartialEq") || !strings.Contains(string(onDisk), "Eq") {
+		t.Fatalf("main.rs = %q", onDisk)
+	}
+	if state.PlaybookUsed() != "rust_missing_partialeq" {
+		t.Fatalf("playbook = %q", state.PlaybookUsed())
 	}
 }
 

@@ -534,6 +534,18 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
 		}
 
+		if a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, "") {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+		}
+
 		if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, "") {
 			state.Phase = "verify"
 			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
@@ -858,6 +870,14 @@ fileCycles:
 
 			if verifyFailed {
 				if a.tryMissingRustDebugFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					proposedAny = true
+					cycleProposed = true
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+					state.VerifyOutput = verifyOut
+					state.VerifyFailed = verifyFailed
+					state.VerifySkipped = verifySkipped
+				}
+				if verifyFailed && a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, verifyOut) {
 					proposedAny = true
 					cycleProposed = true
 					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)

@@ -12,12 +12,16 @@ import (
 )
 
 var (
-	rustUnresolvedImportRE = regexp.MustCompile("(?i)error\\[e0432\\][^\\n]*`([a-z][a-z0-9_-]*)`")
-	rustUndeclaredCrateRE  = regexp.MustCompile("(?i)error\\[e0433\\][^\\n]*`([a-z][a-z0-9_-]*)`")
-	rustCannotFindCrateRE  = regexp.MustCompile("(?i)(?:cannot find crate|could not find) `([a-z][a-z0-9_-]*)`")
-	invalidRustCrateNameRE = regexp.MustCompile(`[^a-z0-9_-]+`)
-	rustDebugNotImplForRE  = regexp.MustCompile("(?i)trait `Debug` is not implemented for `([A-Za-z_][A-Za-z0-9_]*)`")
-	rustDebugAnnotateRE    = regexp.MustCompile("(?i)annotating `([A-Za-z_][A-Za-z0-9_]*)` with `#\\[derive\\(Debug\\)\\]`")
+	rustUnresolvedImportRE  = regexp.MustCompile("(?i)error\\[e0432\\][^\\n]*`([a-z][a-z0-9_-]*)`")
+	rustUndeclaredCrateRE   = regexp.MustCompile("(?i)error\\[e0433\\][^\\n]*`([a-z][a-z0-9_-]*)`")
+	rustCannotFindCrateRE   = regexp.MustCompile("(?i)(?:cannot find crate|could not find) `([a-z][a-z0-9_-]*)`")
+	invalidRustCrateNameRE  = regexp.MustCompile(`[^a-z0-9_-]+`)
+	rustDebugNotImplForRE   = regexp.MustCompile("(?i)trait `Debug` is not implemented for `([A-Za-z_][A-Za-z0-9_]*)`")
+	rustDebugAnnotateRE     = regexp.MustCompile("(?i)annotating `([A-Za-z_][A-Za-z0-9_]*)` with `#\\[derive\\(Debug\\)\\]`")
+	rustPartialEqNotImplRE  = regexp.MustCompile("(?i)trait `PartialEq` is not implemented for `([A-Za-z_][A-Za-z0-9_]*)`")
+	rustPartialEqBoundRE    = regexp.MustCompile("(?i)`([A-Za-z_][A-Za-z0-9_]*): PartialEq` is not satisfied")
+	rustPartialEqAnnotateRE = regexp.MustCompile("(?i)annotating `([A-Za-z_][A-Za-z0-9_]*)` with `#\\[derive\\(PartialEq\\)\\]`")
+	rustEqNotImplForRE      = regexp.MustCompile("(?i)trait `Eq` is not implemented for `([A-Za-z_][A-Za-z0-9_]*)`")
 )
 
 var rustStdPseudoCrates = map[string]bool{
@@ -354,6 +358,22 @@ func (a *Agent) attemptMissingRustCrateFix(
 }
 
 func extractMissingRustDebugTypes(output string) []string {
+	return extractMissingRustTraitTypes(output, []*regexp.Regexp{rustDebugAnnotateRE, rustDebugNotImplForRE})
+}
+
+func extractMissingRustPartialEqTypes(output string) []string {
+	types := extractMissingRustTraitTypes(output, []*regexp.Regexp{
+		rustPartialEqAnnotateRE, rustPartialEqNotImplRE, rustPartialEqBoundRE, rustEqNotImplForRE,
+	})
+	// E0369 == without naming PartialEq still points at a type in backticks near the error.
+	if len(types) == 0 && strings.Contains(strings.ToLower(output), "binary operation `==`") {
+		re := regexp.MustCompile("(?i)cannot be applied to type `([A-Za-z_][A-Za-z0-9_]*)`")
+		types = extractMissingRustTraitTypes(output, []*regexp.Regexp{re})
+	}
+	return types
+}
+
+func extractMissingRustTraitTypes(output string, res []*regexp.Regexp) []string {
 	seen := make(map[string]bool)
 	var types []string
 	add := func(name string) {
@@ -364,7 +384,7 @@ func extractMissingRustDebugTypes(output string) []string {
 		seen[name] = true
 		types = append(types, name)
 	}
-	for _, re := range []*regexp.Regexp{rustDebugAnnotateRE, rustDebugNotImplForRE} {
+	for _, re := range res {
 		for _, m := range re.FindAllStringSubmatch(output, -1) {
 			if len(m) >= 2 {
 				add(m[1])
@@ -376,8 +396,18 @@ func extractMissingRustDebugTypes(output string) []string {
 
 // addDeriveDebugToRustSource inserts or merges #[derive(Debug)] on struct/enum typeName.
 func addDeriveDebugToRustSource(src, typeName string) (string, bool) {
+	return addDeriveTraitsToRustSource(src, typeName, []string{"Debug"})
+}
+
+// addDerivePartialEqToRustSource inserts or merges PartialEq + Eq (blackjack == / HashMap keys).
+func addDerivePartialEqToRustSource(src, typeName string) (string, bool) {
+	return addDeriveTraitsToRustSource(src, typeName, []string{"PartialEq", "Eq"})
+}
+
+// addDeriveTraitsToRustSource inserts or merges #[derive(...)] traits on struct/enum typeName.
+func addDeriveTraitsToRustSource(src, typeName string, traits []string) (string, bool) {
 	typeName = strings.TrimSpace(typeName)
-	if typeName == "" || src == "" {
+	if typeName == "" || src == "" || len(traits) == 0 {
 		return "", false
 	}
 	declRE := regexp.MustCompile(`(?m)^([ \t]*)((?:pub(?:\([^)]*\))?\s+)?)(struct|enum)\s+` + regexp.QuoteMeta(typeName) + `\b`)
@@ -387,6 +417,27 @@ func addDeriveDebugToRustSource(src, typeName string) (string, bool) {
 	}
 	lineStart := loc[0]
 	indent := src[loc[2]:loc[3]]
+
+	traitPresent := func(block string, trait string) bool {
+		return regexp.MustCompile(`\b` + regexp.QuoteMeta(trait) + `\b`).MatchString(block)
+	}
+	allPresent := func(block string) bool {
+		for _, tr := range traits {
+			if !traitPresent(block, tr) {
+				return false
+			}
+		}
+		return true
+	}
+	missingFrom := func(block string) []string {
+		var miss []string
+		for _, tr := range traits {
+			if !traitPresent(block, tr) {
+				miss = append(miss, tr)
+			}
+		}
+		return miss
+	}
 
 	// Scan attribute lines immediately above the declaration.
 	before := src[:lineStart]
@@ -401,17 +452,22 @@ func addDeriveDebugToRustSource(src, typeName string) (string, bool) {
 			break
 		}
 		if strings.HasPrefix(trimmed, "#[") || strings.HasPrefix(trimmed, "#![") {
-			if strings.Contains(trimmed, "derive(") && strings.Contains(trimmed, "Debug") {
-				return "", false
-			}
-			if strings.HasPrefix(trimmed, "#[derive(") && strings.HasSuffix(trimmed, ")]") && !strings.Contains(trimmed, "Debug") {
+			if strings.HasPrefix(trimmed, "#[derive(") && strings.HasSuffix(trimmed, ")]") {
 				inner := trimmed[len("#[derive(") : len(trimmed)-2]
 				inner = strings.TrimSpace(inner)
+				if allPresent(inner) {
+					return "", false
+				}
+				miss := missingFrom(inner)
+				if len(miss) == 0 {
+					return "", false
+				}
 				lead := lines[i][:len(lines[i])-len(strings.TrimLeft(lines[i], " \t"))]
+				joined := strings.Join(miss, ", ")
 				if inner == "" {
-					lines[i] = lead + "#[derive(Debug)]"
+					lines[i] = lead + "#[derive(" + joined + ")]"
 				} else {
-					lines[i] = lead + "#[derive(" + inner + ", Debug)]"
+					lines[i] = lead + "#[derive(" + inner + ", " + joined + ")]"
 				}
 				newBefore := strings.Join(lines, "\n")
 				if strings.HasSuffix(before, "\n") && !strings.HasSuffix(newBefore, "\n") {
@@ -424,7 +480,7 @@ func addDeriveDebugToRustSource(src, typeName string) (string, bool) {
 		}
 		break
 	}
-	insert := indent + "#[derive(Debug)]\n"
+	insert := indent + "#[derive(" + strings.Join(traits, ", ") + ")]\n"
 	return src[:lineStart] + insert + src[lineStart:], true
 }
 
@@ -469,6 +525,38 @@ func (a *Agent) attemptMissingRustDebugFix(
 	state *ImplementationSessionState,
 	evidence string,
 ) (bool, []string) {
+	return a.attemptMissingRustDeriveFix(ctx, msg, wsPath, channel, state, evidence,
+		"rust_missing_debug", extractMissingRustDebugTypes, addDeriveDebugToRustSource, "Debug")
+}
+
+// tryMissingRustPartialEqFix adds #[derive(PartialEq, Eq)] for == / Eq bind errors (blackjack Rank/Suit).
+func (a *Agent) tryMissingRustPartialEqFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState, evidence string) bool {
+	ok, _ := a.attemptMissingRustPartialEqFix(ctx, msg, wsPath, msg.Channel, state, evidence)
+	return ok
+}
+
+func (a *Agent) attemptMissingRustPartialEqFix(
+	ctx context.Context,
+	msg *protocol.Message,
+	wsPath, channel string,
+	state *ImplementationSessionState,
+	evidence string,
+) (bool, []string) {
+	return a.attemptMissingRustDeriveFix(ctx, msg, wsPath, channel, state, evidence,
+		"rust_missing_partialeq", extractMissingRustPartialEqTypes, addDerivePartialEqToRustSource, "PartialEq")
+}
+
+func (a *Agent) attemptMissingRustDeriveFix(
+	ctx context.Context,
+	msg *protocol.Message,
+	wsPath, channel string,
+	state *ImplementationSessionState,
+	evidence string,
+	playbook string,
+	extractTypes func(string) []string,
+	addDerive func(string, string) (string, bool),
+	traitLabel string,
+) (bool, []string) {
 	if a == nil || msg == nil || state == nil || wsPath == "" {
 		return false, nil
 	}
@@ -479,62 +567,68 @@ func (a *Agent) attemptMissingRustDebugFix(
 	if evidence == "" {
 		evidence = msg.Content
 	}
-	if commandOutputMatchesPlaybook(evidence) != "rust_missing_debug" {
+	if commandOutputMatchesPlaybook(evidence) != playbook {
 		return false, nil
 	}
-	types := extractMissingRustDebugTypes(evidence)
+	types := extractTypes(evidence)
 	if len(types) == 0 {
 		return false, nil
 	}
-	typeName := types[0]
 	var changed []string
-	for _, abs := range rustSourceFilesForDebugFix(wsPath) {
-		existing, err := os.ReadFile(abs)
-		if err != nil {
-			continue
-		}
-		body, ok := addDeriveDebugToRustSource(string(existing), typeName)
-		if !ok {
-			continue
-		}
-		rel, relErr := filepath.Rel(wsPath, abs)
-		if relErr != nil || rel == "" || strings.HasPrefix(rel, "..") {
-			rel = filepath.Base(abs)
-		}
-		rel = filepath.ToSlash(rel)
-		oldContent := string(existing)
-		if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
-			continue
-		}
-		if msg.Metadata == nil {
-			msg.Metadata = map[string]interface{}{}
-		}
-		msg.Metadata["deterministic_edit"] = true
-		if _, err := a.proposeFileEditInChannel(ctx, channel, rel, oldContent, body, msg); err != nil {
-			continue
-		}
-		onDisk, readErr := os.ReadFile(abs)
-		if readErr != nil || !strings.Contains(string(onDisk), "Debug") {
-			if resolveImplementationTrustMode(msg) != editorTrustAutoApply {
+	files := rustSourceFilesForDebugFix(wsPath)
+	for _, typeName := range types {
+		for _, abs := range files {
+			existing, err := os.ReadFile(abs)
+			if err != nil {
 				continue
 			}
-			if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+			body, ok := addDerive(string(existing), typeName)
+			if !ok {
 				continue
 			}
-			onDisk, readErr = os.ReadFile(abs)
-			if readErr != nil || !strings.Contains(string(onDisk), "Debug") {
+			rel, relErr := filepath.Rel(wsPath, abs)
+			if relErr != nil || rel == "" || strings.HasPrefix(rel, "..") {
+				rel = filepath.Base(abs)
+			}
+			rel = filepath.ToSlash(rel)
+			oldContent := string(existing)
+			if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
 				continue
 			}
-			state.releaseSnapshot(rel)
-			log.Printf("[%s] rust_missing_debug_direct_apply(type=%s file=%s)", a.Info.Name, typeName, rel)
+			if msg.Metadata == nil {
+				msg.Metadata = map[string]interface{}{}
+			}
+			msg.Metadata["deterministic_edit"] = true
+			if _, err := a.proposeFileEditInChannel(ctx, channel, rel, oldContent, body, msg); err != nil {
+				continue
+			}
+			onDisk, readErr := os.ReadFile(abs)
+			if readErr != nil || !strings.Contains(string(onDisk), traitLabel) {
+				if resolveImplementationTrustMode(msg) != editorTrustAutoApply {
+					continue
+				}
+				if err := os.WriteFile(abs, []byte(body), 0o644); err != nil {
+					continue
+				}
+				onDisk, readErr = os.ReadFile(abs)
+				if readErr != nil || !strings.Contains(string(onDisk), traitLabel) {
+					continue
+				}
+				state.releaseSnapshot(rel)
+				log.Printf("[%s] %s_direct_apply(type=%s file=%s)", a.Info.Name, playbook, typeName, rel)
+			}
+			state.ProposedCount++
+			state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+			state.RecordEdit(rel)
+			changed = appendUnique(changed, []string{rel})
+			state.SetPlaybookUsed(playbook)
+			log.Printf("[%s] %s_fix(type=%s file=%s)", a.Info.Name, playbook, typeName, rel)
+			// Re-read for subsequent types in the same file.
+			files = rustSourceFilesForDebugFix(wsPath)
 		}
-		state.ProposedCount++
-		state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
-		state.RecordEdit(rel)
-		changed = append(changed, rel)
-		state.SetPlaybookUsed("rust_missing_debug")
-		log.Printf("[%s] rust_missing_debug_fix(type=%s file=%s)", a.Info.Name, typeName, rel)
-		return true, changed
 	}
-	return false, nil
+	if len(changed) == 0 {
+		return false, nil
+	}
+	return true, changed
 }
