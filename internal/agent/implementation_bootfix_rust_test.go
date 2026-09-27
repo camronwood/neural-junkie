@@ -267,6 +267,62 @@ func TestTryMissingRustPartialEqFix(t *testing.T) {
 	}
 }
 
+func TestTryMissingRustDebugFix_survivesRollback(t *testing.T) {
+	dir := t.TempDir()
+	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mainRS := "struct Card { rank: u8 }\nfn main() {}\n"
+	absMain := filepath.Join(dir, "src", "main.rs")
+	if err := os.WriteFile(absMain, []byte(mainRS), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
+		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
+		"build failed")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     editorTrustAutoApply,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	state := &ImplementationSessionState{
+		StackManifest: DetectStackManifest(dir),
+		TrustMode:     editorTrustAutoApply,
+	}
+	state.RecordReadPath("src/main.rs")
+	// Capture pre-edit snapshot the way auto-apply sessions do before a model edit.
+	withDebug, ok := addDeriveDebugToRustSource(mainRS, "Card")
+	if !ok {
+		t.Fatal("expected derive insert")
+	}
+	if err := state.prepareEditSnapshot(dir, "src/main.rs", mainRS, withDebug); err != nil {
+		t.Fatal(err)
+	}
+	evidence := "the trait `Debug` is not implemented for `Card`\n" +
+		"help: consider annotating `Card` with `#[derive(Debug)]`\n"
+	state.RecordCommandRun("cargo build", 101, evidence)
+	ctx := withImplementationSessionState(context.Background(), state)
+
+	if !ag.tryMissingRustDebugFix(ctx, msg, dir, state, evidence) {
+		t.Fatal("expected rust debug fix")
+	}
+	state.VerifyFailed = true
+	state.rollbackFailedAutoApplySession(dir)
+	after, err := os.ReadFile(absMain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(after), "#[derive(Debug)]") {
+		t.Fatalf("Debug derive must survive rollback: %q", after)
+	}
+}
+
 func TestTryMissingRustDebugFix(t *testing.T) {
 	dir := t.TempDir()
 	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
