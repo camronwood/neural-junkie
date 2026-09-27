@@ -525,6 +525,16 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		if a.tryMissingRustDebugFix(sessionCtx, msg, wsPath, state, "") {
 			state.Phase = "verify"
 			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			if verifyFailed {
+				if a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+				}
+			}
+			if verifyFailed {
+				if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+				}
+			}
 			state.VerifyOutput = verifyOut
 			state.VerifyFailed = verifyFailed
 			state.VerifySkipped = verifySkipped
@@ -537,6 +547,11 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		if a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, "") {
 			state.Phase = "verify"
 			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			if verifyFailed {
+				if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+				}
+			}
 			state.VerifyOutput = verifyOut
 			state.VerifyFailed = verifyFailed
 			state.VerifySkipped = verifySkipped

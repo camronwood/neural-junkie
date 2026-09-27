@@ -603,7 +603,16 @@ func (a *Agent) attemptMissingRustDeriveFix(
 				continue
 			}
 			onDisk, readErr := os.ReadFile(abs)
-			if readErr != nil || !strings.Contains(string(onDisk), traitLabel) {
+			applied := readErr == nil && string(onDisk) == body
+			if !applied {
+				// Trait may already appear on another type; require this type no longer needs the derive.
+				if readErr != nil {
+					applied = false
+				} else if _, stillNeeded := addDerive(string(onDisk), typeName); !stillNeeded {
+					applied = true
+				}
+			}
+			if !applied {
 				if resolveImplementationTrustMode(msg) != editorTrustAutoApply {
 					continue
 				}
@@ -611,12 +620,15 @@ func (a *Agent) attemptMissingRustDeriveFix(
 					continue
 				}
 				onDisk, readErr = os.ReadFile(abs)
-				if readErr != nil || !strings.Contains(string(onDisk), traitLabel) {
-					continue
+				if readErr != nil || string(onDisk) != body {
+					if _, stillNeeded := addDerive(string(onDisk), typeName); stillNeeded {
+						continue
+					}
 				}
-				state.releaseSnapshot(rel)
 				log.Printf("[%s] %s_direct_apply(type=%s file=%s)", a.Info.Name, playbook, typeName, rel)
 			}
+			// Playbook derives must survive session rollback when other verify errors remain.
+			state.releaseSnapshot(rel)
 			state.ProposedCount++
 			state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
 			state.RecordEdit(rel)
