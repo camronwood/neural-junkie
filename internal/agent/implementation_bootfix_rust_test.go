@@ -384,6 +384,18 @@ func TestDeriveCargoPackageName(t *testing.T) {
 	}
 }
 
+func TestDeriveCargoPackageNameFromMessage_prefersBlackjack(t *testing.T) {
+	got := deriveCargoPackageNameFromMessage("/tmp/user-flow-empty",
+		"implement a simple CLI blackjack game with Cargo.toml and src/main.rs")
+	if got != "blackjack" {
+		t.Fatalf("got %q want blackjack", got)
+	}
+	got = deriveCargoPackageNameFromMessage("/tmp/user-flow-empty", "generic rust crate")
+	if got != "user-flow-empty" {
+		t.Fatalf("fallback got %q", got)
+	}
+}
+
 func TestMinimalCargoTomlBody(t *testing.T) {
 	body := minimalCargoTomlBody("blackjack")
 	for _, want := range []string{

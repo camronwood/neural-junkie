@@ -172,6 +172,13 @@ func fencedContentPlausibleForPath(path, lang, content string) bool {
 			strings.Contains(lower, "content:") || strings.Contains(lower, "module.exports")
 	case strings.HasSuffix(path, ".go"):
 		return strings.Contains(lower, "package ") || strings.HasPrefix(lower, "func ") || lang == "go"
+	case strings.HasSuffix(path, ".rs"):
+		// Reject Cargo.toml bodies written into .rs (blackjack user-flow corruption mode).
+		if strings.HasPrefix(lower, "[package]") || strings.Contains(lower, "\n[dependencies]") && !strings.Contains(lower, "fn ") {
+			return false
+		}
+		return strings.Contains(lower, "fn ") || strings.Contains(lower, "struct ") ||
+			strings.Contains(lower, "enum ") || strings.Contains(lower, "mod ") || lang == "rust" || lang == "rs"
 	case strings.HasSuffix(path, ".css"):
 		return strings.Contains(lower, "{") && !strings.Contains(lower, "import ") &&
 			!strings.Contains(lower, "<!doctype") && !strings.Contains(lower, "<html")

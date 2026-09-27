@@ -39,7 +39,6 @@ func TestValidateProposalContent_RejectsFileChangeDirectivePayload(t *testing.T)
 	}
 }
 
-
 func TestSynthesizeGoMainEdit_HelloWorld(t *testing.T) {
 	t.Parallel()
 	existing := "package main\n\nfunc main() {}\n"
@@ -349,9 +348,9 @@ func TestShouldRepairCorruptAppJSEntry_implSessionWithoutPhraseHeuristics(t *tes
 		t.Fatal("impl session + entry conflict must authorize repair without phrase heuristics")
 	}
 	state := &ImplementationSessionState{
-		BootFixIntent:  true,
-		StackManifest:  manifest,
-		TrustMode:      editorTrustAutoApply,
+		BootFixIntent: true,
+		StackManifest: manifest,
+		TrustMode:     editorTrustAutoApply,
 	}
 	ctx := withImplementationSessionState(context.Background(), state)
 	if !ag.tryEarlyCorruptAppJSBootFix(ctx, msg, dir, state) {
@@ -659,5 +658,16 @@ export default {
 	}
 	if len(state.FilesChanged) == 0 {
 		t.Fatal("expected file changes from early theme toggle")
+	}
+}
+
+func TestFencedContentPlausibleForPath_rejectsCargoTomlInRust(t *testing.T) {
+	toml := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n"
+	if fencedContentPlausibleForPath("src/main.rs", "rust", toml) {
+		t.Fatal("Cargo.toml body must not be plausible for .rs")
+	}
+	ok := "fn main() {\n    println!(\"hit or stand\");\n}\n"
+	if !fencedContentPlausibleForPath("src/main.rs", "rust", ok) {
+		t.Fatal("expected real Rust main to be plausible")
 	}
 }

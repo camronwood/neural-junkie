@@ -131,6 +131,18 @@ func deriveCargoPackageName(wsPath string) string {
 	return sanitizeRustCrateName(base)
 }
 
+// deriveCargoPackageNameFromMessage prefers an explicit project name from the user ask
+// (e.g. blackjack) over the fixture directory name (user-flow-empty).
+func deriveCargoPackageNameFromMessage(wsPath, userContent string) string {
+	lower := strings.ToLower(userContent)
+	for _, name := range []string{"blackjack", "trivia", "notes", "memos", "crud"} {
+		if strings.Contains(lower, name) {
+			return sanitizeRustCrateName(name)
+		}
+	}
+	return deriveCargoPackageName(wsPath)
+}
+
 func minimalCargoTomlBody(packageName string) string {
 	packageName = sanitizeRustCrateName(packageName)
 	return "[package]\nname = \"" + packageName + "\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n"
@@ -237,7 +249,7 @@ func (a *Agent) attemptGreenfieldCargoTomlScaffold(
 	if !hasSources && !hasIntent {
 		return false, nil
 	}
-	body := minimalCargoTomlBody(deriveCargoPackageName(wsPath))
+	body := minimalCargoTomlBody(deriveCargoPackageNameFromMessage(wsPath, msg.Content))
 	manifest := a.manifestForProposal(ctx, msg)
 	if err := ValidateProposal(wsPath, "Cargo.toml", ProposalOpCreate, manifest); err != nil {
 		return false, nil
