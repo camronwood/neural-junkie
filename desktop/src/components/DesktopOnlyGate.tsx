@@ -2,7 +2,10 @@ const RELEASES_URL = 'https://github.com/camronwood/neural-junkie/releases/lates
 
 export function DesktopOnlyGate() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slack-bg text-slack-text p-8">
+    <div
+      className="min-h-screen flex items-center justify-center bg-slack-bg text-slack-text p-8"
+      data-testid="desktop-only-gate"
+    >
       <div className="max-w-lg text-center space-y-6">
         <h1 className="text-3xl font-bold text-white">Neural Junkie</h1>
         <p className="text-slack-textMuted leading-relaxed">

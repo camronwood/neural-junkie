@@ -29,6 +29,10 @@ export default defineConfig({
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
+        env: {
+          ...process.env,
+          VITE_NJ_E2E: '1',
+        },
       },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

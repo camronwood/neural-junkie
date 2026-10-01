@@ -81,6 +81,42 @@ class CollabHubAgentParseTest(unittest.TestCase):
         self.assertIn("README describes", body)
         self.assertIn("main.go prints", body)
 
+    def test_approve_pending_tool_approvals_and_busy(self) -> None:
+        from unittest import mock
+        from lib import collab_hub as hub
+
+        pending = [
+            {"id": "a1", "channel": "user-flow-scenarios"},
+            {"id": "a2", "channel": "other"},
+        ]
+        with mock.patch.object(hub, "list_pending_tool_approvals", return_value=pending), mock.patch.object(
+            hub, "approve_tool_approval", return_value=(200, {})
+        ) as approve:
+            n = hub.approve_pending_tool_approvals("http://hub", channel="user-flow-scenarios")
+            self.assertEqual(n, 1)
+            approve.assert_called_once_with("http://hub", "a1", scope="once")
+
+        with mock.patch.object(hub, "list_pending_tool_approvals", return_value=[]), mock.patch.object(
+            hub, "list_pending_file_changes", return_value=[]
+        ):
+            self.assertFalse(hub.channel_agent_busy("http://hub", "user-flow-scenarios"))
+
+        with mock.patch.object(hub, "list_pending_tool_approvals", return_value=pending), mock.patch.object(
+            hub, "list_pending_file_changes", return_value=[]
+        ):
+            self.assertTrue(hub.channel_agent_busy("http://hub", "user-flow-scenarios"))
+
+        with mock.patch.object(hub, "list_pending_tool_approvals", return_value=[]), mock.patch.object(
+            hub, "list_pending_file_changes", return_value=[{"id": "fc1", "channel": "user-flow-scenarios"}]
+        ):
+            self.assertTrue(hub.channel_agent_busy("http://hub", "user-flow-scenarios"))
+
+        # Historical registered_change_id must NOT count as busy.
+        with mock.patch.object(hub, "list_pending_tool_approvals", return_value=[]), mock.patch.object(
+            hub, "list_pending_file_changes", return_value=[]
+        ), mock.patch.object(hub, "pending_change_ids_for_channel", return_value=["stale-approved"]):
+            self.assertFalse(hub.channel_agent_busy("http://hub", "user-flow-scenarios"))
+
 
 if __name__ == "__main__":
     unittest.main()

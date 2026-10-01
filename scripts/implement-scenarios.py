@@ -53,6 +53,13 @@ SCENARIO_APPROVE_CHANNELS = frozenset(
     {"implement-scenarios", "user-flow-scenarios", "parity-scenarios"}
 )
 MID_WAIT_APPROVE_INTERVAL_S = 8.0
+# When the agent shows progress (approvals / pending work), extend the wait so we
+# do not treat tool-busy / verify as "silent" and abort mid-cargo.
+WAIT_ACTIVITY_EXTEND_S = 180.0
+WAIT_ACTIVITY_EXTEND_CAP_FACTOR = 2.5  # max deadline = start + secs * this
+# After a silent nudge, if disk wait is already satisfied and the channel goes idle,
+# accept disk without waiting forever for implementation_session_outcome (Ollama soak).
+DISK_OK_IDLE_ACCEPT_S = 120.0
 
 
 def _truthy_env(name: str) -> bool:
@@ -66,6 +73,12 @@ def _scenario_auto_approve_enabled(channel: str) -> bool:
     if ch in SCENARIO_APPROVE_CHANNELS:
         return True
     return ch.endswith("-scenarios")
+
+
+def _extend_deadline(deadline: float, *, now: float, start: float, base_secs: float) -> float:
+    """Push deadline forward on activity, capped relative to original budget."""
+    cap = start + base_secs * WAIT_ACTIVITY_EXTEND_CAP_FACTOR
+    return min(cap, max(deadline, now + WAIT_ACTIVITY_EXTEND_S))
 
 
 def load_scenario(name: str) -> dict:
@@ -188,13 +201,18 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     has_disk = step_has_disk_wait(step)
     baseline = int(step.get("baseline", ctx.baseline_agent_count.get(from_name, _chat_baseline(ctx, from_name))))
     root = Path(scenario_repo_root(ctx.scenario))
-    deadline = time.time() + secs
+    start = time.time()
+    deadline = start + secs
     nudged = False
     last_approve = 0.0
+    last_activity = start
+    disk_ok_since: float | None = None
     auto_approve = _scenario_auto_approve_enabled(ctx.channel)
     while time.time() < deadline:
-        if auto_approve and time.time() - last_approve >= MID_WAIT_APPROVE_INTERVAL_S:
-            last_approve = time.time()
+        now = time.time()
+        activity = False
+        if auto_approve and now - last_approve >= MID_WAIT_APPROVE_INTERVAL_S:
+            last_approve = now
             n, ids = hub.wait_and_approve_file_changes(
                 ctx.base,
                 ctx.channel,
@@ -202,8 +220,28 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
                 timeout=2.0,
             )
             if n > 0:
+                activity = True
                 print(f"  wait_reply: auto-approved {n} file change(s) ids={ids}", flush=True)
+            n_tools = hub.approve_pending_tool_approvals(ctx.base, channel=ctx.channel)
+            if n_tools > 0:
+                activity = True
+                print(f"  wait_reply: auto-approved {n_tools} tool approval(s)", flush=True)
+        if hub.channel_agent_busy(ctx.base, ctx.channel):
+            activity = True
+        if activity:
+            last_activity = now
+            deadline = _extend_deadline(deadline, now=now, start=start, base_secs=float(secs))
+
         disk_ok, disk_detail = disk_wait_satisfied(root, step)
+        if has_disk and disk_ok:
+            if disk_ok_since is None:
+                disk_ok_since = now
+                last_activity = now
+                deadline = _extend_deadline(deadline, now=now, start=start, base_secs=float(secs))
+                print(f"  wait_reply: disk ready ({disk_detail}); waiting for session finish", flush=True)
+        else:
+            disk_ok_since = None
+
         msgs = hub.list_messages(ctx.base, ctx.channel, 200)
         # Prefer chat/answer (+ file_change). Do not treat ask_user cards as completion —
         # that falsely advances plan waits while leaving the channel agentsDeferred.
@@ -254,9 +292,31 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
             "Please continue with your best plan; no further clarification needed.",
         )
         if pending_ids:
+            last_activity = now
+            deadline = _extend_deadline(deadline, now=now, start=start, base_secs=float(secs))
             print(f"  wait_reply: answered {len(pending_ids)} pending ask_user card(s)", flush=True)
-        # Mid-wait nudge once if the assignee is silent (common under Ollama soak).
-        if not nudged and time.time() > deadline - (secs * 0.45):
+
+        # Disk already meets the wait; agent may still be verifying without re-stamping
+        # outcome. After nudge + idle grace, accept disk so we do not abort_channel_agents.
+        if (
+            nudged
+            and has_disk
+            and disk_ok
+            and until_meta_keys
+            and disk_ok_since is not None
+            and now - last_activity >= DISK_OK_IDLE_ACCEPT_S
+            and not hub.channel_agent_busy(ctx.base, ctx.channel)
+        ):
+            return True, f"disk ready after idle ({disk_detail}; outcome not re-stamped)"
+
+        # Mid-wait nudge once if the assignee is idle (not busy with tools/approvals).
+        idle = (now - last_activity) >= max(30.0, secs * 0.15)
+        if (
+            not nudged
+            and idle
+            and not hub.channel_agent_busy(ctx.base, ctx.channel)
+            and now > start + secs * 0.55
+        ):
             nudged = True
             nudge_meta, nudge_text = wait_reply_nudge(ctx.last_send_metadata, from_name)
             hub.answer_pending_user_questions(ctx.base, ctx.channel, nudge_text)
@@ -267,6 +327,8 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
                 metadata=nudge_meta,
                 from_name=DEFAULT_FROM,
             )
+            last_activity = now
+            deadline = _extend_deadline(deadline, now=now, start=start, base_secs=float(secs))
             record_reason(ctx.telemetry, "nudge_reasons", f"silent agent after {secs * 0.55:.0f}s")
             print(f"  wait_reply: nudged silent @{from_name}", flush=True)
         time.sleep(2)
