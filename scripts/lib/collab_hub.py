@@ -820,6 +820,57 @@ def reject_tool_approval(base: str, approval_id: str, *, reason: str = "chat-sce
     )
 
 
+def approve_tool_approval(base: str, approval_id: str, *, scope: str = "once") -> tuple[int, Any]:
+    aid = urllib.parse.quote(str(approval_id).strip(), safe="")
+    return hub_request(
+        base,
+        "POST",
+        f"/api/tool-approvals/approve/{aid}",
+        {"scope": scope},
+    )
+
+
+def approve_pending_tool_approvals(
+    base: str,
+    *,
+    channel: str | None = None,
+    scope: str = "once",
+) -> int:
+    """Approve pending tool approvals, optionally scoped to a channel. Returns count approved."""
+    pending = list_pending_tool_approvals(base)
+    want = (channel or "").strip()
+    n = 0
+    for row in pending:
+        if want and str(row.get("channel") or "").strip() != want:
+            continue
+        aid = str(row.get("id") or "").strip()
+        if not aid:
+            continue
+        code, _ = approve_tool_approval(base, aid, scope=scope)
+        if code == 200:
+            n += 1
+    return n
+
+
+def channel_agent_busy(base: str, channel: str, *, user_id: str = "default") -> bool:
+    """True when the channel has *still-pending* file changes or tool approvals.
+
+    Do not use pending_change_ids_for_channel here — that helper also harvests
+    registered_change_id from historical file_change messages, so already-approved
+    edits look "busy" forever and wait_reply never idles/nudges.
+    """
+    want = (channel or "").strip()
+    if not want:
+        return False
+    for change in list_pending_file_changes(base, user_id):
+        if (change.get("channel") or "").strip() == want:
+            return True
+    for row in list_pending_tool_approvals(base):
+        if str(row.get("channel") or "").strip() == want:
+            return True
+    return False
+
+
 def reject_pending_tool_approvals(
     base: str,
     *,

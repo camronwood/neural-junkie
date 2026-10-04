@@ -10,7 +10,8 @@ export NEURAL_JUNKIE_HUB_URL=http://127.0.0.1:18765
 make desktop-e2e
 ```
 
-Playwright starts Vite on port **1420**, connects via the login screen (`data-testid=login-connect`), then:
+Playwright starts Vite on port **1420** with `VITE_NJ_E2E=1` (bypasses `DesktopOnlyGate`),
+connects via the login screen (`data-testid=login-connect`), then:
 
 | Spec intent | Selectors |
 |-------------|-----------|
@@ -34,7 +35,10 @@ Set `NJ_E2E_TAURI=1` and install [`tauri-driver`](https://v2.tauri.app/develop/t
 
 ## Dependency
 
-`@playwright/test` is a desktop `devDependency`. First run may need:
+`@playwright/test` is a desktop `devDependency`. `scripts/desktop-e2e.sh` always runs
+`npx playwright install chromium` and pins browsers under
+`PLAYWRIGHT_BROWSERS_PATH` (default `~/Library/Caches/ms-playwright-nj`) so overnight
+runs do not depend on ephemeral Cursor sandbox caches.
 
 ```bash
 cd desktop && npm ci && npx playwright install chromium

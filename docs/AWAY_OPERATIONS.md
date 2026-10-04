@@ -18,7 +18,7 @@ Beta/stable (and RC) tags stay **manual** unless you opt in with `MORNING_RC=1`.
 | Time | Action |
 |------|--------|
 | 22:00 | `make overnight NJ_OVERNIGHT_TARGET=away` (launchd example under [packaging/away/](../packaging/away/launchd-away-overnight.plist.example)) |
-| 22:00–~05:00 | `test-all` → **user-flows** → climb canary → **desktop-e2e** (hard stop `AWAY_DEADLINE_CT=05:00`) |
+| 22:00–~05:00 | `test-all` → **user-flows** → climb canary → **desktop-e2e** (hard stop `AWAY_DEADLINE_CT=05:00`; `test-all` FAIL is recorded but does not abort live gates) |
 | ~05:00 | Write morning bug report (no agent fix-loop) |
 | 07:00 | You triage the report |
 

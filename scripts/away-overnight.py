@@ -205,18 +205,13 @@ def main() -> int:
         if rc != 0:
             worst = rc if worst == 0 else worst
 
-    # 1. Unit gate
+    # 1. Unit gate (record FAIL but continue — do not abort the hunt)
     rc = run(["make", "test-all"])
     record("make test-all", rc)
     if rc != 0:
-        notes.append("test-all failed — morning triage should start with unit CI before live gates.")
-        write_bug_report(
-            stamp=stamp,
-            gate_rows=gate_rows,
-            notes=notes,
-            deadline_ct=args.deadline_ct,
+        notes.append(
+            "test-all failed — recorded for triage; continuing live gates (user-flows / climb / desktop-e2e)."
         )
-        return rc
 
     # 2. User-flow real journeys (primary bug signal)
     if away_gate in ("user-flows", "full", ""):

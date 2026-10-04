@@ -98,6 +98,11 @@ function App() {
   }, [settings.fontSize, settings.fontSizeScope, settings.colorTheme]);
 
   async function onServerReady() {
+    // Playwright Vite e2e: skip first-run wizard (hub may report setup_needed).
+    if (import.meta.env.VITE_NJ_E2E === '1') {
+      await attemptAutoLogin();
+      return;
+    }
     // First-run setup when the wizard has not completed (defaults seed a provider, so
     // empty-providers is not a reliable gate).
     try {
@@ -177,7 +182,12 @@ function App() {
   };
   const handleLogout = () => setPhase('login');
 
-  if (!isTauriRuntime() && !isMarkdownPreviewFromUrl() && !isPreviewMode) {
+  if (
+    !isTauriRuntime() &&
+    !isMarkdownPreviewFromUrl() &&
+    !isPreviewMode &&
+    import.meta.env.VITE_NJ_E2E !== '1'
+  ) {
     return <DesktopOnlyGate />;
   }
 
