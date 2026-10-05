@@ -55,6 +55,10 @@ done < <(gh release view "${TAG}" --repo "${REPO}" --json assets -q '.assets[].n
 pick_asset() {
   local pattern="$1"
   local name
+  # Empty ASSETS is expected while CI uploads (set -u + bash empty-array caveats).
+  if ((${#ASSETS[@]} == 0)); then
+    return 1
+  fi
   for name in "${ASSETS[@]}"; do
     if [[ "${name}" =~ ${pattern} ]]; then
       echo "${name}"
