@@ -196,6 +196,7 @@ func validateResponseAgainstEvidence(goal TurnGoal, ledger *ActionEvidenceLedger
 	directFailure := looksLikeEchoOfPriorUserTurn(msg, response, history) ||
 		looksLikeReAskAfterAffirmation(msg, response, history) ||
 		looksLikeAsksUserToPasteWorkspaceFiles(msg, response) ||
+		looksLikeUngroundedWorkspaceAdvice(msg, response) ||
 		looksLikeIgnoresCodebaseAttachments(msg, response) ||
 		looksLikeIgnoresWorkspaceVisibility(msg, response) ||
 		looksLikeShallowImplementationReply(msg, response) ||

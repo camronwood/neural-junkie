@@ -81,6 +81,62 @@ func TestLooksLikeAsksUserToPasteWorkspaceFiles(t *testing.T) {
 	}
 }
 
+func TestLooksLikeUngroundedWorkspaceAdvice(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{Name: "User", Type: "human"},
+		"can you look at this app I am working on, it will boot but the UI does not come up its a desktop app")
+	msg.Metadata = map[string]interface{}{
+		"workspace_context": map[string]interface{}{
+			"workspace_path": "/fixtures/react-tauri-missing-start-all",
+			"workspace_name": "react-tauri-missing-start-all",
+			"file_tree":      "src/\n  App.tsx\nsrc-tauri/\npackage.json\nMakefile\n",
+		},
+	}
+
+	generic := "I'd be happy to help you troubleshoot your desktop application. Here are a few steps you can take to diagnose the issue:\n1. **Check for Errors**: Look at the console or debug output for any error messages."
+	if !looksLikeUngroundedWorkspaceAdvice(msg, generic) {
+		t.Fatal("expected generic console troubleshooting with shared workspace")
+	}
+
+	grounded := "Looking at Project: react-tauri-missing-start-all, the Makefile is missing a start-all target and src-tauri/tauri.conf.json points at a Vite UI — check package.json scripts and App.tsx mount."
+	if looksLikeUngroundedWorkspaceAdvice(msg, grounded) {
+		t.Fatal("expected grounded Project:/path reply to pass")
+	}
+
+	groundedTauri := "This is a Tauri + Vite desktop app; the UI missing usually means the Vite dev URL in src-tauri is wrong."
+	if looksLikeUngroundedWorkspaceAdvice(msg, groundedTauri) {
+		t.Fatal("expected tauri/vite citation to pass")
+	}
+
+	// No workspace → never fire (avoid false retries on plain chat).
+	bare := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{Name: "User", Type: "human"}, "help")
+	if looksLikeUngroundedWorkspaceAdvice(bare, generic) {
+		t.Fatal("expected no workspace context to skip")
+	}
+
+	// Paste/denial path still detected by the dedicated helper (regression).
+	deny := "I haven't shared the specific code files from your project yet."
+	if !looksLikeAsksUserToPasteWorkspaceFiles(msg, deny) {
+		t.Fatal("expected paste/denial markers to still trigger")
+	}
+}
+
+func TestBuildWorkspaceGroundedRetryPromptCitesPaths(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{Name: "BackendEngineer", Type: protocol.AgentTypeBackend}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{Name: "User", Type: "human"},
+		"it will boot but the UI does not come up its a desktop app")
+	msg.Metadata = map[string]interface{}{
+		"workspace_context": map[string]interface{}{"workspace_path": "/proj", "workspace_name": "proj"},
+	}
+	prompt := a.buildWorkspaceGroundedRetryPrompt(msg)
+	lower := strings.ToLower(prompt)
+	if !strings.Contains(lower, "cite project:") {
+		t.Fatalf("expected cite Project: instruction, got:\n%s", prompt)
+	}
+	if !strings.Contains(lower, "boot/ui debug") {
+		t.Fatalf("expected boot/UI debug instruction, got:\n%s", prompt)
+	}
+}
+
 func TestLooksLikeGroundingOnlyStub(t *testing.T) {
 	stub := "Grounding: I loaded 8 file(s) from the workspace context for this answer. Changes: ###"
 	if !looksLikeGroundingOnlyStub(stub) {
