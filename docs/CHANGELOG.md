@@ -6,6 +6,25 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.31] - 2026-10-05
+
+Overnight full-gate 4/4: greenfield scaffolds, chat follow-up shortcuts, and sticky Rust derive repair.
+
+### Added
+- **Greenfield scaffolds** — Node/TS CRUD (`package.json` + `server.ts`), landing brand HTML, Swift trivia (SwiftPM), and expanded Rust boot-fix playbooks (Debug / PartialEq / Copy+Clone / crate / bin target).
+- **Chat follow-up shortcuts** — Deterministic replies for confused `What?` and open-file package-declaration asks; workspace-visibility hardening for desktop UI inspect canaries.
+- **Evening overnight launcher** — Wait-until-hour helper so `AWAY_GATE=full` starts with a future `05:00` CT deadline.
+
+### Changed
+- **Implement harness** — Fail-fast on `no_changes` / disk miss; newest-outcome-only wait; skip rollback when verify was skipped.
+- **Layer climb** — Chat layer estimate 60m; clear `NJ_REGRESSION_USER_FLOWS` after user-flows so ci/conversation-contract stay clean.
+- **iOS trivia user-flow** — Retargeted to FrontendEngineer with Swift greenfield ownership.
+
+### Fixed
+- **Away overnight 4/4** — `test-all` → user-flows (11/11) → layer-climb → desktop-e2e proved green (`docs/testing/away-morning-2026-10-04.md`).
+- **Canary suite exit** — Eventual pass after flake retry exits 0; topic-continuity retries hardened.
+- **Workspace debug grounding** — Retry ungrounded workspace advice with Project:/path visibility replies.
+
 ## [1.2.0-beta.30] - 2026-09-21
 
 Pack-owned MCP migration, terminal wait honesty, and away/RC automation.
