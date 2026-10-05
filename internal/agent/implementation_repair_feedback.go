@@ -54,9 +54,11 @@ func rustBuildRepairHints(output string) string {
 			"Rust E0277 Debug: add `#[derive(Debug)]` (or merge `Debug` into an existing derive) on the type named in the rustc help — common for Card/Suit/Rank when using `println!(\"{:?}\", …)`.",
 		)
 	}
-	if strings.Contains(lower, "e0507") || strings.Contains(lower, "does not implement the `copy` trait") {
+	if strings.Contains(lower, "e0507") || strings.Contains(lower, "does not implement the `copy` trait") ||
+		strings.Contains(lower, "error[e0382]") || strings.Contains(lower, "value moved here") ||
+		(strings.Contains(lower, "implemented `clone`") && strings.Contains(lower, "could clone")) {
 		hints = append(hints,
-			"Rust E0507: derive `Copy, Clone` (and `Debug` when printed) on small enums used in iterators (e.g. `#[derive(Copy, Clone, Debug)]` on Suit/Rank/Card) or clone values explicitly.",
+			"Rust E0382/E0507: derive `Copy, Clone` (and `Debug` when printed) on small enums used in iterators (e.g. `#[derive(Copy, Clone, Debug)]` on Suit/Rank/Card) or clone values explicitly.",
 		)
 	}
 	if len(hints) == 0 {

@@ -163,7 +163,11 @@ func (s *ImplementationSessionState) shouldRollback() bool {
 	if s == nil || s.TrustMode != editorTrustAutoApply || len(s.FileSnapshots) == 0 {
 		return false
 	}
-	return s.CircuitBreakerFired || (s.VerifyFailed && !s.VerifySkipped) || s.ConsecutiveNoVerifyProgress > 0
+	// Deterministic greenfield/boot stubs set VerifySkipped — never restore snapshots over them.
+	if s.VerifySkipped {
+		return false
+	}
+	return s.CircuitBreakerFired || s.VerifyFailed || s.ConsecutiveNoVerifyProgress > 0
 }
 
 // rollbackFailedAutoApplySession restores only files whose current contents still

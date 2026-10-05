@@ -385,6 +385,17 @@ func commandOutputMatchesPlaybook(output string) string {
 		strings.Contains(output, "doesn't implement `debug`"),
 		strings.Contains(output, "annotating `") && strings.Contains(output, "derive(debug)"):
 		return "rust_missing_debug"
+	// Clone/Copy before missing-crate: E0382/E0507 move-in-loop often co-lists E0433 in explanations.
+	case strings.Contains(output, "error[e0382]") && (strings.Contains(output, "value moved here") || strings.Contains(output, "borrow of moved value")),
+		strings.Contains(output, "implemented `clone`") && strings.Contains(output, "could clone"),
+		strings.Contains(output, "error[e0507]"),
+		strings.Contains(output, "does not implement the `copy` trait"),
+		strings.Contains(output, "cannot move out of") && strings.Contains(output, "`copy` trait"):
+		return "rust_missing_copy_clone"
+	case strings.Contains(output, "no targets specified in the manifest"),
+		strings.Contains(output, "either src/lib.rs, src/main.rs"),
+		strings.Contains(output, "src/main.rs, a [lib] section"):
+		return "rust_missing_bin_target"
 	case strings.Contains(output, "error[e0432]"),
 		strings.Contains(output, "error[e0433]") && (strings.Contains(output, "undeclared crate") ||
 			strings.Contains(output, "unresolved import") ||

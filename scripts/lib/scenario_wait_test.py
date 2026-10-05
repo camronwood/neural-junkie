@@ -11,7 +11,11 @@ _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from scenario_wait import disk_wait_satisfied, step_has_disk_wait
+from scenario_wait import (
+    disk_wait_satisfied,
+    step_has_disk_wait,
+    terminal_impl_outcome_fail_fast,
+)
 
 
 class DiskWaitTest(unittest.TestCase):
@@ -104,6 +108,57 @@ class DiskWaitTest(unittest.TestCase):
             (root / "tiny.txt").write_text("x" * 20, encoding="utf-8")
             ok, detail = disk_wait_satisfied(root, step)
             self.assertTrue(ok, detail)
+
+    def test_terminal_no_changes_fail_fast_when_disk_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            step = {"until_files_exist": ["Cargo.toml", "src/main.rs"]}
+            disk_ok, disk_detail = disk_wait_satisfied(root, step)
+            self.assertFalse(disk_ok)
+            detail = terminal_impl_outcome_fail_fast(
+                {"outcome": "no_changes"},
+                has_disk=True,
+                disk_ok=disk_ok,
+                disk_detail=disk_detail,
+            )
+            self.assertIsNotNone(detail)
+            self.assertIn("outcome:no_changes", detail or "")
+            self.assertIn("Cargo.toml", detail or "")
+
+    def test_terminal_outcome_keeps_waiting_for_plan_skip(self) -> None:
+        detail = terminal_impl_outcome_fail_fast(
+            {"outcome": "no_changes", "implementation_skip": True},
+            has_disk=True,
+            disk_ok=False,
+            disk_detail="waiting for file Cargo.toml",
+        )
+        self.assertIsNone(detail)
+        detail = terminal_impl_outcome_fail_fast(
+            {"outcome": "no_changes", "routing_reason": "session_not_run"},
+            has_disk=True,
+            disk_ok=False,
+            disk_detail="waiting for file Cargo.toml",
+        )
+        self.assertIsNone(detail)
+
+    def test_terminal_outcome_not_fail_fast_when_disk_ok(self) -> None:
+        detail = terminal_impl_outcome_fail_fast(
+            {"outcome": "no_changes"},
+            has_disk=True,
+            disk_ok=True,
+            disk_detail="exists:Cargo.toml",
+        )
+        self.assertIsNone(detail)
+
+    def test_terminal_proposals_submitted_fail_fast_when_disk_missing(self) -> None:
+        detail = terminal_impl_outcome_fail_fast(
+            {"outcome": "proposals_submitted"},
+            has_disk=True,
+            disk_ok=False,
+            disk_detail="waiting for file package.json",
+        )
+        self.assertIsNotNone(detail)
+        self.assertIn("outcome:proposals_submitted", detail or "")
 
 
 if __name__ == "__main__":

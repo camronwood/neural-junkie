@@ -112,7 +112,7 @@ LAYERS: dict[str, LayerSpec] = {
         name="chat",
         description="Chat canary + conversation regression (Tier A)",
         requires_hub=True,
-        est_minutes=30,
+        est_minutes=60,
         tier="climb",
         stages=(
             LayerStage(

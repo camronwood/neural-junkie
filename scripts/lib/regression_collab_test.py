@@ -31,8 +31,11 @@ class TestRegressionCollab(unittest.TestCase):
 
         prev = os.environ.get("NJ_REGRESSION_SLIM_ROSTER")
         prev_edge = os.environ.get("NJ_REGRESSION_COLLAB_EDGE")
+        prev_user = os.environ.get("NJ_REGRESSION_USER_FLOWS")
         os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "1"
         os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
+        # Overnight may leave USER_FLOWS in the process env; slim core must win.
+        os.environ.pop("NJ_REGRESSION_USER_FLOWS", None)
         try:
             roster = resolve_preflight_roster()
             self.assertEqual(roster, list(COLLAB_CORE_KEEP_AGENTS))
@@ -45,6 +48,10 @@ class TestRegressionCollab(unittest.TestCase):
                 os.environ.pop("NJ_REGRESSION_COLLAB_EDGE", None)
             else:
                 os.environ["NJ_REGRESSION_COLLAB_EDGE"] = prev_edge
+            if prev_user is None:
+                os.environ.pop("NJ_REGRESSION_USER_FLOWS", None)
+            else:
+                os.environ["NJ_REGRESSION_USER_FLOWS"] = prev_user
 
     def test_slim_roster_keep_agents_edge(self) -> None:
         import os
