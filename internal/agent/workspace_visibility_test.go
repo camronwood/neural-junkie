@@ -61,3 +61,35 @@ func TestLooksLikeIgnoresWorkspaceVisibility(t *testing.T) {
 		t.Fatal("expected valid visibility answer")
 	}
 }
+
+func TestTryWorkspaceVisibilityResponse_desktopUIInspectCanary(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{Name: "BackendEngineer", Type: protocol.AgentTypeBackend}}
+	prompt := "can you look at this app I am working on, it will boot but the UI does not come up its a desktop app"
+	if !userAsksDesktopAppInspect(prompt) {
+		t.Fatal("expected desktop UI inspect detection for canary prompt")
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-u-be",
+		protocol.AgentInfo{Name: "User", Type: "human"},
+		prompt,
+	)
+	msg.Metadata = map[string]interface{}{
+		MetadataContextScope: ContextScopeOutline,
+		"workspace_context": map[string]interface{}{
+			"workspace_name": "react-tauri-missing-start-all",
+			"workspace_path": "/tmp/react-tauri-missing-start-all",
+			"file_tree":      "src/\n  App.tsx\n  main.tsx\nsrc-tauri/\n  tauri.conf.json\npackage.json\nMakefile\n",
+			"open_files":     []interface{}{},
+		},
+	}
+	out, ok := a.tryWorkspaceVisibilityResponse(msg)
+	if !ok {
+		t.Fatal("expected workspace-grounded reply for desktop UI inspect ask")
+	}
+	for _, want := range []string{"Project:", "App.tsx", "src-tauri", "diagnosis"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("reply missing %q:\n%s", want, out)
+		}
+	}
+}

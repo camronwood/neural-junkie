@@ -196,11 +196,15 @@ def run_layer_gate(
 
 
 def latest_layer_report(testing_dir: Path, layer: str) -> Path | None:
-    matches = sorted(
-        testing_dir.glob(f"layer-gate-{layer}-*.md"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
+    # Prefer timestamped reports (YYYY-MM-DD-HHMM). For layer=chat, exclude chat-full
+    # soak reports that also match layer-gate-chat-*.md.
+    matches: list[Path] = []
+    for path in testing_dir.glob(f"layer-gate-{layer}-*.md"):
+        name = path.name
+        if layer == "chat" and name.startswith("layer-gate-chat-full-"):
+            continue
+        matches.append(path)
+    matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return matches[0] if matches else None
 
 

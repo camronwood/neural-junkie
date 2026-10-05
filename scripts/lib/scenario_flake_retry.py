@@ -33,6 +33,16 @@ RETRY_MARKERS = (
     "solo leg",
 )
 
+# Product / preflight failures — retrying burns the user-flows stage budget.
+NON_RETRYABLE_MARKERS = (
+    "quality_gate_failure",
+    "failure_type:preflight",
+    "failure_type: preflight",
+    "outcome:no_changes",
+    "outcome: no_changes",
+    "applied_verify_failed",
+)
+
 DEFAULT_PAUSE_S = 5.0
 
 
@@ -49,6 +59,8 @@ def is_retryable_failure(detail: str) -> bool:
     if not detail.strip():
         return False
     lower = detail.lower()
+    if any(marker.lower() in lower for marker in NON_RETRYABLE_MARKERS):
+        return False
     return any(marker.lower() in lower for marker in RETRY_MARKERS)
 
 
@@ -78,7 +90,7 @@ def maybe_retry_after_failure(
     if not is_retryable_failure(detail):
         return False
     print(
-        f"\n>>> flake retry {attempt + 1}/{max_attempts - 1} for {scenario_name}: {detail[:160]}",
+        f"\n>>> flake retry {attempt + 1}/{max_attempts} for {scenario_name}: {detail[:160]}",
         flush=True,
     )
     refresh_auth_for_retry(hub_url)

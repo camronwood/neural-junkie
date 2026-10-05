@@ -4,7 +4,16 @@ const hubURL = process.env.NJ_E2E_HUB_URL || process.env.NEURAL_JUNKIE_HUB_URL |
 
 async function connectToHub(page: Page) {
   await page.goto('/');
-  await expect(page.getByTestId('app-shell')).toBeVisible({ timeout: 60_000 });
+
+  // Fail fast if the Vite build still shows the desktop-only gate (missing VITE_NJ_E2E=1).
+  const gated = page.getByTestId('desktop-only-gate');
+  if (await gated.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    throw new Error('DesktopOnlyGate visible — desktop-e2e requires VITE_NJ_E2E=1 for the Vite webServer');
+  }
+
+  // Loading/setup phases do not mount app-shell yet — wait for login or chat.
+  const loginOrChat = page.getByTestId('login-connect').or(page.getByTestId('chat-composer'));
+  await expect(loginOrChat).toBeVisible({ timeout: 90_000 });
 
   const connect = page.getByTestId('login-connect');
   if (await connect.isVisible().catch(() => false)) {
@@ -19,9 +28,8 @@ async function connectToHub(page: Page) {
     await connect.click();
   }
 
-  await expect(page.getByTestId('chat-composer').or(page.getByTestId('open-settings'))).toBeVisible({
-    timeout: 90_000,
-  });
+  await expect(page.getByTestId('app-shell')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('chat-composer')).toBeVisible({ timeout: 90_000 });
 }
 
 test.describe('desktop user journeys', () => {

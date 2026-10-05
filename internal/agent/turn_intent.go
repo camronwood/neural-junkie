@@ -502,16 +502,26 @@ func messageNeedsWorkspaceFileLoad(a *Agent, msg *protocol.Message) bool {
 	return false
 }
 
-// buildWorkspaceGroundedRetryPrompt preloads workspace seed files when the model asked the user to paste content.
+// buildWorkspaceGroundedRetryPrompt preloads workspace seed files when the model asked the user to paste content
+// or gave generic troubleshooting without citing the shared Project:/file tree.
 func (a *Agent) buildWorkspaceGroundedRetryPrompt(msg *protocol.Message) string {
 	var system strings.Builder
 	system.WriteString(fmt.Sprintf("You are %s.\n", a.Info.Name))
 	system.WriteString("The user has shared their project workspace on disk. ")
 	system.WriteString("Do NOT claim the context window is empty, that you lack project details, or ask them to paste files — use the loaded files below.\n")
+	system.WriteString("Cite Project: name and concrete paths from the file tree (e.g. package.json, src-tauri, Makefile, App.tsx) before giving advice.\n")
 	system.WriteString("Stay on the user's topic (e.g. theme/dark/light/CSS if that is the thread) and answer in 3-8 sentences.\n")
 	if intent.LooksLikeProjectOverviewAsk(msg.Content) {
 		system.WriteString("The user asked for a project review/summary. Lead with what the project is, its stack, and main layout from README/package manifests/source roots. ")
 		system.WriteString("Do not invent a hollow Grounding-only stub or a Changes section unless they asked for edits.\n")
+	}
+	ask := ""
+	if msg != nil {
+		ask = strings.ToLower(msg.Content)
+	}
+	if strings.Contains(ask, "ui") || strings.Contains(ask, "boot") || strings.Contains(ask, "desktop") ||
+		strings.Contains(ask, "blank") || strings.Contains(ask, "won't start") || strings.Contains(ask, "does not come") {
+		system.WriteString("This is a boot/UI debug ask. Name the stack from the tree (Tauri/Vite/etc.) and point at specific missing or broken paths before generic console steps.\n")
 	}
 	if a.hasWorkspaceTools() {
 		system.WriteString("You also have read_file / grep / glob_file_search tools for additional paths.\n")

@@ -166,10 +166,23 @@ func fencedContentPlausibleForPath(path, lang, content string) bool {
 		return false
 	}
 	lower := strings.ToLower(content)
+	looksLikeCargoToml := strings.HasPrefix(lower, "[package]") ||
+		strings.Contains(lower, "\n[package]\n") ||
+		(strings.Contains(lower, "[dependencies]") && !strings.Contains(lower, "fn ") && !strings.Contains(lower, "struct "))
 	switch {
 	case strings.Contains(path, "tailwind.config"):
 		return strings.Contains(lower, "tailwind") || strings.Contains(lower, "darkmode") ||
 			strings.Contains(lower, "content:") || strings.Contains(lower, "module.exports")
+	case strings.HasSuffix(path, "cargo.toml"):
+		return looksLikeCargoToml || strings.Contains(lower, "edition") || lang == "toml"
+	case strings.HasSuffix(path, ".rs"):
+		// Never land a Cargo.toml body on a Rust source path (blackjack greenfield burn).
+		if looksLikeCargoToml {
+			return false
+		}
+		return strings.Contains(lower, "fn ") || strings.Contains(lower, "struct ") ||
+			strings.Contains(lower, "enum ") || strings.Contains(lower, "mod ") ||
+			lang == "rust" || lang == "rs"
 	case strings.HasSuffix(path, ".go"):
 		return strings.Contains(lower, "package ") || strings.HasPrefix(lower, "func ") || lang == "go"
 	case strings.HasSuffix(path, ".rs"):
@@ -190,6 +203,24 @@ func fencedContentPlausibleForPath(path, lang, content string) bool {
 	default:
 		return true
 	}
+}
+
+// retargetFencePathForContent remaps fenced bodies that clearly belong to another path
+// (e.g. Cargo.toml text while the user/session target is src/main.rs).
+func retargetFencePathForContent(namedPath, content string) string {
+	path := normalizeFileChangeRelPath(namedPath)
+	body := strings.TrimSpace(content)
+	if body == "" {
+		return path
+	}
+	lower := strings.ToLower(body)
+	looksLikeCargoToml := strings.HasPrefix(lower, "[package]") ||
+		strings.Contains(lower, "\n[package]\n") ||
+		(strings.Contains(lower, "[dependencies]") && !strings.Contains(lower, "fn ") && !strings.Contains(lower, "struct "))
+	if looksLikeCargoToml && !strings.EqualFold(filepath.Base(path), "Cargo.toml") {
+		return "Cargo.toml"
+	}
+	return path
 }
 
 // synthesizeGoMainEdit builds a minimal main.go when the model returned no proposal.
@@ -753,6 +784,21 @@ func (a *Agent) finalizeImplementationSessionRepairs(ctx context.Context, msg *p
 	}
 	a.repairTailwindDarkModeIfNeeded(ctx, msg, state)
 	a.repairAppThemeIfNeeded(ctx, msg, state)
+	// Last-chance Rust compile playbooks when verify still fails (workspace-context
+	// propose misses during long sessions / nudges).
+	if state.VerifyFailed && !state.VerifySkipped {
+		wsPath := a.resolveWorkspacePath(msg)
+		if wsPath != "" {
+			out := strings.TrimSpace(state.VerifyOutput)
+			if out == "" {
+				out = state.LastCommandOutput()
+			}
+			verifyOut, verifyFailed, verifySkipped := a.applyRustCompilePlaybooksAfterVerify(ctx, msg, wsPath, state, out)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+		}
+	}
 }
 
 func synthesizeScopedFileEdit(userContent, target, existing string) (string, bool) {
