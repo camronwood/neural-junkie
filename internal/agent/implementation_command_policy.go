@@ -385,6 +385,13 @@ func commandOutputMatchesPlaybook(output string) string {
 		strings.Contains(output, "doesn't implement `debug`"),
 		strings.Contains(output, "annotating `") && strings.Contains(output, "derive(debug)"):
 		return "rust_missing_debug"
+	// PartialEq/Eq before missing-crate (blackjack Rank/Suit == comparisons).
+	case strings.Contains(output, "trait `partialeq` is not implemented"),
+		strings.Contains(output, "trait `eq` is not implemented"),
+		strings.Contains(output, ": partialeq` is not satisfied"),
+		strings.Contains(output, "annotating `") && strings.Contains(output, "derive(partialeq)"),
+		strings.Contains(output, "binary operation `==`") && strings.Contains(output, "cannot be applied"):
+		return "rust_missing_partialeq"
 	// Clone/Copy before missing-crate: E0382/E0507 move-in-loop often co-lists E0433 in explanations.
 	case strings.Contains(output, "error[e0382]") && (strings.Contains(output, "value moved here") || strings.Contains(output, "borrow of moved value")),
 		strings.Contains(output, "implemented `clone`") && strings.Contains(output, "could clone"),

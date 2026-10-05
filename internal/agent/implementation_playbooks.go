@@ -52,6 +52,8 @@ func (a *Agent) attemptCommandFailurePlaybook(
 		return a.attemptMissingRustBinTargetFix(ctx, msg, wsPath, channel, state, "")
 	case "rust_missing_debug":
 		return a.attemptMissingRustDebugFix(ctx, msg, wsPath, channel, state, "")
+	case "rust_missing_partialeq":
+		return a.attemptMissingRustPartialEqFix(ctx, msg, wsPath, channel, state, "")
 	case "rust_missing_copy_clone":
 		return a.attemptMissingRustCopyCloneFix(ctx, msg, wsPath, channel, state, "")
 	case "rust_missing_crate":

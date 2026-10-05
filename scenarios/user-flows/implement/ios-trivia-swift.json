@@ -10,9 +10,9 @@
   ],
   "channel": "user-flow-scenarios",
   "channel_type": "public",
-  "target_agent": "SoftwareArchitect",
+  "target_agent": "FrontendEngineer",
   "required_agents": [
-    "SoftwareArchitect"
+    "FrontendEngineer"
   ],
   "workspace": {
     "fixture": "user-flow-empty"
@@ -56,7 +56,7 @@
       "content": "Let's design and implement a simple iOS game where users answer basic trivia questions, get points for each correct answer and lose a life for each wrong answer. Users start with 3 lives, and each question should have a 15 second answer clock \u2014 if the timer ends they lose that round. Use .swift files under an Xcode-like folder TriviaGame/ with TriviaGameApp.swift and ContentView.swift (or GameView.swift). Start with the UI and then the game logic. Keep everything local (no network backend).",
       "metadata": {
         "editor_mode": "agent",
-        "ide_route_agent_type": "architecture",
+        "ide_route_agent_type": "frontend",
         "implementation_session": true,
         "editor_agent_trust": "auto_apply_edits",
         "conversation_mode": "code"
@@ -64,7 +64,7 @@
     },
     {
       "action": "wait_reply",
-      "from": "SoftwareArchitect",
+      "from": "FrontendEngineer",
       "timeout": "720s",
       "until_files_exist": [
         "TriviaGame/TriviaGameApp.swift"
@@ -98,7 +98,7 @@
     },
     {
       "action": "assert_messages",
-      "from": "SoftwareArchitect",
+      "from": "FrontendEngineer",
       "last_reply_only": true,
       "none_match": [
         "finished without file changes"

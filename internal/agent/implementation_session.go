@@ -561,6 +561,33 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		if a.tryMissingRustDebugFix(sessionCtx, msg, wsPath, state, "") {
 			state.Phase = "verify"
 			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			if verifyFailed {
+				if a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+				}
+			}
+			if verifyFailed {
+				if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+				}
+			}
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+		}
+
+		if a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, "") {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			if verifyFailed {
+				if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+				}
+			}
 			state.VerifyOutput = verifyOut
 			state.VerifyFailed = verifyFailed
 			state.VerifySkipped = verifySkipped
@@ -912,6 +939,26 @@ fileCycles:
 				if !verifyFailed {
 					proposedAny = true
 					cycleProposed = true
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+					state.VerifyOutput = verifyOut
+					state.VerifyFailed = verifyFailed
+					state.VerifySkipped = verifySkipped
+				}
+				if verifyFailed && a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					proposedAny = true
+					cycleProposed = true
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+					state.VerifyOutput = verifyOut
+					state.VerifyFailed = verifyFailed
+					state.VerifySkipped = verifySkipped
+				}
+				if verifyFailed && a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, verifyOut) {
+					proposedAny = true
+					cycleProposed = true
+					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+					state.VerifyOutput = verifyOut
+					state.VerifyFailed = verifyFailed
+					state.VerifySkipped = verifySkipped
 				}
 				if verifyFailed {
 					if a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
@@ -998,6 +1045,36 @@ fileCycles:
 	} // fileCycle
 
 	persistImplSessionCheckpoint(msg, state, -1)
+	// Final Rust derive repair before rollback — Debug/PartialEq often remain after
+	// the edit loop exits (circuit breaker / premature stop) while cargo still fails.
+	if evidence := strings.TrimSpace(state.VerifyOutput); evidence != "" || strings.TrimSpace(state.LastCommandOutput()) != "" {
+		if evidence == "" {
+			evidence = state.LastCommandOutput()
+		}
+		if a.tryMissingRustDebugFix(sessionCtx, msg, wsPath, state, evidence) {
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			evidence = verifyOut
+			proposedAny = true
+		}
+		if state.VerifyFailed && a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, evidence) {
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			evidence = verifyOut
+			proposedAny = true
+		}
+		if state.VerifyFailed && a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, evidence) {
+			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposedAny = true
+		}
+	}
 	state.rollbackFailedAutoApplySession(wsPath)
 
 	proposedAny = state.hasRegisteredProposals()
