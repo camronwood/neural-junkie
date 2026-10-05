@@ -186,3 +186,99 @@ func TestShouldUseFileChangeFenceFallback_askMode(t *testing.T) {
 		t.Fatal("ask mode must not use fence fallback even with implementation_session")
 	}
 }
+
+func TestMaybeSubmitFileChangeFromResponse_implSessionFenceFallbackWithoutLegacy(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_LEGACY_FILE_CHANGE_PARSE", "")
+	dir := t.TempDir()
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "user-flow-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "Camron", Type: "human"},
+		"Put the crate at the workspace root with Cargo.toml and src/main.rs. Include hit/stand.")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_mode":            "agent",
+		"editor_agent_trust":     editorTrustAutoApply,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	resp := "Here is a minimal blackjack main:\n```rust\nfn main() {\n    println!(\"hit or stand\");\n}\n```\n"
+	_, proposed, err := ag.maybeSubmitFileChangeFromResponse(context.Background(), resp, "user-flow-scenarios", msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proposed {
+		t.Fatal("expected impl-session fence fallback to propose without legacy parse env")
+	}
+}
+
+func TestMaybeSubmitFileChangeFromResponse_advisoryOnlyNoProposal(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_LEGACY_FILE_CHANGE_PARSE", "")
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "user-flow-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "Camron", Type: "human"},
+		"Put the crate at the workspace root with Cargo.toml and src/main.rs.")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_mode":            "agent",
+	}
+	resp := "I would start by sketching Suit and Rank enums, then a Deck. No code yet."
+	_, proposed, err := ag.maybeSubmitFileChangeFromResponse(context.Background(), resp, "user-flow-scenarios", msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proposed {
+		t.Fatal("advisory-only prose must not propose file changes")
+	}
+}
+
+func TestMaybeSubmitFileChangeFromResponse_chatWithoutLegacySkipsFence(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_LEGACY_FILE_CHANGE_PARSE", "")
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general",
+		protocol.AgentInfo{ID: "human", Name: "Camron", Type: "human"},
+		"what is a good folder layout for a Go API?")
+	msg.Metadata = map[string]interface{}{"editor_mode": "agent"}
+	resp := "Something like:\n```go\npackage main\nfunc main() {}\n```\n"
+	_, proposed, err := ag.maybeSubmitFileChangeFromResponse(context.Background(), resp, "general", msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proposed {
+		t.Fatal("ordinary chat must not fence-fallback without legacy parse")
+	}
+}
+
+func TestFencedContentPlausibleForPath_rejectsTomlOnRust(t *testing.T) {
+	toml := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
+	if fencedContentPlausibleForPath("src/main.rs", "toml", toml) {
+		t.Fatal("Cargo.toml body must not be plausible for src/main.rs")
+	}
+	if !fencedContentPlausibleForPath("Cargo.toml", "toml", toml) {
+		t.Fatal("Cargo.toml body should be plausible for Cargo.toml")
+	}
+	if got := retargetFencePathForContent("src/main.rs", toml); got != "Cargo.toml" {
+		t.Fatalf("retarget got %q want Cargo.toml", got)
+	}
+}
+
+func TestMaybeSubmitFileChangeFromResponse_retargetsTomlFenceToCargoToml(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_LEGACY_FILE_CHANGE_PARSE", "")
+	dir := t.TempDir()
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "user-flow-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "Camron", Type: "human"},
+		"Put the crate at the workspace root with Cargo.toml and src/main.rs.")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_mode":            "agent",
+		"editor_agent_trust":     editorTrustAutoApply,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	resp := "Here is the manifest:\n```toml\n[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n```\n"
+	_, proposed, err := ag.maybeSubmitFileChangeFromResponse(context.Background(), resp, "user-flow-scenarios", msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proposed {
+		t.Fatal("expected toml fence retargeted to Cargo.toml proposal")
+	}
+}

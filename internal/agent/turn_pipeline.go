@@ -417,6 +417,12 @@ func (st *turnState) stepGenerate(ctx context.Context) error {
 	} else if resp, ok := a.tryWorkspaceVisibilityResponse(msg); ok {
 		log.Printf("[%s] Workspace visibility (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
 		response = resp
+	} else if resp, ok := tryConfusedFollowUpResponse(msg); ok {
+		log.Printf("[%s] Confused follow-up (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+		response = resp
+	} else if resp, ok := a.tryOpenFileFactResponse(msg); ok {
+		log.Printf("[%s] Open-file fact (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+		response = resp
 	} else if resp, redirectOutcome, ok := a.tryBootFixImplementerRedirect(msg); ok {
 		response = resp
 		implSessionOutcome = redirectOutcome
@@ -698,6 +704,18 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 	defer span.End(nil)
 
 	st.buildActionEvidence()
+	if resp, ok := st.agent.tryWorkspaceVisibilityResponse(st.msg); ok {
+		st.response = resp
+		return nil
+	}
+	if resp, ok := tryConfusedFollowUpResponse(st.msg); ok {
+		st.response = resp
+		return nil
+	}
+	if resp, ok := st.agent.tryOpenFileFactResponse(st.msg); ok {
+		st.response = resp
+		return nil
+	}
 	history := st.agent.conversationHistoryForIntent(st.msg, st.intent)
 	issues := validateResponseAgainstEvidence(st.goal, st.evidence, st.msg, st.response, history)
 	issues = append(issues, validateActiveCorrectionsHonored(st.context, st.msg, st.response)...)
@@ -793,6 +811,12 @@ func (st *turnState) stepValidateResponse(ctx context.Context) error {
 					// empty/shallow replies only — never wipe a usable diagnostic.
 					log.Printf("[%s] quality-gate exhausted; keeping substantive answer (%d chars, issues=%v)",
 						st.agent.Info.Name, len(original), validationIssueNames(issues))
+				} else if literal, ok := st.agent.tryOpenFileFactResponse(st.msg); ok {
+					st.response = literal
+					issues = nil
+				} else if vis, ok := st.agent.tryWorkspaceVisibilityResponse(st.msg); ok {
+					st.response = vis
+					issues = nil
 				} else {
 					st.response = "I couldn't produce a sufficiently grounded answer from the available context."
 				}

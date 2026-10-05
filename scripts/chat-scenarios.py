@@ -620,6 +620,7 @@ def run_scenario(
     elif name in {
         "dm-backend-codebase-semantic",
         "dm-topic-switch",
+        "dm-topic-continuity-same-thread",
         "dm-backend-interject-resume",
         "dm-backend-echo-followup",
         "dm-backend-deep-continuation",
@@ -798,7 +799,8 @@ def main() -> int:
                     failed.append(n)
         if skipped:
             print(f"Skipped optional: {', '.join(skipped)}", file=sys.stderr)
-        return 1 if failed else 0
+        # eventual_pass on flake retry counts as suite success (run_scenario returns True).
+        return suite_exit_code(failed)
 
     if not args.scenario:
         p.error("specify --scenario <name> or --all")
@@ -810,6 +812,11 @@ def main() -> int:
         require_debug=args.require_debug,
     )
     return 0 if ok else 1
+
+
+def suite_exit_code(failed: list[str]) -> int:
+    """Exit 0 when every required scenario eventually passed (incl. flake retries)."""
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

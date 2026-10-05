@@ -6,9 +6,26 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/camronwood/neural-junkie/internal/codeindex/graph"
 	"github.com/camronwood/neural-junkie/internal/codeindex/store"
 )
+
+func waitCodeGraphIdle(t *testing.T, repoDir string) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		meta, err := graph.Status(repoDir)
+		if err == nil && !meta.Building {
+			// Brief settle so sqlite WAL/shm release before TempDir cleanup.
+			time.Sleep(50 * time.Millisecond)
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatal("code-graph build still running at deadline")
+}
 
 func TestChunkFile(t *testing.T) {
 	content := strings.Repeat("line\n", 250)
@@ -78,6 +95,7 @@ func TestBuildIndexSkipsJunkAndUsesSQLite(t *testing.T) {
 	if err := BuildIndex(t.Context(), repoDir); err != nil {
 		t.Fatal(err)
 	}
+	waitCodeGraphIdle(t, repoDir)
 
 	meta, err := Status(repoDir)
 	if err != nil {

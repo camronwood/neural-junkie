@@ -42,6 +42,7 @@ from lib.scenario_wait import (  # noqa: E402
     metadata_get,
     normalize_meta_keys,
     step_has_disk_wait,
+    terminal_impl_outcome_fail_fast,
 )
 from lib.fixture_baseline import baseline_diverged_paths, reset_all_fixture_baselines, reset_fixture_baseline  # noqa: E402
 from lib.workspace_context import enrich_send_metadata, ide_route_for_target_agent  # noqa: E402
@@ -254,7 +255,17 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
         if has_disk and disk_ok and not until_meta_keys:
             return True, f"disk ready ({disk_detail})"
 
-        for msg in candidates[baseline:]:
+        new_candidates = candidates[baseline:]
+        # Fail-fast must only consider the newest outcome-bearing reply. Older
+        # proposals_submitted stamps from prior turns in this channel otherwise
+        # abort the wait before the current turn's disk writes land.
+        newest_outcome_idx = None
+        for i in range(len(new_candidates) - 1, -1, -1):
+            meta_i = new_candidates[i].get("metadata") if isinstance(new_candidates[i].get("metadata"), dict) else {}
+            if metadata_get(meta_i, "implementation_session_outcome") is not None:
+                newest_outcome_idx = i
+                break
+        for idx, msg in enumerate(new_candidates):
             text = msg.get("content") or ""
             meta = msg.get("metadata") if isinstance(msg.get("metadata"), dict) else {}
             proposal = meta.get("file_change_proposal") if isinstance(meta, dict) else None
@@ -262,12 +273,41 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
                 path = str(proposal.get("path") or proposal.get("rel_path") or "")
                 if path:
                     text = f"{text}\n{path}"
+            # Session stamped a terminal no_changes (etc.) but expected files never
+            # landed — fail immediately instead of silent-nudge timeouts.
+            outcome = metadata_get(meta, "implementation_session_outcome")
+            if outcome is not None and newest_outcome_idx is not None and idx != newest_outcome_idx:
+                outcome = None
+            # Re-check disk at outcome time — stubs often write files in the same
+            # turn that stamps proposals_submitted; a stale disk_ok from the top of
+            # the loop would false-fail greenfield/boot journeys.
+            disk_now, disk_now_detail = disk_wait_satisfied(root, step)
+            if disk_now:
+                disk_ok, disk_detail = disk_now, disk_now_detail
+            fail_fast = terminal_impl_outcome_fail_fast(
+                outcome,
+                has_disk=has_disk,
+                disk_ok=disk_ok,
+                disk_detail=disk_detail,
+            )
+            if fail_fast:
+                time.sleep(0.35)
+                disk_now, disk_now_detail = disk_wait_satisfied(root, step)
+                fail_fast = terminal_impl_outcome_fail_fast(
+                    outcome,
+                    has_disk=has_disk,
+                    disk_ok=disk_now,
+                    disk_detail=disk_now_detail,
+                )
+                if fail_fast:
+                    hub.abort_channel_agents(ctx.base, ctx.channel, held_by="ImplementScenario")
+                    return False, fail_fast
+                disk_ok, disk_detail = disk_now, disk_now_detail
             if until_meta_keys:
                 if not all(metadata_get(meta, key) is not None for key in until_meta_keys):
                     continue
                 # Canvas/plan turns may stamp implementation_session_outcome with
                 # session_not_run / implementation_skip without touching disk — keep waiting.
-                outcome = metadata_get(meta, "implementation_session_outcome")
                 if isinstance(outcome, dict):
                     reason = str(outcome.get("routing_reason") or "")
                     if outcome.get("implementation_skip") or reason == "session_not_run":
@@ -712,7 +752,8 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dic
         "journey-notes-rename-to-memos",
         "journey-landing-brand-correction",
     }
-    max_attempts = 3 if name in user_flow_implement or name == "selection-scoped-edit" else 2
+    # Cap retries at 2 so flake loops cannot burn the user-flows 6h stage alone.
+    max_attempts = 2
     for attempt in range(1, max_attempts + 1):
         telemetry["attempts"] = attempt
         ok, outcome, last_detail = _run_scenario_once(
@@ -728,8 +769,18 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dic
                 + json.dumps(metrics_payload(report, outcome), separators=(",", ":"))
             )
             return ok, {**outcome, "evaluation": report}
+        retry_detail = last_detail
+        if isinstance(outcome, dict):
+            bits = [last_detail]
+            if outcome.get("failure_type"):
+                bits.append(f"failure_type:{outcome.get('failure_type')}")
+            if outcome.get("outcome"):
+                bits.append(f"outcome:{outcome.get('outcome')}")
+            for v in telemetry.get("validation_failures") or []:
+                bits.append(str(v))
+            retry_detail = " ".join(bits)
         should_retry = maybe_retry_after_failure(
-            base, name, last_detail, attempt, max_attempts=max_attempts
+            base, name, retry_detail, attempt, max_attempts=max_attempts
         )
         if not should_retry:
             break

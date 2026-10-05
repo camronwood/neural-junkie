@@ -37,6 +37,47 @@ def normalize_meta_keys(step: dict) -> list[str]:
     return [str(k).strip() for k in keys if str(k).strip()]
 
 
+# Session finished without landing expected files — waiting on disk/nudge only burns budget.
+TERMINAL_DISK_FAIL_OUTCOMES = frozenset(
+    {
+        "no_changes",
+        "failed_and_rolled_back",
+        "proposal_registration_failed",
+        # Session finished proposing but expected files never landed (partial greenfield).
+        "proposals_submitted",
+    }
+)
+
+
+def terminal_impl_outcome_fail_fast(
+    outcome: Any,
+    *,
+    has_disk: bool,
+    disk_ok: bool,
+    disk_detail: str = "",
+) -> str | None:
+    """Return a failure detail when wait_reply should abort immediately.
+
+    Canvas/plan skips (implementation_skip / session_not_run) are not terminal for
+    disk waits — those turns may never touch the tree. Real in-flight sessions that
+    already satisfied disk keep the idle-accept path elsewhere.
+    """
+    if not has_disk or disk_ok:
+        return None
+    if not isinstance(outcome, dict):
+        return None
+    if outcome.get("implementation_skip"):
+        return None
+    reason = str(outcome.get("routing_reason") or "").strip()
+    if reason == "session_not_run":
+        return None
+    out = str(outcome.get("outcome") or "").strip()
+    if out not in TERMINAL_DISK_FAIL_OUTCOMES:
+        return None
+    suffix = f"; {disk_detail}" if disk_detail else ""
+    return f"outcome:{out} with disk wait unsatisfied{suffix}"
+
+
 def disk_wait_satisfied(root: Path, step: dict) -> tuple[bool, str]:
     """AND all configured disk wait conditions. Empty config → (True, "")."""
     until_files = step.get("until_file_exists") or step.get("until_files_exist") or []

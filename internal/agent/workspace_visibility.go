@@ -8,9 +8,15 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-// tryWorkspaceVisibilityResponse answers "can you see my workspace?" from message metadata (no LLM).
+// tryWorkspaceVisibilityResponse answers "can you see my workspace?" (and desktop-UI
+// inspect asks with workspace_context) from message metadata (no LLM).
 func (a *Agent) tryWorkspaceVisibilityResponse(msg *protocol.Message) (string, bool) {
-	if msg == nil || !userAsksAboutWorkspaceVisibility(msg.Content) {
+	if msg == nil {
+		return "", false
+	}
+	visibilityAsk := userAsksAboutWorkspaceVisibility(msg.Content)
+	inspectAsk := userAsksDesktopAppInspect(msg.Content)
+	if !visibilityAsk && !inspectAsk {
 		return "", false
 	}
 	scope := ResolveContextScope(msg)
@@ -25,7 +31,45 @@ func (a *Agent) tryWorkspaceVisibilityResponse(msg *protocol.Message) (string, b
 	if !ok {
 		return "", false
 	}
-	return formatWorkspaceVisibilityReply(ctxMap, scope), true
+	reply := formatWorkspaceVisibilityReply(ctxMap, scope)
+	if inspectAsk && !visibilityAsk {
+		reply = strings.Replace(reply,
+			"Yes — I have workspace context on this message.\n\n",
+			"I can see this desktop app's workspace — diagnosis will use the project tree below.\n\n",
+			1,
+		)
+	}
+	return reply, true
+}
+
+// userAsksDesktopAppInspect detects "look at this app / UI won't come up / desktop app"
+// asks that should be grounded on workspace_context (canary: dm-debug-desktop-ui-missing-with-workspace).
+func userAsksDesktopAppInspect(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	if lower == "" {
+		return false
+	}
+	lookAsk := strings.Contains(lower, "look at this app") ||
+		strings.Contains(lower, "look at this project") ||
+		strings.Contains(lower, "look at the app") ||
+		strings.Contains(lower, "inspect this app") ||
+		strings.Contains(lower, "inspect this project")
+	uiMissing := strings.Contains(lower, "ui does not") ||
+		strings.Contains(lower, "ui doesn't") ||
+		strings.Contains(lower, "ui doesn") ||
+		strings.Contains(lower, "ui won't") ||
+		strings.Contains(lower, "ui will not") ||
+		strings.Contains(lower, "not come up") ||
+		strings.Contains(lower, "won't come up") ||
+		strings.Contains(lower, "does not come up")
+	desktop := strings.Contains(lower, "desktop app") ||
+		strings.Contains(lower, "desktop application") ||
+		strings.Contains(lower, "tauri") ||
+		strings.Contains(lower, "electron")
+	if lookAsk && (uiMissing || desktop) {
+		return true
+	}
+	return uiMissing && desktop
 }
 
 func formatWorkspaceVisibilityReply(ctxMap map[string]interface{}, scope string) string {

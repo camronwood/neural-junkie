@@ -216,6 +216,9 @@ def main() -> int:
         os.environ["NJ_REQUIRE_FULL_BOOT"] = "1"
         os.environ.pop("SKIP_BOOT", None)
         os.environ.pop("NJ_BOOT_DONE", None)
+    # USER_FLOWS roster must not leak into later climb layers (ci conversation-contract).
+    if spec.name != "user-flows":
+        os.environ.pop("NJ_REGRESSION_USER_FLOWS", None)
     if spec.name == "collab-core":
         os.environ["NJ_REGRESSION_SLIM_ROSTER"] = "1"
         # Core scenarios are mostly 2-agent planning; keep generation serial for VRAM.

@@ -29,6 +29,14 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		log.Printf("[%s] Workspace visibility (no LLM): %q", a.Info.Name, truncateForLog(msg.Content, 60))
 		return resp, nil
 	}
+	if resp, ok := tryConfusedFollowUpResponse(msg); ok {
+		log.Printf("[%s] Confused follow-up (no LLM): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+		return resp, nil
+	}
+	if resp, ok := a.tryOpenFileFactResponse(msg); ok {
+		log.Printf("[%s] Open-file fact (no LLM): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+		return resp, nil
+	}
 	if resp, ok := a.tryPriorReferenceResponse(msg); ok {
 		log.Printf("[%s] Prior reference missing from history (no LLM): %q", a.Info.Name, truncateForLog(msg.Content, 60))
 		return resp, nil
@@ -275,6 +283,14 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 	if resp, ok := a.tryWorkspaceVisibilityResponse(msg); ok {
 		log.Printf("[%s] Workspace visibility (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+		return resp, "", "", nil
+	}
+	if resp, ok := tryConfusedFollowUpResponse(msg); ok {
+		log.Printf("[%s] Confused follow-up (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+		return resp, "", "", nil
+	}
+	if resp, ok := a.tryOpenFileFactResponse(msg); ok {
+		log.Printf("[%s] Open-file fact (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
 		return resp, "", "", nil
 	}
 	if resp, ok := a.tryPriorReferenceResponse(msg); ok {

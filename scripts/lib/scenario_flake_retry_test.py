@@ -36,6 +36,14 @@ class ScenarioFlakeRetryTest(unittest.TestCase):
     def test_not_retryable_assertion(self) -> None:
         self.assertFalse(sfr.is_retryable_failure("metadata outcome: got 'proposals_submitted'"))
 
+    def test_not_retryable_preflight_or_quality_gate(self) -> None:
+        self.assertFalse(
+            sfr.is_retryable_failure(
+                "timeout waiting for SoftwareArchitect failure_type:preflight quality_gate_failure outcome:no_changes"
+            )
+        )
+        self.assertFalse(sfr.is_retryable_failure("applied_verify_failed after cargo build"))
+
     def test_disabled_via_env(self) -> None:
         os.environ["NJ_SCENARIO_FLAKE_RETRY"] = "0"
         self.assertFalse(sfr.flake_retry_enabled())

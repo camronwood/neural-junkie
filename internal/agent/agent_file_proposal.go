@@ -161,9 +161,21 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 		}
 		// Deterministic fallback: user asked to write/create/save files and the model
 		// returned fenced content (or explicit approval phrases) but omitted [FILE_CHANGE].
-		if sourceMsg == nil || !legacyFileChangeParseEnabled() || !a.shouldUseFileChangeFenceFallback(sourceMsg) {
+		// Implementation sessions may use this without the global legacy parse flag so
+		// local models that emit fenced code (no MCP tools) still land proposals.
+		if sourceMsg == nil || !a.shouldUseFileChangeFenceFallback(sourceMsg) {
 			log.Printf("[%s] file_change_fence_fallback_skipped(reason=no_explicit_proposal_intent)", a.Info.Name)
 			return response, false, nil
+		}
+		implFenceOK := sourceMsg.ImplementationSession() ||
+			sourceMsg.IdeEditorModeIsExport() ||
+			userRequestsFileExportForMessage(sourceMsg)
+		if !implFenceOK && !legacyFileChangeParseEnabled() {
+			log.Printf("[%s] file_change_fence_fallback_skipped(reason=legacy_parse_disabled)", a.Info.Name)
+			return response, false, nil
+		}
+		if implFenceOK && !legacyFileChangeParseEnabled() {
+			log.Printf("[%s] impl_session_fence_fallback(attempt)", a.Info.Name)
 		}
 		lowerResp := strings.ToLower(response)
 		if strings.Contains(lowerResp, "would you like me to propose") ||
@@ -204,6 +216,10 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 			log.Printf("[%s] file_change_fence_fallback_skipped(reason=placeholder_content)", a.Info.Name)
 			return response, false, nil
 		}
+		if retargeted := retargetFencePathForContent(namedPath, newContent); retargeted != "" && retargeted != namedPath {
+			log.Printf("[%s] fence_fallback_path_retargeted(from=%q,to=%q)", a.Info.Name, namedPath, retargeted)
+			namedPath = retargeted
+		}
 		if namedPath != "" && !fencedContentPlausibleForPath(namedPath, "", newContent) {
 			if alt := preferImplementationTargetPath(a.resolveWorkspacePath(sourceMsg), sourceMsg.Content, ""); alt != "" && alt != namedPath {
 				if body := stripEditorLineNumberPrefixes(extractCodeFenceForPath(response, alt)); fencedContentPlausibleForPath(alt, "", body) {
@@ -211,6 +227,10 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 					newContent = body
 				}
 			}
+		}
+		if namedPath != "" && !fencedContentPlausibleForPath(namedPath, "", newContent) {
+			log.Printf("[%s] file_change_fence_fallback_skipped(reason=implausible_content_for_path,path=%s)", a.Info.Name, namedPath)
+			return response, false, nil
 		}
 
 		activePath := strings.TrimSpace(extractActiveOpenFilePath(sourceMsg))
@@ -972,6 +992,8 @@ func (a *Agent) proposeFileCreateInChannel(ctx context.Context, channel, path, c
 	a.noteProposalResult(ctx, path, err)
 	if err == nil {
 		a.maybeScaffoldGreenfieldCargoTomlAfterRustFile(ctx, sourceMsg, path)
+		a.maybeScaffoldGreenfieldMainRsAfterCargoToml(ctx, sourceMsg, path)
+		a.maybeScaffoldGreenfieldNodeServerAfterPackageJSON(ctx, sourceMsg, path)
 	}
 	return err
 }
@@ -994,6 +1016,30 @@ func (a *Agent) maybeScaffoldGreenfieldCargoTomlAfterRustFile(ctx context.Contex
 	}
 	if a.tryGreenfieldCargoTomlScaffold(ctx, sourceMsg, wsPath, state, path) {
 		state.FilesChanged = appendUnique(state.FilesChanged, []string{"Cargo.toml"})
+	}
+}
+
+func (a *Agent) maybeScaffoldGreenfieldMainRsAfterCargoToml(ctx context.Context, sourceMsg *protocol.Message, path string) {
+	if a == nil || sourceMsg == nil || !sourceMsg.ImplementationSession() {
+		return
+	}
+	path = normalizeFileChangeRelPath(path)
+	if !strings.EqualFold(filepath.Base(path), "Cargo.toml") {
+		return
+	}
+	wsPath := a.resolveWorkspacePath(sourceMsg)
+	if wsPath == "" || workspaceMissingCargoToml(wsPath) || workspaceHasRustSources(wsPath) {
+		return
+	}
+	if !messageImpliesRustGreenfield(sourceMsg.Content) {
+		return
+	}
+	state := implementationSessionStateFromContext(ctx)
+	if state == nil {
+		return
+	}
+	if a.tryMissingRustBinTargetFix(ctx, sourceMsg, wsPath, state, "no targets specified in the manifest\neither src/lib.rs, src/main.rs") {
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{"src/main.rs"})
 	}
 }
 
