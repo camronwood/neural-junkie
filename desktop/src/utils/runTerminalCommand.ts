@@ -35,6 +35,11 @@ export function isLongRunningShellCommand(command: string): boolean {
   return patterns.some((re) => re.test(c));
 }
 
+function isSecurityDenyError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /command not allowed/i.test(message);
+}
+
 function mirrorResultInPty(tabId: string, command: string, result: CommandResult): void {
   const lines = [
     `$ ${command}`,
@@ -42,6 +47,7 @@ function mirrorResultInPty(tabId: string, command: string, result: CommandResult
     result.stdout?.trimEnd() ?? '',
     result.stderr?.trimEnd() ?? '',
   ].filter((l) => l.length > 0);
+  // Mirror is informational output, not agent command execution.
   void terminalAPI.writePtySession(tabId, lines.join('\n') + '\n\n');
 }
 
@@ -102,7 +108,9 @@ export async function runAgentTerminalCommand(
 
   if (isLongRunningShellCommand(suggestion.command)) {
     try {
-      await terminalAPI.writePtySession(tabId, `${suggestion.command}\n`);
+      await terminalAPI.writePtySession(tabId, `${suggestion.command}\n`, {
+        agentDriven: true,
+      });
       result = startedLongRunningResult(suggestion.command);
     } catch (err) {
       result = failureResult(suggestion.command, err);
@@ -117,9 +125,12 @@ export async function runAgentTerminalCommand(
       }
     } catch (err) {
       result = failureResult(suggestion.command, err);
-      if (options.mirrorInPty !== false) {
+      // Never PTY-fallback security denials — that would bypass the hard denylist.
+      if (options.mirrorInPty !== false && !isSecurityDenyError(err)) {
         try {
-          await terminalAPI.writePtySession(tabId, `${suggestion.command}\n`);
+          await terminalAPI.writePtySession(tabId, `${suggestion.command}\n`, {
+            agentDriven: true,
+          });
           result = {
             ...result,
             stdout:

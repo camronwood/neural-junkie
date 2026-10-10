@@ -161,6 +161,9 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
 
 	var request struct {
 		AgentType  string `json:"agent_type"`

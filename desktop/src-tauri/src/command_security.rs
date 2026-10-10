@@ -11,7 +11,9 @@ pub fn command_hard_denied(command: &str) -> bool {
     let denied = [
         "rm -rf", "rm -r ", "sudo ", "curl ", "wget ", "| sh", "| bash", ">/dev/", "chmod ",
         "mkfs", "rm ", "rmdir", "del ", "kill", "killall", "shutdown", "reboot", "dd if=",
-        "dd of=",
+        "dd of=", "bash -c", "bash -lc", "sh -c", "zsh -c", "python -c", "python3 -c",
+        "perl -e", "ruby -e", "node -e", "osascript", "powershell", "pwsh ", "invoke-expression",
+        "find -delete", "xargs rm",
     ];
     for d in denied {
         if lower.contains(d) {
@@ -105,6 +107,8 @@ mod tests {
         assert!(!command_allowed("custom-tool bootstrap"));
         assert!(command_allowed_with_approval("custom-tool bootstrap", true));
         assert!(!command_allowed_with_approval("rm -rf /", true));
+        assert!(!command_allowed_with_approval("python -c 'print(1)'", true));
+        assert!(!command_allowed_with_approval("bash -c 'id'", true));
         assert!(command_allowed("tauri dev"));
     }
 

@@ -77,6 +77,25 @@ pub fn validate_working_dir(roots: &[String], working_dir: Option<&str>) -> Resu
     }
 }
 
+/// Canonical absolute path if `candidate` resolves inside any allowlisted root.
+/// Rejects `..` traversal that would escape the allowlisted directory.
+pub fn within_any_allowlist(allowlist: &[String], candidate: &str) -> Result<PathBuf, String> {
+    if allowlist.is_empty() {
+        return Err("path not on pack allowlist".into());
+    }
+    within_any_root(allowlist, candidate).map_err(|_| format!("path outside allowlist: {}", candidate))
+}
+
+/// Resolve and canonicalize a path for allowlist insertion (picker / register).
+pub fn canonicalize_for_allowlist(path: &str) -> Result<PathBuf, String> {
+    let abs = resolve_abs(path)?;
+    let s = abs.to_string_lossy();
+    if s.contains("..") {
+        return Err("path must not contain .. after resolution".into());
+    }
+    Ok(abs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,6 +118,27 @@ mod tests {
         let evil = sibling.join("oops.txt");
         fs::write(&evil, "y").unwrap();
         assert!(within_any_root(&roots, evil.to_str().unwrap()).is_err());
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&sibling);
+    }
+
+    #[test]
+    fn allowlist_rejects_dotdot_escape() {
+        let tmp = env::temp_dir();
+        let root = tmp.join("nj_pack_allow_root");
+        let sibling = tmp.join("nj_pack_allow_evil");
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&sibling);
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&sibling).unwrap();
+        fs::write(sibling.join("oops.txt"), "y").unwrap();
+        let allow = vec![root.to_string_lossy().into_owned()];
+        let escape = root.join("../../../").join(sibling.file_name().unwrap()).join("oops.txt");
+        let escape_str = escape.to_string_lossy().into_owned();
+        assert!(within_any_allowlist(&allow, &escape_str).is_err());
+        let inside = root.join("pack.yaml");
+        fs::write(&inside, "x").unwrap();
+        assert!(within_any_allowlist(&allow, inside.to_str().unwrap()).is_ok());
         let _ = fs::remove_dir_all(&root);
         let _ = fs::remove_dir_all(&sibling);
     }

@@ -27,16 +27,22 @@ function isForbiddenError(message: string | null): boolean {
   return lower.includes('forbidden') || lower.includes('admin');
 }
 
-async function readLocalBootstrapToken(): Promise<string> {
+async function mintLocalAdminSession(
+  hubHttp: string,
+  username: string
+): Promise<{ token: string; username: string; role: string }> {
   const { invoke, isTauri } = await import('@tauri-apps/api/core');
   if (typeof window === 'undefined' || !isTauri()) {
-    throw new Error('Local bootstrap read is only available in the desktop app');
+    throw new Error('Local admin mint is only available in the desktop app');
   }
-  const token = await invoke<string>('read_hub_bootstrap_token');
-  if (!token.trim()) {
-    throw new Error('Bootstrap token file is empty');
+  const data = await invoke<{ token: string; username: string; role: string }>(
+    'mint_hub_admin_session',
+    { username, hubUrl: hubHttp }
+  );
+  if (!data?.token) {
+    throw new Error('Admin mint returned no session token');
   }
-  return token.trim();
+  return data;
 }
 
 export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
@@ -139,11 +145,22 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
 
   const handleUseLocalBootstrap = async () => {
     setUnlockError(null);
+    setUnlocking(true);
     try {
-      const token = await readLocalBootstrapToken();
-      await handleUnlockAdmin(token);
+      const { setHubSessionToken } = await import('../../config/hubUrl');
+      const who = (username || 'local').trim() || 'local';
+      const data = await mintLocalAdminSession(hubHttp, who);
+      if (data.role !== 'admin') {
+        throw new Error('Hub did not grant admin role — check bootstrap token');
+      }
+      setHubSessionToken(data.token);
+      setAdminUnlocked(true);
+      setBootstrapInput('');
+      await loadApiKeys();
     } catch (e) {
       setUnlockError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUnlocking(false);
     }
   };
 

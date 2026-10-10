@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/hub"
+	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/gorilla/websocket"
 )
@@ -89,6 +90,17 @@ func handleRemoteExec(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
+	cmdLine := strings.TrimSpace(body.Command)
+	if len(body.Args) > 0 {
+		cmdLine = strings.TrimSpace(cmdLine + " " + strings.Join(body.Args, " "))
+	}
+	if workspace.CommandHardDenied(cmdLine) || !workspace.CommandAllowed(cmdLine) {
+		http.Error(w, "command not allowed by workspace policy", http.StatusForbidden)
 		return
 	}
 	b, err := workspaceBackendResolver.ForWorkspace(body.WorkspaceID)

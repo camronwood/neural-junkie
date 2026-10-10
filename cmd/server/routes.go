@@ -77,8 +77,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/broadcast", corsMiddleware(localOnly(handleBroadcastDirect)))
 	http.HandleFunc("/api/threads/", corsMiddleware(localOnly(handleThreads))) // Thread endpoints
 	http.HandleFunc("/api/import", corsMiddleware(localOnly(handleImport)))
-	http.HandleFunc("/api/export", corsMiddleware(handleExport))
-	http.HandleFunc("/api/exports", corsMiddleware(handleExports))
+	http.HandleFunc("/api/export", corsMiddleware(localOnly(handleExport)))
+	http.HandleFunc("/api/exports", corsMiddleware(localOnly(handleExports)))
 
 	if os.Getenv("ENABLE_MCP_RESOURCES") == "true" {
 		go func() {
