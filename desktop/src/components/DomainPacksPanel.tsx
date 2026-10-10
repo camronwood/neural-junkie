@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
+import { useSettingsStore } from '../stores/settingsStore';
 import { ChatAPI } from '../api/chatAPI';
+import type { AgentType } from '../types/protocol';
 import { PackStoreBrowse } from './pack-store/PackStoreBrowse';
 import { PackUpdatesBanner } from './PackUpdatesBanner';
 import { PackDevStudio } from './pack-store/dev/PackDevStudio';
@@ -9,6 +11,8 @@ import { MusicCreationToolsPanel } from './MusicCreationToolsPanel';
 import { ModelArenaToolsPanel } from './ModelArenaToolsPanel';
 import { ImageGenerationToolsPanel } from './ImageGenerationToolsPanel';
 import { mergeSettingsPut } from './settings/settingsShared';
+import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
+import { patchRevealSidebarItems } from '../utils/sidebarVisibility';
 
 export type DomainPacksSection = 'store' | 'tools' | 'develop';
 
@@ -230,16 +234,32 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
   const handleRoomAgentToggle = async (name: string, enabled: boolean) => {
     setRoomAgentsErr(null);
     setRoomAgentsBusy(name);
+    const row = roomAgents.find((a) => a.name === name);
     setRoomAgents((prev) => prev.map((a) => (a.name === name ? { ...a, enabled } : a)));
     try {
       await mergeSettingsPut(hubHttp, (cfg) => {
         const agents = Array.isArray(cfg.agents) ? [...(cfg.agents as Record<string, unknown>[])] : [];
-        const next = agents.map((row) =>
-          row.name === name ? { ...row, enabled } : row,
+        const next = agents.map((agentRow) =>
+          agentRow.name === name ? { ...agentRow, enabled } : agentRow,
         );
         return { ...cfg, agents: next };
       });
-      await fetch(`${hubHttp}/api/agents/restart`, { method: 'POST' });
+      const restart = await fetch(`${hubHttp}/api/agents/restart`, { method: 'POST' });
+      if (!restart.ok) {
+        throw new Error(await restart.text());
+      }
+      // Re-enabling a pack specialist restores its Direct Messages shortcut (soft-hide only).
+      if (enabled && row) {
+        const desktopSettings = useSettingsStore.getState().settings;
+        const key = agentSidebarHideKey({
+          type: row.type as AgentType,
+          name: row.name,
+        });
+        const reveal = patchRevealSidebarItems(desktopSettings, { agentSidebarKeys: [key] });
+        if (reveal) {
+          await useSettingsStore.getState().updateSettings(reveal);
+        }
+      }
     } catch (e) {
       setRoomAgents((prev) => prev.map((a) => (a.name === name ? { ...a, enabled: !enabled } : a)));
       setRoomAgentsErr(e instanceof Error ? e.message : String(e));
@@ -365,6 +385,7 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
             <h3 className="text-base font-semibold text-slack-text">Room specialists</h3>
             <p className="mt-1 text-sm text-slack-textMuted">
               Who actually starts with the hub. Default room is Assistant + BackendEngineer on qwen3.5:9b.
+              Enabling a specialist also restores its Direct Messages shortcut if it was hidden.
             </p>
           </div>
           <button

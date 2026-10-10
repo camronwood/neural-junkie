@@ -482,6 +482,12 @@ export function buildHumanOutboundMetadata(options: {
     delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
   } else if (composerMode === 'export') {
     meta[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
+  } else if (composerMode === 'agent') {
+    // prepareOutboundPayload stamps implementation_session for execute/go-ahead asks.
+    // Preserve an explicit true; otherwise leave unset (hub can still force via text).
+    if (meta[IMPLEMENTATION_SESSION_METADATA_KEY] !== true) {
+      delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
+    }
   } else {
     delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
   }

@@ -268,6 +268,39 @@ func TestResolveSemanticTurnAdvisoryQuestionDoesNotStampImplSession(t *testing.T
 	}
 }
 
+func TestResolveSemanticTurnDesignAndImplementKeepsImplSession(t *testing.T) {
+	h := NewHub()
+	h.CreateChannelWithType("semantic-execute", "", "", protocol.ChannelTypeDM, "user")
+	h.SetSemanticTurnRouter(semanticRouterFunc(func(context.Context, intent.TurnFeatures) intent.TurnDecision {
+		return intent.TurnDecision{
+			SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+			RequestedAction: intent.ActionEdit, Action: intent.ActionEdit,
+			RecipientType: "frontend", Mutation: intent.MutationWorkspace,
+			Confidence: 0.9, Source: intent.SourceLocalModel,
+			ReasonCodes: []string{"advisory_question"},
+		}
+	}))
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "semantic-execute", protocol.AgentInfo{
+		ID: "user", Name: "Camron", Type: "human",
+	}, "Let's design and implement a simple iOS trivia game under TriviaGame/ with ContentView.swift.")
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode: "agent",
+		"workspace_context":           map[string]interface{}{"workspace_path": "/tmp/trivia"},
+	}
+	h.resolveSemanticTurn(context.Background(), msg)
+	if !msg.ImplementationSession() {
+		t.Fatal("design+implement must stamp implementation_session despite advisory_question")
+	}
+	gov, ok := protocol.ExtractTurnGovernance(msg)
+	if !ok || !gov.CanRunImplSession {
+		t.Fatalf("governance=%+v", gov)
+	}
+	decision, ok := protocol.ExtractTurnDecision(msg)
+	if !ok || decision.Action != intent.ActionEdit || decision.Mutation != intent.MutationWorkspace {
+		t.Fatalf("decision=%+v", decision)
+	}
+}
+
 func TestSemanticTurnFeaturesFillsRendererWhenClientOmitsIt(t *testing.T) {
 	h := NewHub()
 	ch := "dm-canvas-renderer"

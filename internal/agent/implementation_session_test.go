@@ -169,6 +169,71 @@ func TestShouldRunImplementationSession_scenarioChannelForce(t *testing.T) {
 	}
 }
 
+func TestShouldRunImplementationSession_realUIGreenfieldWithoutHarnessFlag(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"}}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		protocol.AgentInfo{ID: "u1", Name: "Camron", Type: "human"},
+		"Let's design and implement a simple iOS game where users answer basic trivia questions. "+
+			"Use .swift files under TriviaGame/ with TriviaGameApp.swift and ContentView.swift. Keep everything local.",
+	)
+	// Real desktop Agent mode: editor_mode only — no implementation_session, not a scenario channel.
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":        "agent",
+		"editor_agent_trust": "auto_apply_edits",
+		"workspace_context":  map[string]interface{}{"workspace_path": "/tmp/trivia-empty"},
+	}
+	if err := protocol.StampTurnDecision(msg, intent.TurnDecision{
+		SchemaVersion: intent.SchemaVersion, Interaction: intent.InteractionTask,
+		RequestedAction: intent.ActionEdit, Action: intent.ActionEdit,
+		Mutation: intent.MutationWorkspace, Confidence: 0.9, Source: intent.SourceLocalModel,
+		ReasonCodes: []string{"advisory_question"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("real UI Agent-mode design+implement ask must run implementation session without harness flag")
+	}
+}
+
+func TestShouldRunImplementationSession_realUIGoAheadAfterImplementAsk(t *testing.T) {
+	prior := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		protocol.AgentInfo{ID: "u0", Name: "Camron", Type: "human"},
+		"Let's design and implement a simple iOS trivia game under TriviaGame/ with ContentView.swift.",
+	)
+	a := &Agent{
+		Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
+		Context: &ConversationContext{
+			History: map[string][]*protocol.Message{
+				"general": {
+					prior,
+					{
+						ID:      "a1",
+						Type:    protocol.MessageTypeAnswer,
+						From:    protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+						Content: "We will start by designing the UI in ContentView.swift.",
+					},
+				},
+			},
+		},
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		protocol.AgentInfo{ID: "u1", Name: "Camron", Type: "human"},
+		"ok that sounds good",
+	)
+	msg.Metadata = map[string]interface{}{
+		"editor_mode": "agent",
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("go-ahead after implement ask must enter implementation session on real UI path")
+	}
+}
+
 // Note: the old TestShouldRunImplementationSession_weakAffirmAfterFailedSession relied on a
 // phrase-based "weak affirmation after a failed session" veto (userAffirmsPendingImplementation
 // combined with channel-history phrase scanning) to keep a bare "looks good" from re-entering

@@ -219,9 +219,9 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if !channelAllowsImplementationSession(msg.Channel, msg) {
 		return false
 	}
-	// Scenario harness: explicit implementation_session + agent mode must run before
-	// semantic/advisory gates (classifier often under-calls design+implement prompts).
-	if scenarioHarnessForcesImplementationSession(a, msg) {
+	// Harness + real desktop Agent-mode implement/go-ahead turns must run before
+	// semantic/advisory gates (classifier often stamps design+implement as advisory).
+	if forcesImplementationSession(a, msg) {
 		return true
 	}
 	if msg.GetCollaborationID() != "" && !collaborationAllowsImplementationSession(msg) {
@@ -230,9 +230,8 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
 		// "What would you implement first?" / go-deeper design questions stay advisory
 		// even when conversation_mode=code and ambient IDE metadata says an implementation
-		// session is active — trust the classifier's own advisory_question reason code
-		// for every action, not a phrase re-check.
-		if decisionHasReason(decision, "advisory_question") && !scenarioHarnessForcesImplementationSession(a, msg) {
+		// session is active — unless this is an execute/go-ahead force path above.
+		if decisionHasReason(decision, "advisory_question") && !forcesImplementationSession(a, msg) {
 			return false
 		}
 		caps := protocol.ResolveTurnCapabilities(msg)
@@ -426,38 +425,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		BootFixIntent:  state.BootFixIntent,
 	})
 	restoreImplSessionFromCheckpoint(msg, state)
-	defer a.finalizeImplementationSessionRepairs(sessionCtx, msg, state)
 	defer state.rollbackFailedAutoApplySession(wsPath)
-
-	if !skipCollabCodingFixtureSynths(msg) && wsPath != "" &&
-		messageImpliesRustGreenfield(msg.Content) && workspaceMissingCargoToml(wsPath) {
-		if a.tryGreenfieldCargoTomlScaffold(sessionCtx, msg, wsPath, state, "") {
-			refreshRustStackManifest(state, wsPath)
-		}
-	}
-
-	// Deterministic greenfield / correction stubs for empty-workspace user-flows.
-	// Return early so local models cannot stall after the stub already lands deliverables.
-	if !skipCollabCodingFixtureSynths(msg) && wsPath != "" {
-		if a.tryGreenfieldNodeAPIScaffold(sessionCtx, msg, wsPath, state) ||
-			a.tryRenameNodeAPIResourceFix(sessionCtx, msg, wsPath, state) ||
-			a.tryAddNodeHealthEndpointFix(sessionCtx, msg, wsPath, state) ||
-			a.tryNodeHealthConfirmSatisfied(sessionCtx, msg, wsPath, state) ||
-			a.tryNodeMemosConfirmSatisfied(sessionCtx, msg, wsPath, state) ||
-			a.tryGreenfieldLandingHTMLScaffold(sessionCtx, msg, wsPath, state) ||
-			a.tryLandingBrandCorrectionFix(sessionCtx, msg, wsPath, state) ||
-			a.tryLandingTaglineFix(sessionCtx, msg, wsPath, state) ||
-			a.tryLandingConfirmSatisfied(sessionCtx, msg, wsPath, state) ||
-			a.tryGreenfieldSwiftTriviaScaffold(sessionCtx, msg, wsPath, state) ||
-			a.tryAddWorkspaceReadyHeadingFix(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			state.VerifySkipped = true
-			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-	}
 
 	if question, ask := maybeAskFixClarification(msg, state, wsPath); ask {
 		outcome := a.buildImplementationSessionOutcome(msg, state, false)
@@ -470,55 +438,6 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		summary := "I can't run destructive cleanup commands against your workspace. No file changes were made."
 		outcome := a.buildImplementationSessionOutcome(msg, state, false)
 		return summary, streamMsgID, false, nil, outcome, nil
-	}
-
-	// Hub-dispatched coding collab tasks must not use scenario fixture synthesizers.
-	if !skipCollabCodingFixtureSynths(msg) {
-		// Feature follow-up after boot-fix must win over re-deleting App.js alone.
-		if a.tryAddWorkspaceReadyHeadingFix(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			state.VerifySkipped = true
-			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryEarlyCorruptAppJSBootFix(sessionCtx, msg, wsPath, state) {
-			// Boot-fix→feature journeys ask for Workspace Ready on a later turn; if App.js
-			// reappears, do not return after delete alone — land the heading too.
-			_ = a.tryAddWorkspaceReadyHeadingFix(sessionCtx, msg, wsPath, state)
-			state.Phase = "verify"
-			// Entry-conflict delete is deterministic; skip verify so a soft verify miss
-			// cannot rollback and restore the corrupt App.js via session snapshots.
-			state.VerifySkipped = true
-			summary := a.formatImplementationSessionSummary("", state, true, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, true)
-			return summary, streamMsgID, true, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryEarlyCommandEvidencePlaybook(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			var verifyOut string
-			var verifyFailed, verifySkipped bool
-			// Re-running make start-all after adding the target launches dev servers and can
-			// block until session timeout; the playbook already matched pasted failure evidence.
-			if state.PlaybookUsedName == "missing_start_all_target" {
-				verifySkipped = true
-				state.VerifySkipped = true
-			} else {
-				verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
-				state.VerifyOutput = verifyOut
-				state.VerifyFailed = verifyFailed
-				state.VerifySkipped = verifySkipped
-			}
-			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-	} else {
-		log.Printf("[%s] skipping fixture synths for collab coding deliverable", a.Info.Name)
 	}
 
 	var repairNote string
@@ -542,160 +461,6 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	completeFixDiagnoseFromRepro(state)
 	if state.FixLikeIntent && strings.TrimSpace(state.LastCommandOutput()) != "" {
 		a.broadcastImplementationProgress(msg, streamMsgID, formatFixInterimProgress(state))
-	}
-
-	if !skipCollabCodingFixtureSynths(msg) {
-		if a.tryEarlyMissingNpmModuleFix(sessionCtx, msg, wsPath, state) {
-			a.runBootFixNpmInstallAfterDepProposal(sessionCtx, msg, state, wsPath)
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runReproVerify(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			proposed := state.hasRegisteredProposals()
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.RegisteredFiles, outcome, nil
-		}
-
-		if a.tryMissingRustDebugFix(sessionCtx, msg, wsPath, state, "") {
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			if verifyFailed {
-				if a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, verifyOut) {
-					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
-				}
-			}
-			if verifyFailed {
-				if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, verifyOut) {
-					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
-				}
-			}
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, "") {
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			if verifyFailed {
-				if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, verifyOut) {
-					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
-				}
-			}
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryMissingRustCopyCloneFix(sessionCtx, msg, wsPath, state, "") {
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, "") {
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryEarlyGoMathFixtureFix(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			summary := a.formatImplementationSessionSummary("", state, true, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, true)
-			return summary, streamMsgID, true, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryEarlyTypeScriptCompileFix(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			summary := a.formatImplementationSessionSummary("", state, true, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, true)
-			return summary, streamMsgID, true, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryEarlyGoMainFixtureFix(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryEarlySidebarFooterExtract(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			state.VerifySkipped = true
-			summary := a.formatImplementationSessionSummary("", state, true, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, true)
-			return summary, streamMsgID, true, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryEarlyScopedFileEdit(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			// Scoped @file subtitle edits are frontend-only; skip Go verify commands.
-			state.VerifySkipped = true
-			proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryEarlyThemeCSSFix(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
-
-		if a.tryEarlyThemeToggleFix(sessionCtx, msg, wsPath, state) {
-			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
-			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
-			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
-			return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
-		}
 	}
 
 	var lastResponse string
@@ -809,32 +574,11 @@ fileCycles:
 				state.Phase = "edit"
 				paths := extractChangedPathsFromResponse(response)
 				state.FilesChanged = appendUnique(state.FilesChanged, paths)
-				if !skipCollabCodingFixtureSynths(msg) && wsPath != "" && workspaceMissingCargoToml(wsPath) {
-					for _, p := range paths {
-						if strings.HasSuffix(strings.ToLower(normalizeFileChangeRelPath(p)), ".rs") {
-							if a.tryGreenfieldCargoTomlScaffold(toolCtx, msg, wsPath, state, p) {
-								proposedAny = true
-								state.FilesChanged = appendUnique(state.FilesChanged, []string{"Cargo.toml"})
-							}
-							break
-						}
-					}
-				}
 				if toolProposed && len(paths) == 0 {
 					// paths recorded in executeProposeFileEditTool via FilesChanged
 				}
 				lastResponse = cleaned
 				break
-			}
-
-			if round == 0 && state.groundingSatisfied() {
-				if ok, paths := a.attemptDeterministicImplementationFallback(roundCtx, msg); ok {
-					proposedAny = true
-					cycleProposed = true
-					state.FilesChanged = appendUnique(state.FilesChanged, paths)
-					lastResponse = ""
-					break
-				}
 			}
 
 			if round < maxEditRounds-1 {
@@ -886,33 +630,10 @@ fileCycles:
 				state.FilesChanged = appendUnique(state.FilesChanged, paths)
 			}
 		}
-		if !cycleProposed {
-			if ok, paths := a.attemptDeterministicImplementationFallback(sessionCtx, msg); ok {
-				proposedAny = true
-				cycleProposed = true
-				state.FilesChanged = appendUnique(state.FilesChanged, paths)
-			}
-		}
-		if !cycleProposed {
-			if ok, paths := a.attemptPlaybookForSessionState(sessionCtx, msg, state); ok {
-				proposedAny = true
-				cycleProposed = true
-				state.FilesChanged = appendUnique(state.FilesChanged, paths)
-			}
-		}
 		state.noteCommandOnlyRound(cycleProposed)
 		if !cycleProposed && state.commandThrashingDetected() {
-			if ok, paths := a.attemptPlaybookForSessionState(sessionCtx, msg, state); ok {
-				proposedAny = true
-				cycleProposed = true
-				state.FilesChanged = appendUnique(state.FilesChanged, paths)
-			} else {
-				break
-			}
+			break
 		}
-		a.repairTailwindDarkModeIfNeeded(sessionCtx, msg, state)
-		a.repairAppThemeIfNeeded(sessionCtx, msg, state)
-		a.repairCorruptAppJSEntryIfNeeded(sessionCtx, msg, state)
 		if !cycleProposed {
 			for _, p := range state.FilesChanged {
 				if strings.Contains(strings.ToLower(p), "tailwind.config") || strings.HasSuffix(strings.ToLower(p), "app.tsx") {
@@ -932,35 +653,6 @@ fileCycles:
 			state.VerifySkipped = verifySkipped
 
 			if verifyFailed {
-				verifyOut, verifyFailed, verifySkipped = a.applyRustCompilePlaybooksAfterVerify(sessionCtx, msg, wsPath, state, verifyOut)
-				state.VerifyOutput = verifyOut
-				state.VerifyFailed = verifyFailed
-				state.VerifySkipped = verifySkipped
-				if !verifyFailed {
-					proposedAny = true
-					cycleProposed = true
-					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
-					state.VerifyOutput = verifyOut
-					state.VerifyFailed = verifyFailed
-					state.VerifySkipped = verifySkipped
-				}
-				if verifyFailed && a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, verifyOut) {
-					proposedAny = true
-					cycleProposed = true
-					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
-					state.VerifyOutput = verifyOut
-					state.VerifyFailed = verifyFailed
-					state.VerifySkipped = verifySkipped
-				}
-				if verifyFailed && a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, verifyOut) {
-					proposedAny = true
-					cycleProposed = true
-					verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
-					state.VerifyOutput = verifyOut
-					state.VerifyFailed = verifyFailed
-					state.VerifySkipped = verifySkipped
-				}
-				if verifyFailed {
 					if a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
 						log.Printf("[%s] skipping verify repair after auto-applied edit (deterministic or Go-only)", a.Info.Name)
 					} else if state.FixLikeIntent {
@@ -1009,7 +701,6 @@ fileCycles:
 								proposedAny = true
 								lastResponse = cleaned
 								verifyOut2, verifyFailed2, verifySkipped2 := a.runVerifyForState(sessionCtx, msg, state)
-								verifyOut2, verifyFailed2, verifySkipped2 = a.applyRustCompilePlaybooksAfterVerify(sessionCtx, msg, wsPath, state, verifyOut2)
 								state.VerifyOutput = verifyOut2
 								state.VerifyFailed = verifyFailed2
 								state.VerifySkipped = verifySkipped2
@@ -1018,7 +709,6 @@ fileCycles:
 							}
 						}
 					}
-				}
 			}
 		}
 
@@ -1045,36 +735,6 @@ fileCycles:
 	} // fileCycle
 
 	persistImplSessionCheckpoint(msg, state, -1)
-	// Final Rust derive repair before rollback — Debug/PartialEq often remain after
-	// the edit loop exits (circuit breaker / premature stop) while cargo still fails.
-	if evidence := strings.TrimSpace(state.VerifyOutput); evidence != "" || strings.TrimSpace(state.LastCommandOutput()) != "" {
-		if evidence == "" {
-			evidence = state.LastCommandOutput()
-		}
-		if a.tryMissingRustDebugFix(sessionCtx, msg, wsPath, state, evidence) {
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			evidence = verifyOut
-			proposedAny = true
-		}
-		if state.VerifyFailed && a.tryMissingRustPartialEqFix(sessionCtx, msg, wsPath, state, evidence) {
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			evidence = verifyOut
-			proposedAny = true
-		}
-		if state.VerifyFailed && a.tryMissingRustCrateFix(sessionCtx, msg, wsPath, state, evidence) {
-			verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-			state.VerifyOutput = verifyOut
-			state.VerifyFailed = verifyFailed
-			state.VerifySkipped = verifySkipped
-			proposedAny = true
-		}
-	}
 	state.rollbackFailedAutoApplySession(wsPath)
 
 	proposedAny = state.hasRegisteredProposals()
@@ -1550,57 +1210,6 @@ func (a *Agent) shouldSkipVerifyRepairAfterAutoApply(msg *protocol.Message, stat
 		return true
 	}
 	return !state.FixLikeIntent && allPathsGoSource(paths)
-}
-
-// applyRustCompilePlaybooksAfterVerify runs Debug → Copy/Clone → crate playbooks while
-// cargo verify still fails. Re-runs after each successful playbook so Suit+Rank and
-// rand+shuffle stacks can clear in one verify gate (including post-LLM-repair verifies).
-func (a *Agent) applyRustCompilePlaybooksAfterVerify(
-	ctx context.Context,
-	msg *protocol.Message,
-	wsPath string,
-	state *ImplementationSessionState,
-	verifyOut string,
-) (string, bool, bool) {
-	if a == nil || msg == nil || state == nil || wsPath == "" {
-		return verifyOut, true, false
-	}
-	if strings.TrimSpace(verifyOut) == "" {
-		verifyOut = state.LastCommandOutput()
-	}
-	verifyFailed := true
-	verifySkipped := false
-	log.Printf("[%s] rust_compile_playbooks_after_verify(start evidence_len=%d)", a.Info.Name, len(verifyOut))
-	for i := 0; i < 5 && verifyFailed; i++ {
-		progress := false
-		if a.tryMissingRustBinTargetFix(ctx, msg, wsPath, state, verifyOut) {
-			progress = true
-		} else if a.tryMisplacedRustCargoTomlFix(ctx, msg, wsPath, state, verifyOut) {
-			progress = true
-		} else if a.tryMissingRustDebugFix(ctx, msg, wsPath, state, verifyOut) {
-			progress = true
-		} else if a.tryMissingRustCopyCloneFix(ctx, msg, wsPath, state, verifyOut) {
-			progress = true
-		} else if a.tryMissingRustCrateFix(ctx, msg, wsPath, state, verifyOut) {
-			progress = true
-		}
-		if !progress {
-			sig := commandOutputMatchesPlaybook(verifyOut)
-			trimmed := strings.TrimSpace(verifyOut)
-			head := trimmed
-			if len(head) > 180 {
-				head = head[:180] + "…"
-			}
-			tail := trimmed
-			if len(tail) > 400 {
-				tail = "…" + tail[len(tail)-400:]
-			}
-			log.Printf("[%s] rust_compile_playbooks_after_verify(no_progress sig=%q evidence_head=%q evidence_tail=%q)", a.Info.Name, sig, head, tail)
-			break
-		}
-		verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(ctx, msg, state)
-	}
-	return verifyOut, verifyFailed, verifySkipped
 }
 
 func allPathsGoSource(paths []string) bool {

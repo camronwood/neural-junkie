@@ -7,6 +7,7 @@ import {
   isAgentShortcutDeleted,
   isDmChannelVisibleInSidebar,
   isSidebarChannelDeleted,
+  patchMigrateDeletedPackAgentsToHidden,
   patchRevealActiveAgentsInSidebar,
   patchRevealSidebarItems,
   patchUnhideAgentShortcutsOnActivation,
@@ -50,15 +51,30 @@ describe('isAgentShortcutHidden', () => {
 });
 
 describe('deleted sidebar entries', () => {
-  it('matches deleted agent shortcuts by stable key and legacy id', () => {
+  it('matches deleted custom expert shortcuts by stable key and legacy id', () => {
     const settings: Settings = {
       ...baseSettings,
-      deletedAgentSidebarKeys: ['backend:GoExpert'],
+      deletedAgentSidebarKeys: ['expert:GuitarGuru'],
       deletedAgentIdsForSidebar: ['legacy-uuid'],
     };
-    expect(isAgentShortcutDeleted(settings, agent('legacy-uuid', 'Other', 'active'))).toBe(true);
-    expect(isAgentShortcutDeleted(settings, agent('new-uuid', 'GoExpert', 'active'))).toBe(true);
+    expect(
+      isAgentShortcutDeleted(settings, agent('legacy-uuid', 'Other', 'active', 'expert'))
+    ).toBe(true);
+    expect(
+      isAgentShortcutDeleted(settings, agent('new-uuid', 'GuitarGuru', 'active', 'expert'))
+    ).toBe(true);
     expect(isAgentShortcutDeleted(settings, agent('x', 'RustExpert', 'active', 'rust'))).toBe(false);
+  });
+
+  it('does not hard-delete pack specialists — treats deleted keys as soft-hidden', () => {
+    const settings: Settings = {
+      ...baseSettings,
+      deletedAgentSidebarKeys: ['backend:BackendEngineer'],
+      hiddenAgentSidebarKeys: [],
+    };
+    const a = agent('be-1', 'BackendEngineer', 'active', 'backend');
+    expect(isAgentShortcutDeleted(settings, a)).toBe(false);
+    expect(isAgentShortcutHidden(settings, a)).toBe(true);
   });
 
   it('matches deleted DM and collaboration channels', () => {
@@ -89,6 +105,39 @@ describe('patchRevealSidebarItems', () => {
     expect(patch?.hiddenAgentSidebarKeys).toEqual([]);
     expect(patch?.hiddenDmChannelNames).toEqual([]);
     expect(patch?.hiddenCollaborationChannelNames).toEqual([]);
+  });
+
+  it('also clears deleted agent/dm entries when revealing', () => {
+    const settings: Settings = {
+      ...baseSettings,
+      deletedAgentSidebarKeys: ['backend:BackendEngineer', 'expert:KeepMe'],
+      deletedDmChannelNames: ['dm-u-backendengineer'],
+    };
+    const patch = patchRevealSidebarItems(settings, {
+      agentSidebarKeys: ['backend:BackendEngineer'],
+      dmChannelNames: ['dm-u-backendengineer'],
+    });
+    expect(patch?.deletedAgentSidebarKeys).toEqual(['expert:KeepMe']);
+    expect(patch?.deletedDmChannelNames).toEqual([]);
+  });
+});
+
+describe('patchMigrateDeletedPackAgentsToHidden', () => {
+  it('soft-hides offline pack keys, clears live pack keys, keeps custom deletes', () => {
+    const settings: Settings = {
+      ...baseSettings,
+      deletedAgentSidebarKeys: ['backend:BackendEngineer', 'expert:GuitarGuru', 'rust:RustExpert'],
+      hiddenAgentSidebarKeys: ['frontend:FrontendEngineer'],
+    };
+    const patch = patchMigrateDeletedPackAgentsToHidden(settings, [
+      agent('be-1', 'BackendEngineer', 'active', 'backend'),
+    ]);
+    expect(patch?.deletedAgentSidebarKeys).toEqual(['expert:GuitarGuru']);
+    // BackendEngineer is live → cleared (not re-hidden). RustExpert offline → soft-hidden.
+    expect(patch?.hiddenAgentSidebarKeys).toEqual(
+      expect.arrayContaining(['frontend:FrontendEngineer', 'rust:RustExpert'])
+    );
+    expect(patch?.hiddenAgentSidebarKeys).not.toContain('backend:BackendEngineer');
   });
 });
 

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { AgentInfo, Channel } from '../types/protocol';
 import { useSettingsStore } from '../stores/settingsStore';
 import {
+  patchMigrateDeletedPackAgentsToHidden,
   patchMigrateHiddenAgentSidebarKeys,
   patchUnhideAgentShortcutsOnActivation,
 } from '../utils/sidebarVisibility';
@@ -9,6 +10,7 @@ import {
 /**
  * Restores hidden agent shortcuts (and matching DMs) when agents become active again.
  * Does not run on first load so "hidden from sidebar" survives app restarts.
+ * Pack/system agents previously hard-deleted are migrated to soft-hidden.
  */
 export function useSidebarAutoUnhide(agents: AgentInfo[], channels: Channel[]) {
   const settings = useSettingsStore((s) => s.settings);
@@ -19,6 +21,12 @@ export function useSidebarAutoUnhide(agents: AgentInfo[], channels: Channel[]) {
 
   useEffect(() => {
     if (!isLoaded) return;
+
+    const packDeletedPatch = patchMigrateDeletedPackAgentsToHidden(settings, agents);
+    if (packDeletedPatch) {
+      void updateSettings(packDeletedPatch);
+      return;
+    }
 
     const migratePatch = patchMigrateHiddenAgentSidebarKeys(settings, agents);
     if (migratePatch) {

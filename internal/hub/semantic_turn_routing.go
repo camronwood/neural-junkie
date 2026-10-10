@@ -106,6 +106,16 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 	preserveWorkspaceFix := !planOrAsk && features.HasWorkspace &&
 		(intent.LooksLikeWorkspaceFixAsk(msg.Content) ||
 			(wantsImpl && decisionHasFailureFixReason(decision)))
+	// Concrete implement asks (no "?") must not be demoted by advisory_question —
+	// real desktop Agent mode often lacks implementation_session metadata.
+	// Canvas/diagram asks stay on the stamped classifier path (artifact vs answer).
+	lowerContent := strings.ToLower(msg.Content)
+	canvasAsk := strings.Contains(lowerContent, "canvas") ||
+		strings.Contains(lowerContent, "mermaid") ||
+		strings.Contains(lowerContent, "diagram")
+	directExecute := !planOrAsk && !strings.Contains(msg.Content, "?") && !canvasAsk &&
+		(intent.LooksLikeDirectImplementationAsk(msg.Content) ||
+			intent.PrefersWorkspaceImplementOverOpenCanvas(msg.Content))
 	if preserveWorkspaceFix && !wantsImpl && intent.LooksLikeWorkspaceFixAsk(msg.Content) {
 		decision.Action = intent.ActionDebug
 		decision.RequestedAction = intent.ActionDebug
@@ -119,7 +129,17 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		}
 		wantsImpl = true
 	}
-	if (chatAdvisory || advisoryQuestion) && !explicitSession && !preserveWorkspaceFix {
+	if directExecute && !wantsImpl {
+		decision.Action = intent.ActionEdit
+		decision.RequestedAction = intent.ActionEdit
+		decision.Mutation = intent.MutationWorkspace
+		intent.EnsureContextPlan(&decision, features)
+		if err := protocol.StampTurnDecision(msg, decision); err != nil {
+			return
+		}
+		wantsImpl = true
+	}
+	if (chatAdvisory || advisoryQuestion) && !explicitSession && !preserveWorkspaceFix && !directExecute {
 		wantsImpl = false
 		// Keep advisory turns as answer/none so design/topic-switch prompts
 		// are not stamped inspect/edit/image (scenarios and tooling rely on this).
@@ -141,7 +161,7 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		msg.Metadata[protocol.TurnMetaCanRunImplSession] = true
 		msg.Metadata[protocol.TurnMetaRequiresWorkspace] = true
 	}
-	if (chatAdvisory || advisoryQuestion) && !explicitSession && !planOrAsk && !preserveWorkspaceFix {
+	if (chatAdvisory || advisoryQuestion) && !explicitSession && !planOrAsk && !preserveWorkspaceFix && !directExecute {
 		delete(msg.Metadata, protocol.IdeMetaImplementationSession)
 		delete(msg.Metadata, protocol.TurnMetaCanProposeFiles)
 		delete(msg.Metadata, protocol.TurnMetaCanRunImplSession)
@@ -152,8 +172,8 @@ func (h *Hub) resolveSemanticTurn(ctx context.Context, msg *protocol.Message) {
 		governance.ComposerMode = mode
 	}
 	governance.RequiresWorkspace = wantsImpl && !planOrAsk
-	chatBlocksMutation := (chatAdvisory || advisoryQuestion) && !explicitSession && !preserveWorkspaceFix
-	governance.CanProposeFiles = (decision.Mutation == intent.MutationWorkspace || explicitSession) && !planOrAsk && !chatBlocksMutation
+	chatBlocksMutation := (chatAdvisory || advisoryQuestion) && !explicitSession && !preserveWorkspaceFix && !directExecute
+	governance.CanProposeFiles = (decision.Mutation == intent.MutationWorkspace || explicitSession || directExecute) && !planOrAsk && !chatBlocksMutation
 	governance.CanRunImplSession = wantsImpl && !planOrAsk
 	if chatBlocksMutation {
 		governance.CanProposeFiles = false

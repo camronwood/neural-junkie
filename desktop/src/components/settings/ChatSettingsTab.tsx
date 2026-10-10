@@ -4,6 +4,11 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useChatStore } from '../../stores/chatStore';
 import { agentSidebarHideKey, parseDMDisplayName } from '../../utils/dmChannelDisplay';
 import {
+  agentTypeFromSidebarKey,
+  isHardDeletableAgentType,
+  isSoftDeleteOnlyAgentType,
+} from '../../utils/packAgents';
+import {
   loadConversationModeSetting,
   saveConversationModeSetting,
   type ConversationModeSetting,
@@ -69,6 +74,18 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
   const deleteHiddenDmChannel = (name: string) => {
     const agent = findAgentForDmChannel(name);
     const key = agent ? agentSidebarHideKey(agent) : '';
+    // Pack/system agents: keep soft-hidden only. Custom experts/repos: hard-delete.
+    if (agent && isSoftDeleteOnlyAgentType(agent.type)) {
+      void updateSettings({
+        hiddenDmChannelNames: addUnique(settings.hiddenDmChannelNames, name),
+        deletedDmChannelNames: removeItem(settings.deletedDmChannelNames, name),
+        hiddenAgentIdsForSidebar: addUnique(settings.hiddenAgentIdsForSidebar, agent.id),
+        hiddenAgentSidebarKeys: addUnique(settings.hiddenAgentSidebarKeys, key),
+        deletedAgentIdsForSidebar: removeItem(settings.deletedAgentIdsForSidebar, agent.id),
+        deletedAgentSidebarKeys: removeItem(settings.deletedAgentSidebarKeys, key),
+      });
+      return;
+    }
     void updateSettings({
       hiddenDmChannelNames: removeItem(settings.hiddenDmChannelNames, name),
       deletedDmChannelNames: addUnique(settings.deletedDmChannelNames, name),
@@ -105,6 +122,14 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
   };
 
   const deleteHiddenAgentShortcutKey = (key: string) => {
+    if (isSoftDeleteOnlyAgentType(agentTypeFromSidebarKey(key))) {
+      // Pack/system: stay soft-hidden (no permanent delete).
+      void updateSettings({
+        hiddenAgentSidebarKeys: addUnique(settings.hiddenAgentSidebarKeys, key),
+        deletedAgentSidebarKeys: removeItem(settings.deletedAgentSidebarKeys, key),
+      });
+      return;
+    }
     void updateSettings({
       hiddenAgentSidebarKeys: removeItem(settings.hiddenAgentSidebarKeys, key),
       deletedAgentSidebarKeys: addUnique(settings.deletedAgentSidebarKeys, key),
@@ -129,6 +154,15 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
   const deleteHiddenAgentShortcutId = (id: string) => {
     const agent = agents.find((a) => a.id === id);
     const key = agent ? agentSidebarHideKey(agent) : '';
+    if (agent && isSoftDeleteOnlyAgentType(agent.type)) {
+      void updateSettings({
+        hiddenAgentIdsForSidebar: addUnique(settings.hiddenAgentIdsForSidebar, id),
+        deletedAgentIdsForSidebar: removeItem(settings.deletedAgentIdsForSidebar, id),
+        hiddenAgentSidebarKeys: addUnique(settings.hiddenAgentSidebarKeys, key),
+        deletedAgentSidebarKeys: removeItem(settings.deletedAgentSidebarKeys, key),
+      });
+      return;
+    }
     void updateSettings({
       hiddenAgentIdsForSidebar: removeItem(settings.hiddenAgentIdsForSidebar, id),
       deletedAgentIdsForSidebar: addUnique(settings.deletedAgentIdsForSidebar, id),
@@ -139,6 +173,13 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
           }
         : {}),
     });
+  };
+
+  const canHardDeleteShortcutKey = (key: string) =>
+    isHardDeletableAgentType(agentTypeFromSidebarKey(key));
+  const canHardDeleteAgentId = (id: string) => {
+    const agent = agents.find((a) => a.id === id);
+    return agent ? isHardDeletableAgentType(agent.type) : true;
   };
 
   return (
@@ -201,8 +242,9 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
       <div>
         <h3 className="text-lg font-semibold text-slack-text mb-2">Hidden from sidebar</h3>
         <p className="text-sm text-slack-textMuted mb-3">
-          DM rows, collaborations, or agent shortcuts you hid. Use Unhide to restore them, or Delete to keep them
-          off the sidebar permanently.
+          DM rows, collaborations, or agent shortcuts you hid. Use Unhide to restore them. Delete permanently is
+          only available for custom experts and repo agents — pack specialists stay soft-hidden (re-enable from
+          Domain packs → Room specialists).
         </p>
         {(settings.hiddenDmChannelNames?.length ?? 0) === 0 &&
         (settings.hiddenCollaborationChannelNames?.length ?? 0) === 0 &&
@@ -211,7 +253,10 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
           <p className="text-sm text-slack-textMuted">None. Use × on a row in the sidebar.</p>
         ) : (
           <div className="space-y-2">
-            {(settings.hiddenDmChannelNames ?? []).map((name) => (
+            {(settings.hiddenDmChannelNames ?? []).map((name) => {
+              const agent = findAgentForDmChannel(name);
+              const allowHardDelete = !agent || isHardDeletableAgentType(agent.type);
+              return (
               <div
                 key={`dm-${name}`}
                 className="flex items-center justify-between gap-2 p-2 bg-slack-bgHover rounded border border-slack-border"
@@ -227,6 +272,7 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
                   >
                     Unhide
                   </button>
+                  {allowHardDelete && (
                   <button
                     type="button"
                     className="text-xs text-red-400 hover:text-red-300 hover:underline"
@@ -234,9 +280,11 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
                   >
                     Delete
                   </button>
+                  )}
                 </div>
               </div>
-            ))}
+              );
+            })}
             {(settings.hiddenCollaborationChannelNames ?? []).map((name) => {
               const ch = channels.find((c) => c.name === name);
               const label =
@@ -272,6 +320,7 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
             })}
             {(settings.hiddenAgentSidebarKeys ?? []).map((key) => {
               const label = key.includes(':') ? key.slice(key.indexOf(':') + 1) : key;
+              const allowHardDelete = canHardDeleteShortcutKey(key);
               return (
                 <div
                   key={`agk-${key}`}
@@ -286,6 +335,7 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
                     >
                       Unhide
                     </button>
+                    {allowHardDelete && (
                     <button
                       type="button"
                       className="text-xs text-red-400 hover:text-red-300 hover:underline"
@@ -293,6 +343,7 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
                     >
                       Delete
                     </button>
+                    )}
                   </div>
                 </div>
               );
@@ -313,6 +364,7 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
                   >
                     Unhide
                   </button>
+                  {canHardDeleteAgentId(id) && (
                   <button
                     type="button"
                     className="text-xs text-red-400 hover:text-red-300 hover:underline"
@@ -320,6 +372,7 @@ export function ChatSettingsTab({ isActive }: SettingsTabProps) {
                   >
                     Delete
                   </button>
+                  )}
                 </div>
               </div>
             ))}

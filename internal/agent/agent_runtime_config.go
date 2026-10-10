@@ -3,7 +3,9 @@ package agent
 import (
 	"strings"
 	"time"
+	"unicode"
 
+	"github.com/camronwood/neural-junkie/internal/intent"
 	"github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -36,13 +38,114 @@ func scenarioHarnessForcesImplementationSession(a *Agent, msg *protocol.Message)
 	if !scenarioHarnessRequestsImplementationSession(msg) {
 		return false
 	}
-	if a == nil {
+	return agentComposerCanForceImplementationSession(a, msg)
+}
+
+// looksLikeExecuteImplementationAsk is a direct "do the work" ask (not a design question).
+// Used for real desktop Agent-mode turns that omit implementation_session metadata.
+func looksLikeExecuteImplementationAsk(text string) bool {
+	if !intent.LooksLikeDirectImplementationAsk(text) && !intent.PrefersWorkspaceImplementOverOpenCanvas(text) {
+		return false
+	}
+	// "What would you implement first?" stays advisory.
+	if strings.Contains(text, "?") {
+		return false
+	}
+	lower := strings.ToLower(text)
+	// Canvas / diagram / mermaid asks are artifact delivery, not workspace implement.
+	if strings.Contains(lower, "canvas") || strings.Contains(lower, "mermaid") ||
+		strings.Contains(lower, "diagram") {
+		return false
+	}
+	return true
+}
+
+// looksLikeImplementGoAhead reports short user affirmations after a plan / implement ask.
+func looksLikeImplementGoAhead(text string) bool {
+	c := strings.ToLower(strings.TrimSpace(text))
+	if c == "" || strings.Contains(c, "?") {
+		return false
+	}
+	fields := strings.FieldsFunc(c, func(r rune) bool {
+		return unicode.IsSpace(r) || r == ',' || r == '!' || r == '.'
+	})
+	if len(fields) == 0 || len(fields) > 10 {
+		return false
+	}
+	switch c {
+	case "ok", "okay", "k", "yes", "yep", "yeah", "y", "sure", "do it", "ship it",
+		"go ahead", "go for it", "lgtm", "sounds good", "that sounds good",
+		"ok that sounds good", "okay that sounds good", "looks good", "proceed":
+		return true
+	}
+	if strings.HasPrefix(c, "ok ") || strings.HasPrefix(c, "okay ") {
+		if strings.Contains(c, "sound") || strings.Contains(c, "good") || strings.Contains(c, "go ahead") {
+			return true
+		}
+	}
+	return false
+}
+
+func channelHasRecentExecuteImplementationAsk(history []*protocol.Message, skipMsgID string) bool {
+	seen := 0
+	for i := len(history) - 1; i >= 0 && seen < 12; i-- {
+		m := history[i]
+		if m == nil || m.ID == skipMsgID {
+			continue
+		}
+		if !protocol.IsUserLikeSender(m.From) {
+			continue
+		}
+		seen++
+		if messageStampedImplAction(m) || looksLikeExecuteImplementationAsk(m.Content) {
+			return true
+		}
+	}
+	return false
+}
+
+func agentComposerCanForceImplementationSession(a *Agent, msg *protocol.Message) bool {
+	if a == nil || msg == nil {
+		return false
+	}
+	if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() {
+		return false
+	}
+	mode := msg.IdeEditorMode()
+	if mode != "" && mode != "agent" && mode != "export" {
 		return false
 	}
 	if !agentTypeCanShipFileChanges(a.Info.Type) || a.Info.Type == protocol.AgentTypeCodeReview {
 		return false
 	}
 	return !chatModeBlocksImplementationSession(a, msg)
+}
+
+// realUIForcesImplementationSession covers desktop Agent-mode turns that omit the
+// harness-only implementation_session flag (greenfield implement asks + go-aheads).
+// Export mode is not forced here — save/export follows existing export-session rules
+// so travel/chat asks with sticky export metadata cannot enter an impl loop.
+func realUIForcesImplementationSession(a *Agent, msg *protocol.Message) bool {
+	if !agentComposerCanForceImplementationSession(a, msg) {
+		return false
+	}
+	if msg.IdeEditorModeIsExport() {
+		return false
+	}
+	if looksLikeExecuteImplementationAsk(msg.Content) {
+		return true
+	}
+	if looksLikeImplementGoAhead(msg.Content) &&
+		channelHasRecentExecuteImplementationAsk(a.channelHistorySafe(msg.Channel), msg.ID) {
+		return true
+	}
+	return false
+}
+
+// forcesImplementationSession reports harness or real-UI turns that must enter the
+// bounded implementation loop even when the classifier stamps advisory_question.
+func forcesImplementationSession(a *Agent, msg *protocol.Message) bool {
+	return scenarioHarnessForcesImplementationSession(a, msg) || realUIForcesImplementationSession(a, msg)
 }
 
 const (

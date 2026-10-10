@@ -14,6 +14,11 @@ import {
   mergeCodebaseAttachments,
 } from './ideComposer';
 import { resolveDmPartnerAgent } from './dmChannelDisplay';
+import {
+  looksLikeExecuteImplementationAsk,
+  shouldStampAgentImplementationSession,
+} from './implementationIntent';
+import { channelHasImplementationThread } from './implementationContinuation';
 import type { Channel } from '../types/protocol';
 
 export function isSlashCommandContent(content: string): boolean {
@@ -33,6 +38,8 @@ export type PrepareOutboundPayloadOptions = {
   ideEnabled?: boolean;
   channel?: string;
   channelMeta?: Pick<Channel, 'type' | 'agents' | 'description' | 'name'>;
+  /** Recent channel messages — used to stamp impl session on short go-aheads. */
+  recentChannelMessages?: { type?: string; metadata?: Record<string, unknown>; content?: string }[];
 };
 
 /**
@@ -97,6 +104,17 @@ export async function prepareOutboundPayload(
 
   if (effectiveMode === 'export') {
     metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
+  } else if (effectiveMode === 'agent') {
+    const recentImpl =
+      channelHasImplementationThread(options.recentChannelMessages) ||
+      (options.recentChannelMessages ?? []).some(
+        (m) => typeof m.content === 'string' && looksLikeExecuteImplementationAsk(m.content)
+      );
+    if (shouldStampAgentImplementationSession(content, recentImpl)) {
+      metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
+    } else {
+      delete metadata[IMPLEMENTATION_SESSION_METADATA_KEY];
+    }
   } else {
     delete metadata[IMPLEMENTATION_SESSION_METADATA_KEY];
   }

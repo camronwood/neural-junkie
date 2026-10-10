@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -94,59 +92,6 @@ func pkgHasDependency(pkg map[string]interface{}, module string) bool {
 		}
 	}
 	return false
-}
-
-// tryEarlyMissingNpmModuleFix proposes package.json when needed and marks playbook for npm install.
-func (a *Agent) tryEarlyMissingNpmModuleFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
-	if a == nil || msg == nil || state == nil || wsPath == "" {
-		return false
-	}
-	if skipCollabCodingFixtureSynths(msg) {
-		return false
-	}
-	evidence := strings.TrimSpace(state.LastCommandOutput())
-	if evidence == "" {
-		evidence = msg.Content
-	}
-	if commandOutputMatchesPlaybook(evidence) != "missing_npm_module" {
-		return false
-	}
-	modules := extractMissingNpmModules(evidence)
-	if len(modules) == 0 {
-		return false
-	}
-	module := modules[0]
-	if npmModuleInstalled(wsPath, module) {
-		return false
-	}
-	pkgPath := filepath.Join(wsPath, "package.json")
-	existing, err := os.ReadFile(pkgPath)
-	if err != nil {
-		return false
-	}
-	var pkg map[string]interface{}
-	if json.Unmarshal(existing, &pkg) != nil {
-		return false
-	}
-	if !pkgHasDependency(pkg, module) {
-		body, ok := addMissingDependencyToPackageJSON(existing, module)
-		if !ok {
-			return false
-		}
-		if err := a.validateProposalForSession(ctx, msg, "package.json", ProposalOpEdit); err != nil {
-			return false
-		}
-		if _, err := a.proposeFileEditInChannel(ctx, msg.Channel, "package.json", string(existing), body, msg); err != nil {
-			return false
-		}
-		state.ProposedCount++
-		state.FilesChanged = appendUnique(state.FilesChanged, []string{"package.json"})
-		state.RecordEdit("package.json")
-	}
-	state.DiagnosePhaseComplete = true
-	state.SetPlaybookUsed("missing_npm_module")
-	log.Printf("[%s] early_missing_npm_module_fix(module=%s)", a.Info.Name, module)
-	return true
 }
 
 func (a *Agent) runBootFixNpmInstallAfterDepProposal(ctx context.Context, msg *protocol.Message, state *ImplementationSessionState, wsPath string) {
