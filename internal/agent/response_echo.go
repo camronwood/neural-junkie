@@ -456,7 +456,7 @@ func (a *Agent) maybeRetryConversationalQuality(ctx context.Context, msg *protoc
 	if looksLikeEchoOfPriorUserTurn(msg, response, history) {
 		retry, err := eff.GenerateResponse(approvalCtx, a.buildEchoRetryPrompt(msg), historyToMessages(shortenedConversationWindow(history, 4)))
 		if err == nil && strings.TrimSpace(retry) != "" &&
-			!looksLikeEchoOfPriorUserTurn(msg, retry, nil) {
+			!looksLikeEchoOfPriorUserTurn(msg, retry, history) {
 			log.Printf("[%s] Prior-turn echo detected; used echo retry", a.Info.Name)
 			return retry
 		}

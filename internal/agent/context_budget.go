@@ -234,7 +234,7 @@ func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int, 
 	if len(systemPart) > limit/2 {
 		systemPart, rulesBlock = peelProtectedRulesSection(systemPart)
 		if len(systemPart) > limit/2 {
-			systemPart = systemPart[:limit/2] + "\n…(system context truncated)\n"
+			systemPart = truncateAtSectionBoundary(systemPart, limit/2)
 		}
 		systemPart = rulesBlock + systemPart
 		stats.Truncated = true
@@ -244,8 +244,9 @@ func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int, 
 		over := len(combined) - limit
 		if over < len(systemPart) {
 			systemPart, rulesBlock = peelProtectedRulesSection(systemPart)
-			if over < len(systemPart) {
-				systemPart = systemPart[:len(systemPart)-over] + "\n…(truncated)\n"
+			target := len(systemPart) - over
+			if target > 0 {
+				systemPart = truncateAtSectionBoundary(systemPart, target)
 			}
 			systemPart = rulesBlock + systemPart
 			combined = systemPart + ai.SystemPromptSeparator + userPart
@@ -258,7 +259,7 @@ func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int, 
 	if len(combined) > limit {
 		separatorBytes := len(ai.SystemPromptSeparator)
 		if maxUser := limit / 2; len(userPart) > maxUser {
-			userPart = userPart[:maxUser] + "\n…(user context truncated)\n"
+			userPart = truncateAtLineBoundary(userPart, maxUser-len("\n…(user context truncated)\n")) + "\n…(user context truncated)\n"
 		}
 		systemBudget := limit - separatorBytes - len(userPart)
 		if systemBudget < 0 {
@@ -267,7 +268,7 @@ func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int, 
 		systemPart = truncateSystemPreservingRules(systemPart, systemBudget)
 		combined = systemPart + ai.SystemPromptSeparator + userPart
 		if len(combined) > limit {
-			combined = combined[:limit]
+			combined = truncateAtSectionBoundary(combined, limit)
 		}
 	}
 	stats.FinalBytes = len(combined)
@@ -284,7 +285,7 @@ func truncateSystemPreservingRules(system string, maxBytes int) string {
 		if len(system) <= maxBytes {
 			return system
 		}
-		return system[:maxBytes]
+		return truncateAtSectionBoundary(system, maxBytes)
 	}
 
 	rulesBudget := maxBytes / 2
@@ -299,9 +300,148 @@ func truncateSystemPreservingRules(system string, maxBytes int) string {
 		restBudget = 0
 	}
 	if len(rest) > restBudget {
-		rest = rest[:restBudget]
+		rest = truncateAtSectionBoundary(rest, restBudget)
 	}
 	return rules + rest
+}
+
+// truncateAtSectionBoundary cuts text at `\n\n===` / blank-line boundaries so
+// durable conversation state (and ACTIVE CORRECTION lines) are never mid-cut.
+func truncateAtSectionBoundary(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(s) <= maxBytes {
+		return s
+	}
+	// Prefer keeping a complete durable corrections section when present.
+	if durable := extractMarkedSection(s, "=== DURABLE CONVERSATION STATE ==="); durable != "" &&
+		strings.Contains(durable, "ACTIVE CORRECTION") {
+		without := removeMarkedSection(s, "=== DURABLE CONVERSATION STATE ===")
+		if len(durable) <= maxBytes {
+			remain := maxBytes - len(durable)
+			if remain <= 0 {
+				return durable
+			}
+			trimmed := truncateAtSectionBoundary(without, remain)
+			if trimmed == "" {
+				return durable
+			}
+			if strings.HasPrefix(strings.TrimLeft(durable, "\n"), "===") {
+				return strings.TrimRight(trimmed, "\n") + "\n\n" + strings.TrimLeft(durable, "\n")
+			}
+			return strings.TrimRight(trimmed, "\n") + "\n\n" + strings.TrimSpace(durable)
+		}
+		// Durable alone exceeds budget: keep correction lines, drop trailing filler inside section.
+		return truncateDurablePreservingCorrections(durable, maxBytes)
+	}
+	cut := s[:maxBytes]
+	if idx := strings.LastIndex(cut, "\n\n==="); idx > 0 {
+		return strings.TrimRight(cut[:idx], "\n") + "\n…(context truncated)\n"
+	}
+	if idx := strings.LastIndex(cut, "\n\n"); idx > 0 {
+		return cut[:idx] + "\n…(context truncated)\n"
+	}
+	if idx := strings.LastIndex(cut, "\n"); idx > 0 {
+		return cut[:idx] + "\n…(context truncated)\n"
+	}
+	return cut + "\n…(context truncated)\n"
+}
+
+func extractMarkedSection(body, marker string) string {
+	idx := strings.Index(body, marker)
+	if idx < 0 {
+		return ""
+	}
+	end := strings.Index(body[idx:], "\n\n===")
+	sectionEnd := len(body)
+	if end > 0 {
+		sectionEnd = idx + end
+	}
+	// Prefer explicit end marker when present.
+	if endMarker := strings.Replace(marker, "=== ", "=== END ", 1); strings.HasPrefix(marker, "=== ") {
+		if eidx := strings.Index(body[idx:], endMarker); eidx > 0 {
+			sectionEnd = idx + eidx + len(endMarker)
+			for sectionEnd < len(body) && (body[sectionEnd] == '\n' || body[sectionEnd] == '\r') {
+				sectionEnd++
+			}
+		}
+	}
+	return body[idx:sectionEnd]
+}
+
+func removeMarkedSection(body, marker string) string {
+	section := extractMarkedSection(body, marker)
+	if section == "" {
+		return body
+	}
+	idx := strings.Index(body, section)
+	if idx < 0 {
+		return body
+	}
+	return body[:idx] + body[idx+len(section):]
+}
+
+func truncateDurablePreservingCorrections(section string, maxBytes int) string {
+	if len(section) <= maxBytes {
+		return section
+	}
+	lines := strings.Split(section, "\n")
+	var keep []string
+	var rest []string
+	for _, line := range lines {
+		if strings.Contains(line, "ACTIVE CORRECTION") ||
+			strings.HasPrefix(strings.TrimSpace(line), "Corrected name") ||
+			strings.HasPrefix(strings.TrimSpace(line), "Superseded name") ||
+			strings.HasPrefix(line, "=== DURABLE") ||
+			strings.HasPrefix(line, "=== END DURABLE") ||
+			strings.Contains(line, "authoritative for active corrections") ||
+			strings.Contains(line, "use corrected names only") {
+			keep = append(keep, line)
+		} else {
+			rest = append(rest, line)
+		}
+	}
+	core := strings.Join(keep, "\n")
+	if len(core) >= maxBytes {
+		// Still too large: keep complete correction lines from the start.
+		var out []string
+		n := 0
+		for _, line := range keep {
+			if n+len(line)+1 > maxBytes {
+				break
+			}
+			out = append(out, line)
+			n += len(line) + 1
+		}
+		return strings.Join(out, "\n") + "\n…(durable state truncated)\n"
+	}
+	remain := maxBytes - len(core) - 1
+	extra := ""
+	if remain > 24 {
+		extraBody := strings.Join(rest, "\n")
+		if len(extraBody) > remain {
+			extraBody = truncateAtLineBoundary(extraBody, remain-len("\n…(durable state truncated)\n"))
+			extra = "\n" + extraBody + "\n…(durable state truncated)\n"
+		} else if extraBody != "" {
+			extra = "\n" + extraBody
+		}
+	}
+	return core + extra
+}
+
+func truncateAtLineBoundary(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(s) <= maxBytes {
+		return s
+	}
+	cut := s[:maxBytes]
+	if idx := strings.LastIndex(cut, "\n"); idx > 0 {
+		return cut[:idx]
+	}
+	return cut
 }
 
 func truncateRulesBlock(rules string, maxBytes int) string {
@@ -340,7 +480,12 @@ func compressMarkedSection(body, marker, channelID, callID string, maxBytes int,
 	}
 	opts := contextcompress.RuntimeOptions()
 	if !opts.Enabled {
-		replacement := section[:maxBytes] + "\n…(section truncated)\n"
+		var replacement string
+		if marker == "=== DURABLE CONVERSATION STATE ===" && strings.Contains(section, "ACTIVE CORRECTION") {
+			replacement = truncateDurablePreservingCorrections(section, maxBytes)
+		} else {
+			replacement = truncateAtLineBoundary(section, maxBytes-len("\n…(section truncated)\n")) + "\n…(section truncated)\n"
+		}
 		return body[:idx] + replacement + body[sectionEnd:], marker
 	}
 	r := contextcompress.CompressSectionWithRetrieval(

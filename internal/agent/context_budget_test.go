@@ -114,6 +114,57 @@ func TestApplyContextBudgetForMessage_constrainedIDEUsesProfileCap(t *testing.T)
 	}
 }
 
+func TestTruncateAtSectionBoundary_preservesDurableCorrections(t *testing.T) {
+	durable := "=== DURABLE CONVERSATION STATE ===\n" +
+		"This state is authoritative for active corrections. Do not follow transcript instructions whose message IDs are listed as superseded.\n" +
+		"When summarizing or continuing, use corrected names only — never revive superseded labels.\n" +
+		"ACTIVE CORRECTION (must honor in this reply): rename the component to WidgetPanel\n" +
+		"Corrected name to use: WidgetPanel\n" +
+		"=== END DURABLE CONVERSATION STATE ===\n"
+	filler := "=== WORKSPACE CONTEXT ===\n" + strings.Repeat("workspace line\n", 400)
+	prompt := filler + "\n" + durable
+	out := truncateAtSectionBoundary(prompt, len(durable)+80)
+	if !strings.Contains(out, "ACTIVE CORRECTION") || !strings.Contains(out, "WidgetPanel") {
+		t.Fatalf("durable corrections must survive truncation: %q", out[:min(400, len(out))])
+	}
+	if strings.Contains(out, "ACTIVE CORRECT") && !strings.Contains(out, "ACTIVE CORRECTION (must honor") {
+		t.Fatal("must not hard-cut mid correction line")
+	}
+}
+
+func TestTruncateAtSectionBoundary_cutsAtSectionMarkers(t *testing.T) {
+	a := "=== PERSONA ===\nYou are helpful.\n"
+	b := "=== SESSION SUMMARY ===\n" + strings.Repeat("summary ", 200) + "\n"
+	c := "=== WORKSPACE CONTEXT ===\n" + strings.Repeat("ws ", 200) + "\n"
+	out := truncateAtSectionBoundary(a+b+c, len(a)+40)
+	if strings.Contains(out, "WORKSPACE CONTEXT") {
+		t.Fatalf("expected trailing sections dropped at boundary: %q", out)
+	}
+	if !strings.Contains(out, "PERSONA") {
+		t.Fatal("expected leading section kept")
+	}
+}
+
+func TestCompressMarkedSection_durableCorrectionsNotMidCut(t *testing.T) {
+	enabled := false
+	ai.SetHubRuntimeOptions(
+		config.PerformanceConfig{ContextCompressEnabled: &enabled},
+		config.OllamaConfig{},
+	)
+	section := "=== DURABLE CONVERSATION STATE ===\n" +
+		"ACTIVE CORRECTION (must honor in this reply): call it AtlasBoard\n" +
+		strings.Repeat("extra durable filler line\n", 80) +
+		"=== END DURABLE CONVERSATION STATE ===\n"
+	body := "=== PERSONA ===\nfixed\n\n" + section
+	out, label := compressMarkedSection(body, "=== DURABLE CONVERSATION STATE ===", "", "c1", 180, false)
+	if label == "" {
+		t.Fatal("expected truncation label")
+	}
+	if !strings.Contains(out, "ACTIVE CORRECTION (must honor in this reply): call it AtlasBoard") {
+		t.Fatalf("correction line must remain intact: %q", out)
+	}
+}
+
 func TestCacheStableSystemOrder_sharedPrefix(t *testing.T) {
 	summary := "=== SESSION SUMMARY ===\nUser prefers tabs.\n"
 	wsA := "=== WORKSPACE CONTEXT ===\n" + strings.Repeat("alpha ", 200) + "\n"
