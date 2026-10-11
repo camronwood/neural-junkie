@@ -854,6 +854,8 @@ export function ChatWindow({
   }, [api, channel, stableChannelNamesKey, hubSessionToken, hubAccessToken]);
   
   const wsOutageToastShownRef = useRef(false);
+  /** Primary channel from the last successful WS connect — used to skip full reload on channel-only URL changes. */
+  const wsConnectedChannelRef = useRef<string | null>(null);
   
   // Load layout settings on mount
   useEffect(() => {
@@ -1021,6 +1023,7 @@ export function ChatWindow({
         return next;
       });
       // Prefer the store map just updated above — collaborationsByIDRef lags one effect tick.
+      // Keep the last good snapshot when the hub list briefly omits the active collab.
       setActiveCollab(current => {
         if (!current || current.channel !== targetChannel) return current;
         const refreshed = snapshots.find(snapshot => snapshot.id === current.id);
@@ -1029,7 +1032,7 @@ export function ChatWindow({
           collaborationsByIDSnapshot()[current.id] ??
           collaborationsByIDRef.current[current.id];
         if (cached && cached.channel === targetChannel) return cached;
-        return null;
+        return current;
       });
     } catch (error) {
       console.error('Failed to load collaborations:', error);
@@ -1216,6 +1219,14 @@ export function ChatWindow({
       devLog('Connected to chat');
       wsOutageToastShownRef.current = false;
       useChatStore.getState().setConnectionStatus('connected');
+      const prevChannel = wsConnectedChannelRef.current;
+      const activeChannel = useChatStore.getState().channel;
+      wsConnectedChannelRef.current = activeChannel;
+      // Channel switches rebuild the WS URL and reconnect; handleSwitchChannel already
+      // loads history — skip the heavy parallel initial load to avoid races.
+      if (prevChannel !== null && prevChannel !== activeChannel) {
+        return;
+      }
       loadInitialData();
     },
     onDisconnect: () => {
@@ -1800,6 +1811,7 @@ export function ChatWindow({
         collaboration={collaborationForChannel}
         onOpenTerminal={() => setPanelOpen(true)}
         onScrollToApproval={scrollToApproval}
+        onSwitchChannel={handleSwitchChannel}
         approveFirstPendingRef={approveFirstPendingRef}
         rejectFirstPendingRef={rejectFirstPendingRef}
       />

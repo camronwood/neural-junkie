@@ -439,7 +439,8 @@ export const useChatStore = create<ChatState>((set, get) => {
       return {
         messages: trimMessagesToMax(
           mergedIncoming.filter(
-            (m) => !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type)
+            (m) =>
+              !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type, m.metadata)
           ),
           MAX_UI_CHANNEL_MESSAGES
         ),
@@ -459,7 +460,10 @@ export const useChatStore = create<ChatState>((set, get) => {
       const merged = [...mergedOlder, ...state.messages];
       return {
         messages: trimMessagesToMax(
-          merged.filter((m) => !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type)),
+          merged.filter(
+            (m) =>
+              !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type, m.metadata)
+          ),
           MAX_UI_CHANNEL_MESSAGES
         ),
       };
@@ -655,8 +659,20 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
       streamFlushRaf.current = 0;
     }
+    // Flush coalesced deltas into streamingMessages, but keep in-flight streams so
+    // finalizeStream can channel-route them (active timeline vs inactive cache).
+    const pendingBatch = streamPending.size > 0 ? new Map(streamPending) : null;
     streamPending.clear();
     set((state) => {
+      let streamingMessages = state.streamingMessages;
+      if (pendingBatch) {
+        const next = { ...streamingMessages };
+        for (const [id, m] of pendingBatch) {
+          next[id] = { ...m, content: capStreamContent(m.content ?? '') };
+        }
+        streamingMessages = next;
+      }
+
       // Cache current channel's messages before switching
       const newCache = new Map(state.channelMessages);
       newCache.set(state.channel, trimMessagesToMax(state.messages, MAX_UI_CHANNEL_MESSAGES));
@@ -680,7 +696,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         unreadChannels: newUnread,
         unreadCounts: newCounts,
         openThreadId: null,
-        streamingMessages: {},
+        streamingMessages,
       };
     });
   },
@@ -723,6 +739,26 @@ export const useChatStore = create<ChatState>((set, get) => {
         );
         newCache.set(channelName, updated);
         return { channelMessages: newCache };
+      }
+      const approvalId =
+        message.type === 'tool_approval'
+          ? (message.metadata?.approval_id as string | undefined)
+          : undefined;
+      if (approvalId) {
+        const existingIdx = cached.findIndex(
+          (m) => m.type === 'tool_approval' && m.metadata?.approval_id === approvalId
+        );
+        if (existingIdx !== -1) {
+          const updated = [...cached];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            content: message.content,
+            metadata: { ...updated[existingIdx].metadata, ...message.metadata },
+            timestamp: message.timestamp,
+          };
+          newCache.set(channelName, updated);
+          return { channelMessages: newCache };
+        }
       }
       const questionId =
         message.type === 'user_question' ? (message.metadata?.question_id as string | undefined) : undefined;
@@ -935,10 +971,10 @@ export const useChatStore = create<ChatState>((set, get) => {
   isChannelHeld: (channelName) => get().channelHeld.get(channelName) === true,
 
   stopAllStreamsForChannel: (channelName) => {
-    const { streamingMessages, channel: activeChannel, finalizeStream: fin } = get();
+    const { streamingMessages, finalizeStream: fin } = get();
     for (const [id, msg] of Object.entries(streamingMessages)) {
-      const ch = msg.channel || activeChannel;
-      if (ch === channelName) {
+      const ch = msg.channel;
+      if (ch === channelName || (!ch && get().channel === channelName)) {
         fin(id);
       }
     }
@@ -958,6 +994,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     if (pendingBatch) {
       streamPending.clear();
     }
+    const cacheTarget: { channelName: string; message: Message }[] = [];
     set((state) => {
       let streamingMessages = state.streamingMessages;
       if (pendingBatch) {
@@ -981,10 +1018,6 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (!streamed.content?.trim() && !reasoning.trim()) {
         return { ...state, streamingMessages: rest };
       }
-      const alreadyInMessages = state.messages.some((m) => m.id === streamId);
-      if (alreadyInMessages) {
-        return { ...state, streamingMessages: rest };
-      }
       const finalized: Message = {
         ...streamed,
         type: 'chat' as Message['type'],
@@ -995,11 +1028,24 @@ export const useChatStore = create<ChatState>((set, get) => {
             ? mergedMeta
             : streamed.metadata,
       };
+      const streamChannel = streamed.channel || state.channel;
+      // Off-channel finalize must not append into the active timeline.
+      if (streamChannel !== state.channel) {
+        cacheTarget.push({ channelName: streamChannel, message: finalized });
+        return { ...state, streamingMessages: rest };
+      }
+      const alreadyInMessages = state.messages.some((m) => m.id === streamId);
+      if (alreadyInMessages) {
+        return { ...state, streamingMessages: rest };
+      }
       return {
         streamingMessages: rest,
         messages: trimMessagesToMax([...state.messages, finalized], MAX_UI_CHANNEL_MESSAGES),
       };
     });
+    for (const target of cacheTarget) {
+      get().addMessageToCache(target.channelName, target.message);
+    }
   },
   
   // Provider switching actions

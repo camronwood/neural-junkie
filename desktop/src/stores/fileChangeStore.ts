@@ -1,10 +1,35 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import type { FileChange, FileChangeDiff } from '../types/protocol';
 import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
+import { useChatStore } from './chatStore';
 import { useFileExplorerStore } from './fileExplorerStore';
 import { useEditorStore } from './editorStore';
 import { refreshFileExplorerForPaths } from '../utils/refreshFileExplorer';
 import { cancelEditApplyStream } from '../utils/applyEditStreamDelta';
+import {
+  findLongestMatchingWorkspace,
+  normalizeAbsolutePath,
+} from '../utils/workspacePaths';
+
+function hubClient(): ChatAPI {
+  const addr = useChatStore.getState().serverAddr?.trim() || getHubBaseURL();
+  return new ChatAPI(addr);
+}
+
+function refreshWorkspaceForFilePath(filePath: string): Promise<void> {
+  const { workspaces } = useFileExplorerStore.getState();
+  const matchedWorkspace = findLongestMatchingWorkspace(filePath, workspaces);
+  if (!matchedWorkspace) return Promise.resolve();
+  const root = normalizeAbsolutePath(matchedWorkspace.path);
+  const abs = normalizeAbsolutePath(filePath);
+  const relPath = abs.startsWith(`${root}/`) ? abs.slice(root.length + 1) : filePath;
+  return refreshFileExplorerForPaths(matchedWorkspace.id, [relPath]).then(async () => {
+    if (relPath) {
+      await useEditorStore.getState().refreshTabFromDisk(matchedWorkspace.id, relPath);
+    }
+  });
+}
 
 interface FileChangeState {
   // State
@@ -46,7 +71,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      const api = new ChatAPI();
+      const api = hubClient();
       const changes = await api.listPendingFileChanges(userId);
       const pendingChanges = Array.isArray(changes) ? changes : [];
       set((state) => ({
@@ -76,7 +101,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     }));
     
     try {
-      const api = new ChatAPI();
+      const api = hubClient();
       const approvedChange = await api.approveFileChange(changeId, userId, newContent);
       
       // Remove the approved change from the list
@@ -93,20 +118,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
       const change = existingChange ?? approvedChange;
       const filePath = change?.file_path || change?.new_path || change?.old_path;
       if (filePath) {
-        const { workspaces } = useFileExplorerStore.getState();
-        const matchedWorkspace = workspaces.find(
-          (workspace) =>
-            filePath === workspace.path || filePath.startsWith(`${workspace.path}/`)
-        );
-        if (matchedWorkspace) {
-          const relPath = filePath.startsWith(`${matchedWorkspace.path}/`)
-            ? filePath.slice(matchedWorkspace.path.length + 1)
-            : filePath;
-          await refreshFileExplorerForPaths(matchedWorkspace.id, [relPath]);
-          if (relPath) {
-            await useEditorStore.getState().refreshTabFromDisk(matchedWorkspace.id, relPath);
-          }
-        }
+        await refreshWorkspaceForFilePath(filePath);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to approve file change';
@@ -126,7 +138,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
       error: null,
     }));
     try {
-      const api = new ChatAPI();
+      const api = hubClient();
       const request = await api.approveFileChangeRequest(requestId, userId);
       const memberIds = new Set((request.changes || []).map((c) => c.id));
       const state = get();
@@ -140,22 +152,10 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
         pendingChanges: updatedChanges,
         busyById: { ...current.busyById, [requestId]: false },
       }));
-      const { workspaces } = useFileExplorerStore.getState();
       for (const change of removed) {
         const filePath = change?.file_path || change?.new_path || change?.old_path;
         if (!filePath) continue;
-        const matchedWorkspace = workspaces.find(
-          (workspace) =>
-            filePath === workspace.path || filePath.startsWith(`${workspace.path}/`),
-        );
-        if (!matchedWorkspace) continue;
-        const relPath = filePath.startsWith(`${matchedWorkspace.path}/`)
-          ? filePath.slice(matchedWorkspace.path.length + 1)
-          : filePath;
-        await refreshFileExplorerForPaths(matchedWorkspace.id, [relPath]);
-        if (relPath) {
-          await useEditorStore.getState().refreshTabFromDisk(matchedWorkspace.id, relPath);
-        }
+        await refreshWorkspaceForFilePath(filePath);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to approve batch';
@@ -170,7 +170,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
 
   updateChangeContent: async (changeId: string, newContent: string) => {
     try {
-      const api = new ChatAPI();
+      const api = hubClient();
       const diffData = await api.updateFileChangeContent(changeId, newContent);
       set({ previewData: diffData, loading: false });
       set((state) => ({
@@ -197,7 +197,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     }));
     
     try {
-      const api = new ChatAPI();
+      const api = hubClient();
       const rejectedChange = await api.rejectFileChange(changeId, reason, userId);
       cancelEditApplyStream(changeId);
       
@@ -227,7 +227,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
       error: null,
     }));
     try {
-      const api = new ChatAPI();
+      const api = hubClient();
       await api.rejectFileChangeRequest(requestId, reason, userId);
       const members = get().pendingChanges.filter(
         (c) => c.metadata?.request_id === requestId,
@@ -261,7 +261,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     }));
     
     try {
-      const api = new ChatAPI();
+      const api = hubClient();
       const diffData = await api.getFileDiff(changeId);
       set((state) => ({
         previewData: diffData,

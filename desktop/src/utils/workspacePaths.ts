@@ -3,6 +3,51 @@ export function normalizeRelativePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
 }
 
+/** Normalize an absolute filesystem path for boundary comparisons. */
+export function normalizeAbsolutePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+}
+
+/**
+ * True when `absolutePath` is the workspace root or a descendant.
+ * Uses an exact match or `root + '/'` prefix so `/proj` does not match `/project/...`.
+ */
+export function pathIsUnderWorkspaceRoot(absolutePath: string, root: string): boolean {
+  if (!absolutePath || !root) return false;
+  const path = normalizeAbsolutePath(absolutePath);
+  const base = normalizeAbsolutePath(root);
+  return path === base || path.startsWith(`${base}/`);
+}
+
+/**
+ * Pick the longest matching workspace root for an absolute path.
+ * Prefer `/Users/me/project` over `/Users/me/proj` when both would otherwise collide.
+ */
+export function findLongestMatchingWorkspace<T extends { path: string }>(
+  absolutePath: string,
+  workspaces: readonly T[],
+): T | undefined {
+  let best: T | undefined;
+  let bestLen = -1;
+  for (const workspace of workspaces) {
+    if (!pathIsUnderWorkspaceRoot(absolutePath, workspace.path)) continue;
+    const len = normalizeAbsolutePath(workspace.path).length;
+    if (len > bestLen) {
+      best = workspace;
+      bestLen = len;
+    }
+  }
+  return best;
+}
+
+/** Exact path match, or suffix match at a `/` boundary (never bare endsWith). */
+export function pathsMatchExactOrBoundary(candidate: string, target: string): boolean {
+  if (!candidate || !target) return false;
+  const c = candidate.replace(/\\/g, '/');
+  const t = target.replace(/\\/g, '/');
+  return c === t || c.endsWith(`/${t}`) || t.endsWith(`/${c}`);
+}
+
 /** Parent directory of a relative path; empty string for root-level items. */
 export function parentRelativePath(path: string): string {
   const norm = normalizeRelativePath(path);

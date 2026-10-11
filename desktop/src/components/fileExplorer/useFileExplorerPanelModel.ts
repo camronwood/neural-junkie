@@ -4,6 +4,7 @@ import { useEditorStore } from '../../stores/editorStore';
 import { usePacksStore } from '../../stores/packsStore';
 import { openPackViewer } from '../../stores/packViewerHost';
 import { useToastStore } from '../../stores/toastStore';
+import { useChatStore } from '../../stores/chatStore';
 import { ChatAPI } from '../../api/chatAPI';
 import { getHubBaseURL } from '../../config/hubUrl';
 import type { FileNode } from '../../stores/fileExplorerStore';
@@ -178,7 +179,11 @@ export function useFileExplorerPanelModel({
   const setTerminalPanelOpen = useTerminalStore((s) => s.setPanelOpen);
   const alignTerminalCwd = useTerminalStore((s) => s.alignActiveTabCwd);
 
-  const [api] = useState(() => new ChatAPI(getHubBaseURL()));
+  const serverAddr = useChatStore((s) => s.serverAddr);
+  const api = useMemo(
+    () => new ChatAPI(serverAddr?.trim() || getHubBaseURL()),
+    [serverAddr],
+  );
 
   // Load workspaces on mount
   useEffect(() => {

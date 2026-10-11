@@ -289,7 +289,7 @@ export function createChatInboundSurfaces(deps: ChatInboundSurfacesDeps) {
             }
           : {
               label: `Open #${msgChannel}`,
-              onClick: () => useChatStore.getState().setChannel(msgChannel),
+              onClick: () => void deps.handleSwitchChannel(msgChannel),
             },
       });
     } else {

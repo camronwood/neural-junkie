@@ -1824,6 +1824,8 @@ export function channelTimelineAllowsEmptyContent(
   return (
     metadata?.change_proposal !== undefined ||
     type === 'file_change' ||
+    type === 'tool_approval' ||
+    type === 'user_question' ||
     type === 'agent_join' ||
     type === 'agent_leave' ||
     type === 'system_info' ||

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useFileChangeStore } from '../stores/fileChangeStore';
@@ -123,9 +123,13 @@ export function CollaborationPanel({
     }),
     shallow
   );
-  const pendingFileProposalCount = useFileChangeStore((s) => s.pendingChanges.length);
+  const pendingFileProposalCount = useFileChangeStore((s) =>
+    s.pendingChanges.filter(
+      (change) => !collaboration?.channel || change.channel === collaboration.channel,
+    ).length,
+  );
   const addToast = useToastStore((s) => s.addToast);
-  const [api] = useState(() => new ChatAPI(serverAddr));
+  const api = useMemo(() => new ChatAPI(serverAddr), [serverAddr]);
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [renaming, setRenaming] = useState(false);

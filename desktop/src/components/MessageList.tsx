@@ -25,6 +25,14 @@ type ListRow =
   | { kind: 'message'; message: MessageType }
   | { kind: 'stream'; message: MessageType };
 
+/** Streams belonging to the active channel (or lacking a channel stamp). */
+export function streamingMessagesForChannel(
+  streamingMessages: Record<string, MessageType>,
+  channel: string,
+): MessageType[] {
+  return Object.values(streamingMessages).filter((m) => !m.channel || m.channel === channel);
+}
+
 /** DOM scroller element for reliable scroll-to-bottom (Virtuoso height estimates can lag). */
 export const chatScrollerElRef: { current: HTMLDivElement | null } = { current: null };
 
@@ -207,7 +215,10 @@ export function MessageList({
     }
   }, [channel, channelMessages, normalizedSearchQuery, serverAddr]);
 
-  const activeStreams = useMemo(() => Object.values(streamingMessages), [streamingMessages]);
+  const activeStreams = useMemo(
+    () => streamingMessagesForChannel(streamingMessages, channel),
+    [streamingMessages, channel],
+  );
 
   const streamContentBytes = useMemo(() => {
     let n = 0;
