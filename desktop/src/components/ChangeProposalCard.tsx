@@ -12,6 +12,11 @@ import { useEditorStore } from '../stores/editorStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useToastStore } from '../stores/toastStore';
 import { getLanguageFromPath } from '../utils/editorLanguage';
+import {
+  findLongestMatchingWorkspace,
+  normalizeAbsolutePath,
+  pathsMatchExactOrBoundary,
+} from '../utils/workspacePaths';
 
 const statusLabel: Record<ChangeProposalStatus, string> = {
   pending: 'Needs review',
@@ -110,7 +115,8 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
   const isBatch =
     card.kind === 'file_change' &&
     (card.operation === 'batch' || Boolean(card.request_id) || (card.paths?.length ?? 0) > 1);
-  const requestId = card.request_id || (isBatch ? card.id : undefined);
+  /** Only a real hub request_id may call batch approve/reject APIs — never fall back to card.id. */
+  const requestId = card.request_id?.trim() || undefined;
   const canAct = status === 'pending';
   const errorText = card.error || fileError || gitError;
 
@@ -119,6 +125,20 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
       if (card.kind === 'file_change') {
         if (requestId) {
           await useFileChangeStore.getState().approveRequest(requestId);
+        } else if (isBatch && (card.paths?.length ?? 0) > 0) {
+          const pending = useFileChangeStore.getState().pendingChanges;
+          const members = pending.filter((c) =>
+            (card.paths || []).some((p) =>
+              pathsMatchExactOrBoundary(c.file_path || c.new_path || c.old_path || '', p),
+            ),
+          );
+          if (members.length === 0) {
+            await useFileChangeStore.getState().approveChange(card.id);
+          } else {
+            for (const member of members) {
+              await useFileChangeStore.getState().approveChange(member.id);
+            }
+          }
         } else {
           await useFileChangeStore.getState().approveChange(card.id);
         }
@@ -139,6 +159,20 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
       if (card.kind === 'file_change') {
         if (requestId) {
           await useFileChangeStore.getState().rejectRequest(requestId, reason || undefined);
+        } else if (isBatch && (card.paths?.length ?? 0) > 0) {
+          const pending = useFileChangeStore.getState().pendingChanges;
+          const members = pending.filter((c) =>
+            (card.paths || []).some((p) =>
+              pathsMatchExactOrBoundary(c.file_path || c.new_path || c.old_path || '', p),
+            ),
+          );
+          if (members.length === 0) {
+            await useFileChangeStore.getState().rejectChange(card.id, reason || undefined);
+          } else {
+            for (const member of members) {
+              await useFileChangeStore.getState().rejectChange(member.id, reason || undefined);
+            }
+          }
         } else {
           await useFileChangeStore.getState().rejectChange(card.id, reason || undefined);
         }
@@ -159,10 +193,17 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
     try {
       const pending = useFileChangeStore.getState().pendingChanges;
       let targetId = card.id;
-      if (requestId) {
+      if (requestId || (card.paths?.length ?? 0) > 0) {
         const member =
-          pending.find((c) => c.metadata?.request_id === requestId) ||
-          pending.find((c) => (card.paths || []).some((p) => (c.file_path || '').endsWith(p)));
+          (requestId
+            ? pending.find((c) => c.metadata?.request_id === requestId)
+            : undefined) ||
+          pending.find((c) => c.id === card.id) ||
+          pending.find((c) =>
+            (card.paths || []).some((p) =>
+              pathsMatchExactOrBoundary(c.file_path || c.new_path || c.old_path || '', p),
+            ),
+          );
         if (member) targetId = member.id;
       }
       await useFileChangeStore.getState().getFileDiff(targetId);
@@ -172,14 +213,14 @@ export function ChangeProposalMessageCard({ message }: { message: Message }) {
       const absolutePath = change.file_path || change.old_path || change.new_path || '';
       const explorer = useFileExplorerStore.getState();
       const workspace =
-        explorer.workspaces.find(
-          (item) => absolutePath === item.path || absolutePath.startsWith(`${item.path}/`),
-        ) ??
+        findLongestMatchingWorkspace(absolutePath, explorer.workspaces) ??
         explorer.workspaces.find((item) => item.id === explorer.activeWorkspaceId) ??
         explorer.workspaces[0];
       if (!workspace) throw new Error('Open the proposal workspace before reviewing this file.');
-      const relativePath = absolutePath.startsWith(`${workspace.path}/`)
-        ? absolutePath.slice(workspace.path.length + 1)
+      const root = normalizeAbsolutePath(workspace.path);
+      const normalizedAbs = normalizeAbsolutePath(absolutePath);
+      const relativePath = normalizedAbs.startsWith(`${root}/`)
+        ? normalizedAbs.slice(root.length + 1)
         : absolutePath;
       const content =
         change.operation === 'create'

@@ -244,6 +244,8 @@ func verificationFailureScore(output string, failed bool) int {
 
 // regressionHarnessAllowsDestructiveAutoApply reports whether local-model destructive
 // rewrites may auto-approve during live scenario/regression runs.
+// Exact harness channel names only — never HasSuffix("-scenarios") (user channels
+// ending in -scenarios must not loosen destructive auto-approve).
 func regressionHarnessAllowsDestructiveAutoApply(metadata map[string]interface{}) bool {
 	if truthyEnv("NJ_REGRESSION") {
 		return true
@@ -257,8 +259,9 @@ func regressionHarnessAllowsDestructiveAutoApply(metadata map[string]interface{}
 	switch ch {
 	case "implement-scenarios", "user-flow-scenarios", "parity-scenarios":
 		return true
+	default:
+		return false
 	}
-	return strings.HasSuffix(ch, "-scenarios")
 }
 
 func truthyEnv(name string) bool {

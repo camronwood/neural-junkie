@@ -191,4 +191,30 @@ describe('executingFileTasksAwaitingProposal', () => {
     );
     expect(tasks).toHaveLength(1);
   });
+
+  it('suppresses awaiting list when collab-scoped pending count is positive', () => {
+    const tasks = executingFileTasksAwaitingProposal(
+      collab({
+        phase: 'executing',
+        channel: 'collab-cid-1',
+        tasks: [
+          {
+            id: 't1',
+            title: 'Write report.md',
+            description: 'create report.md',
+            status: 'in_progress',
+          },
+        ],
+      }),
+      2
+    );
+    expect(tasks).toHaveLength(0);
+  });
+});
+
+describe('resolvePanelCollaboration last-good', () => {
+  it('falls back to active when byId is briefly missing the snapshot', () => {
+    const active = collab({ phase: 'executing', updated_at: '2026-01-01T00:00:00Z' });
+    expect(resolvePanelCollaboration(active, {})).toEqual(active);
+  });
 });

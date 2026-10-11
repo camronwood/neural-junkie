@@ -28,6 +28,7 @@ import {
   clearPendingSendThinking,
   NJ_PENDING_SEND_AGENT_ID,
 } from '../utils/pendingSendThinking';
+import { addToCappedSet } from '../utils/cappedSet';
 import { pendingUserQuestionMessages } from '../utils/pendingUserQuestions';
 import { handoffNavigationTarget } from '../utils/capabilityPolicy';
 import {
@@ -92,7 +93,7 @@ export function createChatInboundMessageHandler(deps: ChatInboundMessageDeps) {
       ) {
         const target = handoffNavigationTarget(message.metadata);
         if (target) {
-          deps.handledHandoffMessagesRef.current.add(message.id);
+          addToCappedSet(deps.handledHandoffMessagesRef.current, message.id);
           const channels = await deps.loadChannels();
           if (
             Array.isArray(channels) &&
@@ -298,7 +299,7 @@ export function createChatInboundMessageHandler(deps: ChatInboundMessageDeps) {
         const { agentName, requestedBy } = participantReq;
         const key = `${participantReq.collabID}:${participantReq.agentID}:${message.id}`;
         if (!deps.handledParticipantRequestPromptsRef.current.has(key)) {
-          deps.handledParticipantRequestPromptsRef.current.add(key);
+          addToCappedSet(deps.handledParticipantRequestPromptsRef.current, key);
           const collabData = message.metadata?.collaboration_data as Collaboration | undefined;
           if (collabData?.id) {
             deps.mergeCollaborationSnapshot(collabData);
@@ -430,7 +431,7 @@ export function createChatInboundMessageHandler(deps: ChatInboundMessageDeps) {
           isRepoAgentWorkspaceAction(clientAction) &&
           !deps.handledRepoWorkspaceActionsRef.current.has(message.id)
         ) {
-          deps.handledRepoWorkspaceActionsRef.current.add(message.id);
+          addToCappedSet(deps.handledRepoWorkspaceActionsRef.current, message.id);
           void ensureRepoAgentWorkspace(clientAction.path, {
             preferredName: clientAction.name,
           }).then((workspaceId) => {
@@ -446,7 +447,7 @@ export function createChatInboundMessageHandler(deps: ChatInboundMessageDeps) {
           clientAction.type === 'learning_proposal' &&
           !deps.handledLearningProposalsRef.current.has(message.id)
         ) {
-          deps.handledLearningProposalsRef.current.add(message.id);
+          addToCappedSet(deps.handledLearningProposalsRef.current, message.id);
           deps.setLearningProposal(clientAction as LearningProposalAction);
           deps.setLearningProposalOpen(true);
         }

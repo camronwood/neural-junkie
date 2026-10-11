@@ -128,3 +128,94 @@ export async function fetchInstalledOllamaModels(): Promise<string[]> {
   const data = (await res.json()) as { models?: string[] };
   return Array.isArray(data.models) ? data.models.filter((m) => typeof m === 'string' && m.trim()) : [];
 }
+
+export type ArenaBenchmarkSuite = {
+  id: string;
+  title: string;
+  description?: string;
+  challenges: string[];
+};
+
+export type ArenaBenchmarkSuitesResponse = {
+  default_suite: string;
+  suites: ArenaBenchmarkSuite[];
+  source?: string;
+};
+
+export type ArenaBenchmarkModelResult = {
+  model: string;
+  status: string;
+  logic_correct?: number;
+  logic_total?: number;
+  connect4_completed?: boolean;
+  wins?: number;
+  losses?: number;
+  draws?: number;
+  illegal_moves?: number;
+  pass_rate?: number;
+  capability_passed?: boolean;
+  error?: string;
+  lines?: string[];
+};
+
+export type ArenaBenchmarkRank = {
+  rank: number;
+  model: string;
+  pass_rate: number;
+  logic_correct?: number;
+  logic_total?: number;
+  connect4_completed?: boolean;
+  capability_passed?: boolean;
+  error?: string;
+};
+
+export type ArenaBenchmarkJob = {
+  id: string;
+  status: string;
+  suite: string;
+  suite_title?: string;
+  challenges?: string[];
+  models: string[];
+  provider_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  current_model?: string;
+  current_challenge?: string;
+  model_index?: number;
+  challenge_index?: number;
+  results?: ArenaBenchmarkModelResult[];
+  ranking?: ArenaBenchmarkRank[];
+  error?: string;
+};
+
+export async function arenaBenchmarkSuites() {
+  return arenaFetch<ArenaBenchmarkSuitesResponse>('/api/arena/benchmark/suites');
+}
+
+export async function arenaBenchmarkStart(body: {
+  models: string[];
+  suite?: string;
+  provider_id?: string;
+}) {
+  return arenaFetch<ArenaBenchmarkJob>('/api/arena/benchmark/start', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function arenaBenchmarkGet(id: string) {
+  return arenaFetch<ArenaBenchmarkJob>(`/api/arena/benchmark/${encodeURIComponent(id)}`);
+}
+
+export async function arenaBenchmarkCancel(id: string) {
+  return arenaFetch<ArenaBenchmarkJob>(`/api/arena/benchmark/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function arenaBenchmarkHistory(limit = 10) {
+  return arenaFetch<{ runs: ArenaBenchmarkJob[] }>(
+    `/api/arena/benchmark/history?limit=${encodeURIComponent(String(limit))}`,
+  );
+}

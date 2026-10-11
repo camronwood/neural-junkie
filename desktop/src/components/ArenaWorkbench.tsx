@@ -3,6 +3,7 @@ import { ChessBoard } from './arena/ChessBoard';
 import { ConnectFourBoard } from './arena/ConnectFourBoard';
 import { LogicPuzzlePanel } from './arena/LogicPuzzlePanel';
 import { ArenaPlayLog, stepMetaToLogEntry, type ArenaPlayLogEntry } from './arena/ArenaPlayLog';
+import { ArenaBenchmarkPanel } from './arena/ArenaBenchmarkPanel';
 import {
   arenaCreateSession,
   arenaGetSession,
@@ -18,6 +19,7 @@ import {
 import { useToastStore } from '../stores/toastStore';
 import './arena/arenaRetro.css';
 
+type WorkbenchMode = 'match' | 'benchmark';
 type ChallengeId = 'chess' | 'connect4' | 'logic';
 type LogicPuzzleOption = {
   id: string;
@@ -234,6 +236,7 @@ function stateRecord(session: ArenaSession | null): Record<string, unknown> {
 
 export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: _tabId, showHeader = true }: ArenaWorkbenchProps) {
   const { addToast } = useToastStore();
+  const [workbenchMode, setWorkbenchMode] = useState<WorkbenchMode>('match');
   const [challenge, setChallenge] = useState<ChallengeId>('connect4');
   const [whiteModel, setWhiteModel] = useState<string>(HUMAN_PLAYER);
   const [blackModel, setBlackModel] = useState<string>(ARENA_DEFAULT_MODEL);
@@ -630,6 +633,35 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
       )}
 
       <div className="arena-retro-body flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        <div className="arena-retro-mode-tabs" role="tablist" aria-label="Arena workbench mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workbenchMode === 'match'}
+            className={`arena-retro-mode-tab ${workbenchMode === 'match' ? 'active' : ''}`}
+            onClick={() => setWorkbenchMode('match')}
+          >
+            Match
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workbenchMode === 'benchmark'}
+            className={`arena-retro-mode-tab ${workbenchMode === 'benchmark' ? 'active' : ''}`}
+            onClick={() => setWorkbenchMode('benchmark')}
+          >
+            Benchmark
+          </button>
+        </div>
+
+        {workbenchMode === 'benchmark' ? (
+          <ArenaBenchmarkPanel
+            providerId={providerId}
+            onProviderChange={setProviderId}
+            onLeaderboardRefresh={() => void refreshLeaderboard()}
+          />
+        ) : (
+          <>
         <div className="arena-retro-mode-tabs" role="tablist" aria-label="Challenge mode">
           {CHALLENGE_MODES.map((mode) => (
             <button
@@ -956,6 +988,8 @@ export function ArenaWorkbench({ workspaceId: _workspaceId, sessionPath, tabId: 
             </ul>
           </aside>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

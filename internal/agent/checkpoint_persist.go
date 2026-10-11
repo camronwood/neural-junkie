@@ -2,6 +2,7 @@ package agent
 
 import (
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/camronwood/neural-junkie/internal/agent/checkpoint"
@@ -24,6 +25,9 @@ func implCheckpointStore() *checkpoint.Store {
 	return checkpointStore
 }
 
+// implCheckpointID keys checkpoints by turn/message (or collab task), never by
+// channel alone — channel-only keys leaked FilesChanged / repair state across
+// unrelated turns on the same channel.
 func implCheckpointID(msg *protocol.Message) string {
 	if msg == nil {
 		return ""
@@ -33,23 +37,38 @@ func implCheckpointID(msg *protocol.Message) string {
 	if collabID != "" && taskID != "" {
 		return collabID + ":" + taskID
 	}
-	id := msg.Channel
-	if msg.ThreadID != "" {
-		id = msg.Channel + ":" + msg.ThreadID
+	turnID := strings.TrimSpace(msg.ID)
+	if turnID == "" {
+		return ""
 	}
-	return id
+	base := strings.TrimSpace(msg.Channel)
+	if msg.ThreadID != "" {
+		base = base + ":" + msg.ThreadID
+	}
+	if base == "" {
+		return "turn:" + turnID
+	}
+	return base + ":turn:" + turnID
 }
 
 func restoreImplSessionFromCheckpoint(msg *protocol.Message, state *ImplementationSessionState) {
 	if msg == nil || state == nil || !agentRuntimeV2ForMessage(msg) {
 		return
 	}
+	id := implCheckpointID(msg)
+	if id == "" {
+		return
+	}
 	st := implCheckpointStore()
 	if st == nil {
 		return
 	}
-	ck, err := st.LoadLatest(implCheckpointID(msg))
+	ck, err := st.Load(id)
 	if err != nil || ck == nil || ck.Payload == nil {
+		return
+	}
+	// Refuse restore when payload turn id does not match this message.
+	if turn, _ := ck.Payload["turn_message_id"].(string); turn != "" && turn != strings.TrimSpace(msg.ID) {
 		return
 	}
 	if v, ok := ck.Payload["edit_round"].(float64); ok {
@@ -82,11 +101,19 @@ func persistImplSessionCheckpoint(msg *protocol.Message, state *ImplementationSe
 	if st == nil {
 		return
 	}
+	id := implCheckpointID(msg)
+	if id == "" {
+		return
+	}
+	// Clear on complete so the next turn cannot inherit stale state.
+	if step < 0 {
+		_ = st.Delete(id)
+		return
+	}
 	files := make([]interface{}, len(state.FilesChanged))
 	for i, f := range state.FilesChanged {
 		files[i] = f
 	}
-	id := implCheckpointID(msg)
 	_ = st.Save(checkpoint.State{
 		ID:       id,
 		Channel:  msg.Channel,
@@ -101,7 +128,21 @@ func persistImplSessionCheckpoint(msg *protocol.Message, state *ImplementationSe
 			"verify_output":    state.VerifyOutput,
 			"collab_id":        msg.GetCollaborationID(),
 			"task_id":          msg.GetTaskID(),
+			"turn_message_id":  strings.TrimSpace(msg.ID),
 			"agent_runtime_v2": true,
 		},
 	})
+}
+
+func clearImplSessionCheckpoint(msg *protocol.Message) {
+	if msg == nil || !agentRuntimeV2ForMessage(msg) {
+		return
+	}
+	st := implCheckpointStore()
+	if st == nil {
+		return
+	}
+	if id := implCheckpointID(msg); id != "" {
+		_ = st.Delete(id)
+	}
 }

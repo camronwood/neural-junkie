@@ -260,3 +260,37 @@ func TestStampedEditDecisionDrivesAssistantImplGateWithoutPhrases(t *testing.T) 
 	}
 }
 
+func TestAssistantImplGate_trustsImplementationSessionAndCapabilities(t *testing.T) {
+	a := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-user-assistant",
+		protocol.AgentInfo{ID: "user", Type: "human"},
+		"please update the greeting copy in README",
+	)
+	msg.Metadata = map[string]interface{}{
+		protocol.TurnMetaComposerMode:         "agent",
+		protocol.IdeMetaImplementationSession: true,
+		"editor_mode":                         "agent",
+		"workspace_context":                   map[string]interface{}{"workspace_path": "/tmp/project"},
+	}
+	// No TurnDecision and no phrase stubs — structural session + capabilities must allow.
+	if !assistantAllowsImplementationSession(a, msg) {
+		t.Fatal("ImplementationSession()+capabilities must allow Assistant without deprecated phrase stubs")
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("expected implementation session for Assistant with structural session flags")
+	}
+
+	// Failure: session flag alone without CanRunImplSession (ask mode) must not allow.
+	ask := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-user-assistant",
+		protocol.AgentInfo{ID: "user", Type: "human"}, "what should I change?")
+	ask.Metadata = map[string]interface{}{
+		"editor_mode":                         "ask",
+		protocol.IdeMetaImplementationSession: true,
+	}
+	if assistantAllowsImplementationSession(a, ask) {
+		t.Fatal("ask mode must not allow Assistant impl via session metadata alone")
+	}
+}
+

@@ -184,8 +184,15 @@ func TestRegressionHarnessAllowsDestructiveAutoApply(t *testing.T) {
 	if !regressionHarnessAllowsDestructiveAutoApply(map[string]interface{}{"channel": "user-flow-scenarios"}) {
 		t.Fatal("user-flow-scenarios should allow destructive auto-apply")
 	}
-	if !regressionHarnessAllowsDestructiveAutoApply(map[string]interface{}{"channel": "collab-scenarios"}) {
-		t.Fatal("-scenarios suffix channels should allow destructive auto-apply")
+	if !regressionHarnessAllowsDestructiveAutoApply(map[string]interface{}{"channel": "implement-scenarios"}) {
+		t.Fatal("implement-scenarios should allow destructive auto-apply")
+	}
+	// Exact allowlist only — user/custom channels ending in -scenarios must not loosen policy.
+	if regressionHarnessAllowsDestructiveAutoApply(map[string]interface{}{"channel": "my-custom-scenarios"}) {
+		t.Fatal("*-scenarios suffix must not allow destructive auto-apply")
+	}
+	if regressionHarnessAllowsDestructiveAutoApply(map[string]interface{}{"channel": "collab-scenarios"}) {
+		t.Fatal("collab-scenarios is not on the destructive auto-approve allowlist")
 	}
 	t.Setenv("NJ_REGRESSION", "1")
 	if !regressionHarnessAllowsDestructiveAutoApply(nil) {

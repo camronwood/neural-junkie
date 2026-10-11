@@ -17,7 +17,7 @@
         "scope": [
           "$APPDATA/**",
           "$APPLOCALDATA/**",
-          "$HOME/**",
+          "$HOME/.neural-junkie/**",
           "$DOCUMENT/**",
           "$DOWNLOAD/**",
           "$DESKTOP/**",

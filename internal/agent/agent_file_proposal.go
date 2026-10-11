@@ -36,10 +36,31 @@ var userNamedFileStemRegex = regexp.MustCompile(`(?i)\b(?:call|named|called|name
 
 var looseOutputFileRegex = regexp.MustCompile(`\b([a-zA-Z0-9][a-zA-Z0-9._\-]*\.(?:txt|md|go|ts|tsx|jsx|js|mjs|cjs|json|yaml|yml|rs|py|html|css|sh|tab))\b`)
 
-var absolutePathFileChangeRE = regexp.MustCompile(`(?m)\[FILE_CHANGE[^\]]*path="/Users/[^"\]]*"[^\]]*\]`)
+// absolutePathFileChangeRE matches FILE_CHANGE openers that embed OS absolute paths
+// (Unix `/…` or Windows `C:\…` / `C:/…`), not just macOS `/Users/`.
+var absolutePathFileChangeRE = regexp.MustCompile(`(?mi)\[FILE_CHANGE[^\]]*path="(?:[A-Za-z]:[\\/]|/)[^"]*"[^\]]*\]`)
 
 func sanitizeAbsolutePathFileChangeFromResponse(response string) string {
 	return strings.TrimSpace(absolutePathFileChangeRE.ReplaceAllString(response, ""))
+}
+
+// isOSAbsolutePath reports Unix or Windows absolute paths (OS-agnostic).
+func isOSAbsolutePath(p string) bool {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return false
+	}
+	if filepath.IsAbs(p) {
+		return true
+	}
+	// filepath.IsAbs is OS-specific; also catch the other platform's form.
+	if strings.HasPrefix(p, "/") {
+		return true
+	}
+	if len(p) >= 3 && ((p[0] >= 'A' && p[0] <= 'Z') || (p[0] >= 'a' && p[0] <= 'z')) && p[1] == ':' && (p[2] == '\\' || p[2] == '/') {
+		return true
+	}
+	return false
 }
 
 // stripFileChangeBlocksFromResponse removes [FILE_CHANGE] blocks from model text (ask mode, malformed proposals).
@@ -134,7 +155,9 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 		return stripFileChangeBlocksFromResponse(response), false, nil
 	}
 
-	if looseFileChangeParseEnabled(sourceMsg) {
+	// Outside ask mode: submit ALL canonical FILE_CHANGE blocks (not only the first).
+	// Loose/collab parsers remain available via the same multi-block path.
+	if fileChangeBlockRegex.MatchString(response) || looseFileChangeParseEnabled(sourceMsg) {
 		if cleaned, ok, err := a.submitAllFileChangesFromResponse(ctx, response, channel, sourceMsg); ok || err != nil {
 			return cleaned, ok, err
 		}

@@ -120,12 +120,17 @@ func handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := chatHub.RegisterAgent(&agent); err != nil {
+	agentToken, err := chatHub.RegisterAgentWithToken(&agent)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "agent_id": agent.ID})
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":      "ok",
+		"agent_id":    agent.ID,
+		"agent_token": agentToken, // required for GET /api/agents/ws
+	})
 }
 
 func handleCachedAgents(w http.ResponseWriter, r *http.Request) {

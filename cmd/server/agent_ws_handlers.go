@@ -5,18 +5,31 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 // handleAgentWebSocket pushes channel messages to a standalone agent over one connection.
-// GET /api/agents/ws?agent_id=<uuid>
+//
+// GET /api/agents/ws?agent_id=<uuid>&agent_token=<secret>
+//
+// Auth (either is sufficient):
+//  1. agent_token query param matching the secret issued by POST /api/agents (RegisterAgentWithToken)
+//  2. Valid X-NJ-Session / nj_session for an admin or member, and the agent_id exists
+//
+// Loopback alone is not enough: without a token or session, the upgrade is rejected (401).
 func handleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
-	agentID := r.URL.Query().Get("agent_id")
+	agentID := strings.TrimSpace(r.URL.Query().Get("agent_id"))
 	if agentID == "" {
 		http.Error(w, "agent_id required", http.StatusBadRequest)
+		return
+	}
+
+	if !authorizeAgentWebSocket(w, r, agentID) {
 		return
 	}
 
@@ -198,4 +211,33 @@ func handleAgentWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+}
+
+// authorizeAgentWebSocket enforces per-agent secret or owning session (admin/member).
+func authorizeAgentWebSocket(w http.ResponseWriter, r *http.Request, agentID string) bool {
+	if chatHub == nil {
+		http.Error(w, "hub unavailable", http.StatusInternalServerError)
+		return false
+	}
+	if _, err := chatHub.GetAgent(agentID); err != nil {
+		http.Error(w, "agent not found", http.StatusNotFound)
+		return false
+	}
+
+	token := strings.TrimSpace(r.URL.Query().Get("agent_token"))
+	if token == "" {
+		token = strings.TrimSpace(r.Header.Get("X-NJ-Agent-Token"))
+	}
+	if token != "" && chatHub.ValidateAgentWSToken(agentID, token) {
+		return true
+	}
+
+	sess := hub.SessionFromRequest(r, hubSessions)
+	if sess != nil && hub.RoleCanMutate(sess.Role) {
+		// Admin/member session may open a WS for any registered agent (desktop/ops).
+		return true
+	}
+
+	http.Error(w, "Unauthorized: agent_token or X-NJ-Session (admin/member) required", http.StatusUnauthorized)
+	return false
 }

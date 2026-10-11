@@ -40,6 +40,38 @@ func (s *ImplementationSessionState) diagnoseGateBlocksProposals() bool {
 	return true
 }
 
+// suppressProposalsSince rolls back in-session proposal tracking to a snapshot
+// taken before a diagnose-gate violation (tools may have already incremented counts).
+func (s *ImplementationSessionState) suppressProposalsSince(proposedBefore, registeredBefore, filesBefore int) {
+	if s == nil {
+		return
+	}
+	if s.ProposedCount > proposedBefore {
+		s.ProposedCount = proposedBefore
+	}
+	if registeredBefore < 0 {
+		registeredBefore = 0
+	}
+	if registeredBefore < len(s.RegisteredFiles) {
+		s.RegisteredFiles = append([]string(nil), s.RegisteredFiles[:registeredBefore]...)
+	}
+	if filesBefore < 0 {
+		filesBefore = 0
+	}
+	if filesBefore < len(s.FilesChanged) {
+		s.FilesChanged = append([]string(nil), s.FilesChanged[:filesBefore]...)
+	}
+}
+
+// sessionProposedAny unifies the final "did we propose?" predicate used by
+// implementation session outcomes.
+func (s *ImplementationSessionState) sessionProposedAny() bool {
+	if s == nil {
+		return false
+	}
+	return s.hasRegisteredProposals() || s.ProposedCount > 0 || len(s.FilesChanged) > 0
+}
+
 func responseContainsDiagnosis(response string) bool {
 	text := strings.TrimSpace(response)
 	if text == "" {

@@ -380,12 +380,16 @@ async fn execute_command(
 
 #[tauri::command]
 async fn open_browser_window(url: String, app_handle: tauri::AppHandle) -> Result<(), String> {
-    // Never render arbitrary http(s) pages inside Neural Junkie.
+    // Never render arbitrary pages inside Neural Junkie.
     // In-app HTML preview belongs to the web-browser pack workbench only.
-    // Always hand off to the OS default browser.
+    // Always hand off to the OS default browser — http(s) only.
     let trimmed = url.trim();
     if trimmed.is_empty() {
         return Err("empty URL".to_string());
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    if !(lower.starts_with("http://") || lower.starts_with("https://")) {
+        return Err("only http(s) URLs are allowed".to_string());
     }
     app_handle
         .opener()
@@ -1902,6 +1906,8 @@ fn machine_credential_key() -> [u8; 32] {
 }
 
 /// Encrypt a JSON credential blob for storage in Tauri plugin-store (machine-bound).
+/// Phase 5 deferral: OS keychain (e.g. keyring crate) is not wired yet — keep AES-GCM
+/// machine-bound encryption; migrate to keychain prefer+fallback in a follow-up PR.
 #[tauri::command]
 fn encrypt_credential_blob(plaintext: String) -> Result<String, String> {
     use aes_gcm::aead::{Aead, KeyInit};

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -146,40 +147,39 @@ func implementationSessionRoundFromContext(ctx context.Context) int {
 }
 
 // assistantAllowsImplementationSession gates the personal Assistant out of the file-edit
-// implementation loop unless the user clearly wants code changes or export-to-file work.
-// Composer export/implementation_session metadata alone is not enough (e.g. travel planning in a DM).
+// implementation loop unless a stamped edit/debug action or agent-mode
+// ImplementationSession()+capabilities authorize it. Prefer those structural signals over
+// deprecated always-false phrase stubs. Ambient export/session metadata alone is not enough
+// (e.g. travel planning in a DM).
 func assistantAllowsImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if msg == nil {
 		return false
 	}
+	caps := protocol.ResolveTurnCapabilities(msg)
+	agentSessionOK := msg.ImplementationSession() && caps.CanRunImplSession &&
+		!msg.IdeEditorModeIsAsk() && !msg.IdeEditorModeIsPlan() &&
+		(msg.IdeEditorModeIsAgent() || caps.ComposerMode == "agent")
 	if decision, ok := protocol.ExtractTurnDecision(msg); ok {
 		switch decision.Action {
 		case semantic.ActionDebug, semantic.ActionEdit, semantic.ActionContinue, semantic.ActionRun:
 			return true
 		default:
-			return false
+			return agentSessionOK
 		}
+	}
+	if agentSessionOK {
+		return true
 	}
 	if ConversationModeFromMessage(msg) == ConversationModeChat {
 		if isAdvisoryImplementationQuestion(msg.Content) {
 			return false
 		}
 	}
-	if userRequestsImplementation(msg.Content) || userRequestsFileExport(msg.Content) {
-		return true
-	}
 	if userReferencesPriorAssistantContent(msg.Content) {
 		return true
 	}
 	if msg.IdeEditorModeIsExport() && assistantExportContinuationRE.MatchString(msg.Content) {
 		return true
-	}
-	history := a.channelHistorySafe(msg.Channel)
-	if channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID) {
-		return userAffirmsPendingImplementation(msg.Content) ||
-			userRequestsImplementation(msg.Content) ||
-			userRequestsImplementationStatusCheck(msg.Content) ||
-			userRequestsFileExport(msg.Content)
 	}
 	return false
 }
@@ -497,11 +497,18 @@ fileCycles:
 				a.sendThinkingActivity(msg, protocol.ThinkingActivityReasoning, "planning fix from build output")
 			}
 
+			proposalsBefore := state.ProposedCount
+			registeredBefore := len(state.RegisteredFiles)
+			filesBefore := len(state.FilesChanged)
+
 			response, err := a.generateImplementationRound(toolCtx, msg, eff)
 			if err != nil {
 				if sessionCtx.Err() != nil {
+					proposedAny = state.sessionProposedAny()
 					summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
 					outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
+					stampImplSessionAbortOutcome(outcome, sessionCtx, ctx)
+					clearImplSessionCheckpoint(msg)
 					return summary, streamMsgID, proposedAny, state.FilesChanged, outcome, nil
 				}
 				outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
@@ -516,7 +523,15 @@ fileCycles:
 					continue
 				}
 			}
-			if state.diagnoseGateBlocksProposals() && (fileChangeBlockRegex.MatchString(response) || strings.Contains(response, `"path"`)) {
+
+			// Gate BEFORE submit. Tools may already have proposed during the round —
+			// suppress/rollback those and never fall through on the last round.
+			toolProposedEarly := state.ProposedCount > proposalsBefore
+			proposalIntent := toolProposedEarly ||
+				fileChangeBlockRegex.MatchString(response) ||
+				strings.Contains(response, `"path"`)
+			if state.diagnoseGateBlocksProposals() && proposalIntent {
+				state.suppressProposalsSince(proposalsBefore, registeredBefore, filesBefore)
 				state.recordRepairFailureKind(RepairFailureGrounding)
 				if state.recordProposalError(fmt.Errorf("grounding required: complete diagnosis before proposing edits")) {
 					lastResponse = ""
@@ -524,12 +539,14 @@ fileCycles:
 					break fileCycles
 				}
 				repairNote = formatDiagnoseRequiredRepairNote(state)
+				lastResponse = stripFileChangeBlocksFromResponse(response)
+				// No fallthrough on last round — do not submit proposals.
 				if round < maxEditRounds-1 {
 					continue
 				}
+				continue
 			}
 
-			proposalsBefore := state.ProposedCount
 			cleaned, fileChangeProposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
 			toolProposed := state.ProposedCount > proposalsBefore
 
@@ -558,13 +575,13 @@ fileCycles:
 				state.clearProposalError()
 			}
 
+			// Defend against races: if diagnose gate re-blocks after submit, suppress.
 			if state.diagnoseGateBlocksProposals() && (toolProposed || fileChangeProposed) {
-				state.ProposedCount = proposalsBefore
+				state.suppressProposalsSince(proposalsBefore, registeredBefore, filesBefore)
 				state.recordRepairFailureKind(RepairFailureGrounding)
 				repairNote = formatDiagnoseRequiredRepairNote(state)
-				if round < maxEditRounds-1 {
-					continue
-				}
+				lastResponse = stripFileChangeBlocksFromResponse(cleaned)
+				continue
 			}
 
 			if toolProposed || fileChangeProposed {
@@ -616,7 +633,7 @@ fileCycles:
 			}
 		}
 
-		if !cycleProposed && strings.TrimSpace(lastResponse) != "" {
+		if !cycleProposed && strings.TrimSpace(lastResponse) != "" && !state.diagnoseGateBlocksProposals() {
 			fallbackCtx := withImplementationSessionState(sessionCtx, state)
 			cleaned, ok, ferr := a.maybeSubmitFileChangeFromResponse(fallbackCtx, lastResponse, msg.Channel, msg)
 			if ferr != nil {
@@ -690,22 +707,29 @@ fileCycles:
 							a.observeImplementationSessionToolStep(roundCtx, msg, state, streamMsgID, ev)
 						})
 						toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
+						repairPropBefore := state.ProposedCount
+						repairRegBefore := len(state.RegisteredFiles)
+						repairFilesBefore := len(state.FilesChanged)
 						response, err := a.generateImplementationRound(toolCtx, msg, eff)
 						if err == nil {
-							proposalsBefore := state.ProposedCount
-							cleaned, proposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
-							if propErr != nil {
-								log.Printf("[%s] impl session repair proposal error: %v", a.Info.Name, propErr)
-							}
-							if proposed || state.ProposedCount > proposalsBefore {
-								proposedAny = true
-								lastResponse = cleaned
-								verifyOut2, verifyFailed2, verifySkipped2 := a.runVerifyForState(sessionCtx, msg, state)
-								state.VerifyOutput = verifyOut2
-								state.VerifyFailed = verifyFailed2
-								state.VerifySkipped = verifySkipped2
+							if state.diagnoseGateBlocksProposals() {
+								state.suppressProposalsSince(repairPropBefore, repairRegBefore, repairFilesBefore)
+								lastResponse = stripFileChangeBlocksFromResponse(response)
 							} else {
-								lastResponse = response
+								cleaned, proposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
+								if propErr != nil {
+									log.Printf("[%s] impl session repair proposal error: %v", a.Info.Name, propErr)
+								}
+								if proposed || state.ProposedCount > repairPropBefore {
+									proposedAny = true
+									lastResponse = cleaned
+									verifyOut2, verifyFailed2, verifySkipped2 := a.runVerifyForState(sessionCtx, msg, state)
+									state.VerifyOutput = verifyOut2
+									state.VerifyFailed = verifyFailed2
+									state.VerifySkipped = verifySkipped2
+								} else {
+									lastResponse = response
+								}
 							}
 						}
 					}
@@ -734,12 +758,15 @@ fileCycles:
 		break
 	} // fileCycle
 
-	persistImplSessionCheckpoint(msg, state, -1)
+	persistImplSessionCheckpoint(msg, state, -1) // clears turn-scoped checkpoint on complete
 	state.rollbackFailedAutoApplySession(wsPath)
 
-	proposedAny = state.hasRegisteredProposals()
+	proposedAny = state.sessionProposedAny()
 	summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
 	outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
+	if sessionCtx.Err() != nil {
+		stampImplSessionAbortOutcome(outcome, sessionCtx, ctx)
+	}
 	if ua, ok := eff.(ai.UsageAware); ok {
 		if usageMap := ai.MapUsage(ua.TakeSessionUsage()); usageMap != nil {
 			outcome["inference_usage"] = usageMap
@@ -758,6 +785,32 @@ fileCycles:
 		}
 	}
 	return summary, streamMsgID, proposedAny, state.RegisteredFiles, outcome, nil
+}
+
+// stampImplSessionAbortOutcome marks timed_out / cancelled instead of a success-shaped silent exit.
+func stampImplSessionAbortOutcome(outcome map[string]interface{}, sessionCtx, parentCtx context.Context) {
+	if outcome == nil {
+		return
+	}
+	err := context.Canceled
+	if sessionCtx != nil && sessionCtx.Err() != nil {
+		err = sessionCtx.Err()
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome["outcome"] = "timed_out"
+	case errors.Is(err, context.Canceled):
+		// Parent cancel (user/interject) vs session-only cancel.
+		if parentCtx != nil && parentCtx.Err() != nil {
+			outcome["outcome"] = "cancelled"
+		} else if sessionCtx != nil && errors.Is(sessionCtx.Err(), context.DeadlineExceeded) {
+			outcome["outcome"] = "timed_out"
+		} else {
+			outcome["outcome"] = "cancelled"
+		}
+	default:
+		outcome["outcome"] = "cancelled"
+	}
 }
 
 func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *ImplementationSessionState, proposed bool) map[string]interface{} {

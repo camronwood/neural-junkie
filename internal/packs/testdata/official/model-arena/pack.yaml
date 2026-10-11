@@ -1,5 +1,5 @@
 id: model-arena
-version: "1.0.0"
+version: "1.1.0"
 title: Model Arena
 description: Compare models on chess, Connect Four, and logic puzzles with verifiable scoring.
 layout_profile: team
@@ -35,7 +35,8 @@ capability_defs:
   arena-canvas:
     kind: artifact-renderer
     renderer: nj.arena
-    media_types: [application/vnd.neural-junkie.arena+json]
+    media_types:
+      - application/vnd.neural-junkie.arena+json
     match_glob: "**/*.nj-arena.json"
     renderer_api_version: 1
     schema_version_min: 1
@@ -68,3 +69,4 @@ settings_overlay:
 assets:
   workspace_guide: assets/WORKSPACE.md
   runbooks: assets/runbooks/
+  eval_probes: assets/eval/arena.yaml

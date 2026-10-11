@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"sort"
 	"strings"
@@ -586,6 +587,12 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 	}
 	if proposalErr != nil {
 		log.Printf("[%s] Failed to submit file change proposal from response: %v", a.Info.Name, proposalErr)
+		errLine := fmt.Sprintf("I couldn't submit a file change proposal: %v", proposalErr)
+		if strings.TrimSpace(response) == "" {
+			response = errLine
+		} else {
+			response += "\n\n" + errLine
+		}
 	}
 	if proposedFileChange && shouldAppendFileChangeApprovalPrompt(msg) {
 		if strings.TrimSpace(response) == "" {
@@ -621,6 +628,12 @@ func (st *turnState) stepPostProcess(ctx context.Context) error {
 	responseMsg := protocol.NewMessage(responseType, msg.Channel, a.Info, response)
 	if st.streamMsgID != "" {
 		responseMsg.ID = st.streamMsgID
+	}
+	if proposalErr != nil {
+		if responseMsg.Metadata == nil {
+			responseMsg.Metadata = make(map[string]interface{})
+		}
+		responseMsg.Metadata["file_change_proposal_error"] = proposalErr.Error()
 	}
 	if strings.TrimSpace(st.reasoningText) != "" {
 		if responseMsg.Metadata == nil {

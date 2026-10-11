@@ -37,7 +37,12 @@ type AssistantAgent struct {
 	processedEmailsMutex sync.RWMutex
 	pendingApprovals     map[string]*PendingApproval
 	approvalMutex        sync.RWMutex
+	// proactiveLast maps "channel|kind" → last suggestion time (dedupe).
+	proactiveMu   sync.Mutex
+	proactiveLast map[string]time.Time
 }
+
+const proactiveSuggestionCooldown = 10 * time.Minute
 
 // PendingApproval represents a pending approval request
 type PendingApproval struct {
@@ -90,6 +95,7 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 		stopEmailWatcher: make(chan struct{}),
 		processedEmails:  make(map[string]bool),
 		pendingApprovals: make(map[string]*PendingApproval),
+		proactiveLast:    make(map[string]time.Time),
 	}
 
 	baseAgent.unansweredTracker = newUnansweredMessageTracker(baseAgent)
@@ -105,9 +111,17 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 		log.Printf("Assistant workspace MCP tools registered for agent: %s", name)
 	}
 
-	// Ensure deterministic assistant actions are handled before the shared
-	// LLM response path.
-	assistant.Agent.SetMessageInterceptor(assistant.handleDirectAssistantActions)
+	// Production path is Agent.Start → handleMessage. Wire deterministic actions
+	// and proactive suggestions through the interceptor so they run in-process.
+	assistant.Agent.SetMessageInterceptor(func(ctx context.Context, msg *protocol.Message) bool {
+		if assistant.handleDirectAssistantActions(ctx, msg) {
+			return true
+		}
+		if !assistantSkipPersonalContextEnrichment(msg) && !assistant.detectsMeetingQuery(msg) {
+			assistant.checkProactiveSuggestions(ctx, msg)
+		}
+		return false
+	})
 	assistant.Agent.SetPromptBuilder(assistant.buildAssistantPrompt)
 
 	return assistant
@@ -146,21 +160,10 @@ func (a *AssistantAgent) Start(ctx context.Context, channel string) error {
 	return a.Agent.Start(ctx, channel)
 }
 
-// ProcessMessage overrides base agent to add assistant-specific processing
+// ProcessMessage injects a message outside the hub listener loop (tests / tooling).
+// Production traffic uses Agent.Start → handleMessage; assistant-specific behavior
+// (direct actions + proactive suggestions) is wired via SetMessageInterceptor.
 func (a *AssistantAgent) ProcessMessage(ctx context.Context, msg *protocol.Message) {
-	// Handle common assistant actions directly so we do not claim work happened
-	// when no command was actually executed.
-	if a.handleDirectAssistantActions(ctx, msg) {
-		return
-	}
-
-	// Direct meeting-note questions already use the grounded meeting prompt below.
-	// Do not also send proactive context, or the UI can show two contradictory replies.
-	if !assistantSkipPersonalContextEnrichment(msg) && !a.detectsMeetingQuery(msg) {
-		a.checkProactiveSuggestions(ctx, msg)
-	}
-
-	// Let base agent handle the rest
 	a.Agent.handleMessage(ctx, msg)
 }
 
@@ -498,7 +501,10 @@ func (a *AssistantAgent) scheduleNextRecurring(reminder *Reminder) {
 
 // checkProactiveSuggestions monitors conversation for proactive suggestions
 func (a *AssistantAgent) checkProactiveSuggestions(ctx context.Context, msg *protocol.Message) {
-	if a.storage == nil {
+	if a.storage == nil || msg == nil {
+		return
+	}
+	if a.config != nil && !a.config.ProactiveAssistance {
 		return
 	}
 
@@ -508,7 +514,9 @@ func (a *AssistantAgent) checkProactiveSuggestions(ctx context.Context, msg *pro
 	meetingKeywords := []string{"meeting", "standup", "retro", "planning", "review", "sync"}
 	for _, keyword := range meetingKeywords {
 		if strings.Contains(content, keyword) {
-			a.suggestMeetingReminder(ctx, msg)
+			if a.allowProactiveSuggestion(msg.Channel, "meeting") {
+				a.suggestMeetingReminder(ctx, msg)
+			}
 			break
 		}
 	}
@@ -517,7 +525,9 @@ func (a *AssistantAgent) checkProactiveSuggestions(ctx context.Context, msg *pro
 	actionKeywords := []string{"todo", "task", "need to", "should", "must", "action item"}
 	for _, keyword := range actionKeywords {
 		if strings.Contains(content, keyword) {
-			a.suggestTaskCreation(ctx, msg)
+			if a.allowProactiveSuggestion(msg.Channel, "task") {
+				a.suggestTaskCreation(ctx, msg)
+			}
 			break
 		}
 	}
@@ -526,13 +536,30 @@ func (a *AssistantAgent) checkProactiveSuggestions(ctx context.Context, msg *pro
 	importantKeywords := []string{"important", "note", "remember", "key", "critical"}
 	for _, keyword := range importantKeywords {
 		if strings.Contains(content, keyword) {
-			a.suggestNoteSaving(ctx, msg)
+			if a.allowProactiveSuggestion(msg.Channel, "note") {
+				a.suggestNoteSaving(ctx, msg)
+			}
 			break
 		}
 	}
 
 	// Check for meeting history context
 	a.checkMeetingHistoryContext(ctx, msg)
+}
+
+// allowProactiveSuggestion rate-limits suggestion kinds per channel.
+func (a *AssistantAgent) allowProactiveSuggestion(channel, kind string) bool {
+	if a.proactiveLast == nil {
+		a.proactiveLast = make(map[string]time.Time)
+	}
+	key := channel + "|" + kind
+	a.proactiveMu.Lock()
+	defer a.proactiveMu.Unlock()
+	if last, ok := a.proactiveLast[key]; ok && time.Since(last) < proactiveSuggestionCooldown {
+		return false
+	}
+	a.proactiveLast[key] = time.Now()
+	return true
 }
 
 // checkMeetingHistoryContext provides context-aware suggestions based on meeting history

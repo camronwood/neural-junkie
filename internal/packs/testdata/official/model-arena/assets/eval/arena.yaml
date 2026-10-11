@@ -1,0 +1,31 @@
+# Model Arena user-facing benchmark suites.
+# Hub loads this via pack assets.eval_probes; model calls stay on the host match runner.
+
+version: 1
+
+default_suite: quick
+
+suites:
+  quick:
+    title: Quick
+    description: Logic puzzle set plus a Connect Four completion smoke.
+    challenges:
+      - logic-set
+      - connect4-smoke
+  logic-only:
+    title: Logic only
+    description: Score models on the knights-and-knaves puzzle bank.
+    challenges:
+      - logic-set
+
+# Challenge fixtures (also used by pack smoke / sidecar eval helpers).
+logic:
+  difficulty: all
+  max_puzzles: 20
+  max_steps: 5
+  pass_rate_min: 0.5
+connect4:
+  scripted_columns: [3, 2, 3, 2, 3, 2, 3]
+  max_steps: 42
+chess:
+  smoke_moves: ["e2e4", "e7e5", "g1f3"]
