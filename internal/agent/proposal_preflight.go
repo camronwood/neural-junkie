@@ -99,8 +99,9 @@ func DisambiguateAmbiguousBasename(wsPath, path, userContent string) (string, er
 	if wsPath == "" || path == "" {
 		return path, nil
 	}
-	// Already a multi-segment path that exists — keep it.
-	if strings.Contains(path, "/") && workspaceFileExists(wsPath, path) {
+	// Multi-segment paths are explicit: keep existing files, and allow greenfield
+	// creates (e.g. pkg/gamma/config.go) even when other config.go files exist.
+	if strings.Contains(path, "/") {
 		return path, nil
 	}
 	base := filepath.Base(path)

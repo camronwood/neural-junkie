@@ -139,6 +139,14 @@ func TestDisambiguateAmbiguousBasename_prefersUserDir(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "ambiguous") {
 		t.Fatalf("expected ambiguous error, got %v", err)
 	}
+	// Explicit nested greenfield path must not be rejected when other basenames exist.
+	got, err = DisambiguateAmbiguousBasename(dir, "pkg/gamma/config.go", "add pkg/gamma/config.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "pkg/gamma/config.go" {
+		t.Fatalf("greenfield nested create got %q", got)
+	}
 }
 
 func TestTargetGrounded_requiresExactRead(t *testing.T) {
