@@ -197,6 +197,103 @@ func TestCancelDuringFinalize(t *testing.T) {
 	}
 }
 
+func TestChunkOrderPreservedUnderConcurrency(t *testing.T) {
+	t.Parallel()
+	d := &delayTranscriber{delay: 30 * time.Millisecond}
+	m := NewManager(d, func(ctx context.Context, title, transcript string) (string, string, string, error) {
+		return "n", title, transcript, nil
+	}, true, t.TempDir())
+	id, err := m.Start("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for _, label := range []string{"one", "two", "three"} {
+		wg.Add(1)
+		go func(label string) {
+			defer wg.Done()
+			_, err := m.Chunk(context.Background(), id, []byte(label))
+			if err != nil {
+				t.Errorf("chunk %s: %v", label, err)
+			}
+		}(label)
+		time.Sleep(5 * time.Millisecond) // start order
+	}
+	wg.Wait()
+	res, err := m.Stop(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Transcript != "one two three" {
+		t.Fatalf("transcript order=%q want %q", res.Transcript, "one two three")
+	}
+}
+
+type delayTranscriber struct {
+	delay time.Duration
+}
+
+func (d *delayTranscriber) Ready() (bool, string) { return true, "" }
+func (d *delayTranscriber) Transcribe(ctx context.Context, audioPath string) (string, error) {
+	data, err := os.ReadFile(audioPath)
+	if err != nil {
+		return "", err
+	}
+	time.Sleep(d.delay)
+	return string(data), nil
+}
+
+func TestStopWaitsForInFlightChunk(t *testing.T) {
+	t.Parallel()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	tstub := &gateTranscriber{started: started, release: release}
+	m := NewManager(tstub, func(ctx context.Context, title, transcript string) (string, string, string, error) {
+		return "n", title, transcript, nil
+	}, true, t.TempDir())
+	id, _ := m.Start("t")
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := m.Chunk(context.Background(), id, []byte("late"))
+		errCh <- err
+	}()
+	<-started
+	stopCh := make(chan *StopResult, 1)
+	go func() {
+		res, err := m.Stop(context.Background(), id)
+		if err != nil {
+			t.Errorf("stop: %v", err)
+			stopCh <- nil
+			return
+		}
+		stopCh <- res
+	}()
+	time.Sleep(20 * time.Millisecond)
+	close(release)
+	<-errCh
+	res := <-stopCh
+	if res == nil || res.Transcript != "late" {
+		t.Fatalf("expected stop to include in-flight chunk, got %#v", res)
+	}
+}
+
+type gateTranscriber struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (g *gateTranscriber) Ready() (bool, string) { return true, "" }
+func (g *gateTranscriber) Transcribe(ctx context.Context, audioPath string) (string, error) {
+	g.once.Do(func() { close(g.started) })
+	<-g.release
+	data, err := os.ReadFile(audioPath)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 func TestWhisperReadyStubEnv(t *testing.T) {
 	stub := filepath.Join(t.TempDir(), "stub.sh")
 	if err := os.WriteFile(stub, []byte("#!/bin/sh\necho stub-text\n"), 0o755); err != nil {

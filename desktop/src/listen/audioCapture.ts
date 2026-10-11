@@ -35,12 +35,12 @@ const CHUNK_MS = 4000;
 
 /**
  * Starts mic (or virtual input) capture and emits ~4s WAV chunks at 16 kHz mono.
- * Returns a stop function that ends tracks and audio graph.
+ * Returns an async stop function that flushes the final chunk (awaits onChunk) then ends tracks.
  */
 export async function startAudioCapture(
   deviceId: string | undefined,
   callbacks: CaptureCallbacks
-): Promise<() => void> {
+): Promise<() => Promise<void>> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('Microphone capture is not available in this environment');
   }
@@ -113,9 +113,9 @@ export async function startAudioCapture(
   processor.connect(silent);
   silent.connect(ctx.destination);
 
-  return () => {
+  return async () => {
     stopped = true;
-    void flush();
+    await flush();
     try {
       processor.disconnect();
       source.disconnect();

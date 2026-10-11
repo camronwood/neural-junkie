@@ -25,7 +25,8 @@ export function DesktopListenChip({ layout, serverAddr }: Props) {
   const [partial, setPartial] = useState('');
   const [sttReady, setSttReady] = useState<boolean | null>(null);
   const sessionIdRef = useRef<string | null>(null);
-  const stopCaptureRef = useRef<(() => void) | null>(null);
+  const stopCaptureRef = useRef<(() => Promise<void>) | null>(null);
+  const uploadChainRef = useRef<Promise<void>>(Promise.resolve());
   const apiRef = useRef<ChatAPI | null>(null);
 
   useEffect(() => {
@@ -61,7 +62,11 @@ export function DesktopListenChip({ layout, serverAddr }: Props) {
   const stopAll = useCallback(async (mode: 'stop' | 'cancel') => {
     const stopCap = stopCaptureRef.current;
     stopCaptureRef.current = null;
-    stopCap?.();
+    if (stopCap) {
+      await stopCap();
+    }
+    // Drain any in-flight chunk uploads before hub stop/cancel.
+    await uploadChainRef.current.catch(() => {});
     const sid = sessionIdRef.current;
     sessionIdRef.current = null;
     setListening(false);
@@ -83,17 +88,27 @@ export function DesktopListenChip({ layout, serverAddr }: Props) {
       if (deviceId && list.length > 0 && !list.some((d) => d.deviceId === deviceId)) {
         throw new Error('Selected audio input is no longer available. Choose another device.');
       }
+      uploadChainRef.current = Promise.resolve();
       // Capture first — do not open hub session if mic fails.
       const stopCap = await startAudioCapture(deviceId || undefined, {
         onChunk: async (wav) => {
-          const sid = sessionIdRef.current;
-          if (!sid || !apiRef.current) return;
-          try {
-            const res = await apiRef.current.sendListenChunk(sid, wav);
-            setPartial(res.partial_text || '');
-          } catch (e) {
-            setError(e instanceof Error ? e.message : 'Chunk upload failed');
-          }
+          const run = async () => {
+            const sid = sessionIdRef.current;
+            if (!sid || !apiRef.current) return;
+            try {
+              const res = await apiRef.current.sendListenChunk(sid, wav);
+              setPartial(res.partial_text || '');
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Chunk upload failed');
+              throw e;
+            }
+          };
+          const next = uploadChainRef.current.then(run, run);
+          uploadChainRef.current = next.then(
+            () => undefined,
+            () => undefined
+          );
+          await next;
         },
         onError: (err) => setError(err.message),
       });
@@ -105,13 +120,16 @@ export function DesktopListenChip({ layout, serverAddr }: Props) {
         setListening(true);
         setSttReady(true);
       } catch (hubErr) {
-        stopCap();
+        await stopCap();
         stopCaptureRef.current = null;
         throw hubErr;
       }
     } catch (e) {
-      stopCaptureRef.current?.();
+      const stopCap = stopCaptureRef.current;
       stopCaptureRef.current = null;
+      if (stopCap) {
+        await stopCap().catch(() => {});
+      }
       if (sessionIdRef.current && apiRef.current) {
         try {
           await apiRef.current.cancelListen(sessionIdRef.current);

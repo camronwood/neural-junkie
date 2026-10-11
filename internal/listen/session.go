@@ -78,6 +78,9 @@ type session struct {
 	StartedAt   time.Time
 	TmpDir      string
 	LastError   string
+	// chunkMu serializes transcription so chunks append in order and Stop waits
+	// for in-flight STT before snapshotting the transcript.
+	chunkMu sync.Mutex
 }
 
 // Manager owns at most one active listen session per hub.
@@ -214,6 +217,7 @@ func (m *Manager) Start(title string) (sessionID string, err error) {
 }
 
 // Chunk accepts audio bytes, transcribes, and appends to the partial transcript.
+// Chunks for a session are processed serially so transcript order matches capture order.
 func (m *Manager) Chunk(ctx context.Context, sessionID string, audio []byte) (partial string, err error) {
 	m.mu.Lock()
 	sess := m.session
@@ -224,6 +228,16 @@ func (m *Manager) Chunk(ctx context.Context, sessionID string, audio []byte) (pa
 	if sessionID != "" && sessionID != sess.ID {
 		m.mu.Unlock()
 		return "", fmt.Errorf("%w: session mismatch", ErrNoSession)
+	}
+	m.mu.Unlock()
+
+	sess.chunkMu.Lock()
+	defer sess.chunkMu.Unlock()
+
+	m.mu.Lock()
+	if m.session != sess || sess.State != StateListening {
+		m.mu.Unlock()
+		return "", ErrNoSession
 	}
 	if len(audio) == 0 {
 		partial = sess.PartialText
@@ -247,8 +261,8 @@ func (m *Manager) Chunk(ctx context.Context, sessionID string, audio []byte) (pa
 	path := filepath.Join(tmpDir, fmt.Sprintf("chunk-%04d.wav", chunkIdx))
 	if err := os.WriteFile(path, audio, 0o600); err != nil {
 		m.mu.Lock()
-		if m.session != nil && m.session.ID == sess.ID {
-			m.session.LastError = err.Error()
+		if m.session == sess {
+			sess.LastError = err.Error()
 		}
 		m.mu.Unlock()
 		return "", err
@@ -258,25 +272,26 @@ func (m *Manager) Chunk(ctx context.Context, sessionID string, audio []byte) (pa
 	text, err := t.Transcribe(ctx, path)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.session == nil || m.session.ID != sess.ID {
+	if m.session != sess || sess.State != StateListening {
 		return "", ErrNoSession
 	}
 	if err != nil {
-		m.session.LastError = err.Error()
-		return m.session.PartialText, err
+		sess.LastError = err.Error()
+		return sess.PartialText, err
 	}
 	text = strings.TrimSpace(text)
 	if text != "" {
-		if m.session.PartialText == "" {
-			m.session.PartialText = text
+		if sess.PartialText == "" {
+			sess.PartialText = text
 		} else {
-			m.session.PartialText = strings.TrimSpace(m.session.PartialText + " " + text)
+			sess.PartialText = strings.TrimSpace(sess.PartialText + " " + text)
 		}
 	}
-	return m.session.PartialText, nil
+	return sess.PartialText, nil
 }
 
 // Stop finalizes the session, ingests the transcript, and clears temp audio.
+// It waits for any in-flight Chunk transcription before snapshotting text.
 func (m *Manager) Stop(ctx context.Context, sessionID string) (*StopResult, error) {
 	m.mu.Lock()
 	sess := m.session
@@ -288,6 +303,16 @@ func (m *Manager) Stop(ctx context.Context, sessionID string) (*StopResult, erro
 		m.mu.Unlock()
 		return nil, fmt.Errorf("%w: session mismatch", ErrNoSession)
 	}
+	m.mu.Unlock()
+
+	// Drain in-flight Chunk first (still Listening) so its text is included.
+	sess.chunkMu.Lock()
+	m.mu.Lock()
+	if m.session != sess || sess.State != StateListening {
+		m.mu.Unlock()
+		sess.chunkMu.Unlock()
+		return nil, ErrNoSession
+	}
 	sess.State = StateFinalizing
 	transcript := strings.TrimSpace(sess.PartialText)
 	title := sess.Title
@@ -295,11 +320,12 @@ func (m *Manager) Stop(ctx context.Context, sessionID string) (*StopResult, erro
 	tmpDir := sess.TmpDir
 	ingest := m.ingest
 	m.mu.Unlock()
+	sess.chunkMu.Unlock()
 
 	defer func() {
 		_ = os.RemoveAll(tmpDir)
 		m.mu.Lock()
-		if m.session != nil && m.session.ID == id {
+		if m.session == sess {
 			m.session = nil
 		}
 		m.mu.Unlock()
@@ -315,9 +341,9 @@ func (m *Manager) Stop(ctx context.Context, sessionID string) (*StopResult, erro
 	noteID, noteTitle, summary, err := ingest(ctx, title, transcript)
 	if err != nil {
 		m.mu.Lock()
-		if m.session != nil && m.session.ID == id {
-			m.session.State = StateError
-			m.session.LastError = err.Error()
+		if m.session == sess {
+			sess.State = StateError
+			sess.LastError = err.Error()
 		}
 		m.mu.Unlock()
 		return nil, err
@@ -338,15 +364,28 @@ func (m *Manager) Stop(ctx context.Context, sessionID string) (*StopResult, erro
 // Cancel aborts the session without ingesting.
 func (m *Manager) Cancel(sessionID string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.session == nil {
+	sess := m.session
+	if sess == nil {
+		m.mu.Unlock()
 		return ErrNoSession
 	}
-	if sessionID != "" && sessionID != m.session.ID {
+	if sessionID != "" && sessionID != sess.ID {
+		m.mu.Unlock()
 		return fmt.Errorf("%w: session mismatch", ErrNoSession)
 	}
-	tmpDir := m.session.TmpDir
+	m.mu.Unlock()
+
+	sess.chunkMu.Lock()
+	defer sess.chunkMu.Unlock()
+
+	m.mu.Lock()
+	if m.session != sess {
+		m.mu.Unlock()
+		return ErrNoSession
+	}
+	tmpDir := sess.TmpDir
 	m.session = nil
+	m.mu.Unlock()
 	_ = os.RemoveAll(tmpDir)
 	return nil
 }
