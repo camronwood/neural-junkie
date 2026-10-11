@@ -2,6 +2,8 @@
 
 Compare **local Ollama coder models** against the same NJ live scenarios and produce ranked benchmarks.
 
+> **In-app Arena benchmarks** (Settings → Domain packs → Model Arena → Arena workbench → **Benchmark**) run a short verifiable suite (`logic-set` / `connect4-smoke`) for user-selected installed models. That product path is owned by the Model Arena pack + hub `/api/arena/benchmark/*` APIs. This document describes the **CLI / release** harness (`make model-benchmark`), which also covers implement/chat/collab/user-flow tracks and publishes capability profiles.
+
 ## Prerequisites
 
 `make model-benchmark` **auto-boots** Ollama, pulls/warms the suite roster, starts the regression hub, and waits for agents — same path as `implement-scenarios` / `layer-gate`.

@@ -12,10 +12,15 @@ const CapabilityCustomerPack = "customer-pack"
 
 // PackAssetsSpec locates bundled documentation and runbooks inside a pack directory.
 type PackAssetsSpec struct {
-	WorkspaceGuide        string `yaml:"workspace_guide,omitempty"`
-	RunbooksGlob          string `yaml:"runbooks_glob,omitempty"`
-	RunbookTemplatesGlob  string `yaml:"runbook_templates_glob,omitempty"`
-	SeverityRubric        string `yaml:"severity_rubric,omitempty"`
+	WorkspaceGuide       string `yaml:"workspace_guide,omitempty"`
+	RunbooksGlob         string `yaml:"runbooks_glob,omitempty"`
+	RunbookTemplatesGlob string `yaml:"runbook_templates_glob,omitempty"`
+	SeverityRubric       string `yaml:"severity_rubric,omitempty"`
+	// EvalProbes is a pack-relative path to domain eval / benchmark suite YAML
+	// (e.g. Model Arena assets/eval/arena.yaml, CAD assets/eval/cad.yaml).
+	EvalProbes string `yaml:"eval_probes,omitempty"`
+	// Runbooks is accepted for older manifests that use a directory path instead of a glob.
+	Runbooks string `yaml:"runbooks,omitempty"`
 }
 
 // IsCustomerPack reports whether the manifest is a customer data pack.

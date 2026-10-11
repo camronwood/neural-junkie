@@ -21,13 +21,24 @@ Optional: set `stockfish_path` in Domain packs tools for chess engine eval (Stoc
 - Open `*.nj-arena.json` in the file explorer for a dedicated tab
 - Chat: `/create-expert arena ArenaExpert` then `@ArenaExpert play connect4 against qwen2.5-coder:14b`
 
+### Benchmark models from the UI
+
+1. Open Arena → **Benchmark** tab
+2. Multi-select installed Ollama models (pull extras from the model library if needed)
+3. Pick a suite (`quick` = logic + Connect Four; `logic-only` available)
+4. **Run benchmark** — hub runs each model through the suite via the match runner; cancel anytime between challenges
+5. Review the ranked scoreboard (pass rate, logic accuracy, Connect Four completion) and recent runs
+
+Suite definitions ship in the pack at `assets/eval/arena.yaml`. This is separate from the CLI release harness (`make model-benchmark`); see [testing/MODEL_BENCHMARK.md](./testing/MODEL_BENCHMARK.md).
+
 ## Architecture
 
 | Layer | Role |
 |-------|------|
 | ArenaExpert | Hub tools: `arena_create_session`, `arena_get_state`, `arena_make_move`, `arena_submit_answer` |
 | Hub match runner | `POST /api/arena/match/step` and `/api/arena/match/run` — prompts any configured provider/model |
-| Pack sidecar | Ground truth: legal moves, FEN, Connect Four grid, logic answer checking, leaderboard |
+| Hub benchmark jobs | `GET/POST /api/arena/benchmark/*` — multi-model suite runs with cancel, progress, and local history |
+| Pack sidecar | Ground truth: legal moves, FEN, Connect Four grid, logic answer checking, leaderboard, suite listing |
 
 Pack repo: [neural-junkie-pack-model-arena](https://github.com/camronwood/neural-junkie-pack-model-arena)
 

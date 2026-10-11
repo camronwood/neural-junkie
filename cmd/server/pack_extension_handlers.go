@@ -279,6 +279,10 @@ func handleArenaRoute(w http.ResponseWriter, r *http.Request) {
 		handleArenaMatchRoute(w, r)
 		return
 	}
+	if strings.HasPrefix(path, "/api/arena/benchmark") {
+		handleArenaBenchmarkRoute(w, r)
+		return
+	}
 	if appConfig != nil && appConfig.RouteOwnerPackID("/api/arena") != "" {
 		handlePackExtensionRoute(w, r)
 		return
