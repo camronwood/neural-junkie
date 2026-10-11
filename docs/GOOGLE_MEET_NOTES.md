@@ -74,3 +74,7 @@ These scopes are sensitive. A public Google OAuth app may require Google OAuth c
 - Release/dev build with env vars: **Connect Google** opens the Google consent URL.
 - Advanced custom client: save credentials, connect, then sync notes.
 - No credentials: **Connect Google** is disabled and Settings explains Advanced setup.
+
+## Related: Desktop Listen
+
+For live local capture (mic or virtual audio device → whisper.cpp → meeting notes), see **Desktop Listen** in [ASSISTANT_AGENT.md](ASSISTANT_AGENT.md). Google Meet sync and Desktop Listen both land in `meeting_notes.json` and answer the same Assistant Q&A path.

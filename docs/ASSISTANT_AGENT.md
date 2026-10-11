@@ -168,6 +168,21 @@ Add a meeting to your schedule.
 /meeting-add Dec 15 3pm Architecture review
 ```
 
+#### Desktop Listen (local STT)
+
+Capture meeting audio from the desktop mic (or a virtual audio device) and save notes locally. Speech-to-text runs on the hub via **whisper.cpp** only — no cloud STT.
+
+**Toolbar:** use the Listen control (input device dropdown + mic button) in the channel toolbar.
+
+**Commands:**
+```
+/listen-start [title]
+/listen-stop
+/listen-status
+```
+
+Audio chunks are uploaded only while the toolbar capture is running. Prefer the toolbar for a full start/stop flow; slash commands manage the hub session and status.
+
 ### Summarization Commands
 
 #### `/summarize [last N messages]`
@@ -260,10 +275,12 @@ All assistant data is stored persistently in `~/.neural-junkie/assistant/`:
 - `tasks.json` - Task list with status and priorities
 - `notes.json` - Saved notes with tags and search
 - `meetings.json` - Meeting and schedule data
-- `meeting_notes.json` - Ingested Gemini Meet notes (Google sync)
+- `meeting_notes.json` - Ingested meeting notes (Google sync and Desktop Listen)
 - `google_oauth.json` - Google OAuth tokens (Gmail + Drive read-only)
 - `google_sync_state.json` - Processed Gmail message IDs
 - `config.json` - Assistant configuration
+
+Whisper models live under `~/.neural-junkie/models/whisper/` (default `ggml-base.en.bin`). Binary: `~/.neural-junkie/bin/whisper-cli` or `NJ_WHISPER_CMD`.
 
 ## Configuration
 
@@ -278,7 +295,10 @@ The assistant can be configured through the `config.json` file:
   "google_meet_notes_enabled": true,
   "google_sync_interval_minutes": 15,
   "google_sender_email": "gemini-notes@google.com",
-  "google_backfill_days": 90
+  "google_backfill_days": 90,
+  "desktop_listen_enabled": true,
+  "whisper_command": "",
+  "whisper_model_path": ""
 }
 ```
 
@@ -288,6 +308,26 @@ The assistant can be configured through the `config.json` file:
 2. **Connect Google** to authorize your account.
 3. Optional: set `NEURAL_JUNKIE_GOOGLE_OAUTH_*` env vars on the hub to override saved credentials (see `env.example`).
 3. Notes sync automatically every `google_sync_interval_minutes`, or use **Sync now** / `/ingest-meetings`.
+
+### Desktop Listen and Zoom via virtual audio
+
+Desktop Listen captures whatever **audio input device** you select (default mic or a virtual device). Neural Junkie does not auto-wire Zoom.
+
+Typical macOS path for Zoom (or similar):
+
+1. Install a virtual device such as [BlackHole](https://existential.audio/blackhole/).
+2. Create an **Aggregate Device** (Audio MIDI Setup) if you need your mic + BlackHole together.
+3. Route Zoom speaker output into BlackHole (or use a multi-output device).
+4. In Neural Junkie, open the Listen device dropdown and select BlackHole / Aggregate Device, then Start.
+
+Local STT env overrides on the hub:
+
+- `NJ_WHISPER_CMD` — whisper CLI or CI stub (`scripts/whisper-stub.sh`)
+- `NJ_WHISPER_MODEL` — path to ggml model
+
+Smoke (hub running with stub): `scripts/smoke-desktop-listen.sh`
+
+Google Meet note sync remains complementary — see [GOOGLE_MEET_NOTES.md](GOOGLE_MEET_NOTES.md).
 
 ### Configuration Options
 
@@ -299,6 +339,8 @@ The assistant can be configured through the `config.json` file:
 - **google_sync_interval_minutes**: Poll interval (default 15)
 - **google_sender_email**: Gmail sender filter (default `gemini-notes@google.com`)
 - **google_backfill_days**: How far back to search on sync (default 90)
+- **desktop_listen_enabled**: Allow Desktop Listen sessions (default true)
+- **whisper_command** / **whisper_model_path**: Optional overrides for local whisper.cpp
 
 ## Best Practices
 

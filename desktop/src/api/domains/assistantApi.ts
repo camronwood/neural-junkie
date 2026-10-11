@@ -1,11 +1,15 @@
 import type {
   AssistantStateResponse,
+  DesktopListenChunkResponse,
+  DesktopListenStartResponse,
+  DesktopListenStatus,
+  DesktopListenStopResult,
   GoogleMeetNotesAppConfig,
   GoogleMeetNotesStatus,
 } from '../../types/protocol';
 import type { HubFetchFn } from './packsApi';
 
-/** Assistant state and Google Meet notes HTTP surface. */
+/** Assistant state, Google Meet notes, and Desktop Listen HTTP surface. */
 export class AssistantApi {
   constructor(private readonly hubFetch: HubFetchFn) {}
 
@@ -109,5 +113,70 @@ export class AssistantApi {
       throw new Error(data.error || `Sync failed: ${response.statusText}`);
     }
     return data.ingested ?? 0;
+  }
+
+  async getListenStatus(): Promise<DesktopListenStatus> {
+    const response = await this.hubFetch(`/api/assistant/listen/status`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch listen status: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async startListen(title?: string): Promise<DesktopListenStartResponse> {
+    const response = await this.hubFetch(`/api/assistant/listen/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title ?? '' }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Listen start failed: ${response.statusText}`);
+    }
+    return data;
+  }
+
+  async sendListenChunk(sessionId: string, wav: ArrayBuffer): Promise<DesktopListenChunkResponse> {
+    const response = await this.hubFetch(
+      `/api/assistant/listen/chunk?session_id=${encodeURIComponent(sessionId)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-NJ-Listen-Session': sessionId,
+        },
+        body: wav,
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Listen chunk failed: ${response.statusText}`);
+    }
+    return data;
+  }
+
+  async stopListen(sessionId: string): Promise<DesktopListenStopResult> {
+    const response = await this.hubFetch(`/api/assistant/listen/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Listen stop failed: ${response.statusText}`);
+    }
+    return data;
+  }
+
+  async cancelListen(sessionId: string): Promise<void> {
+    const response = await this.hubFetch(`/api/assistant/listen/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Listen cancel failed: ${response.statusText}`);
+    }
   }
 }

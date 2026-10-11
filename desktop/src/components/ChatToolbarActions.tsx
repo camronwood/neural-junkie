@@ -19,6 +19,7 @@ import { OllamaRuntimeChip } from './OllamaRuntimeChip';
 import { HubConnectionChip } from './HubConnectionChip';
 import { MemoryMonitorChip } from './MemoryMonitorChip';
 import { CustomPackToolbarChip } from './CustomPackToolbarChip';
+import { DesktopListenChip } from './DesktopListenChip';
 import type { PackToolbarAction } from '../stores/packCapabilityRegistry';
 import { useApprovalStore } from '../stores/approvalStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -139,6 +140,12 @@ export function ChatToolbarActions({
         >
           P
         </button>
+      </div>
+
+      <ToolbarDivider layout={layout} />
+
+      <div className={groupClass} aria-label="Desktop listen">
+        <DesktopListenChip layout={layout} serverAddr={serverAddr} />
       </div>
 
       <ToolbarDivider layout={layout} />

@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, FileChangeRequest, GitChangeProposal, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, RunbookDefinitionBundle, RunbookRunProvenance, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, FileChangeRequest, GitChangeProposal, CommandDefinition, AssistantStateResponse, DesktopListenChunkResponse, DesktopListenStartResponse, DesktopListenStatus, DesktopListenStopResult, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackDiagnoseResult, SlackSmokeResult, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, RunbookDefinitionBundle, RunbookRunProvenance, ConnectorProfile, StreamManagerStatus, StreamSubscription, StreamDispatchResult, AgentToolCapabilities, ChannelToolsResponse, CapabilityPolicyResponse, CapabilityPolicyUpdate, StoredArtifact, StoredArtifactRevision } from '../types/protocol';
 export type { ResolvedCapability } from '../types/protocol';
 import {
   getHubBaseURL,
@@ -643,6 +643,26 @@ export class ChatAPI {
 
   async syncGoogleMeetNotes(): Promise<number> {
     return this.assistantApi.syncGoogleMeetNotes();
+  }
+
+  async getListenStatus(): Promise<DesktopListenStatus> {
+    return this.assistantApi.getListenStatus();
+  }
+
+  async startListen(title?: string): Promise<DesktopListenStartResponse> {
+    return this.assistantApi.startListen(title);
+  }
+
+  async sendListenChunk(sessionId: string, wav: ArrayBuffer): Promise<DesktopListenChunkResponse> {
+    return this.assistantApi.sendListenChunk(sessionId, wav);
+  }
+
+  async stopListen(sessionId: string): Promise<DesktopListenStopResult> {
+    return this.assistantApi.stopListen(sessionId);
+  }
+
+  async cancelListen(sessionId: string): Promise<void> {
+    return this.assistantApi.cancelListen(sessionId);
   }
 
   async getSlackConfig(): Promise<SlackConfigResponse> {
