@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
@@ -9,6 +10,36 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/trace"
 )
+
+func TestStepPostProcess_surfacesProposalError(t *testing.T) {
+	a := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general",
+		protocol.AgentInfo{ID: "u", Type: "human"}, "edit the file")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":                         "agent",
+		protocol.IdeMetaImplementationSession: true,
+	}
+	st := &turnState{
+		agent:   a,
+		msg:     msg,
+		outcome: turnContinue,
+		// Malformed directive: operation present but missing path/content → parse error.
+		response: "Trying to edit.\n[FILE_CHANGE]\noperation: edit\n[/FILE_CHANGE]",
+	}
+	if err := st.stepPostProcess(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if st.responseMsg == nil {
+		t.Fatal("expected response message")
+	}
+	errVal, _ := st.responseMsg.Metadata["file_change_proposal_error"].(string)
+	if errVal == "" {
+		t.Fatalf("expected file_change_proposal_error metadata, meta=%v", st.responseMsg.Metadata)
+	}
+	if !strings.Contains(st.response, "couldn't submit a file change proposal") {
+		t.Fatalf("expected user-visible error line, got %q", st.response)
+	}
+}
 
 func TestDefaultTurnPipelineStepOrder(t *testing.T) {
 	a := &Agent{Info: protocol.AgentInfo{Name: "Test", ID: "a1"}}

@@ -25,6 +25,22 @@ func TestLooksLikeEchoOfPriorUserTurn(t *testing.T) {
 	}
 }
 
+func TestLooksLikeEchoOfPriorUserTurn_retryMustPassHistory(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{Name: "User", Type: "human"}, "ok what next?")
+	msg.ID = "cur"
+	prior := "Please wire dark mode into SettingsPanel and App.tsx with a toggle."
+	hist := []*protocol.Message{
+		protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{Name: "User", Type: "human"}, prior),
+	}
+	// A retry that still echoes the prior turn must be detected when history is passed.
+	if !looksLikeEchoOfPriorUserTurn(msg, prior, hist) {
+		t.Fatal("expected echo when history is provided")
+	}
+	if looksLikeEchoOfPriorUserTurn(msg, prior, nil) {
+		t.Fatal("without history, prior-line echo cannot be detected (nil must not falsely clear)")
+	}
+}
+
 func TestLooksLikeReAskAfterAffirmation(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm", protocol.AgentInfo{Name: "User", Type: "human"}, "approved")
 	msg.ID = "cur"

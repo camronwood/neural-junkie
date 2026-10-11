@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,7 +97,40 @@ ON CONFLICT(id) DO UPDATE SET step=excluded.step, payload_json=excluded.payload_
 	return err
 }
 
+// Load returns a checkpoint by exact ID (turn/message-scoped).
+func (s *Store) Load(id string) (*State, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var channel, thread, workspace, payload string
+	var step int
+	var updated int64
+	err := s.db.QueryRow(`SELECT channel, thread_id, workspace, step, payload_json, updated_at
+FROM agent_checkpoints WHERE id=? LIMIT 1`, id).
+		Scan(&channel, &thread, &workspace, &step, &payload, &updated)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]interface{}
+	_ = json.Unmarshal([]byte(payload), &m)
+	return &State{
+		ID:        id,
+		Channel:   channel,
+		ThreadID:  thread,
+		Workspace: workspace,
+		Step:      step,
+		Payload:   m,
+		UpdatedAt: time.Unix(updated, 0),
+	}, nil
+}
+
 // LoadLatest returns the newest checkpoint for a channel.
+// Deprecated for impl-session restore: prefer Load with a turn-scoped ID.
 func (s *Store) LoadLatest(channel string) (*State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -123,6 +157,17 @@ FROM agent_checkpoints WHERE channel=? ORDER BY updated_at DESC LIMIT 1`, channe
 		Payload:   m,
 		UpdatedAt: time.Unix(updated, 0),
 	}, nil
+}
+
+// Delete removes a checkpoint by ID.
+func (s *Store) Delete(id string) error {
+	if strings.TrimSpace(id) == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`DELETE FROM agent_checkpoints WHERE id=?`, id)
+	return err
 }
 
 // Close closes the database.

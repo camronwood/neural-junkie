@@ -66,9 +66,13 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 	if !hubChannelAllowsIDEAutoApprove(msg.Channel, msg) {
 		return
 	}
+	// Never auto-approve deletes regardless of trust (yolo/auto_apply).
+	if operation == filechange.FileOperationDelete {
+		log.Printf("[IDE] Holding delete for approval (never auto-approve): %s", change.FilePath)
+		return
+	}
 	if operation != filechange.FileOperationCreate &&
-		operation != filechange.FileOperationEdit &&
-		operation != filechange.FileOperationDelete {
+		operation != filechange.FileOperationEdit {
 		return
 	}
 	isCreate := operation == filechange.FileOperationCreate

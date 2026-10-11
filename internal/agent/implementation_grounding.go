@@ -167,6 +167,10 @@ func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *proto
 	if isProtectedWorkspaceFile(sourceMsg, path) {
 		return fmt.Errorf("protected file: edits to %s are not allowed for this request", path)
 	}
+	st := implementationSessionStateFromContext(ctx)
+	if st != nil && st.diagnoseGateBlocksProposals() {
+		return fmt.Errorf("grounding required: complete diagnosis before proposing edits")
+	}
 	wsPath := ""
 	if sourceMsg != nil {
 		wsPath = a.resolveWorkspacePath(sourceMsg)
@@ -181,8 +185,6 @@ func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *proto
 			}
 		}
 	}
-
-	st := implementationSessionStateFromContext(ctx)
 	if st != nil && !st.groundingSatisfied() {
 		if sourceMsg != nil && collaborationRestrictsDiscoveryTools(sourceMsg) &&
 			len(collaborationFocusAllowedReadPaths(sourceMsg)) > 0 {
