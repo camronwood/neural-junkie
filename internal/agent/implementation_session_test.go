@@ -880,3 +880,117 @@ func TestDeriveTurnGoal_overridesOpenCanvasArtifactForImplSession(t *testing.T) 
 		t.Fatalf("mutation=%s want workspace", goal.Mutation)
 	}
 }
+
+func TestBuildImplementationSessionOutcome_autoApplyVerifySkipped(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	rel := "TriviaGameApp.swift"
+	if err := os.WriteFile(filepath.Join(dir, rel), []byte("import SwiftUI\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &Agent{}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dev", protocol.AgentInfo{ID: "u1", Name: "User"}, "implement trivia")
+	msg.Metadata = map[string]interface{}{
+		"editor_agent_trust": editorTrustAutoApply,
+		"workspace_context": map[string]interface{}{
+			"workspace_path": dir,
+		},
+	}
+
+	cases := []struct {
+		name          string
+		trust         string
+		verifySkipped bool
+		verifyFailed  bool
+		onDisk        bool
+		want          string
+	}{
+		{name: "auto_apply_skipped", trust: editorTrustAutoApply, verifySkipped: true, onDisk: true, want: "applied_verify_skipped"},
+		{name: "auto_apply_verified", trust: editorTrustAutoApply, verifySkipped: false, onDisk: true, want: "applied_and_verified"},
+		{name: "auto_apply_verify_failed", trust: editorTrustAutoApply, verifyFailed: true, onDisk: true, want: "applied_verify_failed"},
+		{name: "interactive_skipped", trust: "interactive", verifySkipped: true, onDisk: true, want: "proposals_submitted"},
+		{name: "auto_apply_missing_disk", trust: editorTrustAutoApply, verifySkipped: true, onDisk: false, want: "proposals_submitted"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			m := *msg
+			m.Metadata = map[string]interface{}{
+				"editor_agent_trust": tc.trust,
+				"workspace_context": map[string]interface{}{
+					"workspace_path": dir,
+				},
+			}
+			files := []string{rel}
+			if !tc.onDisk {
+				files = []string{"MissingView.swift"}
+			}
+			state := &ImplementationSessionState{
+				TrustMode:       tc.trust,
+				VerifySkipped:   tc.verifySkipped,
+				VerifyFailed:    tc.verifyFailed,
+				RegisteredFiles: files,
+				FilesChanged:    files,
+				ProposedCount:   1,
+			}
+			got := a.buildImplementationSessionOutcome(&m, state, true)
+			if got["outcome"] != tc.want {
+				t.Fatalf("outcome=%v want %s (full=%v)", got["outcome"], tc.want, got)
+			}
+		})
+	}
+}
+
+func TestFormatImplementationSessionSummary_autoApplyVerifySkipped(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	rel := "TriviaGameApp.swift"
+	if err := os.WriteFile(filepath.Join(dir, rel), []byte("import SwiftUI\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &Agent{}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dev", protocol.AgentInfo{ID: "u1", Name: "User"}, "implement trivia")
+	msg.Metadata = map[string]interface{}{
+		"editor_agent_trust": editorTrustAutoApply,
+		"workspace_context": map[string]interface{}{
+			"workspace_path": dir,
+		},
+	}
+	state := &ImplementationSessionState{
+		TrustMode:       editorTrustAutoApply,
+		VerifySkipped:   true,
+		RegisteredFiles: []string{rel},
+		FilesChanged:    []string{rel},
+		ProposedCount:   1,
+	}
+	summary := a.formatImplementationSessionSummary("", state, true, msg)
+	if !strings.Contains(summary, "applied") || !strings.Contains(strings.ToLower(summary), "verification skipped") {
+		t.Fatalf("summary missing applied/skipped wording:\n%s", summary)
+	}
+	if strings.Contains(summary, "approve proposals to apply") {
+		t.Fatalf("auto_apply summary must not ask to approve:\n%s", summary)
+	}
+	if !strings.Contains(summary, rel) {
+		t.Fatalf("summary missing changed file:\n%s", summary)
+	}
+}
+
+func TestFormatImplementationSessionSummary_interactiveVerifySkippedStillMentionsApprove(t *testing.T) {
+	t.Parallel()
+	a := &Agent{}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dev", protocol.AgentInfo{ID: "u1", Name: "User"}, "implement trivia")
+	msg.Metadata = map[string]interface{}{
+		"editor_agent_trust": "interactive",
+	}
+	state := &ImplementationSessionState{
+		TrustMode:       "interactive",
+		VerifySkipped:   true,
+		RegisteredFiles: []string{"TriviaGameApp.swift"},
+		FilesChanged:    []string{"TriviaGameApp.swift"},
+		ProposedCount:   1,
+	}
+	summary := a.formatImplementationSessionSummary("", state, true, msg)
+	if !strings.Contains(summary, "approve proposals to apply") {
+		t.Fatalf("interactive skip copy missing approve cue:\n%s", summary)
+	}
+}

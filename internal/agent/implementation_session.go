@@ -870,6 +870,8 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 		outcome["outcome"] = "applied_and_verified"
 	case trust == editorTrustAutoApply && applied && !state.VerifyFailed && !state.VerifySkipped:
 		outcome["outcome"] = "applied_and_verified"
+	case trust == editorTrustAutoApply && applied && state.VerifySkipped:
+		outcome["outcome"] = "applied_verify_skipped"
 	case proposed:
 		outcome["outcome"] = "proposals_submitted"
 	}
@@ -1432,6 +1434,12 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 		} else {
 			b.WriteString("Implementation session complete — applied and verified.\n\n")
 		}
+	case trust == editorTrustAutoApply && state != nil && applied && state.VerifySkipped:
+		if len(state.FilesChanged) > 0 {
+			b.WriteString(fmt.Sprintf("Implementation session complete — applied; verification skipped (no verify commands) (changes to: %s).\n\n", strings.Join(state.FilesChanged, ", ")))
+		} else {
+			b.WriteString("Implementation session complete — applied; verification skipped (no verify commands).\n\n")
+		}
 	case proposed && state != nil && len(state.FilesChanged) > 0 && state.VerifyFailed:
 		b.WriteString(fmt.Sprintf("Implementation session complete — proposals submitted (changes to: %s); verification failed on current workspace.\n\n", strings.Join(state.FilesChanged, ", ")))
 	case proposed && state != nil && len(state.FilesChanged) > 0 && state.VerifyOutput != "" && !state.VerifyFailed && !state.VerifySkipped:
@@ -1455,7 +1463,7 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 		b.WriteString("Verification:\n```\n")
 		b.WriteString(truncateImplLog(state.VerifyOutput, 2000))
 		b.WriteString("\n```\n\n")
-	} else if state != nil && state.VerifySkipped && proposed {
+	} else if state != nil && state.VerifySkipped && proposed && !(trust == editorTrustAutoApply && applied) {
 		b.WriteString("Verification skipped (interactive trust — approve proposals to apply changes).\n\n")
 	}
 	body := sanitizeFailedImplementationResponse(lastResponse, state)

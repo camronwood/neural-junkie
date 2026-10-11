@@ -6,6 +6,8 @@ function outcomeLabel(outcome: string | undefined): string {
   switch (outcome) {
     case 'applied_and_verified':
       return 'Applied and verified';
+    case 'applied_verify_skipped':
+      return 'Applied — verify skipped';
     case 'applied_verify_failed':
       return 'Applied — verify failed';
     case 'proposals_submitted':
@@ -25,7 +27,7 @@ function outcomeTone(outcome: ImplementationSessionOutcome): string {
   if (outcome.circuit_breaker_triggered || outcome.verify_failed || outcome.failure_type === 'timeout') {
     return 'border-amber-500/40 bg-amber-500/10 text-amber-200';
   }
-  if (outcome.outcome === 'applied_and_verified') {
+  if (outcome.outcome === 'applied_and_verified' || outcome.outcome === 'applied_verify_skipped') {
     return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
   }
   if (outcome.outcome === 'wrong_route') {
