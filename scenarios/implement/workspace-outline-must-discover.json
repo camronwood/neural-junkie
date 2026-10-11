@@ -1,0 +1,78 @@
+{
+  "name": "workspace-outline-must-discover",
+  "description": "Outline scope coding must discover/read before succeeding (no open_files body).",
+  "tags": [
+    "implement",
+    "frontend",
+    "workspace",
+    "path-awareness"
+  ],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "FrontendEngineer",
+  "required_agents": [
+    "FrontendEngineer"
+  ],
+  "workspace": {
+    "fixture": "workspace-path-confusion",
+    "unchanged_files": [
+      "src/App.js"
+    ]
+  },
+  "expect_deliverables": [
+    {
+      "path": "src/App.tsx",
+      "min_bytes": 40,
+      "for_question": {
+        "any_match": [
+          "outline-discovered|Workspace Ready"
+        ]
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "@FrontendEngineer Using only the workspace tree (outline), find the real React entry and add the text outline-discovered near the heading in that file. Do not invent App.js edits.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "900s",
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "any_match": [
+          "outline-discovered"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_files_unchanged",
+      "paths": [
+        "src/App.js"
+      ]
+    },
+    {
+      "action": "assert_impl_outcome",
+      "from": "FrontendEngineer",
+      "files_read_any": [
+        "src/App.tsx"
+      ],
+      "files_changed_none": [
+        "src/App.js"
+      ],
+      "require_discover_or_read": true
+    }
+  ]
+}

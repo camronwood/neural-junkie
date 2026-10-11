@@ -105,3 +105,56 @@ func TestValidateProposal_allowsReactPaths(t *testing.T) {
 		t.Fatalf("new tsx component: %v", err)
 	}
 }
+
+func TestRedirectProposalPath_appJsDecoyWhenTsxOnDisk(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"dependencies":{"react":"^18.2.0"}}`)
+	writeFile(t, dir, "src/App.tsx", "export default function App() { return <main>ALPHA_MARKER</main>; }\n")
+	writeFile(t, dir, "src/App.js", "export default function App() { return 'DECOY'; }\n")
+	m := DetectStackManifest(dir)
+	got := RedirectProposalPathForWorkspace("src/App.js", dir, m, "edit")
+	if got != "src/App.tsx" {
+		t.Fatalf("got %q want src/App.tsx", got)
+	}
+	err := ValidateProposal(dir, "src/App.js", ProposalOpEdit, m)
+	if err == nil || !strings.Contains(err.Error(), "src/App.tsx") {
+		t.Fatalf("expected decoy edit rejection, got %v", err)
+	}
+}
+
+func TestDisambiguateAmbiguousBasename_prefersUserDir(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "pkg/alpha/config.go", "package alpha\n")
+	writeFile(t, dir, "pkg/beta/config.go", "package beta\n")
+	got, err := DisambiguateAmbiguousBasename(dir, "config.go", "please edit pkg/alpha/config.go only")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "pkg/alpha/config.go" {
+		t.Fatalf("got %q", got)
+	}
+	_, err = DisambiguateAmbiguousBasename(dir, "config.go", "please update config.go")
+	if err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("expected ambiguous error, got %v", err)
+	}
+}
+
+func TestTargetGrounded_requiresExactRead(t *testing.T) {
+	t.Parallel()
+	st := &ImplementationSessionState{
+		DiscoverTools: []string{"glob_file_search"},
+		SeedsLoaded:   2,
+	}
+	if st.targetGrounded("src/App.tsx") {
+		t.Fatal("glob/seeds count alone must not ground an unread target")
+	}
+	st.RecordReadPath("src/App.tsx")
+	if !st.targetGrounded("src/App.tsx") {
+		t.Fatal("exact read should ground target")
+	}
+	if st.targetGrounded("src/App.js") {
+		t.Fatal("read of App.tsx must not ground App.js")
+	}
+}

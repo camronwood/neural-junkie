@@ -582,6 +582,52 @@ def step_assert_files_unchanged(ctx: ImplementContext, step: dict) -> tuple[bool
     return True, f"{len(paths)} file(s) unchanged"
 
 
+def step_assert_impl_outcome(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+    """Assert implementation_session_outcome files_read / files_changed / discover_tools."""
+    from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
+    msgs = hub.list_messages(ctx.base, ctx.channel, 200)
+    pool = hub.chat_agent_messages(msgs)
+    candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
+    baseline = int(ctx.baseline_agent_count.get(from_name, 0))
+    turn = candidates[baseline:] if baseline < len(candidates) else candidates[-1:]
+    outcome = None
+    for candidate in reversed(turn):
+        meta = candidate.get("metadata") or {}
+        got = metadata_get(meta, "implementation_session_outcome")
+        if isinstance(got, dict):
+            outcome = got
+            break
+    if outcome is None:
+        return False, "assert_impl_outcome: missing implementation_session_outcome"
+
+    def _as_list(val: object) -> list[str]:
+        if val is None:
+            return []
+        if isinstance(val, list):
+            return [str(x) for x in val]
+        return [str(val)]
+
+    files_read = [x.replace("\\", "/") for x in _as_list(outcome.get("files_read"))]
+    files_changed = [x.replace("\\", "/") for x in _as_list(outcome.get("files_changed"))]
+    discover = [str(x) for x in _as_list(outcome.get("discover_tools"))]
+
+    for want in step.get("files_read_any") or []:
+        want_n = str(want).replace("\\", "/")
+        if not any(want_n == r or r.endswith("/" + want_n) or r.endswith(want_n) for r in files_read):
+            return False, f"assert_impl_outcome: files_read missing {want_n!r} (got {files_read!r})"
+
+    for bad in step.get("files_changed_none") or []:
+        bad_n = str(bad).replace("\\", "/")
+        if any(bad_n == c or c.endswith("/" + bad_n) or c.endswith(bad_n) for c in files_changed):
+            return False, f"assert_impl_outcome: files_changed must not include {bad_n!r} (got {files_changed!r})"
+
+    if step.get("require_discover_or_read"):
+        if not files_read and not discover:
+            return False, "assert_impl_outcome: require_discover_or_read but files_read and discover_tools are empty"
+
+    return True, "impl outcome assertions ok"
+
+
 def step_assert_shell(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     root = scenario_repo_root(ctx.scenario)
     command = (step.get("command") or step.get("shell") or "").strip()
@@ -619,6 +665,7 @@ HANDLERS = {
     "assert_suggested_commands": step_assert_suggested_commands,
     "assert_message_metadata": step_assert_message_metadata,
     "assert_files_unchanged": step_assert_files_unchanged,
+    "assert_impl_outcome": step_assert_impl_outcome,
     "assert_shell": step_assert_shell,
 }
 

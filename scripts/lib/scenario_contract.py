@@ -244,6 +244,24 @@ def load_scenario_json(path: Path) -> dict:
     return data
 
 
+def validate_assert_impl_outcome_steps(scenario_relpath: str, scenario: dict) -> list[str]:
+    errors: list[str] = []
+    for index, step in enumerate(scenario_all_steps(scenario)):
+        if (step.get("action") or "").strip() != "assert_impl_outcome":
+            continue
+        has_check = bool(
+            step.get("files_read_any")
+            or step.get("files_changed_none")
+            or step.get("require_discover_or_read")
+        )
+        if not has_check:
+            errors.append(
+                f"{scenario_relpath}: assert_impl_outcome[{index}] needs files_read_any, "
+                "files_changed_none, and/or require_discover_or_read"
+            )
+    return errors
+
+
 def validate_all_scenario_contracts() -> list[str]:
     errors: list[str] = []
     for directory, prefix in (
@@ -266,6 +284,7 @@ def validate_all_scenario_contracts() -> list[str]:
             errors.extend(validate_scenario_shape(rel, scenario))
             errors.extend(validate_deliverable_contract(rel, scenario))
             errors.extend(validate_implement_wait_gates(rel, scenario))
+            errors.extend(validate_assert_impl_outcome_steps(rel, scenario))
 
     # SUT self-improve episodes: adaptive human/judge schema (no required steps list).
     if SUT_DIR.is_dir():

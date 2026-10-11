@@ -63,7 +63,8 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		var referencedFiles strings.Builder
 		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
 		if userRequestsImplementationForMessage(a, msg) || messageNeedsWorkspaceFileLoad(a, msg) {
-			referencedLoaded += AppendImplementationSeedFiles(&referencedFiles, a, msg, wsPath, a.Info.Type, includedFiles)
+			nSeeds, _ := AppendImplementationSeedFiles(&referencedFiles, a, msg, wsPath, a.Info.Type, includedFiles)
+			referencedLoaded += nSeeds
 		}
 		if userRequestsContentDelivery(msg.Content) {
 			referencedLoaded += AppendContentDeliverySeedFiles(&referencedFiles, wsPath, includedFiles)
@@ -317,7 +318,8 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		var referencedFiles strings.Builder
 		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
 		if userRequestsImplementationForMessage(a, msg) || messageNeedsWorkspaceFileLoad(a, msg) {
-			referencedLoaded += AppendImplementationSeedFiles(&referencedFiles, a, msg, wsPath, a.Info.Type, includedFiles)
+			nSeeds, _ := AppendImplementationSeedFiles(&referencedFiles, a, msg, wsPath, a.Info.Type, includedFiles)
+			referencedLoaded += nSeeds
 		}
 		if userRequestsContentDelivery(msg.Content) {
 			referencedLoaded += AppendContentDeliverySeedFiles(&referencedFiles, wsPath, includedFiles)

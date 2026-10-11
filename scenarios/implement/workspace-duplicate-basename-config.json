@@ -1,0 +1,83 @@
+{
+  "name": "workspace-duplicate-basename-config",
+  "description": "Duplicate basename config.go — only pkg/alpha/config.go may change.",
+  "tags": [
+    "implement",
+    "backend",
+    "workspace",
+    "path-awareness"
+  ],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": [
+    "BackendEngineer"
+  ],
+  "workspace": {
+    "fixture": "workspace-path-confusion",
+    "unchanged_files": [
+      "pkg/beta/config.go",
+      "src/App.js"
+    ]
+  },
+  "expect_deliverables": [
+    {
+      "path": "pkg/alpha/config.go",
+      "min_bytes": 40,
+      "for_question": {
+        "any_match": [
+          "alpha-aware|ALPHA_AWARE|ServiceName"
+        ],
+        "none_match": [
+          "beta-service"
+        ]
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "@BackendEngineer Edit pkg/alpha/config.go only: change ServiceName to include alpha-aware. Do not touch pkg/beta/config.go.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "900s",
+      "until_file_match": {
+        "path": "pkg/alpha/config.go",
+        "any_match": [
+          "alpha-aware|ALPHA_AWARE"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_files_unchanged",
+      "paths": [
+        "pkg/beta/config.go",
+        "src/App.js"
+      ]
+    },
+    {
+      "action": "assert_impl_outcome",
+      "from": "BackendEngineer",
+      "files_read_any": [
+        "pkg/alpha/config.go"
+      ],
+      "files_changed_none": [
+        "pkg/beta/config.go"
+      ],
+      "require_discover_or_read": true
+    }
+  ]
+}

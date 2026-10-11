@@ -526,8 +526,12 @@ func TestGroundingSatisfied(t *testing.T) {
 		t.Fatal("one seed file should satisfy grounding")
 	}
 	st4 := &ImplementationSessionState{DiscoverTools: []string{"glob_file_search"}}
-	if !st4.groundingSatisfied() {
-		t.Fatal("a discover tool should satisfy grounding")
+	if st4.groundingSatisfied() {
+		t.Fatal("discover tools alone must not satisfy grounding — exact target read required")
+	}
+	st5 := &ImplementationSessionState{LastReadPaths: []string{"src/App.tsx"}}
+	if !st5.groundingSatisfied() {
+		t.Fatal("a recorded file read should satisfy grounding")
 	}
 }
 
@@ -538,10 +542,18 @@ func TestBuildImplementationSessionOutcome(t *testing.T) {
 		VerifyFailed:  false,
 		VerifySkipped: false,
 		FilesChanged:  []string{"core/sample/math.go"},
+		LastReadPaths: []string{"core/sample/math.go"},
+		DiscoverTools: []string{"read_file"},
 	}
 	outcome := a.buildImplementationSessionOutcome(nil, state, true)
 	if outcome["repair_used"] != true {
 		t.Fatalf("repair_used=%v", outcome["repair_used"])
+	}
+	if got, _ := outcome["files_read"].([]string); len(got) != 1 || got[0] != "core/sample/math.go" {
+		t.Fatalf("files_read=%v", outcome["files_read"])
+	}
+	if got, _ := outcome["discover_tools"].([]string); len(got) != 1 || got[0] != "read_file" {
+		t.Fatalf("discover_tools=%v", outcome["discover_tools"])
 	}
 	if outcome["verify_failed"] != false {
 		t.Fatalf("verify_failed=%v", outcome["verify_failed"])

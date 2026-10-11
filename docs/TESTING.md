@@ -114,7 +114,8 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Substantive coding replies | Intent routing, specialist prompts | `make layer-gate LAYER=chat`, DM task scenarios |
 | `@codebase` semantic search | `internal/codeindex`, `POST /api/repo/search/semantic` | `dm-backend-codebase-semantic` |
 | IDE routing from open file | `ide_route_agent_type` metadata | `dm-ide-route-backend` |
-| Workspace MCP tools (read/grep/glob) | `internal/mcp/workspace` | manual IDE Agent mode |
+| Workspace path / coding awareness | Path redirect, exact-read grounding, outline discover-before-edit | `workspace-edit-correct-app-tsx`, `workspace-duplicate-basename-config`, `workspace-outline-must-discover` (`assert_impl_outcome`) |
+| Workspace MCP tools (read/grep/glob) | `internal/mcp/workspace` | MCP unit tests + path-awareness implement scenarios |
 | Everyone contributes in collab | Discussion turns, `@mention` out-of-turn | `make collab-scenarios-all`; `wait_discussion` + nudges |
 | Deliverables on real paths | Plan parser, execution sandbox | Collab regression scenarios with `NEURAL_JUNKIE_SCENARIO_REPO` |
 | Slack = same agent surface | Slack bridge → bound channel | `make slack-smoke`; optional `LIVE=1` (synthetic inbound, no posts); `SLACK_SMOKE_OUTBOUND=1` for gated outbound |
