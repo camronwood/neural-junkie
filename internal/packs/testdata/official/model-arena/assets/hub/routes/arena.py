@@ -616,17 +616,146 @@ def _submit_answer(session: dict[str, Any], body: dict[str, Any], settings: dict
     return _save_session(settings, session)
 
 
-def _run_eval(settings: dict[str, str]) -> dict[str, Any]:
+def _eval_yaml_path(pack_dir: str) -> Path | None:
+    if not pack_dir:
+        return None
+    path = Path(pack_dir) / "assets" / "eval" / "arena.yaml"
+    return path if path.is_file() else None
+
+
+def _load_eval_doc(pack_dir: str) -> dict[str, Any]:
+    path = _eval_yaml_path(pack_dir)
+    if path is None:
+        return {
+            "version": 1,
+            "default_suite": "quick",
+            "suites": {
+                "quick": {
+                    "title": "Quick",
+                    "description": "Logic puzzle set plus a Connect Four completion smoke.",
+                    "challenges": ["logic-set", "connect4-smoke"],
+                },
+                "logic-only": {
+                    "title": "Logic only",
+                    "description": "Score models on the knights-and-knaves puzzle bank.",
+                    "challenges": ["logic-set"],
+                },
+            },
+            "logic": {"max_puzzles": 20, "max_steps": 5, "pass_rate_min": 0.5},
+            "connect4": {"max_steps": 42},
+        }
+    try:
+        import yaml  # type: ignore
+
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        # PyYAML may be absent in the sidecar venv; parse a minimal suite list via JSON-ish fallback.
+        text = path.read_text(encoding="utf-8")
+        if "logic-only" in text and "quick" in text:
+            return _load_eval_doc("")  # embedded defaults
+        return {}
+
+
+def _list_suites(pack_dir: str) -> dict[str, Any]:
+    doc = _load_eval_doc(pack_dir)
+    suites_raw = doc.get("suites") if isinstance(doc.get("suites"), dict) else {}
+    suites: list[dict[str, Any]] = []
+    for suite_id, meta in suites_raw.items():
+        if not isinstance(meta, dict):
+            continue
+        challenges = meta.get("challenges") if isinstance(meta.get("challenges"), list) else []
+        suites.append(
+            {
+                "id": str(suite_id),
+                "title": str(meta.get("title") or suite_id),
+                "description": str(meta.get("description") or ""),
+                "challenges": [str(c) for c in challenges if str(c).strip()],
+            }
+        )
+    default_suite = str(doc.get("default_suite") or "quick")
+    if suites and not any(s["id"] == default_suite for s in suites):
+        default_suite = suites[0]["id"]
+    return {"default_suite": default_suite, "suites": suites, "fixtures": _run_eval_fixtures(pack_dir)}
+
+
+def _aggregate_scores(body: dict[str, Any]) -> dict[str, Any]:
+    """Rank model results from hub-orchestrated benchmark runs (no model calls here)."""
+    models = body.get("models") if isinstance(body.get("models"), list) else []
+    ranked: list[dict[str, Any]] = []
+    for item in models:
+        if not isinstance(item, dict):
+            continue
+        model = str(item.get("model") or "").strip()
+        if not model:
+            continue
+        logic_correct = int(item.get("logic_correct") or 0)
+        logic_total = int(item.get("logic_total") or 0)
+        connect4 = bool(item.get("connect4_completed"))
+        pass_rate = item.get("pass_rate")
+        if not isinstance(pass_rate, (int, float)):
+            parts: list[float] = []
+            if logic_total > 0:
+                parts.append(logic_correct / logic_total)
+            if "connect4_completed" in item:
+                parts.append(1.0 if connect4 else 0.0)
+            pass_rate = sum(parts) / len(parts) if parts else 0.0
+        ranked.append(
+            {
+                "model": model,
+                "logic_correct": logic_correct,
+                "logic_total": logic_total,
+                "connect4_completed": connect4,
+                "wins": int(item.get("wins") or 0),
+                "losses": int(item.get("losses") or 0),
+                "draws": int(item.get("draws") or 0),
+                "illegal_moves": int(item.get("illegal_moves") or 0),
+                "pass_rate": round(float(pass_rate), 4),
+                "capability_passed": bool(item.get("capability_passed")),
+                "error": str(item.get("error") or "") or None,
+            }
+        )
+    ranked.sort(key=lambda r: (-float(r["pass_rate"]), -int(r["logic_correct"]), r["model"]))
+    for idx, row in enumerate(ranked, start=1):
+        row["rank"] = idx
+    return {"ok": True, "ranking": ranked, "count": len(ranked)}
+
+
+def _run_eval_fixtures(pack_dir: str = "") -> dict[str, Any]:
     puzzles = _puzzles()
+    doc = _load_eval_doc(pack_dir)
+    logic = doc.get("logic") if isinstance(doc.get("logic"), dict) else {}
+    connect4 = doc.get("connect4") if isinstance(doc.get("connect4"), dict) else {}
     return {
         "ok": True,
         "logic_puzzles": len(puzzles),
+        "logic": {
+            "max_puzzles": int(logic.get("max_puzzles") or 20),
+            "max_steps": int(logic.get("max_steps") or 5),
+            "pass_rate_min": float(logic.get("pass_rate_min") or 0.5),
+        },
         "connect4_smoke": {
             "legal_first_moves": list(range(COLS)),
             "expected_board": f"{ROWS}x{COLS}",
+            "max_steps": int(connect4.get("max_steps") or 42),
+            "scripted_columns": connect4.get("scripted_columns")
+            if isinstance(connect4.get("scripted_columns"), list)
+            else [3, 2, 3, 2, 3, 2, 3],
         },
-        "note": "Model calls are orchestrated by the hub match runner; sidecar eval provides deterministic fixtures.",
+        "note": "Model calls are orchestrated by the hub match runner; sidecar eval provides suite listing and score aggregation.",
     }
+
+
+def _run_eval(settings: dict[str, str], pack_dir: str = "", body: dict[str, Any] | None = None) -> dict[str, Any]:
+    body = body or {}
+    mode = str(body.get("mode") or "fixtures").strip().lower()
+    if mode == "aggregate":
+        return _aggregate_scores(body)
+    if mode == "suites":
+        return _list_suites(pack_dir)
+    out = _run_eval_fixtures(pack_dir)
+    out["suites"] = _list_suites(pack_dir)
+    return out
 
 
 def handle_get(handler: Any, path: str, settings: dict[str, str], pack_dir: str) -> None:
@@ -638,6 +767,9 @@ def handle_get(handler: Any, path: str, settings: dict[str, str], pack_dir: str)
         return
     if path == "/api/arena/leaderboard":
         _json(handler, 200, _load_json(_leaderboard_path(settings), {"models": {}, "sessions": []}))
+        return
+    if path == "/api/arena/eval/suites":
+        _json(handler, 200, _list_suites(pack_dir))
         return
     match = re.fullmatch(r"/api/arena/sessions/([A-Za-z0-9_-]+)", path)
     if match:
@@ -656,7 +788,10 @@ def handle_post(handler: Any, path: str, body: dict, settings: dict[str, str], p
             _json(handler, 200, _session_public(_create_session(body, settings)))
             return
         if path == "/api/arena/eval/run":
-            _json(handler, 200, _run_eval(settings))
+            _json(handler, 200, _run_eval(settings, pack_dir, body if isinstance(body, dict) else {}))
+            return
+        if path == "/api/arena/eval/aggregate":
+            _json(handler, 200, _aggregate_scores(body if isinstance(body, dict) else {}))
             return
         move_match = re.fullmatch(r"/api/arena/sessions/([A-Za-z0-9_-]+)/move", path)
         if move_match:
