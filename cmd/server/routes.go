@@ -269,6 +269,11 @@ func registerRoutes() {
 	http.HandleFunc("/api/assistant/google/callback", corsMiddleware(handleAssistantGoogleCallback))
 	http.HandleFunc("/api/assistant/google/disconnect", corsMiddleware(handleAssistantGoogleDisconnect))
 	http.HandleFunc("/api/assistant/google/sync", corsMiddleware(handleAssistantGoogleSync))
+	http.HandleFunc("/api/assistant/listen/status", corsMiddleware(localOnly(handleAssistantListenStatus)))
+	http.HandleFunc("/api/assistant/listen/start", corsMiddleware(localOnly(handleAssistantListenStart)))
+	http.HandleFunc("/api/assistant/listen/chunk", corsMiddleware(localOnly(handleAssistantListenChunk)))
+	http.HandleFunc("/api/assistant/listen/stop", corsMiddleware(localOnly(handleAssistantListenStop)))
+	http.HandleFunc("/api/assistant/listen/cancel", corsMiddleware(localOnly(handleAssistantListenCancel)))
 
 	http.HandleFunc("/api/stream/status", corsMiddleware(localOnly(handleStreamStatus)))
 	http.HandleFunc("/api/stream/restart", corsMiddleware(localOnly(handleStreamRestart)))

@@ -38,6 +38,9 @@ func initializeAssistantAgent() {
 		}
 	}
 
+	// Eagerly init Desktop Listen manager (local STT) so /listen-* and status work.
+	_ = getListenManager()
+
 	// Join general channel with greeting
 	if err := chatHub.JoinChannel(assistant.Info.ID, "general",
 		"👋 Personal Assistant online! I can help with reminders, tasks, notes, platform questions, and more. Ask me '/help-assistant' to learn what I can do!"); err != nil {

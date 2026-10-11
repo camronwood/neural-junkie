@@ -301,6 +301,57 @@ describe('AssistantApi', () => {
     expect(hubFetch).toHaveBeenCalledWith('/api/assistant/state?channel=general');
     expect(data.tasks).toEqual([]);
   });
+
+  it('startListen / sendListenChunk / stopListen / cancelListen hit listen APIs', async () => {
+    const hubFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ session_id: 's1', status: 'listening', stt_ready: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ partial_text: 'hello', session_id: 's1' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          session_id: 's1',
+          note_id: 'n1',
+          title: 't',
+          summary: 's',
+          transcript: 'hello',
+          partial_text: 'hello',
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'cancelled' }) });
+
+    const api = new AssistantApi(hubFetch);
+    await api.startListen('Standup');
+    expect(hubFetch).toHaveBeenCalledWith('/api/assistant/listen/start', expect.any(Object));
+
+    await api.sendListenChunk('s1', new ArrayBuffer(8));
+    expect(hubFetch).toHaveBeenCalledWith(
+      '/api/assistant/listen/chunk?session_id=s1',
+      expect.objectContaining({ method: 'POST' })
+    );
+
+    await api.stopListen('s1');
+    expect(hubFetch).toHaveBeenCalledWith('/api/assistant/listen/stop', expect.any(Object));
+
+    await api.cancelListen('s1');
+    expect(hubFetch).toHaveBeenCalledWith('/api/assistant/listen/cancel', expect.any(Object));
+  });
+
+  it('startListen surfaces stt_unavailable errors', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Service Unavailable',
+      json: async () => ({ error: 'stt_unavailable: missing model', code: 'stt_unavailable' }),
+    });
+    const api = new AssistantApi(hubFetch);
+    await expect(api.startListen()).rejects.toThrow(/stt_unavailable/);
+  });
 });
 
 describe('SlackApi', () => {

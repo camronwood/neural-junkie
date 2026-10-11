@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,11 +60,21 @@ func (a *AssistantAgent) ingestMeetingContent(ctx context.Context, in meetnotes.
 		googleDocLink = meetnotes.DocLink(in.GoogleDocID)
 	}
 
+	source := strings.TrimSpace(in.Source)
+	if source == "" {
+		source = "google"
+	}
+
+	meetingDate := in.MeetingDate
+	if meetingDate.IsZero() {
+		meetingDate = time.Now()
+	}
+
 	meetingNote := &MeetingNote{
-		Source:         "google",
+		Source:         source,
 		GmailMessageID: in.GmailMessageID,
 		GoogleDocID:    in.GoogleDocID,
-		MeetingDate:    in.MeetingDate,
+		MeetingDate:    meetingDate,
 		Title:          in.Title,
 		Attendees:      attendees,
 		Summary:        summary,
@@ -86,6 +97,28 @@ func (a *AssistantAgent) ingestMeetingContent(ctx context.Context, in meetnotes.
 		a.sendMeetingNoteNotification(ctx, meetingNote)
 	}
 	return meetingNote
+}
+
+// IngestDesktopListenTranscript saves a Desktop Listen transcript as a meeting note.
+func (a *AssistantAgent) IngestDesktopListenTranscript(ctx context.Context, title, transcript string) (*MeetingNote, error) {
+	transcript = strings.TrimSpace(transcript)
+	if transcript == "" {
+		return nil, fmt.Errorf("empty transcript")
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = fmt.Sprintf("Desktop listen %s", time.Now().Format("2006-01-02 15:04"))
+	}
+	note := a.ingestMeetingContent(ctx, meetnotes.IngestInput{
+		Title:       title,
+		MeetingDate: time.Now(),
+		FullContent: transcript,
+		Source:      "desktop_listen",
+	}, true)
+	if note == nil {
+		return nil, fmt.Errorf("failed to save desktop listen meeting note")
+	}
+	return note, nil
 }
 
 // EnsureGoogleMeetNotesSync starts the background sync loop when connected (idempotent).

@@ -31,7 +31,11 @@ import {
   resolveContextScope,
   type ChannelKind,
 } from './inferContextScope';
-import type { ChannelMessageRef } from './implementationContinuation';
+import {
+  channelHasImplementationThread,
+  type ChannelMessageRef,
+} from './implementationContinuation';
+import { shouldStampAgentImplementationSession } from './implementationIntent';
 import type { EffectiveComposerMode } from '../constants/composerMode';
 import {
   attachTurnCapabilitiesMetadata,
@@ -484,9 +488,19 @@ export function buildHumanOutboundMetadata(options: {
     meta[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
   } else if (composerMode === 'agent') {
     // prepareOutboundPayload stamps implementation_session for execute/go-ahead asks.
-    // Do not carry a sticky true from composer state onto ordinary agent turns —
-    // hub can still force via text when appropriate.
-    delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
+    // Keep that stamp when the message warrants it; drop sticky composer true otherwise.
+    // Custom Writing/etc experts (ide_route_agent_type=expert) are prose agents.
+    const recentHasImpl = channelHasImplementationThread(options.recentChannelMessages);
+    const isCustomExpert = meta.ide_route_agent_type === 'expert';
+    if (
+      !isCustomExpert &&
+      meta[IMPLEMENTATION_SESSION_METADATA_KEY] === true &&
+      shouldStampAgentImplementationSession(message, recentHasImpl)
+    ) {
+      meta[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
+    } else {
+      delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
+    }
   } else {
     delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
   }

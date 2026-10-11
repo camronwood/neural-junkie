@@ -13,6 +13,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
+	listenpkg "github.com/camronwood/neural-junkie/internal/listen"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
 )
@@ -198,6 +199,15 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		"/meeting-add":      ch.handleMeeting,
 		"/ingest-meetings": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
 			return ch.handleIngestMeetings(ctx, msg)
+		},
+		"/listen-start": func(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+			return ch.handleListenStart(ctx, msg, parts)
+		},
+		"/listen-stop": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListenStop(ctx, msg)
+		},
+		"/listen-status": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListenStatus(ctx, msg)
 		},
 		"/search-meetings": ch.handleSearchMeetings,
 		"/meeting-summary": ch.handleMeetingSummary,
@@ -932,6 +942,68 @@ func shortID(id string) string {
 	return id
 }
 
+// handleListenStart opens a hub listen session (audio still comes from the desktop toolbar).
+func (ch *CommandHandler) handleListenStart(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	m := listenpkg.Global()
+	if m == nil {
+		return ch.systemResponse(msg.Channel, "❌ Desktop Listen is not initialized. Restart the hub."), nil
+	}
+	title := strings.TrimSpace(strings.Join(parts[1:], " "))
+	id, err := m.Start(title)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Listen start failed: %v\nTip: use the toolbar mic control for capture, or set NJ_WHISPER_CMD / install whisper.cpp.", err)), nil
+	}
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("🎙️ Desktop Listen session started (`%s`). Use the toolbar mic to capture audio, then `/listen-stop` when done.", id[:8])), nil
+}
+
+func (ch *CommandHandler) handleListenStop(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
+	m := listenpkg.Global()
+	if m == nil {
+		return ch.systemResponse(msg.Channel, "❌ Desktop Listen is not initialized."), nil
+	}
+	st := m.Status()
+	if !st.Active {
+		return ch.systemResponse(msg.Channel, "❌ No active listen session. Start with `/listen-start` or the toolbar mic."), nil
+	}
+	res, err := m.Stop(ctx, st.SessionID)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Listen stop failed: %v", err)), nil
+	}
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Saved Desktop Listen note **%s**\n\n%s", res.Title, res.Summary)), nil
+}
+
+func (ch *CommandHandler) handleListenStatus(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
+	m := listenpkg.Global()
+	if m == nil {
+		return ch.systemResponse(msg.Channel, "Desktop Listen: not initialized (restart hub)."), nil
+	}
+	st := m.Status()
+	ready := "no"
+	if st.STTReady {
+		ready = "yes"
+	}
+	active := "idle"
+	if st.Active {
+		active = st.State
+	}
+	hint := ""
+	if st.STTHint != "" {
+		hint = "\nSTT hint: " + st.STTHint
+	}
+	partial := ""
+	if st.PartialText != "" {
+		partial = "\nPartial: " + truncateForListenStatus(st.PartialText, 200)
+	}
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("🎙️ Desktop Listen — state: **%s**, STT ready: **%s**, enabled: **%v**%s%s", active, ready, st.Enabled, hint, partial)), nil
+}
+
+func truncateForListenStatus(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
 // handleIngestMeetings manually triggers Google meet notes sync
 func (ch *CommandHandler) handleIngestMeetings(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
 	assistantAgent := ch.findAssistantAgent()
@@ -1355,6 +1427,26 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		{
 			Name:        "/ingest-meetings",
 			Description: "Sync meeting notes from Google (Gmail + Docs)",
+			Category:    "Meetings",
+			Arguments:   []protocol.CommandArgument{},
+		},
+		{
+			Name:        "/listen-start",
+			Description: "Start Desktop Listen session (local STT; use toolbar mic for audio)",
+			Category:    "Meetings",
+			Arguments: []protocol.CommandArgument{
+				{Name: "title", Description: "Optional meeting title", Type: "string", Required: false},
+			},
+		},
+		{
+			Name:        "/listen-stop",
+			Description: "Stop Desktop Listen and save meeting notes",
+			Category:    "Meetings",
+			Arguments:   []protocol.CommandArgument{},
+		},
+		{
+			Name:        "/listen-status",
+			Description: "Show Desktop Listen / local STT status",
 			Category:    "Meetings",
 			Arguments:   []protocol.CommandArgument{},
 		},

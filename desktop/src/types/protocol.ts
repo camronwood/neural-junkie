@@ -1074,6 +1074,39 @@ export interface GoogleMeetNotesStatus {
   oauth_source?: string;
 }
 
+/** Desktop Listen (local STT) hub status. */
+export interface DesktopListenStatus {
+  active: boolean;
+  session_id?: string;
+  state: string;
+  stt_ready: boolean;
+  stt_hint?: string;
+  partial_text?: string;
+  error?: string;
+  title?: string;
+  enabled: boolean;
+}
+
+export interface DesktopListenStartResponse {
+  session_id: string;
+  status: string;
+  stt_ready: boolean;
+}
+
+export interface DesktopListenChunkResponse {
+  partial_text: string;
+  session_id: string;
+}
+
+export interface DesktopListenStopResult {
+  session_id: string;
+  note_id: string;
+  title: string;
+  summary: string;
+  transcript: string;
+  partial_text: string;
+}
+
 export interface WebSearchConfigResponse {
   enabled: boolean;
   provider: string;

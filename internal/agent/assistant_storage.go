@@ -80,11 +80,11 @@ type Meeting struct {
 	Recurring   *RecurringSchedule `json:"recurring,omitempty"`
 }
 
-// MeetingNote represents ingested Gemini Meet notes (Google sync).
+// MeetingNote represents ingested meeting notes (Google sync or Desktop Listen).
 type MeetingNote struct {
 	ID             string      `json:"id"`
 	FilePath       string      `json:"file_path,omitempty"` // legacy markdown path
-	Source         string      `json:"source,omitempty"`    // "google"
+	Source         string      `json:"source,omitempty"`    // "google" | "desktop_listen"
 	GmailMessageID string      `json:"gmail_message_id,omitempty"`
 	GoogleDocID    string      `json:"google_doc_id,omitempty"`
 	MeetingDate    time.Time   `json:"meeting_date"`
@@ -113,6 +113,9 @@ type AssistantConfig struct {
 	EmailDir                  string   `json:"email_dir"`
 	EmailIngestEnabled        bool     `json:"email_ingest_enabled"`
 	ProactiveAssistance       bool     `json:"proactive_assistance"`
+	DesktopListenEnabled      bool     `json:"desktop_listen_enabled"`
+	WhisperCommand            string   `json:"whisper_command,omitempty"`
+	WhisperModelPath          string   `json:"whisper_model_path,omitempty"`
 }
 
 // NewAssistantStorage creates a new storage manager
@@ -165,6 +168,7 @@ func DefaultAssistantConfig() *AssistantConfig {
 		GoogleSenderEmail:         "gemini-notes@google.com",
 		GoogleBackfillDays:        90,
 		ProactiveAssistance:       true,
+		DesktopListenEnabled:      true,
 	}
 }
 

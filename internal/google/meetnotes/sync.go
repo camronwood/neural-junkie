@@ -14,12 +14,14 @@ import (
 
 // IngestInput is one meeting note ready for assistant ingestion.
 type IngestInput struct {
-	Title           string
-	MeetingDate     time.Time
-	GoogleDocID     string
-	GoogleDocLink   string
-	GmailMessageID  string
-	FullContent     string
+	Title          string
+	MeetingDate    time.Time
+	GoogleDocID    string
+	GoogleDocLink  string
+	GmailMessageID string
+	FullContent    string
+	// Source identifies the ingest origin (e.g. "google", "desktop_listen"). Empty means "google".
+	Source string
 }
 
 // SyncOptions configures a sync run.

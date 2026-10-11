@@ -300,3 +300,32 @@ func TestBuildPromptForIntent_LowSignalStillEnrichesMeetingNotes(t *testing.T) {
 		t.Fatalf("expected enriched prompt, not minimal casual prompt, got:\n%s", prompt)
 	}
 }
+
+func TestSelectMeetingNotesForPrompt_DesktopListenSource(t *testing.T) {
+	now := time.Now()
+	older := &MeetingNote{
+		ID:          "g-1",
+		Source:      "google",
+		Title:       "Old sprint planning",
+		Summary:     "Prior planning notes",
+		MeetingDate: now.Add(-48 * time.Hour),
+	}
+	note := &MeetingNote{
+		ID:          "dl-1",
+		Source:      "desktop_listen",
+		Title:       "Desktop listen standup",
+		Summary:     "We decided to ship the listen feature",
+		FullContent: "action items: wire whisper.cpp and save meeting notes",
+		Topics:      []string{"whisper", "desktop listen"},
+		MeetingDate: now,
+		IngestedAt:  now,
+	}
+	selected, _ := selectMeetingNotesForPrompt(
+		[]*MeetingNote{older, note},
+		"what did we decide about whisper in the desktop listen meeting?",
+		3,
+	)
+	if len(selected) == 0 || selected[0].Source != "desktop_listen" {
+		t.Fatalf("expected desktop_listen note first, got %#v", selected)
+	}
+}
