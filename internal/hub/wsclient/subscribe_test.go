@@ -28,12 +28,20 @@ func TestChannelWSURL(t *testing.T) {
 }
 
 func TestAgentWSURL(t *testing.T) {
-	got, err := agentWSURL("https://hub.example.com", "agent-123")
+	got, err := agentWSURL("https://hub.example.com", "agent-123", "secret-token")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "wss://hub.example.com/api/agents/ws?agent_id=agent-123" {
+	u, err := url.Parse(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Scheme != "wss" || u.Host != "hub.example.com" || u.Path != "/api/agents/ws" {
 		t.Fatalf("got %q", got)
+	}
+	q := u.Query()
+	if q.Get("agent_id") != "agent-123" || q.Get("agent_token") != "secret-token" {
+		t.Fatalf("query = %q", got)
 	}
 }
 

@@ -37,6 +37,7 @@ type httpHubClient struct {
 	baseURL     string
 	client      *http.Client
 	agentID     string
+	agentToken  string
 	apiKey      string
 	usePoll     bool
 	stopWS      chan struct{}
@@ -62,6 +63,10 @@ func newHTTPHubClient(baseURL string, usePoll bool, apiKey string) *httpHubClien
 
 func (h *httpHubClient) SetAgentID(id string) {
 	h.agentID = strings.TrimSpace(id)
+}
+
+func (h *httpHubClient) SetAgentToken(token string) {
+	h.agentToken = strings.TrimSpace(token)
 }
 
 func (h *httpHubClient) setChannelHeld(channel string, held bool) {
@@ -209,7 +214,7 @@ func (h *httpHubClient) subscribeAgentChannel(channelName string) (chan *protoco
 		onHold := func(channel string, held bool) {
 			h.setChannelHeld(channel, held)
 		}
-		feed, err := wsclient.SubscribeAgent(h.baseURL, h.agentID, h.stopWS, onHold)
+		feed, err := wsclient.SubscribeAgent(h.baseURL, h.agentID, h.agentToken, h.stopWS, onHold)
 		if err != nil {
 			return nil, err
 		}
@@ -550,14 +555,21 @@ func main() {
 
 	hubClient.SetAgentID(agentInstance.Info.ID)
 
-	// Register with hub
+	// Register with hub (capture agent_token for /api/agents/ws auth)
 	registerData, _ := json.Marshal(agentInstance.Info)
 
 	resp, err := hubClient.doPost(*serverAddr+"/api/agents", "application/json", registerData)
 	if err != nil {
 		log.Printf("Warning: Failed to register with hub: %v", err)
 	} else {
+		var reg struct {
+			AgentToken string `json:"agent_token"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&reg)
 		resp.Body.Close()
+		if reg.AgentToken != "" {
+			hubClient.SetAgentToken(reg.AgentToken)
+		}
 	}
 
 	// Join channel with greeting (single join message, no duplicate)

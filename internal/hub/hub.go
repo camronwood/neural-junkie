@@ -21,7 +21,9 @@ import (
 type Hub struct {
 	channels map[string]*protocol.Channel
 	agents   map[string]*protocol.AgentInfo
-	messages map[string][]*protocol.Message // channel -> messages
+	// agentWSTokens maps agent ID -> secret issued at RegisterAgent for /api/agents/ws.
+	agentWSTokens map[string]string
+	messages      map[string][]*protocol.Message // channel -> messages
 
 	// Ephemeral room sessions (LAN room chat)
 	rooms       map[string]*Room  // room_id -> room
@@ -120,6 +122,7 @@ func NewHub() *Hub {
 	hub := &Hub{
 		channels:                         make(map[string]*protocol.Channel),
 		agents:                           make(map[string]*protocol.AgentInfo),
+		agentWSTokens:                    make(map[string]string),
 		messages:                         make(map[string][]*protocol.Message),
 		rooms:                            make(map[string]*Room),
 		roomsByCode:                      make(map[string]string),

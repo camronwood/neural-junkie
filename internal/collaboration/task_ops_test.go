@@ -153,6 +153,55 @@ func TestClaimActionExecutionSingleFlight(t *testing.T) {
 	}
 }
 
+func TestClaimTaskPromptDispatchSingleFlight(t *testing.T) {
+	h := newRunbookMockHub()
+	h.addAgent("a1", "A", protocol.AgentTypeBackend, nil)
+	h.addAgent("a2", "B", protocol.AgentTypeFrontend, nil)
+	cm := NewCollaborationManager(h)
+	c, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, "general", "u", DiscussionConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	_ = cm.SetTasks(c.ID, []CollaborationTask{
+		{ID: "t1", Title: "Work", AssignedTo: "a1", AssignedName: "A", Status: TaskPending, CreatedAt: now, UpdatedAt: now},
+	})
+	if !cm.ClaimTaskPromptDispatch(c.ID, "t1", false) {
+		t.Fatal("first claim should succeed")
+	}
+	if cm.ClaimTaskPromptDispatch(c.ID, "t1", false) {
+		t.Fatal("second claim without force should fail")
+	}
+	snap, _ := cm.GetCollaborationSnapshot(c.ID)
+	if !snap.Tasks[0].PromptDispatched || snap.Tasks[0].Status != TaskInProgress {
+		t.Fatalf("dispatched=%v status=%s", snap.Tasks[0].PromptDispatched, snap.Tasks[0].Status)
+	}
+	if !cm.ClaimTaskPromptDispatch(c.ID, "t1", true) {
+		t.Fatal("force reclaim should succeed")
+	}
+}
+
+func TestClaimTaskPromptDispatchRejectsCompleted(t *testing.T) {
+	h := newRunbookMockHub()
+	h.addAgent("a1", "A", protocol.AgentTypeBackend, nil)
+	h.addAgent("a2", "B", protocol.AgentTypeFrontend, nil)
+	cm := NewCollaborationManager(h)
+	c, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, "general", "u", DiscussionConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	_ = cm.SetTasks(c.ID, []CollaborationTask{
+		{ID: "t1", Title: "Work", AssignedTo: "a1", AssignedName: "A", Status: TaskCompleted, CreatedAt: now, UpdatedAt: now},
+	})
+	if cm.ClaimTaskPromptDispatch(c.ID, "t1", false) {
+		t.Fatal("completed task must not be claimable")
+	}
+	if cm.ClaimTaskPromptDispatch(c.ID, "t1", true) {
+		t.Fatal("completed task must not be claimable even with force")
+	}
+}
+
 func TestMarkTaskPromptDispatchedAdvancesPending(t *testing.T) {
 	h := newRunbookMockHub()
 	h.addAgent("a1", "A", protocol.AgentTypeBackend, nil)
