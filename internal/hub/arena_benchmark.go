@@ -351,6 +351,37 @@ func (h *Hub) StartArenaBenchmark(ctx context.Context, req ArenaBenchmarkStartRe
 	return cloneArenaBenchmarkJob(job), nil
 }
 
+func arenaBenchmarkStatusTerminal(status string) bool {
+	switch status {
+	case arenaBenchmarkStatusCompleted, arenaBenchmarkStatusFailed, arenaBenchmarkStatusCancelled:
+		return true
+	default:
+		return false
+	}
+}
+
+// healOrphanedArenaBenchmarkJob marks disk-only queued/running jobs as failed after a hub restart.
+func (h *Hub) healOrphanedArenaBenchmarkJob(job *ArenaBenchmarkJob, reason string) *ArenaBenchmarkJob {
+	if job == nil || arenaBenchmarkStatusTerminal(job.Status) {
+		return job
+	}
+	job.Status = arenaBenchmarkStatusFailed
+	if strings.TrimSpace(job.Error) == "" {
+		job.Error = reason
+	}
+	job.CurrentModel = ""
+	job.CurrentChallenge = ""
+	job.UpdatedAt = time.Now().UTC()
+	for i := range job.Results {
+		if job.Results[i].Status == arenaBenchmarkModelPending || job.Results[i].Status == arenaBenchmarkModelRunning {
+			job.Results[i].Status = arenaBenchmarkModelSkipped
+		}
+	}
+	job.Ranking = rankArenaBenchmarkResults(job.Results)
+	_ = h.persistArenaBenchmarkJob(job)
+	return job
+}
+
 // GetArenaBenchmark returns a job by id (memory first, then disk).
 func (h *Hub) GetArenaBenchmark(id string) (*ArenaBenchmarkJob, error) {
 	id = strings.TrimSpace(id)
@@ -369,7 +400,7 @@ func (h *Hub) GetArenaBenchmark(id string) (*ArenaBenchmarkJob, error) {
 	if err != nil {
 		return nil, fmt.Errorf("benchmark not found")
 	}
-	return job, nil
+	return h.healOrphanedArenaBenchmarkJob(job, "benchmark interrupted by hub restart"), nil
 }
 
 // CancelArenaBenchmark requests cancellation between challenges.
@@ -384,12 +415,25 @@ func (h *Hub) CancelArenaBenchmark(id string) (*ArenaBenchmarkJob, error) {
 		if err != nil {
 			return nil, fmt.Errorf("benchmark not found")
 		}
-		if disk.Status == arenaBenchmarkStatusCompleted || disk.Status == arenaBenchmarkStatusFailed || disk.Status == arenaBenchmarkStatusCancelled {
+		if arenaBenchmarkStatusTerminal(disk.Status) {
 			return disk, nil
 		}
-		return nil, fmt.Errorf("benchmark is not running in this hub process")
+		// Orphaned after restart: mark cancelled so the UI can recover.
+		disk.Status = arenaBenchmarkStatusCancelled
+		disk.Error = "benchmark was not running in this hub process"
+		disk.CurrentModel = ""
+		disk.CurrentChallenge = ""
+		disk.UpdatedAt = time.Now().UTC()
+		for i := range disk.Results {
+			if disk.Results[i].Status == arenaBenchmarkModelPending || disk.Results[i].Status == arenaBenchmarkModelRunning {
+				disk.Results[i].Status = arenaBenchmarkModelSkipped
+			}
+		}
+		disk.Ranking = rankArenaBenchmarkResults(disk.Results)
+		_ = h.persistArenaBenchmarkJob(disk)
+		return disk, nil
 	}
-	if job.Status == arenaBenchmarkStatusCompleted || job.Status == arenaBenchmarkStatusFailed || job.Status == arenaBenchmarkStatusCancelled {
+	if arenaBenchmarkStatusTerminal(job.Status) {
 		out := cloneArenaBenchmarkJob(job)
 		arenaBenchmarkMu.Unlock()
 		return out, nil
@@ -431,6 +475,13 @@ func (h *Hub) ListArenaBenchmarkHistory(limit int) ([]*ArenaBenchmarkJob, error)
 		job, err := loadArenaBenchmarkJobFromDisk(id)
 		if err != nil {
 			continue
+		}
+		// History should not advertise stale queued/running jobs from a prior hub process.
+		arenaBenchmarkMu.Lock()
+		_, live := arenaBenchmarkJobs[id]
+		arenaBenchmarkMu.Unlock()
+		if !live {
+			job = h.healOrphanedArenaBenchmarkJob(job, "benchmark interrupted by hub restart")
 		}
 		info, _ := e.Info()
 		mod := job.UpdatedAt

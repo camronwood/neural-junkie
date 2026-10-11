@@ -86,7 +86,15 @@ export function ArenaBenchmarkPanel({
         if (tags.length > 0 && selected.length === 0) {
           setSelected([tags[0]]);
         }
-        await refreshHistory();
+        const hist = await arenaBenchmarkHistory(8);
+        if (cancelled) return;
+        const runs = Array.isArray(hist.runs) ? hist.runs : [];
+        setHistory(runs);
+        const activeRun = runs.find((r) => isBenchmarkJobActive(r.status));
+        if (activeRun) {
+          setJob(activeRun);
+          startPolling(activeRun.id);
+        }
       } catch (err) {
         if (!cancelled) {
           setLoadError(err instanceof Error ? err.message : String(err));
@@ -105,6 +113,7 @@ export function ArenaBenchmarkPanel({
   const startPolling = useCallback(
     (id: string) => {
       stopPoll();
+      setBusy(true);
       pollRef.current = window.setInterval(() => {
         void arenaBenchmarkGet(id)
           .then((next) => {
@@ -122,6 +131,19 @@ export function ArenaBenchmarkPanel({
       }, POLL_MS);
     },
     [onLeaderboardRefresh, refreshHistory, stopPoll],
+  );
+
+  const selectJob = useCallback(
+    (next: ArenaBenchmarkJob) => {
+      setJob(next);
+      if (isBenchmarkJobActive(next.status)) {
+        startPolling(next.id);
+      } else {
+        stopPoll();
+        setBusy(false);
+      }
+    },
+    [startPolling, stopPoll],
   );
 
   const runBenchmark = useCallback(async () => {
@@ -327,8 +349,8 @@ export function ArenaBenchmarkPanel({
                 <button
                   type="button"
                   className="arena-benchmark-history-btn"
-                  onClick={() => setJob(run)}
-                  disabled={active}
+                  onClick={() => selectJob(run)}
+                  disabled={active && run.id !== job?.id}
                 >
                   {(run.suite_title || run.suite) ?? 'suite'} · {(run.status || '').toUpperCase()} ·{' '}
                   {(run.models || []).length} model{(run.models || []).length === 1 ? '' : 's'}

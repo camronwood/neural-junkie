@@ -133,3 +133,63 @@ func TestPersistAndLoadArenaBenchmarkJob(t *testing.T) {
 		t.Fatalf("got=%+v", got)
 	}
 }
+
+func TestHealOrphanedArenaBenchmarkJob(t *testing.T) {
+	dir := t.TempDir()
+	prev := arenaBenchmarkDirFn
+	arenaBenchmarkDirFn = func() (string, error) { return dir, nil }
+	t.Cleanup(func() { arenaBenchmarkDirFn = prev })
+
+	h := &Hub{}
+	job := &ArenaBenchmarkJob{
+		ID:     "orphan-1",
+		Status: arenaBenchmarkStatusRunning,
+		Suite:  "quick",
+		Models: []string{"a"},
+		Results: []ArenaBenchmarkModelResult{
+			{Model: "a", Status: arenaBenchmarkModelRunning},
+		},
+	}
+	if err := h.persistArenaBenchmarkJob(job); err != nil {
+		t.Fatal(err)
+	}
+	got, err := h.GetArenaBenchmark("orphan-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != arenaBenchmarkStatusFailed {
+		t.Fatalf("status=%q want failed", got.Status)
+	}
+	if got.Results[0].Status != arenaBenchmarkModelSkipped {
+		t.Fatalf("result status=%q", got.Results[0].Status)
+	}
+
+	cancelled, err := h.CancelArenaBenchmark("orphan-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cancelled.Status != arenaBenchmarkStatusFailed {
+		// Already terminal from heal; cancel should be idempotent.
+		t.Fatalf("cancel status=%q", cancelled.Status)
+	}
+
+	orphan2 := &ArenaBenchmarkJob{
+		ID:     "orphan-2",
+		Status: arenaBenchmarkStatusQueued,
+		Suite:  "quick",
+		Models: []string{"b"},
+		Results: []ArenaBenchmarkModelResult{
+			{Model: "b", Status: arenaBenchmarkModelPending},
+		},
+	}
+	if err := h.persistArenaBenchmarkJob(orphan2); err != nil {
+		t.Fatal(err)
+	}
+	cancelled2, err := h.CancelArenaBenchmark("orphan-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cancelled2.Status != arenaBenchmarkStatusCancelled {
+		t.Fatalf("cancel orphan status=%q want cancelled", cancelled2.Status)
+	}
+}
