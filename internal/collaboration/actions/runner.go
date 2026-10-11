@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/smtp"
 	"net/url"
@@ -20,6 +19,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/connectors"
 	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
 	"github.com/camronwood/neural-junkie/internal/runbooklibrary"
+	"github.com/camronwood/neural-junkie/internal/ssrf"
 )
 
 const maxResponseBytes = 256 * 1024
@@ -73,7 +73,15 @@ type Runner struct {
 func NewRunner(cfg Config) *Runner {
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 60 * time.Second}
+		client = &http.Client{
+			Timeout:       60 * time.Second,
+			CheckRedirect: ssrf.CheckRedirect,
+		}
+	} else if client.CheckRedirect == nil {
+		// Preserve injected Transport/Timeout; still re-validate redirects.
+		cloned := *client
+		cloned.CheckRedirect = ssrf.CheckRedirect
+		client = &cloned
 	}
 	return &Runner{
 		Config: cfg,
@@ -455,26 +463,15 @@ func (r *Runner) slackMessage(ctx context.Context, cfg map[string]interface{}) (
 }
 
 func (r *Runner) checkHost(rawURL string) error {
+	if err := ssrf.CheckPublicURL(rawURL); err != nil {
+		return err
+	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return err
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("unsupported URL scheme %q", u.Scheme)
-	}
 	host := u.Hostname()
-	if host == "" {
-		return fmt.Errorf("missing host")
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsLoopback() || ip.IsPrivate() {
-			return fmt.Errorf("SSRF: private/loopback IP not allowed")
-		}
-	}
 	lower := strings.ToLower(host)
-	if lower == "localhost" || strings.HasSuffix(lower, ".local") {
-		return fmt.Errorf("SSRF: host %q not allowed", host)
-	}
 	if len(r.Config.AllowedHosts) == 0 {
 		return nil
 	}

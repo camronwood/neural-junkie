@@ -243,8 +243,13 @@ export class ChatAPI {
     return this.roomsApi.createAdminSession(username, bootstrapToken);
   }
 
-  async fetchMessages(channel: string, limit: number = 50, beforeId?: string): Promise<Message[]> {
-    return this.messagesApi.fetchMessages(channel, limit, beforeId);
+  async fetchMessages(
+    channel: string,
+    limit: number = 50,
+    beforeId?: string,
+    init?: { signal?: AbortSignal },
+  ): Promise<Message[]> {
+    return this.messagesApi.fetchMessages(channel, limit, beforeId, init);
   }
 
   async searchMessages(channel: string, query: string, limit: number = 50): Promise<Message[]> {

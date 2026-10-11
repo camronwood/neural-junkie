@@ -16,8 +16,8 @@ function httpBaseToWsBase(baseURL: string): string {
 
 /**
  * Build hub WebSocket URL for a channel subscription.
- * Browser WebSocket cannot set X-NJ-Hub-Token; use hub_token query when LAN-exposed.
- * Non-browser clients should prefer the X-NJ-Hub-Token header on upgrade.
+ * Browser WebSocket cannot set custom headers; hub accepts ?hub_token= on Upgrade only
+ * (or when NEURAL_JUNKIE_RELAXED_LOCAL=1). Prefer X-NJ-Hub-Token for non-browser clients.
  */
 export function buildChannelWebSocketURL(
   baseURL: string,

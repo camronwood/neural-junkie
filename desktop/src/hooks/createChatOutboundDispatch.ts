@@ -164,7 +164,28 @@ export function createChatOutboundDispatch(deps: ChatOutboundDispatchDeps) {
     }
   };
 
+  /** Serialize overlapping sends so concurrent dispatches cannot race metadata/channel. */
+  let sendMutex: Promise<void> = Promise.resolve();
+
   const dispatchMessage = async (
+    content: string,
+    metadata?: Record<string, unknown>,
+    modeOverride?: ComposerMode,
+  ): Promise<boolean> => {
+    const previous = sendMutex;
+    let release!: () => void;
+    sendMutex = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous.catch(() => {});
+    try {
+      return await dispatchMessageUnlocked(content, metadata, modeOverride);
+    } finally {
+      release();
+    }
+  };
+
+  const dispatchMessageUnlocked = async (
     content: string,
     metadata?: Record<string, unknown>,
     modeOverride?: ComposerMode,

@@ -28,6 +28,7 @@ import {
 import { chatScrollerElRef } from '../components/MessageList';
 import { getChangeProposalCard, type Message } from '../types/protocol';
 import { useFileChangeStore } from '../stores/fileChangeStore';
+import { addToCappedSet } from '../utils/cappedSet';
 
 export type ChatInboundSurfacesDeps = {
   api: ChatAPI;
@@ -137,7 +138,7 @@ export function createChatInboundSurfaces(deps: ChatInboundSurfacesDeps) {
         (typeof proposal.reason === 'string' &&
           proposal.reason.toLowerCase().includes('held for approval'));
       if (held && proposal.status === 'pending' && !deps.handledChangeProposalNoticesRef.current.has(`hold:${message.id}`)) {
-        deps.handledChangeProposalNoticesRef.current.add(`hold:${message.id}`);
+        addToCappedSet(deps.handledChangeProposalNoticesRef.current, `hold:${message.id}`);
         deps.addToast({
           type: 'warning',
           title: 'Held for approval',
@@ -157,7 +158,7 @@ export function createChatInboundSurfaces(deps: ChatInboundSurfacesDeps) {
       !isActiveChannel &&
       !deps.handledChangeProposalNoticesRef.current.has(message.id)
     ) {
-      deps.handledChangeProposalNoticesRef.current.add(message.id);
+      addToCappedSet(deps.handledChangeProposalNoticesRef.current, message.id);
       deps.addToast({
         type: 'info',
         title: 'Change needs review',

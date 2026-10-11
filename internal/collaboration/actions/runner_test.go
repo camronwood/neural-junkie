@@ -62,6 +62,17 @@ func TestHTTPGetBlocksLocalhost(t *testing.T) {
 	}
 }
 
+func TestHTTPGetBlocksMetadataIP(t *testing.T) {
+	r := NewRunner(Config{})
+	_, err := r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
+		Kind:   collaboration.TaskKindAction,
+		Action: &collaboration.TaskActionSpec{Type: "http_get", Config: map[string]interface{}{"url": "http://169.254.169.254/latest/meta-data/"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "SSRF") {
+		t.Fatalf("expected SSRF error for metadata IP, got %v", err)
+	}
+}
+
 func TestHTTPGetAllowlist(t *testing.T) {
 	r := testRunnerWithTransport(func(_ *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -82,7 +93,7 @@ func TestHTTPGetAllowlist(t *testing.T) {
 
 	_, err = r.Execute(context.Background(), &collaboration.Collaboration{}, collaboration.CollaborationTask{
 		Kind:   collaboration.TaskKindAction,
-		Action: &collaboration.TaskActionSpec{Type: "http_get", Config: map[string]interface{}{"url": "https://other.example.org/"}},
+		Action: &collaboration.TaskActionSpec{Type: "http_get", Config: map[string]interface{}{"url": "https://example.org/"}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "allowlist") {
 		t.Fatalf("expected allowlist error, got %v", err)

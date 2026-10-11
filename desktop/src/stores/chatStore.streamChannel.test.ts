@@ -82,6 +82,12 @@ describe('chatStore channel-safe finalizeStream', () => {
     expect(cached.find((m) => m.id === id)?.content).toBe('still going');
   });
 
+  it('switchChannel clears sticky isTyping flag', () => {
+    useChatStore.getState().setIsTyping(true);
+    useChatStore.getState().switchChannel('reviews');
+    expect(useChatStore.getState().isTyping).toBe(false);
+  });
+
   it('setMessages keeps empty tool_approval and user_question cards', () => {
     const approval: Message = {
       id: 'ta-1',

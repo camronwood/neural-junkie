@@ -7,12 +7,17 @@ import type { HubFetchFn } from './packsApi';
 export class MessagesApi {
   constructor(private readonly hubFetch: HubFetchFn) {}
 
-  async fetchMessages(channel: string, limit: number = 50, beforeId?: string): Promise<Message[]> {
+  async fetchMessages(
+    channel: string,
+    limit: number = 50,
+    beforeId?: string,
+    init?: { signal?: AbortSignal },
+  ): Promise<Message[]> {
     const params = new URLSearchParams({ channel, limit: String(limit) });
     if (beforeId?.trim()) {
       params.set('before', beforeId.trim());
     }
-    const response = await this.hubFetch(`/api/messages?${params}`);
+    const response = await this.hubFetch(`/api/messages?${params}`, init);
     if (!response.ok) {
       throw new Error(`Failed to fetch messages: ${response.statusText}`);
     }

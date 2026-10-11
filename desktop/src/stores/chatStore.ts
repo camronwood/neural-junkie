@@ -697,6 +697,8 @@ export const useChatStore = create<ChatState>((set, get) => {
         unreadCounts: newCounts,
         openThreadId: null,
         streamingMessages,
+        // Global typing flag is not per-channel; clear on switch to avoid sticky UI.
+        isTyping: false,
       };
     });
   },

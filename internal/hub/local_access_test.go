@@ -36,12 +36,33 @@ func TestAllowHubRequest_token(t *testing.T) {
 	}
 }
 
-func TestAllowHubRequest_queryToken(t *testing.T) {
+func TestAllowHubRequest_queryTokenWebSocketOnly(t *testing.T) {
 	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "ws-secret")
-	r := httptest.NewRequest("GET", "/ws?hub_token=ws-secret", nil)
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "")
+
+	// Plain HTTP API: query token rejected in non-relaxed mode.
+	r := httptest.NewRequest("GET", "/api/channels?hub_token=ws-secret", nil)
+	r.RemoteAddr = "10.0.0.5:9999"
+	if AllowHubRequest(r) {
+		t.Fatal("expected HTTP query hub_token rejected without relaxed local")
+	}
+
+	// WebSocket upgrade: query token still accepted (browsers cannot set headers).
+	ws := httptest.NewRequest("GET", "/ws?hub_token=ws-secret", nil)
+	ws.RemoteAddr = "10.0.0.5:9999"
+	ws.Header.Set("Upgrade", "websocket")
+	if !AllowHubRequest(ws) {
+		t.Fatal("expected WebSocket query hub_token allowed")
+	}
+}
+
+func TestAllowHubRequest_queryTokenRelaxed(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "ws-secret")
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "1")
+	r := httptest.NewRequest("GET", "/api/channels?hub_token=ws-secret", nil)
 	r.RemoteAddr = "10.0.0.5:9999"
 	if !AllowHubRequest(r) {
-		t.Fatal("expected query hub_token allowed")
+		t.Fatal("expected query hub_token allowed in relaxed local")
 	}
 }
 
