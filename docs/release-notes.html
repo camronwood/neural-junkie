@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.31">v1.2.0-beta.31</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.32">v1.2.0-beta.32</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.32">1.2.0-beta.32</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.31">1.2.0-beta.31</a>
       <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.30">1.2.0-beta.30</a>
@@ -251,6 +253,24 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1.2.0-beta.32" class="release-version-heading">1.2.0-beta.32 <span class="release-date">— 2026-10-11</span></h2>
+
+      <p><strong>Honest auto-apply + Desktop Listen + Arena.</strong> Greenfield impl sessions no longer claim “proposals not applied” after files land; Swift multi-file continue keeps <code>TriviaGame/</code> deliverables moving. Desktop Listen STT notes, in-app Arena benchmarks, and security-review hardening ship together. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.32">GitHub Releases</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Desktop Listen</strong> — Local STT meeting notes with stop/chunk race fixes.</li>
+        <li><strong>Arena UI benchmarks</strong> — Multi-model hub jobs with orphan/resume polling fixes.</li>
+        <li><strong>Swift multi-file continue</strong> — Prompt paths under <code>TriviaGame/</code> plus bare <code>.swift</code> qualification.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Impl-session auto_apply</strong> — <code>applied_verify_skipped</code> outcome + evidence so applied greenfield work is not rewritten as pending proposals.</li>
+        <li><strong>Sticky impl-session metadata</strong> — Ordinary agent turns no longer keep the session flag stuck.</li>
+        <li><strong>Security review phases 1–5</strong> — Shell/FS, desktop races, hub collab auth, agent pipeline, and remaining Medium/Low surfaces.</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.31" class="release-version-heading">1.2.0-beta.31 <span class="release-date">— 2026-10-05</span></h2>
 
       <p><strong>Overnight full-gate 4/4.</strong> Deterministic Node/landing/Swift/Rust greenfield scaffolds and chat follow-up shortcuts close the remaining away overnight gaps; user-flows 11/11, layer-climb, and desktop e2e prove green. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.31">GitHub Releases</a>.</p>

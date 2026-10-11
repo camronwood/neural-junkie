@@ -6,6 +6,24 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.32] - 2026-10-11
+
+Impl-session honesty for auto-apply greenfield, Desktop Listen STT notes, Arena in-app benchmarks, and multi-phase security hardening.
+
+### Added
+- **Desktop Listen** — Local STT meeting notes with stop/chunk race fixes and sticky impl-session metadata hygiene.
+- **Arena UI benchmarks** — In-app multi-model benchmark jobs via the hub (orphan/resume polling hardened).
+- **Swift multi-file continue** — Prompt-named `.swift` paths under folders like `TriviaGame/` drive continue + bare-path qualification.
+
+### Fixed
+- **Impl-session auto_apply + verify skipped** — New `applied_verify_skipped` outcome stamps `EditApplied` evidence so validation no longer rewrites applied work as “proposals not applied yet”; pure greenfield skips the diagnose essay gate.
+- **Sticky `implementation_session`** — Ordinary agent turns no longer keep the impl-session flag stuck on.
+- **Security review phases 1–5** — Shell/FS, desktop channel races, hub collab auth, agent pipeline, and Medium/Low surface hardening.
+- **Workspace path awareness** — Explicit nested creates despite duplicate basenames; implement-session path awareness for coding turns.
+
+### Changed
+- **Greenfield scaffolds** — Templated impl scaffolds removed so agents do the real work.
+
 ## [1.2.0-beta.31] - 2026-10-05
 
 Overnight full-gate 4/4: greenfield scaffolds, chat follow-up shortcuts, and sticky Rust derive repair.

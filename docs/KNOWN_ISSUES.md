@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-09-09 · **Current beta:** [v1.2.0-beta.28](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.28) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
+**Last updated:** 2026-10-11 · **Current beta:** [v1.2.0-beta.32](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.32) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
