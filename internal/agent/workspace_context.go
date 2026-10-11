@@ -330,13 +330,19 @@ func inferLanguage(filePath string) string {
 // This allows agents to access files even when workspace sharing is off.
 // It returns the number of referenced files successfully loaded.
 func AppendReferencedFiles(prompt *strings.Builder, messageContent string, workspacePath string) int {
+	n, _ := AppendReferencedFilesWithPaths(prompt, messageContent, workspacePath)
+	return n
+}
+
+// AppendReferencedFilesWithPaths is AppendReferencedFiles and also returns loaded relative paths.
+func AppendReferencedFilesWithPaths(prompt *strings.Builder, messageContent string, workspacePath string) (int, []string) {
 	if workspacePath == "" {
-		return 0
+		return 0, nil
 	}
 
 	paths := DetectFilePathsInWorkspace(messageContent, workspacePath)
 	if len(paths) == 0 {
-		return 0
+		return 0, nil
 	}
 
 	var loadedFiles []struct {
@@ -368,7 +374,7 @@ func AppendReferencedFiles(prompt *strings.Builder, messageContent string, works
 	}
 
 	if len(loadedFiles) == 0 {
-		return 0
+		return 0, nil
 	}
 
 	prompt.WriteString("\n=== REFERENCED FILES ===\n")
@@ -376,12 +382,14 @@ func AppendReferencedFiles(prompt *strings.Builder, messageContent string, works
 	prompt.WriteString("Each line is prefixed with its real line number. Use THESE line numbers when referencing code.\n")
 	prompt.WriteString("Analyze the ACTUAL code below -- do NOT give generic advice.\n\n")
 
+	var loadedPaths []string
 	for _, f := range loadedFiles {
 		prompt.WriteString(fmt.Sprintf("### %s (%s)\n```%s\n%s\n```\n\n", f.path, f.lang, f.lang, f.content))
+		loadedPaths = append(loadedPaths, f.path)
 	}
 
 	prompt.WriteString("=== END REFERENCED FILES ===\n\n")
-	return len(loadedFiles)
+	return len(loadedFiles), loadedPaths
 }
 
 // messagePromotesWorkspaceFocus reports when a message should receive file content, not tree-only outline.
@@ -544,6 +552,9 @@ func AppendWorkspaceContextForChannel(prompt *strings.Builder, msg *protocol.Mes
 	}
 	appendWorkspacePromptSection(prompt, scope, ctxMap)
 	appendLinkedWorkspacesPromptSection(prompt, msg, scope)
+	if path, _ := ctxMap["workspace_path"].(string); strings.TrimSpace(path) != "" {
+		prompt.WriteString(formatWorkspacePathDisciplineHint(path, msg.Content, DetectStackManifest(path)))
+	}
 }
 
 func appendLinkedWorkspacesPromptSection(prompt *strings.Builder, msg *protocol.Message, scope string) {
@@ -598,6 +609,39 @@ func appendLinkedWorkspacesPromptSection(prompt *strings.Builder, msg *protocol.
 		prompt.WriteString("\n")
 	}
 	prompt.WriteString("=== END LINKED WORKSPACES ===\n\n")
+}
+
+// formatWorkspacePathDisciplineHint warns models not to invent near-miss sibling paths
+// and lists on-disk candidates when the user mentions an ambiguous basename.
+func formatWorkspacePathDisciplineHint(wsPath, userContent string, manifest *StackManifest) string {
+	wsPath = strings.TrimSpace(wsPath)
+	if wsPath == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n=== EXISTING PATHS (do not invent siblings) ===\n")
+	b.WriteString("Edit only real relative paths under this workspace. ")
+	b.WriteString("Do not invent parallel App.js/App.vue when the stack entry is App.tsx, ")
+	b.WriteString("and do not guess between duplicate basenames — use the full path.\n")
+	if manifest != nil && strings.TrimSpace(manifest.EntryPoint) != "" {
+		b.WriteString(fmt.Sprintf("- Stack entry: %s\n", normalizeFileChangeRelPath(manifest.EntryPoint)))
+		entry := normalizeFileChangeRelPath(manifest.EntryPoint)
+		if strings.EqualFold(filepath.Ext(entry), ".tsx") || strings.EqualFold(filepath.Ext(entry), ".jsx") {
+			decoy := strings.TrimSuffix(entry, filepath.Ext(entry)) + ".js"
+			if workspaceFileExists(wsPath, decoy) {
+				b.WriteString(fmt.Sprintf("- Decoy present (do not edit for feature work): %s\n", decoy))
+			}
+		}
+	}
+	for _, base := range DetectBareFilenames(userContent) {
+		matches := findWorkspaceFilesNamed(wsPath, base)
+		if len(matches) < 2 {
+			continue
+		}
+		b.WriteString(fmt.Sprintf("- Ambiguous basename %q candidates: %s\n", base, strings.Join(matches, ", ")))
+	}
+	b.WriteString("=== END EXISTING PATHS ===\n\n")
+	return b.String()
 }
 
 func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap map[string]interface{}) {

@@ -112,6 +112,108 @@ func TestReadFileTool_stripsRedundantFixturePrefix(t *testing.T) {
 	}
 }
 
+func TestListDirGlobGrep_pathConfusionTree(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "pkg", "alpha"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "pkg", "beta"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "App.tsx"), []byte("ALPHA_TSX_MARKER"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "App.js"), []byte("DECOY_APP_JS_MARKER"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pkg", "alpha", "config.go"), []byte("package alpha"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pkg", "beta", "config.go"), []byte("package beta"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srv, err := mcp.NewInProcessMCPServer("test-path-confusion", "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	AttachTools(srv, func() string { return root })
+
+	list := srv.GetTool("list_dir")
+	req := mcpgo.CallToolRequest{}
+	req.Params.Name = "list_dir"
+	req.Params.Arguments = map[string]any{"path": "src"}
+	res, err := list.Handler(t.Context(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("list_dir error: %+v", res)
+	}
+	text := toolText(res)
+	if !strings.Contains(text, "App.tsx") || !strings.Contains(text, "App.js") {
+		t.Fatalf("list_dir missing entries:\n%s", text)
+	}
+
+	glob := srv.GetTool("glob_file_search")
+	req = mcpgo.CallToolRequest{}
+	req.Params.Name = "glob_file_search"
+	req.Params.Arguments = map[string]any{"pattern": "config.go"}
+	res, err = glob.Handler(t.Context(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("glob error: %+v", res)
+	}
+	text = toolText(res)
+	if !strings.Contains(text, "pkg/alpha/config.go") || !strings.Contains(text, "pkg/beta/config.go") {
+		t.Fatalf("glob missing configs:\n%s", text)
+	}
+
+	grep := srv.GetTool("grep")
+	req = mcpgo.CallToolRequest{}
+	req.Params.Name = "grep"
+	req.Params.Arguments = map[string]any{"pattern": "ALPHA_TSX_MARKER"}
+	res, err = grep.Handler(t.Context(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("grep error: %+v", res)
+	}
+	if !strings.Contains(toolText(res), "App.tsx") {
+		t.Fatalf("grep missed App.tsx:\n%s", toolText(res))
+	}
+
+	read := srv.GetTool("read_file")
+	req = mcpgo.CallToolRequest{}
+	req.Params.Name = "read_file"
+	req.Params.Arguments = map[string]any{"path": "src/DoesNotExist.tsx"}
+	res, err = read.Handler(t.Context(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError {
+		t.Fatal("expected error for missing path")
+	}
+}
+
+func toolText(res *mcpgo.CallToolResult) string {
+	if res == nil {
+		return ""
+	}
+	text := ""
+	for _, c := range res.Content {
+		if tc, ok := c.(mcpgo.TextContent); ok {
+			text += tc.Text
+		}
+	}
+	return text
+}
+
 func TestSemanticSearchTool_usesWorkspaceRootFromContext(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("hello workspace"), 0o644); err != nil {

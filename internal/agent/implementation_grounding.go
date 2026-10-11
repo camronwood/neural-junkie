@@ -29,17 +29,14 @@ func (s *ImplementationSessionState) groundingSatisfied() bool {
 	if len(s.LastReadPaths) >= 1 {
 		return true
 	}
-	// Discover tools (read_file/grep/glob/…) count as grounding even when the
-	// specific path list was not recorded — matches IMPLEMENTATION_SESSION.md.
-	if len(s.DiscoverTools) >= 1 {
-		return true
-	}
 	if s.BootFixIntent {
 		if s.BootFixReadsSatisfied() {
 			return true
 		}
 		return false
 	}
+	// Discover tools alone no longer unlock edits — the exact target must be read
+	// (see targetGrounded). Session-level grounding still needs a read or seeds.
 	return false
 }
 
@@ -53,9 +50,9 @@ func (s *ImplementationSessionState) targetGrounded(path string) bool {
 			return true
 		}
 	}
-	// Seed files are injected verbatim into the implementation prompt. The seed
-	// collector chooses requested/open/manifest target files, so they count as reads.
-	return s.SeedsLoaded > 0
+	// Seed files count only when their paths were recorded into LastReadPaths
+	// (AppendImplementationSeedFiles / AppendReferencedFiles call RecordReadPath).
+	return false
 }
 
 func (s *ImplementationSessionState) recordDiscoverTool(name string) {
@@ -86,10 +83,21 @@ func (a *Agent) manifestForProposal(ctx context.Context, sourceMsg *protocol.Mes
 	return DetectStackManifest(wsPath)
 }
 
-// ResolveProposalPath normalizes and redirects paths using the stack manifest.
+// ResolveProposalPath normalizes, disambiguates bare basenames, and redirects
+// near-miss paths using the stack manifest and on-disk siblings.
 func (a *Agent) ResolveProposalPath(ctx context.Context, sourceMsg *protocol.Message, path string) string {
 	manifest := a.manifestForProposal(ctx, sourceMsg)
-	return RedirectProposalPath(path, manifest)
+	wsPath := ""
+	userContent := ""
+	if sourceMsg != nil {
+		wsPath = a.resolveWorkspacePath(sourceMsg)
+		userContent = sourceMsg.Content
+	}
+	path = normalizeFileChangeRelPath(path)
+	if resolved, err := DisambiguateAmbiguousBasename(wsPath, path, userContent); err == nil && resolved != "" {
+		path = resolved
+	}
+	return RedirectProposalPathForWorkspace(path, wsPath, manifest, "")
 }
 
 func protectedWorkspaceFilesFromMessage(msg *protocol.Message) []string {
@@ -163,6 +171,20 @@ func greenfieldCreatePath(wsPath, path string) bool {
 }
 
 func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *protocol.Message, path string, op ProposalOperation) error {
+	wsPath := ""
+	userContent := ""
+	if sourceMsg != nil {
+		wsPath = a.resolveWorkspacePath(sourceMsg)
+		userContent = sourceMsg.Content
+	}
+	// Surface ambiguous basename before redirect so the tool loop can glob/list.
+	if _, err := DisambiguateAmbiguousBasename(wsPath, normalizeFileChangeRelPath(path), userContent); err != nil {
+		st := implementationSessionStateFromContext(ctx)
+		if st != nil {
+			st.PreflightErrors = appendUnique(st.PreflightErrors, []string{err.Error()})
+		}
+		return err
+	}
 	path = a.ResolveProposalPath(ctx, sourceMsg, path)
 	if isProtectedWorkspaceFile(sourceMsg, path) {
 		return fmt.Errorf("protected file: edits to %s are not allowed for this request", path)
@@ -170,10 +192,6 @@ func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *proto
 	st := implementationSessionStateFromContext(ctx)
 	if st != nil && st.diagnoseGateBlocksProposals() {
 		return fmt.Errorf("grounding required: complete diagnosis before proposing edits")
-	}
-	wsPath := ""
-	if sourceMsg != nil {
-		wsPath = a.resolveWorkspacePath(sourceMsg)
 	}
 
 	if op == ProposalOpCreate && sourceMsg != nil {
@@ -200,6 +218,14 @@ func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *proto
 	manifest := a.manifestForProposal(ctx, sourceMsg)
 	op = a.inferProposalOp(wsPath, path, op)
 
+	// Outline/hint coding turns must run a discover tool before edit (exact target
+	// read is enforced separately via targetGrounded).
+	if st != nil && sourceMsg != nil && outlineScopeRequiresExactRead(sourceMsg) {
+		if len(st.DiscoverTools) == 0 {
+			return fmt.Errorf("grounding required: use list_dir/glob_file_search/read_file before proposing edits (outline scope)")
+		}
+	}
+
 	if st != nil && !st.targetGrounded(path) {
 		if op != ProposalOpCreate || !greenfieldCreatePath(wsPath, path) {
 			return fmt.Errorf("grounding required: read target file %s before proposing edits", path)
@@ -213,6 +239,14 @@ func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *proto
 		return err
 	}
 	return nil
+}
+
+func outlineScopeRequiresExactRead(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	scope := ResolveContextScope(msg)
+	return scope == ContextScopeOutline || scope == ContextScopeHint
 }
 
 func (a *Agent) inferProposalOp(wsPath, path string, op ProposalOperation) ProposalOperation {

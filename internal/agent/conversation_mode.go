@@ -326,11 +326,12 @@ func appendRepoFactSeedFiles(prompt *strings.Builder, workspacePath string) int 
 	if prompt == nil || strings.TrimSpace(workspacePath) == "" {
 		return 0
 	}
-	return appendWorkspaceSeedFiles(prompt, workspacePath, repoFactSeedFilePaths, nil,
+	n, _ := appendWorkspaceSeedFiles(prompt, workspacePath, repoFactSeedFilePaths, nil,
 		"\n=== REPO ROUTE SOURCE (health/endpoints) ===\n",
 		"Loaded from the shared workspace. Cite only paths and handlers present here — do not invent routes from REST conventions.\n\n",
 		"=== END REPO ROUTE SOURCE ===\n\n",
 	)
+	return n
 }
 
 func appendGitInspectPrompt(system *strings.Builder, msg *protocol.Message) {

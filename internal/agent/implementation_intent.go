@@ -1052,12 +1052,13 @@ func AppendContentDeliverySeedFiles(prompt *strings.Builder, workspacePath strin
 	if workspacePath == "" {
 		return 0
 	}
-	return appendWorkspaceSeedFiles(prompt, workspacePath, contentDeliveryDocSeeds, excludePaths,
+	n, _ := appendWorkspaceSeedFiles(prompt, workspacePath, contentDeliveryDocSeeds, excludePaths,
 		"\n=== PROJECT DOCS (content delivery) ===\n",
 		"Loaded from the shared workspace for this writing request. "+
 			"Ground the article or copy in these files — do NOT ask the user to paste README or project details.\n\n",
 		"=== END PROJECT DOCS ===\n\n",
 	)
+	return n
 }
 
 func appendWorkspaceSeedFiles(
@@ -1066,7 +1067,7 @@ func appendWorkspaceSeedFiles(
 	candidates []string,
 	excludePaths map[string]bool,
 	header, intro, footer string,
-) int {
+) (int, []string) {
 	var loadedFiles []struct {
 		path    string
 		lang    string
@@ -1107,29 +1108,32 @@ func appendWorkspaceSeedFiles(
 	}
 
 	if len(loadedFiles) == 0 {
-		return 0
+		return 0, nil
 	}
 
 	prompt.WriteString(header)
 	prompt.WriteString(intro)
+	var loadedPaths []string
 	for _, f := range loadedFiles {
 		prompt.WriteString(fmt.Sprintf("### %s (%s)\n```%s\n%s\n```\n\n", f.path, f.lang, f.lang, f.content))
+		loadedPaths = append(loadedPaths, f.path)
 	}
 	prompt.WriteString(footer)
-	return len(loadedFiles)
+	return len(loadedFiles), loadedPaths
 }
 
 // AppendImplementationSeedFiles reads likely edit targets from the workspace on implement turns.
-func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *protocol.Message, workspacePath string, agentType protocol.AgentType, excludePaths map[string]bool) int {
+// Returns the count of files loaded and their relative paths (for grounding LastReadPaths).
+func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *protocol.Message, workspacePath string, agentType protocol.AgentType, excludePaths map[string]bool) (int, []string) {
 	if workspacePath == "" || msg == nil {
-		return 0
+		return 0, nil
 	}
 	// This is a prompt-context decision (whether to preload likely edit targets), not turn-action
 	// routing, so the content-only themeImplementationRE/workspaceDirectiveRE signals stay live
 	// here alongside the stamp-first userRequestsImplementationForMessage check.
 	if !userRequestsImplementationForMessage(a, msg) && !workspaceDirectiveRE.MatchString(msg.Content) &&
 		!themeImplementationRE.MatchString(msg.Content) {
-		return 0
+		return 0, nil
 	}
 
 	var history []*protocol.Message
@@ -1143,7 +1147,7 @@ func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *proto
 	researchDoc := isResearchDocumentationDeliverable(msg.Content)
 	paths := implementationSeedCandidates(workspacePath, msg.Content, history, exclude, focusPaths, researchDoc)
 	if len(paths) == 0 {
-		return 0
+		return 0, nil
 	}
 
 	return appendWorkspaceSeedFiles(prompt, workspacePath, paths, exclude,

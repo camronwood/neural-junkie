@@ -835,6 +835,12 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 	} else if proposed && len(state.FilesChanged) > 0 {
 		outcome["files_changed"] = append([]string(nil), state.FilesChanged...)
 	}
+	if len(state.LastReadPaths) > 0 {
+		outcome["files_read"] = append([]string(nil), state.LastReadPaths...)
+	}
+	if len(state.DiscoverTools) > 0 {
+		outcome["discover_tools"] = append([]string(nil), state.DiscoverTools...)
+	}
 	trust := ""
 	if msg != nil {
 		trust = msg.EditorAgentTrust()
@@ -987,6 +993,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 			var referencedFiles strings.Builder
 			seedMsg := msg
 			refSeeds := 0
+			var refPaths, seedPaths []string
 			if userAffirmsPendingImplementation(msg.Content) {
 				for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
 					m := a.channelHistory(msg.Channel)[i]
@@ -995,12 +1002,12 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 					}
 					if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
 						seedMsg = m
-						refSeeds = AppendReferencedFiles(&referencedFiles, m.Content, wsPath)
+						refSeeds, refPaths = AppendReferencedFilesWithPaths(&referencedFiles, m.Content, wsPath)
 						break
 					}
 				}
 			} else {
-				refSeeds = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
+				refSeeds, refPaths = AppendReferencedFilesWithPaths(&referencedFiles, msg.Content, wsPath)
 			}
 			exclude := collectIncludedFilePaths(msg)
 			for _, p := range DetectFilePathsInWorkspace(seedMsg.Content, wsPath) {
@@ -1009,11 +1016,23 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 				}
 				exclude[p] = true
 			}
-			seeds := AppendImplementationSeedFiles(&referencedFiles, a, seedMsg, wsPath, a.Info.Type, exclude)
+			var seeds int
+			seeds, seedPaths = AppendImplementationSeedFiles(&referencedFiles, a, seedMsg, wsPath, a.Info.Type, exclude)
 			if st := implementationSessionStateFromContext(ctx); st != nil {
 				st.SeedsLoaded += refSeeds + seeds
+				for _, p := range refPaths {
+					st.RecordReadPath(p)
+				}
+				for _, p := range seedPaths {
+					st.RecordReadPath(p)
+				}
 			}
 			prompt += referencedFiles.String()
+			var manifest *StackManifest
+			if st := implementationSessionStateFromContext(ctx); st != nil {
+				manifest = st.StackManifest
+			}
+			prompt += formatWorkspacePathDisciplineHint(wsPath, seedMsg.Content, manifest)
 		}
 	} else if collaborationRestrictsDiscoveryTools(msg) {
 		prompt += "\n=== IMPLEMENTATION SESSION ===\nUse the provided source file contents (and read_file on those paths only). Do not list directories or invent a stack inventory — ship the deliverable via [FILE_CHANGE].\n\n"

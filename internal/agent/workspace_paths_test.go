@@ -90,7 +90,7 @@ func TestAppendImplementationSeedFiles_loadsTailwind(t *testing.T) {
 	}
 	var b strings.Builder
 	msg := &protocol.Message{Content: "please implement light/dark themes"}
-	n := AppendImplementationSeedFiles(&b, nil, msg, dir, protocol.AgentTypeFrontend, nil)
+	n, _ := AppendImplementationSeedFiles(&b, nil, msg, dir, protocol.AgentTypeFrontend, nil)
 	if n < 1 {
 		t.Fatalf("expected at least tailwind loaded, got %d", n)
 	}

@@ -528,7 +528,7 @@ func (a *Agent) buildWorkspaceGroundedRetryPrompt(msg *protocol.Message) string 
 	}
 	wsPath := a.resolveWorkspacePath(msg)
 	if wsPath != "" {
-		AppendImplementationSeedFiles(&system, a, msg, wsPath, a.Info.Type, nil)
+		_, _ = AppendImplementationSeedFiles(&system, a, msg, wsPath, a.Info.Type, nil)
 		if userRequestsContentDelivery(msg.Content) {
 			AppendContentDeliverySeedFiles(&system, wsPath, nil)
 		}

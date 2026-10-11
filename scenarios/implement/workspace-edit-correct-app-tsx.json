@@ -1,0 +1,86 @@
+{
+  "name": "workspace-edit-correct-app-tsx",
+  "description": "Outline-scoped edit must land on App.tsx, not the App.js decoy.",
+  "tags": [
+    "implement",
+    "frontend",
+    "workspace",
+    "path-awareness"
+  ],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "FrontendEngineer",
+  "required_agents": [
+    "FrontendEngineer"
+  ],
+  "workspace": {
+    "fixture": "workspace-path-confusion",
+    "unchanged_files": [
+      "src/App.js",
+      "pkg/beta/config.go"
+    ]
+  },
+  "expect_deliverables": [
+    {
+      "path": "src/App.tsx",
+      "min_bytes": 40,
+      "for_question": {
+        "any_match": [
+          "subtitle|Workspace Ready|ALPHA_TSX|path-aware"
+        ],
+        "none_match": [
+          "DECOY_APP_JS"
+        ]
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "@FrontendEngineer In src/App.tsx ONLY add a short subtitle under the Workspace Ready heading that says path-aware. Do NOT edit src/App.js or any other file.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code",
+        "context_scope": "outline"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "900s",
+      "until_file_match": {
+        "path": "src/App.tsx",
+        "any_match": [
+          "path-aware|subtitle|Workspace Ready"
+        ],
+        "none_match": [
+          "DECOY_APP_JS"
+        ]
+      },
+      "until_metadata_keys": [
+        "implementation_session_outcome"
+      ]
+    },
+    {
+      "action": "assert_files_unchanged",
+      "paths": [
+        "src/App.js",
+        "pkg/beta/config.go"
+      ]
+    },
+    {
+      "action": "assert_impl_outcome",
+      "from": "FrontendEngineer",
+      "files_read_any": [
+        "src/App.tsx"
+      ],
+      "files_changed_none": [
+        "src/App.js"
+      ],
+      "require_discover_or_read": true
+    }
+  ]
+}
