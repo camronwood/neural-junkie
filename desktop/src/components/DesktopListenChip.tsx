@@ -47,8 +47,13 @@ export function DesktopListenChip({ layout, serverAddr }: Props) {
 
   useEffect(() => {
     void refreshDevices();
-    void apiRef.current
-      ?.getListenStatus()
+    const api = apiRef.current;
+    // Partial ChatAPI mocks in unit tests may omit listen methods.
+    if (!api || typeof api.getListenStatus !== 'function') {
+      return;
+    }
+    void api
+      .getListenStatus()
       .then((s) => setSttReady(s.stt_ready))
       .catch(() => setSttReady(null));
   }, [refreshDevices]);
