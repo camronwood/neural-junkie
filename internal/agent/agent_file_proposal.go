@@ -990,57 +990,7 @@ func (a *Agent) proposeFileCreateInChannel(ctx context.Context, channel, path, c
 
 	err := a.Hub.SendMessage(msg)
 	a.noteProposalResult(ctx, path, err)
-	if err == nil {
-		a.maybeScaffoldGreenfieldCargoTomlAfterRustFile(ctx, sourceMsg, path)
-		a.maybeScaffoldGreenfieldMainRsAfterCargoToml(ctx, sourceMsg, path)
-		a.maybeScaffoldGreenfieldNodeServerAfterPackageJSON(ctx, sourceMsg, path)
-	}
 	return err
-}
-
-func (a *Agent) maybeScaffoldGreenfieldCargoTomlAfterRustFile(ctx context.Context, sourceMsg *protocol.Message, path string) {
-	if a == nil || sourceMsg == nil || !sourceMsg.ImplementationSession() {
-		return
-	}
-	path = normalizeFileChangeRelPath(path)
-	if !strings.HasSuffix(strings.ToLower(path), ".rs") {
-		return
-	}
-	wsPath := a.resolveWorkspacePath(sourceMsg)
-	if wsPath == "" || !workspaceMissingCargoToml(wsPath) {
-		return
-	}
-	state := implementationSessionStateFromContext(ctx)
-	if state == nil {
-		return
-	}
-	if a.tryGreenfieldCargoTomlScaffold(ctx, sourceMsg, wsPath, state, path) {
-		state.FilesChanged = appendUnique(state.FilesChanged, []string{"Cargo.toml"})
-	}
-}
-
-func (a *Agent) maybeScaffoldGreenfieldMainRsAfterCargoToml(ctx context.Context, sourceMsg *protocol.Message, path string) {
-	if a == nil || sourceMsg == nil || !sourceMsg.ImplementationSession() {
-		return
-	}
-	path = normalizeFileChangeRelPath(path)
-	if !strings.EqualFold(filepath.Base(path), "Cargo.toml") {
-		return
-	}
-	wsPath := a.resolveWorkspacePath(sourceMsg)
-	if wsPath == "" || workspaceMissingCargoToml(wsPath) || workspaceHasRustSources(wsPath) {
-		return
-	}
-	if !messageImpliesRustGreenfield(sourceMsg.Content) {
-		return
-	}
-	state := implementationSessionStateFromContext(ctx)
-	if state == nil {
-		return
-	}
-	if a.tryMissingRustBinTargetFix(ctx, sourceMsg, wsPath, state, "no targets specified in the manifest\neither src/lib.rs, src/main.rs") {
-		state.FilesChanged = appendUnique(state.FilesChanged, []string{"src/main.rs"})
-	}
 }
 
 // ProposeFileDelete proposes deleting a file

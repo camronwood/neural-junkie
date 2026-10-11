@@ -5,19 +5,74 @@ import {
   dmChannelNamesForAgent,
   parseDMDisplayName,
 } from './dmChannelDisplay';
+import {
+  agentTypeFromSidebarKey,
+  isSoftDeleteOnlyAgentType,
+} from './packAgents';
 
 export { agentSidebarHideKey } from './dmChannelDisplay';
 
 export function isAgentShortcutHidden(settings: Settings, agent: AgentInfo): boolean {
   const keys = settings.hiddenAgentSidebarKeys ?? [];
   const legacyIds = settings.hiddenAgentIdsForSidebar ?? [];
-  return keys.includes(agentSidebarHideKey(agent)) || legacyIds.includes(agent.id);
+  const key = agentSidebarHideKey(agent);
+  if (keys.includes(key) || legacyIds.includes(agent.id)) return true;
+  // Pack/system agents previously hard-deleted are treated as soft-hidden until migrated.
+  if (isSoftDeleteOnlyAgentType(agent.type)) {
+    const deletedKeys = settings.deletedAgentSidebarKeys ?? [];
+    if (deletedKeys.includes(key)) return true;
+  }
+  return false;
 }
 
 export function isAgentShortcutDeleted(settings: Settings, agent: AgentInfo): boolean {
+  // Pack/system specialists cannot be permanently removed from the sidebar.
+  if (isSoftDeleteOnlyAgentType(agent.type)) return false;
   const keys = settings.deletedAgentSidebarKeys ?? [];
   const legacyIds = settings.deletedAgentIdsForSidebar ?? [];
   return keys.includes(agentSidebarHideKey(agent)) || legacyIds.includes(agent.id);
+}
+
+/**
+ * Move pack/system keys out of deletedAgentSidebarKeys.
+ * - Currently running specialists: cleared (shortcut returns under Direct Messages).
+ * - Not running: soft-hidden so Unhide / Room specialists can restore them.
+ * Custom expert/repo deletions are left alone.
+ */
+export function patchMigrateDeletedPackAgentsToHidden(
+  settings: Settings,
+  agents: AgentInfo[] = []
+): Partial<Settings> | null {
+  const deletedKeys = settings.deletedAgentSidebarKeys ?? [];
+  if (deletedKeys.length === 0) return null;
+
+  const liveKeys = new Set(
+    agents.filter((a) => isAgentShownInSidebar(a)).map((a) => agentSidebarHideKey(a))
+  );
+
+  const keepDeleted: string[] = [];
+  const moveToHidden: string[] = [];
+  let clearedLive = false;
+  for (const key of deletedKeys) {
+    if (!isSoftDeleteOnlyAgentType(agentTypeFromSidebarKey(key))) {
+      keepDeleted.push(key);
+      continue;
+    }
+    if (liveKeys.has(key)) {
+      clearedLive = true;
+      continue;
+    }
+    moveToHidden.push(key);
+  }
+  if (moveToHidden.length === 0 && !clearedLive) return null;
+
+  const hidden = new Set(settings.hiddenAgentSidebarKeys ?? []);
+  for (const key of moveToHidden) hidden.add(key);
+
+  return {
+    deletedAgentSidebarKeys: keepDeleted,
+    hiddenAgentSidebarKeys: [...hidden],
+  };
 }
 
 export function isSidebarChannelDeleted(settings: Settings, ch: Channel): boolean {
@@ -85,7 +140,7 @@ export function patchMigrateHiddenAgentSidebarKeys(
   };
 }
 
-/** Remove hidden sidebar entries when the user navigates to or creates them. */
+/** Remove hidden (and deleted) sidebar entries when the user navigates to or creates them. */
 export function patchRevealSidebarItems(
   settings: Settings,
   opts: {
@@ -106,6 +161,12 @@ export function patchRevealSidebarItems(
       patch.hiddenAgentSidebarKeys = next;
       changed = true;
     }
+    const delKeys = settings.deletedAgentSidebarKeys ?? [];
+    const nextDelKeys = delKeys.filter((k) => !sidebarKeys.includes(k));
+    if (nextDelKeys.length !== delKeys.length) {
+      patch.deletedAgentSidebarKeys = nextDelKeys;
+      changed = true;
+    }
   }
 
   const agentIds = opts.agentIds ?? [];
@@ -116,6 +177,12 @@ export function patchRevealSidebarItems(
       patch.hiddenAgentIdsForSidebar = next;
       changed = true;
     }
+    const delIds = settings.deletedAgentIdsForSidebar ?? [];
+    const nextDelIds = delIds.filter((id) => !agentIds.includes(id));
+    if (nextDelIds.length !== delIds.length) {
+      patch.deletedAgentIdsForSidebar = nextDelIds;
+      changed = true;
+    }
   }
 
   const dmNames = opts.dmChannelNames ?? [];
@@ -124,6 +191,12 @@ export function patchRevealSidebarItems(
     const next = cur.filter((n) => !dmNames.includes(n));
     if (next.length !== cur.length) {
       patch.hiddenDmChannelNames = next;
+      changed = true;
+    }
+    const delDm = settings.deletedDmChannelNames ?? [];
+    const nextDelDm = delDm.filter((n) => !dmNames.includes(n));
+    if (nextDelDm.length !== delDm.length) {
+      patch.deletedDmChannelNames = nextDelDm;
       changed = true;
     }
   }

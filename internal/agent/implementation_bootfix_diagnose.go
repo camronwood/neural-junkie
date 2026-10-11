@@ -40,17 +40,9 @@ func (a *Agent) runBootFixDiagnosticBootstrap(
 		if !shouldSkipDuplicateCommandBroadcast(msg.Channel, a.Info.ID, cmd, result) {
 			a.broadcastAgentRunCommandOutput(msg, cmd, result)
 		}
-		sig := commandOutputMatchesPlaybook(result)
-		if sig == "" {
-			continue
-		}
-		channel := msg.Channel
-		if channel == "" {
-			channel = "general"
-		}
-		if ok, _ := a.attemptCommandFailurePlaybook(ctx, msg, wsPath, channel, sig, state); ok {
-			logBootFixDiagnostic(a, "playbook_applied", sig, cmd)
-			return true, ""
+		if sig := commandOutputMatchesPlaybook(result); sig != "" {
+			state.DiagnosePhaseComplete = true
+			logBootFixDiagnostic(a, "failure_class_identified", sig, cmd)
 		}
 	}
 

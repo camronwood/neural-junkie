@@ -18,6 +18,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/connectors"
+	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
 	"github.com/camronwood/neural-junkie/internal/runbooklibrary"
 )
 
@@ -536,9 +537,45 @@ func (r *Runner) shell(ctx context.Context, collab *collaboration.Collaboration,
 	if cmdStr == "" {
 		return Result{}, fmt.Errorf("shell requires command")
 	}
+	if workspace.CommandHardDenied(cmdStr) {
+		return Result{}, fmt.Errorf("shell command hard-denied by workspace policy")
+	}
+	if !workspace.CommandAllowed(cmdStr) {
+		return Result{}, fmt.Errorf("shell command not on allowlist; use an approved run_command-style prefix")
+	}
 	cwd := strings.TrimSpace(collab.WorkingDirectory)
 	if cwd == "" {
 		cwd = "."
+	}
+	// Prefer argv when provided to avoid nested shell metacharacters.
+	if argv, ok := cfg["argv"].([]interface{}); ok && len(argv) > 0 {
+		parts := make([]string, 0, len(argv))
+		for _, a := range argv {
+			if s, ok := a.(string); ok && strings.TrimSpace(s) != "" {
+				parts = append(parts, s)
+			}
+		}
+		if len(parts) == 0 {
+			return Result{}, fmt.Errorf("shell argv is empty")
+		}
+		joined := strings.Join(parts, " ")
+		if workspace.CommandHardDenied(joined) || !workspace.CommandAllowed(joined) {
+			return Result{}, fmt.Errorf("shell argv not allowed by workspace policy")
+		}
+		cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
+		cmd.Dir = cwd
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return Result{}, fmt.Errorf("shell failed: %w: %s", err, string(out))
+		}
+		text := string(out)
+		if len(text) > maxResponseBytes {
+			text = text[:maxResponseBytes] + "...(truncated)"
+		}
+		return Result{
+			Summary: fmt.Sprintf("shell exit 0 (%d bytes)", len(out)),
+			Data:    map[string]interface{}{"output": text, "cwd": cwd},
+		}, nil
 	}
 	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
 	cmd.Dir = cwd

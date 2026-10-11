@@ -31,6 +31,38 @@ describe('prepareOutboundPayload', () => {
     expect(metadata.ide_route_agent_type).toBeUndefined();
   });
 
+  it('stamps implementation_session for Agent-mode greenfield implement asks (UI parity)', async () => {
+    const { metadata } = await prepareOutboundPayload({
+      content:
+        "Let's design and implement a simple iOS game under TriviaGame/ with TriviaGameApp.swift and ContentView.swift.",
+      composerMode: 'agent',
+      agents: [{ id: 'fe-1', name: 'FrontendEngineer', type: 'frontend' }],
+      activeTab: null,
+      editorAgentTrust: 'auto_apply_edits',
+      ideEnabled: true,
+    });
+    expect(metadata.editor_mode).toBe('agent');
+    expect(metadata.implementation_session).toBe(true);
+  });
+
+  it('stamps implementation_session on go-ahead after a prior implement ask', async () => {
+    const { metadata } = await prepareOutboundPayload({
+      content: 'ok that sounds good',
+      composerMode: 'agent',
+      agents: [],
+      activeTab: null,
+      editorAgentTrust: 'auto_apply_edits',
+      recentChannelMessages: [
+        {
+          type: 'question',
+          content:
+            "Let's design and implement a simple iOS trivia game under TriviaGame/ with ContentView.swift.",
+        },
+      ],
+    });
+    expect(metadata.implementation_session).toBe(true);
+  });
+
   it('combined write+save stays on agent metadata for chat-first path', async () => {
     const { metadata } = await prepareOutboundPayload({
       content:

@@ -14,6 +14,7 @@ import {
   isCachedAgentAlreadyLoaded,
 } from '../utils/cachedAgentLoaded';
 import { isUserFacingAgent, isUserFacingCachedAgent } from '../utils/agentVisibility';
+import { isSoftDeleteOnlyAgentType } from '../utils/packAgents';
 
 interface MyAgentsPanelProps {
   onClose: () => void;
@@ -378,6 +379,15 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
   const handleDeleteAgent = async (agentId: string, agentName: string) => {
     const agent =
       agents.find((a) => a.id === agentId) || useChatStore.getState().agents.find((a) => a.id === agentId);
+    if (agent && isSoftDeleteOnlyAgentType(agent.type)) {
+      addToast({
+        type: 'info',
+        title: 'Pack specialist',
+        message: `Stop ${agentName} from Domain packs → Tools & MCP → Room specialists. Sidebar × only hides the shortcut.`,
+      });
+      setInfoAgentId(null);
+      return;
+    }
     const repoNote =
       agent?.type === 'repo'
         ? '\n\nRepo index cache for this path will be removed.'

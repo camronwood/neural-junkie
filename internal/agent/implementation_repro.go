@@ -108,14 +108,8 @@ func (a *Agent) runReproBootstrap(
 		sig = commandOutputMatchesPlaybook(msg.Content)
 	}
 	if sig != "" {
-		channel := msg.Channel
-		if channel == "" {
-			channel = "general"
-		}
-		if ok, _ := a.attemptCommandFailurePlaybook(ctx, msg, wsPath, channel, sig, state); ok {
-			logReproDiagnostic(a, "playbook_applied", sig, reproCmd)
-			return true, ""
-		}
+		state.DiagnosePhaseComplete = true
+		logReproDiagnostic(a, "failure_class_identified", sig, reproCmd)
 	}
 
 	note := formatReproDiagnosticNote(state)

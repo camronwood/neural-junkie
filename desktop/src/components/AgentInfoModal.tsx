@@ -13,6 +13,7 @@ import { ChatAPI, type UserLearning } from '../api/chatAPI';
 import { LearningProposalModal } from './LearningProposalModal';
 import { formatModelDisplayName, formatModelWithRole } from '../utils/modelDisplayNames';
 import { CapabilityPolicyEditor } from './CapabilityPolicyEditor';
+import { isHardDeletableAgentType, isSoftDeleteOnlyAgentType } from '../utils/packAgents';
 
 const TOOL_EXAMPLE_PROMPTS: Record<string, string> = {
   analyze_sequence: 'Analyze this peptide: MKTAYIAKQRQISFVK',
@@ -985,8 +986,10 @@ export function AgentInfoModal({
                 </button>
               )}
 
-              {/* Delete — permanent */}
-              {!offlineMode && onDelete && agent.type !== 'assistant' && agent.type !== 'human' && (
+              {/* Delete — permanent (custom experts / repo agents only) */}
+              {!offlineMode &&
+                onDelete &&
+                isHardDeletableAgentType(agent.type) && (
                 <button
                   type="button"
                   disabled={deletingAgent}
@@ -998,6 +1001,14 @@ export function AgentInfoModal({
                 >
                   {deletingAgent ? 'Deleting…' : 'Delete permanently'}
                 </button>
+              )}
+              {!offlineMode && isSoftDeleteOnlyAgentType(agent.type) && agent.type !== 'assistant' && (
+                <span
+                  className="px-2 py-2 text-xs text-slack-textMuted max-w-[14rem]"
+                  title="Pack specialists are stopped from Domain packs → Tools & MCP → Room specialists"
+                >
+                  To stop this specialist, uncheck it under Domain packs → Room specialists.
+                </span>
               )}
             </div>
             <button

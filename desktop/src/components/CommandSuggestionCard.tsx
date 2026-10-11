@@ -15,7 +15,9 @@ export function CommandSuggestionCard({ suggestion }: CommandSuggestionCardProps
   const handleApprove = async () => {
     setIsExecuting(true);
     try {
-      await terminalAPI.writePtySession(activeTabId, suggestion.command + '\n');
+      await terminalAPI.writePtySession(activeTabId, suggestion.command + '\n', {
+        agentDriven: true,
+      });
     } catch {
       await terminalAPI.executeCommand(suggestion.command, suggestion.cwd);
     } finally {

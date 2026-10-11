@@ -53,6 +53,16 @@ var deniedCommandPatterns = []string{
 	">/dev/",
 	"chmod ",
 	"mkfs",
+	"bash -c",
+	"bash -lc",
+	"sh -c",
+	"zsh -c",
+	"python -c",
+	"python3 -c",
+	"perl -e",
+	"ruby -e",
+	"node -e",
+	"find -delete",
 }
 
 var readOnlyGitSubcommands = map[string]bool{

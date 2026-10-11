@@ -72,7 +72,13 @@ export class TerminalAPI {
       }
       return;
     }
-    await invoke('create_pty_session', { id, cwd: cwd ?? null, cols: cols ?? null, rows: rows ?? null });
+    await invoke('create_pty_session', {
+      id,
+      cwd: cwd ?? null,
+      cols: cols ?? null,
+      rows: rows ?? null,
+      allowedRoots: getWorkspaceRoots(),
+    });
   }
 
   private async emitPtyOutput(id: string, data: string) {
@@ -80,13 +86,21 @@ export class TerminalAPI {
     for (const cb of holder._ptyCallbacks ?? []) cb({ id, data });
   }
 
-  async writePtySession(id: string, data: string): Promise<void> {
+  async writePtySession(
+    id: string,
+    data: string,
+    opts?: { agentDriven?: boolean }
+  ): Promise<void> {
     const remote = this.remoteSockets.get(id);
     if (remote && remote.readyState === WebSocket.OPEN) {
       remote.send(data);
       return;
     }
-    await invoke('write_pty_session', { id, data });
+    await invoke('write_pty_session', {
+      id,
+      data,
+      agentDriven: opts?.agentDriven ?? false,
+    });
   }
 
   async getPtySessionStatus(id: string): Promise<PtySessionStatus> {

@@ -52,11 +52,13 @@ struct PtySessionStatus {
 /// Paths returned by native pack directory / zip pickers (outside Tauri fs allowlist).
 type PackPathAllowlist = Arc<Mutex<HashSet<String>>>;
 
-fn allowlist_insert(allowlist: &PackPathAllowlist, path: &str) {
-    let trimmed = path.trim();
-    if !trimmed.is_empty() {
-        allowlist.lock().unwrap().insert(trimmed.to_string());
-    }
+fn allowlist_insert(allowlist: &PackPathAllowlist, path: &str) -> Result<(), String> {
+    let abs = path_security::canonicalize_for_allowlist(path)?;
+    allowlist
+        .lock()
+        .unwrap()
+        .insert(abs.to_string_lossy().into_owned());
+    Ok(())
 }
 
 fn path_allowed(
@@ -67,18 +69,10 @@ fn path_allowed(
     if let Ok(p) = path_security::within_any_root(roots, candidate) {
         return Ok(p);
     }
-    let cand = candidate.trim();
     let guard = allowlist.lock().unwrap();
-    for allowed in guard.iter() {
-        let base = allowed.trim();
-        if cand == base
-            || cand.starts_with(&format!("{}/", base))
-            || cand.starts_with(&format!("{}\\", base))
-        {
-            return Ok(PathBuf::from(cand));
-        }
-    }
-    Err(format!("path not allowed: {}", candidate))
+    let entries: Vec<String> = guard.iter().cloned().collect();
+    drop(guard);
+    path_security::within_any_allowlist(&entries, candidate)
 }
 
 fn default_home() -> PathBuf {
@@ -101,6 +95,7 @@ async fn create_pty_session(
     cwd: Option<String>,
     cols: Option<u16>,
     rows: Option<u16>,
+    allowed_roots: Option<Vec<String>>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     if SHUTTING_DOWN.load(Ordering::SeqCst) {
@@ -119,10 +114,31 @@ async fn create_pty_session(
         .openpty(size)
         .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
+    let roots = allowed_roots.unwrap_or_default();
     let working_dir = match cwd.as_deref() {
-        None | Some("~") | Some("") => default_home(),
-        Some(p) if p.starts_with("~/") => default_home().join(&p[2..]),
-        Some(p) => PathBuf::from(p),
+        None | Some("~") | Some("") => {
+            if roots.is_empty() {
+                default_home()
+            } else {
+                path_security::within_any_root(&roots, &default_home().to_string_lossy())
+                    .unwrap_or_else(|_| PathBuf::from(roots[0].trim()))
+            }
+        }
+        Some(p) if p.starts_with("~/") => {
+            let expanded = default_home().join(&p[2..]);
+            if roots.is_empty() {
+                expanded
+            } else {
+                path_security::within_any_root(&roots, &expanded.to_string_lossy())?
+            }
+        }
+        Some(p) => {
+            if roots.is_empty() {
+                // Require explicit roots for non-home absolute/relative cwd.
+                return Err("no workspace roots configured for PTY cwd".into());
+            }
+            path_security::within_any_root(&roots, p)?
+        }
     };
 
     let shell = default_shell();
@@ -229,12 +245,25 @@ async fn get_pty_session_status(
     })
 }
 
+/// Write to a PTY. When `agent_driven` is true, apply hard command denylist.
 #[tauri::command]
 async fn write_pty_session(
     id: String,
     data: String,
+    agent_driven: Option<bool>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    if agent_driven.unwrap_or(false) {
+        let line = data.trim();
+        // Strip trailing newline for policy check; reject hard-denied agent commands.
+        let cmd = line.trim_end_matches('\n').trim();
+        if !cmd.is_empty() && command_security::command_hard_denied(cmd) {
+            return Err(format!(
+                "command not allowed: {}",
+                cmd.lines().next().unwrap_or(cmd)
+            ));
+        }
+    }
     let sessions = app_handle.state::<PtySessions>();
     let mut guard = sessions.lock().unwrap();
     let session = guard
@@ -656,6 +685,7 @@ struct PackScaffoldRequest {
 }
 
 /// Register an absolute path from a native file/folder picker (pack dev / custom install).
+/// Path is canonicalized; `..` escapes are rejected.
 #[tauri::command]
 fn register_pack_path(path: String, app_handle: tauri::AppHandle) -> Result<(), String> {
     let trimmed = path.trim();
@@ -663,7 +693,7 @@ fn register_pack_path(path: String, app_handle: tauri::AppHandle) -> Result<(), 
         return Err("empty path".into());
     }
     let allowlist = app_handle.state::<PackPathAllowlist>();
-    allowlist_insert(allowlist.inner(), trimmed);
+    allowlist_insert(allowlist.inner(), trimmed)?;
     Ok(())
 }
 
@@ -683,7 +713,7 @@ fn pick_pack_directory(
         .map(|p| p.to_string_lossy().into_owned());
     if let Some(ref path) = picked {
         let allowlist = app_handle.state::<PackPathAllowlist>();
-        allowlist_insert(allowlist.inner(), path);
+        allowlist_insert(allowlist.inner(), path)?;
     }
     Ok(picked)
 }
@@ -1576,11 +1606,15 @@ fn spawn_sidecar(
     app: &tauri::AppHandle,
     bundled_ollama: Option<&PathBuf>,
 ) -> Result<ShellCommandChild, String> {
-    let mut envs = HashMap::from([
-        ("OLLAMA_HOST".to_string(), "127.0.0.1:11434".to_string()),
-        // Loopback parity with `make server` — allow WS/API without nj_session on 127.0.0.1.
-        ("NEURAL_JUNKIE_RELAXED_LOCAL".to_string(), "1".to_string()),
-    ]);
+    let mut envs = HashMap::from([("OLLAMA_HOST".to_string(), "127.0.0.1:11434".to_string())]);
+    // Debug/dev sidecars keep loopback parity with `make server`. Release builds
+    // require a real desktop session (X-NJ-Session) for mutations.
+    if cfg!(debug_assertions) {
+        envs.insert(
+            "NEURAL_JUNKIE_RELAXED_LOCAL".to_string(),
+            "1".to_string(),
+        );
+    }
     if let Some(models_dir) = ollama_models_dir(app).to_str() {
         envs.insert("OLLAMA_MODELS".to_string(), models_dir.to_string());
     }
@@ -1777,16 +1811,79 @@ fn prepare_for_update(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Read ~/.neural-junkie/bootstrap.token for local admin unlock (loopback dev only).
-#[tauri::command]
-fn read_hub_bootstrap_token() -> Result<String, String> {
-    let path = dirs::home_dir()
+fn bootstrap_token_path() -> Result<PathBuf, String> {
+    Ok(dirs::home_dir()
         .ok_or_else(|| "home directory not found".to_string())?
         .join(".neural-junkie")
-        .join("bootstrap.token");
-    std::fs::read_to_string(&path)
-        .map(|s| s.trim().to_string())
-        .map_err(|e| format!("could not read {}: {}", path.display(), e))
+        .join("bootstrap.token"))
+}
+
+fn load_bootstrap_token() -> Result<String, String> {
+    let path = bootstrap_token_path()?;
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("could not read {}: {}", path.display(), e))?;
+    let token = raw.trim().to_string();
+    if token.is_empty() {
+        return Err("Bootstrap token file is empty".into());
+    }
+    Ok(token)
+}
+
+/// Debug-only: read bootstrap token. Release builds must use mint_hub_admin_session.
+#[tauri::command]
+fn read_hub_bootstrap_token() -> Result<String, String> {
+    if cfg!(not(debug_assertions)) {
+        return Err(
+            "bootstrap token is not readable in release builds; use Unlock with local mint"
+                .into(),
+        );
+    }
+    load_bootstrap_token()
+}
+
+/// Mint an admin hub session without exposing the bootstrap secret to the webview.
+#[tauri::command]
+fn mint_hub_admin_session(username: String, hub_url: String) -> Result<serde_json::Value, String> {
+    let token = load_bootstrap_token()?;
+    let base = hub_url.trim().trim_end_matches('/');
+    if !(base.starts_with("http://127.0.0.1")
+        || base.starts_with("http://localhost")
+        || base.starts_with("https://127.0.0.1")
+        || base.starts_with("https://localhost"))
+    {
+        return Err("admin mint only allowed against loopback hub URL".into());
+    }
+    let url = format!("{}/api/auth/session", base);
+    let who = {
+        let t = username.trim();
+        if t.is_empty() {
+            "local"
+        } else {
+            t
+        }
+    };
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .header("X-NJ-Bootstrap", &token)
+        .json(&serde_json::json!({ "username": who, "role": "admin" }))
+        .send()
+        .map_err(|e| format!("admin mint request failed: {}", e))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().unwrap_or_default();
+        return Err(format!(
+            "admin mint failed: {} {}",
+            status,
+            body.trim()
+        ));
+    }
+    resp.json::<serde_json::Value>()
+        .map_err(|e| format!("admin mint decode: {}", e))
 }
 
 fn machine_credential_key() -> [u8; 32] {
@@ -2026,6 +2123,7 @@ fn main() {
             encrypt_credential_blob,
             decrypt_credential_blob,
             read_hub_bootstrap_token,
+            mint_hub_admin_session,
             open_devtools,
             probe_hub_websocket
         ])

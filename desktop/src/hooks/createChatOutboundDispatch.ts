@@ -104,6 +104,7 @@ export function createChatOutboundDispatch(deps: ChatOutboundDispatchDeps) {
     const ws =
       deps.explorerWorkspaces.find((w) => w.id === deps.activeWorkspaceId) ??
       deps.explorerWorkspaces[0];
+    const recentMessages = useChatStore.getState().messages;
     const payload = await prepareOutboundPayload({
       content,
       composerMode: deps.composerMode,
@@ -117,6 +118,7 @@ export function createChatOutboundDispatch(deps: ChatOutboundDispatchDeps) {
       ideEnabled: deps.ideEnabled,
       channel: deps.channel,
       channelMeta: deps.activeChannelMeta,
+      recentChannelMessages: recentMessages,
     });
     const baseMetadata = buildHumanOutboundMetadata({
       contextMode: deps.workspaceContextMode,
@@ -126,7 +128,7 @@ export function createChatOutboundDispatch(deps: ChatOutboundDispatchDeps) {
       channelType: deps.activeChannelMeta?.type,
       composerMetadata: payload.metadata,
       ideCoding: deps.ideLayout && deps.hasIdeComposer,
-      recentChannelMessages: useChatStore.getState().messages,
+      recentChannelMessages: recentMessages,
     });
     const mergedMetadata =
       deps.workspaceContextMode === 'off'
@@ -175,6 +177,7 @@ export function createChatOutboundDispatch(deps: ChatOutboundDispatchDeps) {
     const ws =
       deps.explorerWorkspaces.find((w) => w.id === deps.activeWorkspaceId) ??
       deps.explorerWorkspaces[0];
+    const recentMessages = useChatStore.getState().messages;
     const payload = await prepareOutboundPayload({
       content,
       composerMode: effectiveComposerMode,
@@ -188,6 +191,7 @@ export function createChatOutboundDispatch(deps: ChatOutboundDispatchDeps) {
       ideEnabled: deps.ideEnabled,
       channel: deps.channel,
       channelMeta: deps.activeChannelMeta,
+      recentChannelMessages: recentMessages,
     });
     sendContent = payload.content;
     composerMeta = payload.metadata;
@@ -200,7 +204,7 @@ export function createChatOutboundDispatch(deps: ChatOutboundDispatchDeps) {
       channelType: deps.activeChannelMeta?.type,
       composerMetadata: composerMeta,
       ideCoding: deps.ideLayout && deps.hasIdeComposer,
-      recentChannelMessages: useChatStore.getState().messages,
+      recentChannelMessages: recentMessages,
     });
     const mergedMetadata =
       deps.workspaceContextMode === 'off'

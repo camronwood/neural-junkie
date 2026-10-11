@@ -49,13 +49,6 @@ func TestCommandOutputMatchesPlaybook(t *testing.T) {
 	}
 }
 
-func TestSynthesizeMakefileWithStartAll(t *testing.T) {
-	body := synthesizeMakefileWithStartAll("help:\n\t@echo ok\n")
-	if !containsAllParts(body, "start-all:", "scripts/start-all.sh", ".PHONY") {
-		t.Fatalf("missing start-all target: %q", body)
-	}
-}
-
 func containsAllParts(s string, parts ...string) bool {
 	for _, p := range parts {
 		if !containsStr(s, p) {

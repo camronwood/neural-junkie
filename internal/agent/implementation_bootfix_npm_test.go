@@ -1,14 +1,8 @@
 package agent
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/camronwood/neural-junkie/internal/ai"
-	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 func TestExtractMissingNpmModules_viteFormat(t *testing.T) {
@@ -39,40 +33,6 @@ func TestAddMissingDependencyToPackageJSON(t *testing.T) {
 	_, ok = addMissingDependencyToPackageJSON(existing, "react")
 	if ok {
 		t.Fatal("should not add existing dependency")
-	}
-}
-
-func TestTryEarlyMissingNpmModuleFix(t *testing.T) {
-	dir := t.TempDir()
-	pkg := `{"name":"demo","scripts":{"build":"tsc"},"dependencies":{"react":"^18.0.0"}}`
-	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(pkg), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	ag := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"app won't boot")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{
-		BootFixIntent: true,
-		StackManifest: DetectStackManifest(dir),
-	}
-	state.RecordReadPath("package.json")
-	state.RecordCommandRun("npm run build", 1, "exit_code=1\nCannot find module 'react-bootstrap'")
-	ctx := withImplementationSessionState(context.Background(), state)
-
-	if !ag.tryEarlyMissingNpmModuleFix(ctx, msg, dir, state) {
-		t.Fatal("expected early npm module fix")
-	}
-	if state.ProposedCount < 1 {
-		t.Fatal("expected proposal")
-	}
-	if !state.DiagnosePhaseComplete {
-		t.Fatal("expected diagnose gate cleared")
 	}
 }
 

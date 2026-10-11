@@ -1,13 +1,11 @@
 package agent
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -58,94 +56,6 @@ func TestAddMissingDependencyToCargoToml_createsDependenciesSection(t *testing.T
 	}
 }
 
-func TestTryMissingRustCrateFix(t *testing.T) {
-	dir := t.TempDir()
-	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n"
-	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"build failed")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"editor_agent_trust":     editorTrustAutoApply,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{
-		StackManifest: DetectStackManifest(dir),
-		TrustMode:     editorTrustAutoApply,
-	}
-	state.RecordReadPath("Cargo.toml")
-	state.RecordCommandRun("cargo build", 101,
-		"exit_code=101\nerror[E0432]: unresolved import `rand`\nerror[E0433]: failed to resolve: use of undeclared crate `rand`")
-	ctx := withImplementationSessionState(context.Background(), state)
-
-	if !ag.tryMissingRustCrateFix(ctx, msg, dir, state, state.LastCommandOutput()) {
-		t.Fatal("expected rust crate fix")
-	}
-	if state.ProposedCount < 1 {
-		t.Fatal("expected proposal")
-	}
-	onDisk, err := os.ReadFile(filepath.Join(dir, "Cargo.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !cargoTomlHasDependency(string(onDisk), "rand") {
-		t.Fatalf("Cargo.toml = %q", onDisk)
-	}
-	if state.PlaybookUsed() != "rust_missing_crate" {
-		t.Fatalf("playbook = %q", state.PlaybookUsed())
-	}
-}
-
-func TestTryMissingRustCrateFix_stdOnlyRewritesRand(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n"
-	main := "use rand::seq::SliceRandom;\nuse rand::thread_rng;\nfn main() {\n    let mut deck = vec![1, 2, 3];\n    let mut rng = thread_rng();\n    deck.shuffle(&mut rng);\n    println!(\"hit stand dealer blackjack\");\n}\n"
-	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte(main), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"Prefer the Rust standard library only; avoid rand if you can shuffle with std.")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"editor_agent_trust":     editorTrustAutoApply,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{TrustMode: editorTrustAutoApply}
-	state.RecordReadPath("src/main.rs")
-	state.RecordCommandRun("cargo build", 101,
-		"exit_code=101\nerror[E0432]: unresolved import `rand`\nerror[E0433]: use of undeclared crate `rand`")
-	ctx := withImplementationSessionState(context.Background(), state)
-	if !ag.tryMissingRustCrateFix(ctx, msg, dir, state, state.LastCommandOutput()) {
-		t.Fatal("expected std shuffle rewrite")
-	}
-	body, err := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(body), "use rand") || !strings.Contains(string(body), "nj_std_shuffle") {
-		t.Fatalf("main.rs not rewritten:\n%s", body)
-	}
-	if cargoTomlHasDependency(string(mustRead(t, filepath.Join(dir, "Cargo.toml"))), "rand") {
-		t.Fatal("Cargo.toml must not gain rand under std-only preference")
-	}
-	if state.PlaybookUsed() != "rust_std_shuffle_rewrite" {
-		t.Fatalf("playbook = %q", state.PlaybookUsed())
-	}
-}
-
 func mustRead(t *testing.T, path string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -166,40 +76,6 @@ func TestCommandOutputMatchesPlaybook_rustMissingBinTarget(t *testing.T) {
 	out := "error: failed to parse manifest at `Cargo.toml`\n\nCaused by:\n  no targets specified in the manifest\n  either src/lib.rs, src/main.rs, a [lib] section, or [[bin]] section must be present"
 	if got := commandOutputMatchesPlaybook(out); got != "rust_missing_bin_target" {
 		t.Fatalf("got %q want rust_missing_bin_target", got)
-	}
-}
-
-func TestTryMissingRustBinTargetFix(t *testing.T) {
-	dir := t.TempDir()
-	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n"
-	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"Implement local CLI blackjack with hit/stand against the dealer.")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"editor_agent_trust":     editorTrustAutoApply,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{TrustMode: editorTrustAutoApply}
-	state.RecordCommandRun("cargo build", 101,
-		"no targets specified in the manifest\neither src/lib.rs, src/main.rs, a [lib] section must be present")
-	ctx := withImplementationSessionState(context.Background(), state)
-	if !ag.tryMissingRustBinTargetFix(ctx, msg, dir, state, state.LastCommandOutput()) {
-		t.Fatal("expected bin target scaffold")
-	}
-	body, err := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	lower := strings.ToLower(string(body))
-	for _, want := range []string{"hit", "stand", "dealer", "fn main"} {
-		if !strings.Contains(lower, want) {
-			t.Fatalf("stub missing %q:\n%s", want, body)
-		}
 	}
 }
 
@@ -262,54 +138,6 @@ func TestAddDerivePartialEqToRustSource_multiTrait(t *testing.T) {
 	}
 }
 
-func TestTryMissingRustPartialEqFix(t *testing.T) {
-	dir := t.TempDir()
-	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
-	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	mainRS := "enum Rank { Ace, Two }\nfn main() {}\n"
-	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte(mainRS), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"build failed")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"editor_agent_trust":     editorTrustAutoApply,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{
-		StackManifest: DetectStackManifest(dir),
-		TrustMode:     editorTrustAutoApply,
-	}
-	state.RecordReadPath("src/main.rs")
-	evidence := "error[E0369]: binary operation `==` cannot be applied to type `Rank`\n" +
-		"the trait `PartialEq` is not implemented for `Rank`\n"
-	state.RecordCommandRun("cargo build", 101, evidence)
-	ctx := withImplementationSessionState(context.Background(), state)
-
-	if !ag.tryMissingRustPartialEqFix(ctx, msg, dir, state, evidence) {
-		t.Fatal("expected rust PartialEq fix")
-	}
-	onDisk, err := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(onDisk), "PartialEq") || !strings.Contains(string(onDisk), "Eq") {
-		t.Fatalf("main.rs = %q", onDisk)
-	}
-	if state.PlaybookUsed() != "rust_missing_partialeq" {
-		t.Fatalf("playbook = %q", state.PlaybookUsed())
-	}
-}
-
 func TestCommandOutputMatchesPlaybook_rustMissingCopyClone_beatsE0433(t *testing.T) {
 	out := "error[E0382]: borrow of moved value: `suit`\n" +
 		"value moved here, in previous iteration of loop\n" +
@@ -363,55 +191,6 @@ func TestEnsureRustRandShuffleImport(t *testing.T) {
 	}
 }
 
-func TestTryMissingRustCopyCloneFix(t *testing.T) {
-	dir := t.TempDir()
-	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
-	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	mainRS := "enum Suit { Hearts }\nfn main() {}\n"
-	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte(mainRS), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"build failed")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"editor_agent_trust":     editorTrustAutoApply,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{
-		StackManifest: DetectStackManifest(dir),
-		TrustMode:     editorTrustAutoApply,
-	}
-	state.RecordReadPath("src/main.rs")
-	evidence := "error[E0382]: borrow of moved value: `suit`\n" +
-		"value moved here, in previous iteration of loop\n" +
-		"note: if `Suit` implemented `Clone`, you could clone the value\n"
-	state.RecordCommandRun("cargo build", 101, evidence)
-	ctx := withImplementationSessionState(context.Background(), state)
-
-	if !ag.tryMissingRustCopyCloneFix(ctx, msg, dir, state, evidence) {
-		t.Fatal("expected rust copy/clone fix")
-	}
-	onDisk, err := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(onDisk), "Copy") || !strings.Contains(string(onDisk), "Clone") {
-		t.Fatalf("main.rs = %q", onDisk)
-	}
-	if state.PlaybookUsed() != "rust_missing_copy_clone" {
-		t.Fatalf("playbook = %q", state.PlaybookUsed())
-	}
-}
-
 func TestAddDeriveDebugToRustSource_insertsAndMerges(t *testing.T) {
 	src := "fn main() {}\n\nstruct Card {\n    rank: u8,\n}\n"
 	body, ok := addDeriveDebugToRustSource(src, "Card")
@@ -425,55 +204,6 @@ func TestAddDeriveDebugToRustSource_insertsAndMerges(t *testing.T) {
 	_, ok = addDeriveDebugToRustSource("#[derive(Debug, Clone)]\nstruct Card {}\n", "Card")
 	if ok {
 		t.Fatal("expected no-op when Debug already present")
-	}
-}
-
-func TestTryMissingRustDebugFix(t *testing.T) {
-	dir := t.TempDir()
-	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
-	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	mainRS := "struct Card { rank: u8 }\nfn main() { println!(\"{:?}\", Card{rank:1}); }\n"
-	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte(mainRS), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"build failed")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"editor_agent_trust":     editorTrustAutoApply,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{
-		StackManifest: DetectStackManifest(dir),
-		TrustMode:     editorTrustAutoApply,
-	}
-	state.RecordReadPath("src/main.rs")
-	evidence := "error[E0277]: `Card` doesn't implement `Debug`\n" +
-		"the trait `Debug` is not implemented for `Card`\n" +
-		"help: consider annotating `Card` with `#[derive(Debug)]`\n"
-	state.RecordCommandRun("cargo build", 101, evidence)
-	ctx := withImplementationSessionState(context.Background(), state)
-
-	if !ag.tryMissingRustDebugFix(ctx, msg, dir, state, evidence) {
-		t.Fatal("expected rust debug fix")
-	}
-	onDisk, err := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(onDisk), "#[derive(Debug)]") {
-		t.Fatalf("main.rs = %q", onDisk)
-	}
-	if state.PlaybookUsed() != "rust_missing_debug" {
-		t.Fatalf("playbook = %q", state.PlaybookUsed())
 	}
 }
 
@@ -531,45 +261,6 @@ func TestMessageImpliesRustGreenfield(t *testing.T) {
 	}
 }
 
-func TestTryGreenfieldCargoTomlScaffold(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte("fn main() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "user-flow-scenarios",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"Implement Rust blackjack with Cargo.toml and src/main.rs")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"editor_agent_trust":     editorTrustAutoApply,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{
-		StackManifest: DetectStackManifest(dir),
-		TrustMode:     editorTrustAutoApply,
-	}
-	ctx := withImplementationSessionState(context.Background(), state)
-
-	if !ag.tryGreenfieldCargoTomlScaffold(ctx, msg, dir, state, "src/main.rs") {
-		t.Fatal("expected greenfield cargo scaffold")
-	}
-	onDisk, err := os.ReadFile(filepath.Join(dir, "Cargo.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(onDisk), `edition = "2021"`) {
-		t.Fatalf("Cargo.toml = %q", onDisk)
-	}
-	if state.PlaybookUsed() != "greenfield_cargo_toml" {
-		t.Fatalf("playbook = %q", state.PlaybookUsed())
-	}
-}
-
 func TestExtractMissingRustCrates_unlinkedRand(t *testing.T) {
 	out := "error[E0433]: failed to resolve: use of unresolved module or unlinked crate `rand`\n" +
 		"  --> src/main.rs:34:23\n" +
@@ -582,90 +273,3 @@ func TestExtractMissingRustCrates_unlinkedRand(t *testing.T) {
 		t.Fatalf("crates=%v want [rand]", crates)
 	}
 }
-
-func TestTryMissingRustCrateFix_randAddsShuffleImport(t *testing.T) {
-	dir := t.TempDir()
-	cargo := "[package]\nname = \"blackjack\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
-	if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargo), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	mainRS := "fn main() {\n    let mut cards = vec![1, 2, 3];\n    cards.shuffle(&mut rand::thread_rng());\n}\n"
-	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte(mainRS), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"build failed")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"editor_agent_trust":     editorTrustAutoApply,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{
-		StackManifest: DetectStackManifest(dir),
-		TrustMode:     editorTrustAutoApply,
-	}
-	state.RecordReadPath("src/main.rs")
-	state.RecordReadPath("Cargo.toml")
-	evidence := "error[E0433]: failed to resolve: use of unresolved module or unlinked crate `rand`\n" +
-		"error[E0599]: no method named `shuffle` found for struct `Vec<i32>`\n"
-	state.RecordCommandRun("cargo build", 101, evidence)
-	ctx := withImplementationSessionState(context.Background(), state)
-
-	if !ag.tryMissingRustCrateFix(ctx, msg, dir, state, evidence) {
-		t.Fatal("expected rust crate fix for rand")
-	}
-	tomlBody, err := os.ReadFile(filepath.Join(dir, "Cargo.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(tomlBody), "rand") {
-		t.Fatalf("Cargo.toml missing rand: %s", tomlBody)
-	}
-	mainBody, err := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(mainBody), "use rand::seq::SliceRandom;") {
-		t.Fatalf("main.rs missing SliceRandom import: %s", mainBody)
-	}
-}
-
-func TestTryMisplacedRustCargoTomlFix(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "src", "main.rs"), []byte("[package]\nname = \"x\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
-	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-test",
-		protocol.AgentInfo{ID: "human", Name: "camron", Type: "human"},
-		"build failed")
-	msg.Metadata = map[string]interface{}{
-		"implementation_session": true,
-		"editor_agent_trust":     editorTrustAutoApply,
-		"workspace_context":      map[string]interface{}{"workspace_path": dir},
-	}
-	state := &ImplementationSessionState{TrustMode: editorTrustAutoApply}
-	evidence := "error: expected item, found `[`\n --> src/main.rs:1:1\n"
-	ctx := withImplementationSessionState(context.Background(), state)
-	if !ag.tryMisplacedRustCargoTomlFix(ctx, msg, dir, state, evidence) {
-		t.Fatal("expected misplaced cargo toml fix")
-	}
-	mainBody, _ := os.ReadFile(filepath.Join(dir, "src", "main.rs"))
-	if strings.Contains(string(mainBody), "[package]") || !strings.Contains(string(mainBody), "fn main") {
-		t.Fatalf("main.rs=%q", mainBody)
-	}
-	tomlBody, _ := os.ReadFile(filepath.Join(dir, "Cargo.toml"))
-	if !strings.Contains(string(tomlBody), "[package]") {
-		t.Fatalf("Cargo.toml=%q", tomlBody)
-	}
-}
-
