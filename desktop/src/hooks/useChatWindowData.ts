@@ -23,8 +23,14 @@ export async function loadAgentsFromHub(api: ChatAPI): Promise<void> {
 
 /** Load channels into chatStore. If the saved active channel is missing (hub restart),
  * fall back to general so WebSocket ACL does not 403 on a stale DM name. */
-export async function loadChannelsFromHub(api?: ChatAPI): Promise<ReturnType<ChatAPI['fetchChannels']>> {
-  const client = api ?? new ChatAPI(getHubBaseURL());
+export async function loadChannelsFromHub(
+  api?: ChatAPI,
+  opts?: {
+    /** Prefer full channel switch (history load) when the active channel disappeared. */
+    onMissingActiveChannel?: (fallback: string) => void | Promise<void>;
+  },
+): Promise<ReturnType<ChatAPI['fetchChannels']>> {
+  const client = api ?? new ChatAPI(useChatStore.getState().serverAddr || getHubBaseURL());
   const channelList = await client.fetchChannels();
   const store = useChatStore.getState();
   store.setChannels(channelList);
@@ -34,7 +40,20 @@ export async function loadChannelsFromHub(api?: ChatAPI): Promise<ReturnType<Cha
     console.warn(
       `[loadChannelsFromHub] Active channel ${JSON.stringify(active)} missing on hub; switching to ${general}`,
     );
-    store.setChannel(general);
+    if (opts?.onMissingActiveChannel) {
+      await opts.onMissingActiveChannel(general);
+    } else {
+      // switchChannel caches/restores messages; bare setChannel would leave stale timeline.
+      store.switchChannel(general);
+      try {
+        const msgs = await client.fetchMessages(general, 50);
+        if (useChatStore.getState().channel === general) {
+          useChatStore.getState().setMessages(msgs);
+        }
+      } catch (error) {
+        console.error('[loadChannelsFromHub] Failed to load fallback channel history:', error);
+      }
+    }
   }
   return channelList;
 }

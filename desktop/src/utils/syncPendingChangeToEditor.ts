@@ -4,17 +4,21 @@ import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { FileChange } from '../types/protocol';
 import { getLanguageFromPath } from './editorLanguage';
+import {
+  findLongestMatchingWorkspace,
+  normalizeAbsolutePath,
+  pathsMatchExactOrBoundary,
+} from './workspacePaths';
 
 /** Match a pending change to an open editor tab by absolute or relative path. */
 export function findPendingChangeForTabPath(
   pendingChanges: ReadonlyArray<FileChange>,
   tabPath: string,
 ): FileChange | null {
-  const normalized = tabPath.replace(/\\/g, '/');
   return (
     pendingChanges.find((c) => {
-      const p = (c.file_path || c.new_path || '').replace(/\\/g, '/');
-      return p === normalized || p.endsWith(`/${normalized}`) || normalized.endsWith(`/${p}`);
+      const p = c.file_path || c.new_path || '';
+      return pathsMatchExactOrBoundary(p, tabPath);
     }) ?? null
   );
 }
@@ -36,16 +40,14 @@ export async function syncPendingChangeToEditor(change: FileChange): Promise<voi
 
   const explorer = useFileExplorerStore.getState();
   const workspace =
-    explorer.workspaces.find(
-      (item) => absolutePath === item.path || absolutePath.startsWith(`${item.path}/`),
-    ) ??
+    findLongestMatchingWorkspace(absolutePath, explorer.workspaces) ??
     explorer.workspaces.find((item) => item.id === explorer.activeWorkspaceId) ??
     explorer.workspaces[0];
   if (!workspace) return;
 
-  const relativePath = absolutePath.startsWith(`${workspace.path}/`)
-    ? absolutePath.slice(workspace.path.length + 1)
-    : absolutePath;
+  const root = normalizeAbsolutePath(workspace.path);
+  const abs = normalizeAbsolutePath(absolutePath);
+  const relativePath = abs.startsWith(`${root}/`) ? abs.slice(root.length + 1) : absolutePath;
 
   const existing = useEditorStore
     .getState()

@@ -16,6 +16,9 @@ import { WORKSPACE_CONTEXT_MODE_KEY } from '../utils/outboundChatMetadata';
 import { patchRevealForChannel } from '../utils/sidebarVisibility';
 import { resolveTerminalCwd } from '../utils/terminalCwd';
 
+/** Monotonic switch generation so stale fetchMessages cannot overwrite a newer channel. */
+let channelSwitchSeq = 0;
+
 export type ChatChannelActionsDeps = {
   api: ChatAPI;
   channel: string;
@@ -116,6 +119,7 @@ export function createChatChannelActions(deps: ChatChannelActionsDeps) {
   const handleSwitchChannel = async (channelName: string) => {
     const prevChannel = useChatStore.getState().channel;
     if (channelName === prevChannel) return;
+    const switchSeq = ++channelSwitchSeq;
     revealSidebarForChannel(channelName);
     // Collaboration side panel is channel-scoped; clear when navigating.
     deps.setActiveCollab(null);
@@ -134,9 +138,15 @@ export function createChatChannelActions(deps: ChatChannelActionsDeps) {
     }
     try {
       const msgs = await deps.api.fetchMessages(channelName, 50);
+      if (switchSeq !== channelSwitchSeq || useChatStore.getState().channel !== channelName) {
+        return;
+      }
       useChatStore.getState().setMessages(msgs);
       useChatStore.getState().cleanupStaleThinking(channelName, msgs);
       await deps.loadCollaborations(channelName);
+      if (switchSeq !== channelSwitchSeq || useChatStore.getState().channel !== channelName) {
+        return;
+      }
       const collab = Object.values(deps.collaborationsByIDRef.current).find(
         (c) => c.channel === channelName && !isTerminalCollaborationPhase(c.phase),
       );
@@ -146,6 +156,7 @@ export function createChatChannelActions(deps: ChatChannelActionsDeps) {
       const cwd = resolveTerminalCwd({ collaboration: collab ?? null });
       useTerminalStore.getState().alignActiveTabCwd(cwd);
     } catch (error) {
+      if (switchSeq !== channelSwitchSeq) return;
       console.error('Failed to load messages for channel:', error);
     }
   };

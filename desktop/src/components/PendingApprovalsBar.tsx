@@ -17,6 +17,8 @@ interface PendingApprovalsBarProps {
   collaboration?: Collaboration | null;
   onOpenTerminal: () => void;
   onScrollToApproval: (approvalId: string) => void;
+  /** Prefer full channel switch (history + collab) over bare setChannel. */
+  onSwitchChannel?: (channelName: string) => void | Promise<void>;
   approveFirstPendingRef?: MutableRefObject<(() => void | Promise<void>) | null>;
   rejectFirstPendingRef?: MutableRefObject<(() => void | Promise<void>) | null>;
 }
@@ -31,6 +33,7 @@ export function PendingApprovalsBar({
   collaboration,
   onOpenTerminal,
   onScrollToApproval,
+  onSwitchChannel,
   approveFirstPendingRef,
   rejectFirstPendingRef,
 }: PendingApprovalsBarProps) {
@@ -38,8 +41,19 @@ export function PendingApprovalsBar({
   const removePendingTool = useApprovalStore((s) => s.removePendingTool);
   const suggestedCommands = useTerminalStore((s) => s.suggestedCommands);
   const removeSuggestedCommand = useTerminalStore((s) => s.removeSuggestedCommand);
-  const setChannel = useChatStore((s) => s.setChannel);
+  const switchChannelStore = useChatStore((s) => s.switchChannel);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  const openChannel = useCallback(
+    (target: string) => {
+      if (onSwitchChannel) {
+        void onSwitchChannel(target);
+        return;
+      }
+      switchChannelStore(target);
+    },
+    [onSwitchChannel, switchChannelStore],
+  );
 
   const channelTools = useMemo(
     () => pendingTools.filter((a) => a.channel === channel),
@@ -302,7 +316,7 @@ export function PendingApprovalsBar({
             <button
               key={approval.id}
               type="button"
-              onClick={() => setChannel(approval.channel)}
+              onClick={() => openChannel(approval.channel)}
               className="text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-100 hover:bg-amber-500/30"
             >
               {approval.agentName} in #{approval.channel}

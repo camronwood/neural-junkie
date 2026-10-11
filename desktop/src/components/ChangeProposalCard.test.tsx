@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChangeProposalCard, Message } from '../types/protocol';
 import { useFileChangeStore } from '../stores/fileChangeStore';
@@ -88,5 +88,65 @@ describe('ChangeProposalMessageCard', () => {
     const card = { ...proposal(), operation: 'delete' };
     render(<ChangeProposalMessageCard message={messageWith(card)} />);
     expect(screen.getByRole('button', { name: 'Accept destructive change' })).toBeTruthy();
+  });
+
+  it('uses approveRequest only when card.request_id is set', () => {
+    const approveRequest = vi.fn().mockResolvedValue(undefined);
+    const approveChange = vi.fn().mockResolvedValue(undefined);
+    useFileChangeStore.setState({ approveRequest, approveChange });
+    const card = {
+      ...proposal(),
+      operation: 'batch' as const,
+      request_id: 'req-batch-1',
+      paths: ['/workspace/a.ts', '/workspace/b.ts'],
+    };
+    render(<ChangeProposalMessageCard message={messageWith(card)} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    expect(approveRequest).toHaveBeenCalledWith('req-batch-1');
+    expect(approveChange).not.toHaveBeenCalled();
+  });
+
+  it('does not treat card.id as request_id for multi-path cards', async () => {
+    const approveRequest = vi.fn().mockResolvedValue(undefined);
+    const approveChange = vi.fn().mockResolvedValue(undefined);
+    useFileChangeStore.setState({
+      approveRequest,
+      approveChange,
+      pendingChanges: [
+        {
+          id: 'member-a',
+          operation: 'edit',
+          file_path: '/workspace/src/a.ts',
+          agent: { id: 'agent-1', name: 'Builder', type: 'cli' },
+          channel: 'general',
+          status: 'pending',
+          requested_at: '',
+          expires_at: '',
+        },
+        {
+          id: 'member-b',
+          operation: 'edit',
+          file_path: '/workspace/src/b.ts',
+          agent: { id: 'agent-1', name: 'Builder', type: 'cli' },
+          channel: 'general',
+          status: 'pending',
+          requested_at: '',
+          expires_at: '',
+        },
+      ],
+    });
+    const card = {
+      ...proposal(),
+      id: 'summary-card',
+      operation: 'batch' as const,
+      paths: ['/workspace/src/a.ts', '/workspace/src/b.ts'],
+    };
+    render(<ChangeProposalMessageCard message={messageWith(card)} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    await waitFor(() => {
+      expect(approveRequest).not.toHaveBeenCalled();
+      expect(approveChange).toHaveBeenCalledWith('member-a');
+      expect(approveChange).toHaveBeenCalledWith('member-b');
+    });
   });
 });
