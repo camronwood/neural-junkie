@@ -474,9 +474,13 @@ func (ch *CommandHandler) handleSubmitPlan(ctx context.Context, msg *protocol.Me
 	}
 
 	cm := ch.hub.GetCollaborationManager()
-	collabID := ch.resolveCollabID(parts[1])
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	collabID, resolveErr := ch.resolveCollabID(parts[1])
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to see active collaborations."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 
 	snap, err := cm.GetCollaborationSnapshot(collabID)
@@ -537,9 +541,13 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	}
 
 	cm := ch.hub.GetCollaborationManager()
-	collabID := ch.resolveCollabID(parts[1])
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	collabID, resolveErr := ch.resolveCollabID(parts[1])
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to see active collaborations."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 
 	collab, err := cm.ApprovePlan(collabID)
@@ -690,9 +698,13 @@ func (ch *CommandHandler) handleAckCollabWorkspace(_ context.Context, msg *proto
 	if len(parts) < 2 {
 		return ch.systemResponse(msg.Channel, "❌ Usage: /ack-collab-workspace <collab-id>"), nil
 	}
-	collabID := ch.resolveCollabID(parts[1])
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	collabID, resolveErr := ch.resolveCollabID(parts[1])
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to see active collaborations."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 	if err := ch.hub.AcknowledgeCollaborationWorkspace(collabID, ""); err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
@@ -708,9 +720,13 @@ func (ch *CommandHandler) handleResumePlan(ctx context.Context, msg *protocol.Me
 	}
 
 	cm := ch.hub.GetCollaborationManager()
-	collabID := ch.resolveCollabID(parts[1])
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	collabID, resolveErr := ch.resolveCollabID(parts[1])
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to see active collaborations."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 
 	snap, err := cm.GetCollaborationSnapshot(collabID)
@@ -767,9 +783,13 @@ func (ch *CommandHandler) handleRevisePlan(ctx context.Context, msg *protocol.Me
 	}
 
 	cm := ch.hub.GetCollaborationManager()
-	collabID := ch.resolveCollabID(parts[1])
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	collabID, resolveErr := ch.resolveCollabID(parts[1])
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to see active collaborations."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 
 	feedback := strings.Join(parts[2:], " ")
@@ -813,9 +833,13 @@ func (ch *CommandHandler) handleCancelPlan(ctx context.Context, msg *protocol.Me
 	}
 
 	cm := ch.hub.GetCollaborationManager()
-	collabID := ch.resolveCollabID(parts[1])
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	collabID, resolveErr := ch.resolveCollabID(parts[1])
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to see active collaborations."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 
 	snap, err := cm.CancelCollaboration(collabID)
@@ -850,9 +874,13 @@ func (ch *CommandHandler) handleCompleteCollab(ctx context.Context, msg *protoco
 		return ch.systemResponse(msg.Channel, "❌ Collaboration manager is not available."), nil
 	}
 
-	collabID := ch.resolveCollabID(parts[1])
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	collabID, resolveErr := ch.resolveCollabID(parts[1])
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to see active collaborations."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 
 	force := false
@@ -915,9 +943,13 @@ func (ch *CommandHandler) handleCollabTaskDone(ctx context.Context, msg *protoco
 		return ch.systemResponse(msg.Channel, "❌ Collaboration manager is not available."), nil
 	}
 
-	collabID := ch.resolveCollabID(parts[1])
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	collabID, resolveErr := ch.resolveCollabID(parts[1])
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to see active collaborations."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 
 	taskID, err := cm.ResolveTaskIndex(collabID, parts[2])
@@ -979,9 +1011,13 @@ func (ch *CommandHandler) handleCollabExtend(ctx context.Context, msg *protocol.
 	if cm == nil {
 		return ch.systemResponse(msg.Channel, "❌ Collaboration manager is not available."), nil
 	}
-	collabID := ch.resolveCollabID(id)
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to list active IDs."), nil
+	collabID, resolveErr := ch.resolveCollabID(id)
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to list active IDs."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 
 	collab, err := cm.ExtendDiscussionLimits(collabID, extraRounds, extraMessages)
@@ -1006,9 +1042,13 @@ func (ch *CommandHandler) handleCollabRename(ctx context.Context, msg *protocol.
 	if len(parts) < 3 {
 		return ch.systemResponse(msg.Channel, "❌ Usage: /collab-rename <collab-id> <title>"), nil
 	}
-	collabID := ch.resolveCollabID(parts[1])
-	if collabID == "" {
-		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to list active IDs."), nil
+	collabID, resolveErr := ch.resolveCollabID(parts[1])
+	if resolveErr != nil || collabID == "" {
+		errMsg := "❌ Collaboration not found. Use /collab-status to list active IDs."
+		if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+			errMsg = "❌ " + resolveErr.Error()
+		}
+		return ch.systemResponse(msg.Channel, errMsg), nil
 	}
 	title := strings.TrimSpace(strings.Join(parts[2:], " "))
 	if title == "" {
@@ -1146,9 +1186,13 @@ func (ch *CommandHandler) handleCollabStatus(ctx context.Context, msg *protocol.
 	cm := ch.hub.GetCollaborationManager()
 
 	if len(parts) >= 2 {
-		collabID := ch.resolveCollabID(parts[1])
-		if collabID == "" {
-			return ch.systemResponse(msg.Channel, "❌ Collaboration not found."), nil
+		collabID, resolveErr := ch.resolveCollabID(parts[1])
+		if resolveErr != nil || collabID == "" {
+			errMsg := "❌ Collaboration not found."
+			if resolveErr != nil && strings.Contains(resolveErr.Error(), "ambiguous") {
+				errMsg = "❌ " + resolveErr.Error()
+			}
+			return ch.systemResponse(msg.Channel, errMsg), nil
 		}
 		collab, err := cm.GetCollaboration(collabID)
 		if err != nil {
@@ -1219,28 +1263,35 @@ func (ch *CommandHandler) formatCollabDetail(c *collaboration.Collaboration) str
 	return sb.String()
 }
 
-// resolveCollabID accepts either a full UUID or a short prefix and
-// returns the full collaboration ID if found.
-
-// resolveCollabID accepts either a full UUID or a short prefix and
-// returns the full collaboration ID if found.
-func (ch *CommandHandler) resolveCollabID(input string) string {
+// resolveCollabID accepts either a full UUID or a short unique prefix and
+// returns the full collaboration ID. Ambiguous prefixes return an error.
+func (ch *CommandHandler) resolveCollabID(input string) (string, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", fmt.Errorf("collaboration id required")
+	}
 	cm := ch.hub.GetCollaborationManager()
 	if cm == nil {
-		return ""
+		return "", fmt.Errorf("collaboration manager unavailable")
 	}
 
 	// Try exact match first
 	if _, err := cm.GetCollaboration(input); err == nil {
-		return input
+		return input, nil
 	}
 
-	// Try prefix match
+	var matches []string
 	for _, c := range cm.ListActive() {
-		if strings.HasPrefix(c.ID, input) {
-			return c.ID
+		if c != nil && strings.HasPrefix(c.ID, input) {
+			matches = append(matches, c.ID)
 		}
 	}
-
-	return ""
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("collaboration not found")
+	case 1:
+		return matches[0], nil
+	default:
+		return "", fmt.Errorf("ambiguous collaboration id prefix %q matches %d collaborations — use a longer prefix", input, len(matches))
+	}
 }

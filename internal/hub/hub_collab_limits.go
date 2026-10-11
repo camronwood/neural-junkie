@@ -10,25 +10,17 @@ import (
 )
 
 // enforceExecutionMessageBudget rejects agent chat when executing-phase caps are exceeded.
+// Check-only: the counter is incremented in recordExecutionMessageAccepted after the
+// message is accepted into the channel transcript.
 func (h *Hub) enforceExecutionMessageBudget(msg *protocol.Message) error {
 	if msg == nil || h.collabManager == nil {
 		return nil
 	}
+	if !executionBudgetEligible(msg) {
+		return nil
+	}
 	collabID := msg.GetCollaborationID()
 	if collabID == "" {
-		return nil
-	}
-	if msg.IsFromSystem() || msg.From.ID == "system" {
-		return nil
-	}
-	if msg.Metadata != nil {
-		if skip, ok := msg.Metadata["collab_skip_execution_budget"].(bool); ok && skip {
-			return nil
-		}
-	}
-	switch msg.Type {
-	case protocol.MessageTypeChat, protocol.MessageTypeAnswer, protocol.MessageTypeCollabDiscussion:
-	default:
 		return nil
 	}
 
@@ -37,11 +29,8 @@ func (h *Hub) enforceExecutionMessageBudget(msg *protocol.Message) error {
 		return nil
 	}
 
-	_, overCap, err := h.collabManager.IncrementExecutionMessageCount(collabID)
-	if err != nil {
-		return nil
-	}
-	if !overCap {
+	overCap, err := h.collabManager.ExecutionMessageBudgetExceeded(collabID)
+	if err != nil || !overCap {
 		return nil
 	}
 
@@ -63,6 +52,48 @@ func (h *Hub) enforceExecutionMessageBudget(msg *protocol.Message) error {
 		log.Printf("[Collaboration] execution cap notice failed: %v", sendErr)
 	}
 	return fmt.Errorf("execution message budget exceeded for collaboration %s", collabID[:8])
+}
+
+// recordExecutionMessageAccepted increments the executing-phase counter only after
+// a budget-eligible message has been accepted (persisted/broadcast).
+func (h *Hub) recordExecutionMessageAccepted(msg *protocol.Message) {
+	if msg == nil || h.collabManager == nil {
+		return
+	}
+	if !executionBudgetEligible(msg) {
+		return
+	}
+	collabID := msg.GetCollaborationID()
+	if collabID == "" {
+		return
+	}
+	snap, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || snap == nil || snap.Phase != collaboration.PhaseExecuting {
+		return
+	}
+	if _, _, err := h.collabManager.IncrementExecutionMessageCount(collabID); err != nil {
+		log.Printf("[Collaboration] IncrementExecutionMessageCount %s: %v", collabID[:8], err)
+	}
+}
+
+func executionBudgetEligible(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if msg.IsFromSystem() || msg.From.ID == "system" {
+		return false
+	}
+	if msg.Metadata != nil {
+		if skip, ok := msg.Metadata["collab_skip_execution_budget"].(bool); ok && skip {
+			return false
+		}
+	}
+	switch msg.Type {
+	case protocol.MessageTypeChat, protocol.MessageTypeAnswer, protocol.MessageTypeCollabDiscussion:
+		return true
+	default:
+		return false
+	}
 }
 
 // rejectClosedCollaborationChannel blocks chat on completed/cancelled collaboration channels.

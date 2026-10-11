@@ -159,7 +159,8 @@ func (cm *CollaborationManager) BindCollaborationChannel(collabID, channelName s
 	return nil
 }
 
-// GetCollaboration returns a collaboration by ID.
+// GetCollaboration returns a deep clone of a collaboration by ID.
+// Callers must not mutate the result; use manager methods for writes.
 func (cm *CollaborationManager) GetCollaboration(id string) (*Collaboration, error) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -168,7 +169,7 @@ func (cm *CollaborationManager) GetCollaboration(id string) (*Collaboration, err
 	if !ok {
 		return nil, fmt.Errorf("collaboration %s not found", id)
 	}
-	return c, nil
+	return cloneCollaboration(c)
 }
 
 // GetCollaborationSnapshot returns a deep copy of a collaboration so callers
@@ -273,7 +274,8 @@ func isTerminalCollabPhase(phase CollaborationPhase) bool {
 	return phase == PhaseCompleted || phase == PhaseCancelled
 }
 
-// ListActive returns all non-terminal collaborations.
+// ListActive returns deep clones of all non-terminal collaborations.
+// Callers must not mutate the results; use manager methods for writes.
 func (cm *CollaborationManager) ListActive() []*Collaboration {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -281,7 +283,12 @@ func (cm *CollaborationManager) ListActive() []*Collaboration {
 	var out []*Collaboration
 	for _, c := range cm.collaborations {
 		if c.Phase != PhaseCompleted && c.Phase != PhaseCancelled {
-			out = append(out, c)
+			cloned, err := cloneCollaboration(c)
+			if err != nil || cloned == nil {
+				log.Printf("[CollaborationManager] ListActive clone %s: %v", shortCollabID(c.ID), err)
+				continue
+			}
+			out = append(out, cloned)
 		}
 	}
 	return out
@@ -345,6 +352,25 @@ func (cm *CollaborationManager) ListSnapshots(channel string, includeTerminal bo
 // collaboration and extends the discussion participant list for turn-taking.
 // Returns snapshots of newly-added participants.
 func (cm *CollaborationManager) AddParticipants(collabID string, agentIDs []string) ([]CollaborationAgent, error) {
+	// Resolve hub agents before cm.mu (lock-order: hub.mu must not nest under cm.mu).
+	resolved := make([]CollaborationAgent, 0, len(agentIDs))
+	for _, id := range agentIDs {
+		if id == "" {
+			continue
+		}
+		info, err := cm.hub.GetAgent(id)
+		if err != nil || info == nil {
+			return nil, fmt.Errorf("agent %s not found", id)
+		}
+		resolved = append(resolved, CollaborationAgent{
+			AgentID:   info.ID,
+			AgentName: info.Name,
+			AgentType: info.Type,
+			Expertise: info.Expertise,
+			Role:      SuggestRole(info.Type, info.Expertise),
+		})
+	}
+
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -361,11 +387,9 @@ func (cm *CollaborationManager) AddParticipants(collabID string, agentIDs []stri
 		existing[participant.AgentID] = struct{}{}
 	}
 
-	added := make([]CollaborationAgent, 0, len(agentIDs))
-	for _, id := range agentIDs {
-		if id == "" {
-			continue
-		}
+	added := make([]CollaborationAgent, 0, len(resolved))
+	for _, participant := range resolved {
+		id := participant.AgentID
 		if _, already := existing[id]; already {
 			continue
 		}
@@ -373,18 +397,6 @@ func (cm *CollaborationManager) AddParticipants(collabID string, agentIDs []stri
 			return nil, fmt.Errorf("cannot add more agents: collaboration limit is %d", HardMaxAgentsPerCollaboration)
 		}
 
-		info, err := cm.hub.GetAgent(id)
-		if err != nil || info == nil {
-			return nil, fmt.Errorf("agent %s not found", id)
-		}
-
-		participant := CollaborationAgent{
-			AgentID:   info.ID,
-			AgentName: info.Name,
-			AgentType: info.Type,
-			Expertise: info.Expertise,
-			Role:      SuggestRole(info.Type, info.Expertise),
-		}
 		c.Agents = append(c.Agents, participant)
 		existing[id] = struct{}{}
 		added = append(added, participant)
@@ -591,6 +603,10 @@ func (cm *CollaborationManager) ApprovePlan(collabID string) (*Collaboration, er
 
 // TransitionToExecuting moves an approved collaboration into execution.
 // Planning discussion is archived; execution is driven by task prompts only.
+//
+// PhaseExecuting is committed only after worktree/sandbox setup succeeds. On
+// failure the collaboration stays (or rolls back to) approved and sibling
+// cancellations are not applied.
 func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collaboration, error) {
 	baseDir, err := cm.collabAssetsBaseDir()
 	if err != nil {
@@ -608,8 +624,45 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 		return nil, fmt.Errorf("collaboration is in %s phase, expected approved", c.Phase)
 	}
 
-	ch := c.Channel
+	execMode := c.ExecutionMode
+	if execMode == "" {
+		execMode = ExecutionModeSandbox
+	}
+	prevWorkDir := c.WorkingDirectory
+	prevBranch := c.WorktreeBranch
+	prevExecMode := c.ExecutionMode
+
+	// Prepare sandbox/worktree while still approved so failures do not strand
+	// the collab in executing or cancel siblings prematurely.
+	c.ExecutionMode = execMode
+	switch execMode {
+	case ExecutionModeWorktree:
+		if c.WorktreeBranch == "" {
+			c.WorktreeBranch = collabworktree.DefaultBranchName(c.ID)
+		}
+		if err := cm.createWorktreeIfReady(c, baseDir); err != nil {
+			c.WorkingDirectory = prevWorkDir
+			c.WorktreeBranch = prevBranch
+			c.ExecutionMode = prevExecMode
+			return nil, err
+		}
+	default:
+		if err := cm.createSandboxWorkingDir(c, baseDir); err != nil {
+			c.WorkingDirectory = prevWorkDir
+			c.WorktreeBranch = prevBranch
+			c.ExecutionMode = prevExecMode
+			return nil, err
+		}
+	}
+
 	now := time.Now()
+	fromPhase := c.Phase
+	c.Phase = PhaseExecuting
+	c.UpdatedAt = now
+	workflow.LogPhaseTransition(collabID, string(fromPhase), string(PhaseExecuting))
+
+	// Sibling cancel only after PhaseExecuting is committed.
+	ch := c.Channel
 	for id, other := range cm.collaborations {
 		if other == nil || other.ID == collabID || other.Channel != ch {
 			continue
@@ -622,30 +675,6 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 			}
 			log.Printf("[CollaborationManager] Auto-cancelled executing collaboration %s (channel %q) so %s can execute", id[:8], ch, collabID[:8])
 			cm.cleanupWorktreeLocked(other)
-		}
-	}
-
-	fromPhase := c.Phase
-	c.Phase = PhaseExecuting
-	c.UpdatedAt = now
-	workflow.LogPhaseTransition(collabID, string(fromPhase), string(PhaseExecuting))
-
-	execMode := c.ExecutionMode
-	if execMode == "" {
-		execMode = ExecutionModeSandbox
-		c.ExecutionMode = execMode
-	}
-	switch execMode {
-	case ExecutionModeWorktree:
-		if c.WorktreeBranch == "" {
-			c.WorktreeBranch = collabworktree.DefaultBranchName(c.ID)
-		}
-		if err := cm.createWorktreeIfReady(c, baseDir); err != nil {
-			return nil, err
-		}
-	default:
-		if err := cm.createSandboxWorkingDir(c, baseDir); err != nil {
-			return nil, err
 		}
 	}
 
@@ -669,7 +698,7 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 	}
 
 	log.Printf("[CollaborationManager] Collaboration %s transitioned to executing with %d tasks", collabID[:8], len(c.Tasks))
-	return c, nil
+	return cloneCollaboration(c)
 }
 
 // AcknowledgeWorkspace records that the user (desktop or /ack-collab-workspace)
@@ -707,8 +736,20 @@ func (cm *CollaborationManager) MarkTasksDispatched(collabID string) error {
 	return nil
 }
 
-// IncrementExecutionMessageCount bumps the executing-phase chat counter.
-// Returns the new count and whether the cap is exceeded.
+// ExecutionMessageBudgetExceeded reports whether the next accepted executing-phase
+// agent message would exceed the cap (check-only; does not increment).
+func (cm *CollaborationManager) ExecutionMessageBudgetExceeded(collabID string) (overCap bool, err error) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return false, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	return c.ExecutionMessageCount >= c.MaxExecutionMessagesLimit(), nil
+}
+
+// IncrementExecutionMessageCount bumps the executing-phase chat counter after a
+// message is accepted. Returns the new count and whether the cap is exceeded.
 func (cm *CollaborationManager) IncrementExecutionMessageCount(collabID string) (count int, overCap bool, err error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -772,6 +813,7 @@ func (cm *CollaborationManager) ExtendDiscussionLimits(collabID string, extraRou
 
 // RevisePlan sends user feedback back into the discussion.
 // If the discussion had ended, a new round is started.
+// Clears planning recap fields so the next reviewing transition re-dispatches recap.
 func (cm *CollaborationManager) RevisePlan(collabID string, feedback string) (*Collaboration, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -785,6 +827,9 @@ func (cm *CollaborationManager) RevisePlan(collabID string, feedback string) (*C
 	}
 
 	c.Phase = PhasePlanning
+	c.PlanningRecap = ""
+	c.PlanningRecapStatus = ""
+	c.PlanningRecapAgentID = ""
 	c.UpdatedAt = time.Now()
 
 	if c.Discussion != nil && c.Discussion.Status != DiscussionActive {
@@ -795,7 +840,7 @@ func (cm *CollaborationManager) RevisePlan(collabID string, feedback string) (*C
 	}
 
 	log.Printf("[CollaborationManager] Plan revision requested for collaboration %s", collabID[:8])
-	return c, nil
+	return cloneCollaboration(c)
 }
 
 // CancelCollaboration terminates a collaboration in any phase.
@@ -1487,8 +1532,9 @@ func (cm *CollaborationManager) ParticipantTurnCount(collabID, agentID string) i
 	return c.Discussion.TurnsThisRound[agentID]
 }
 
-// GetCollaborationForAgent returns the active collaboration a given agent
-// is participating in (if any). Returns nil if the agent has no active collab.
+// GetCollaborationForAgent returns a deep clone of the active collaboration a
+// given agent is participating in (if any). Returns nil if none. Callers must
+// not mutate the result; use manager methods for writes.
 func (cm *CollaborationManager) GetCollaborationForAgent(agentID string) *Collaboration {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -1508,7 +1554,14 @@ func (cm *CollaborationManager) GetCollaborationForAgent(agentID string) *Collab
 			break
 		}
 	}
-	return best
+	if best == nil {
+		return nil
+	}
+	cloned, err := cloneCollaboration(best)
+	if err != nil {
+		return nil
+	}
+	return cloned
 }
 
 // Len returns the number of collaborations in memory (including terminal).

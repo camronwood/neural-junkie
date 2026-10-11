@@ -2,6 +2,9 @@ package hub
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"strings"
@@ -10,6 +13,13 @@ import (
 )
 
 func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
+	_, err := h.RegisterAgentWithToken(agent)
+	return err
+}
+
+// RegisterAgentWithToken registers an agent and returns a per-agent WebSocket
+// secret (agent_token) for GET /api/agents/ws authentication.
+func (h *Hub) RegisterAgentWithToken(agent *protocol.AgentInfo) (agentToken string, err error) {
 	h.mu.Lock()
 
 	// Remove ALL existing agents with the same name/type (handles restarts and duplicates)
@@ -35,6 +45,7 @@ func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 			channel.Agents = newAgents
 		}
 		delete(h.agents, id)
+		delete(h.agentWSTokens, id)
 		log.Printf("Removed duplicate agent registration: %s (old id %s)", oldAgent.Name, id[:8])
 	}
 
@@ -54,12 +65,49 @@ func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 		}
 	}
 	h.agents[stored.ID] = stored
+	token, tokErr := newAgentWSToken()
+	if tokErr != nil {
+		h.mu.Unlock()
+		return "", tokErr
+	}
+	if h.agentWSTokens == nil {
+		h.agentWSTokens = make(map[string]string)
+	}
+	h.agentWSTokens[stored.ID] = token
 	h.mu.Unlock()
 
 	if h.collabManager != nil {
 		h.collabManager.ReconcileRestoredAgentIDs()
 	}
-	return nil
+	return token, nil
+}
+
+func newAgentWSToken() (string, error) {
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("generate agent token: %w", err)
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
+// AgentWSToken returns the hub-issued WebSocket secret for an agent, if any.
+func (h *Hub) AgentWSToken(agentID string) (string, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.agentWSTokens == nil {
+		return "", false
+	}
+	tok, ok := h.agentWSTokens[agentID]
+	return tok, ok && tok != ""
+}
+
+// ValidateAgentWSToken reports whether token matches the secret issued for agentID.
+func (h *Hub) ValidateAgentWSToken(agentID, token string) bool {
+	want, ok := h.AgentWSToken(agentID)
+	if !ok || strings.TrimSpace(token) == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(want), []byte(strings.TrimSpace(token))) == 1
 }
 
 // UnregisterAgent removes an agent
@@ -72,6 +120,7 @@ func (h *Hub) UnregisterAgent(agentID string) error {
 	}
 
 	delete(h.agents, agentID)
+	delete(h.agentWSTokens, agentID)
 
 	// Remove from all channels
 	for _, channel := range h.channels {

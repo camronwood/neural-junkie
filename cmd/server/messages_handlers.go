@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -14,6 +16,83 @@ import (
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+// privilegedSendMetadataKeys must not be client-authored on untrusted /api/send paths.
+var privilegedSendMetadataKeys = []string{
+	protocol.MetadataTurnDecision,
+	"deterministic_edit",
+	"large_rewrite_approved",
+}
+
+// bindAndSanitizeFullSendMessage verifies From against a registered agent (or binds a
+// trusted human session) and strips privileged metadata for untrusted senders.
+func bindAndSanitizeFullSendMessage(r *http.Request, sess *hub.HubSession, msg *protocol.Message) error {
+	if msg == nil {
+		return fmt.Errorf("nil message")
+	}
+	fromID := strings.TrimSpace(msg.From.ID)
+	if fromID == "" {
+		return fmt.Errorf("message from.id is required")
+	}
+
+	trusted := fullSendSenderTrusted(r, sess)
+
+	if ag, err := chatHub.GetAgent(fromID); err == nil && ag != nil {
+		// Bind identity to the registered agent — clients cannot spoof name/type.
+		msg.From = protocol.AgentInfo{
+			ID:         ag.ID,
+			Name:       ag.Name,
+			Type:       ag.Type,
+			Expertise:  ag.Expertise,
+			Status:     ag.Status,
+			Model:      ag.Model,
+			AIProvider: ag.AIProvider,
+			AIModel:    ag.AIModel,
+		}
+	} else if trusted && sess != nil && protocol.IsUserLikeSender(msg.From) {
+		// Trusted human/session senders may post without a registered agent id.
+	} else if trusted && hub.HubTokenConfigured() && hubTokenMatchesRequest(r) {
+		// Automation with hub token may use non-agent From when explicitly configured.
+	} else {
+		return fmt.Errorf("from.id %q is not a registered agent", fromID)
+	}
+
+	if !trusted {
+		sanitizePrivilegedSendMetadata(msg)
+	}
+	return nil
+}
+
+func fullSendSenderTrusted(r *http.Request, sess *hub.HubSession) bool {
+	if sess != nil && (sess.Role == "admin" || strings.EqualFold(sess.Role, "admin")) {
+		return true
+	}
+	if hubTokenMatchesRequest(r) {
+		return true
+	}
+	return false
+}
+
+func hubTokenMatchesRequest(r *http.Request) bool {
+	if !hub.HubTokenConfigured() {
+		return false
+	}
+	got := hub.ExtractHubToken(r)
+	want := hub.HubAccessToken()
+	if got == "" || want == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
+}
+
+func sanitizePrivilegedSendMetadata(msg *protocol.Message) {
+	if msg == nil || msg.Metadata == nil {
+		return
+	}
+	for _, key := range privilegedSendMetadataKeys {
+		delete(msg.Metadata, key)
+	}
+}
 
 func defaultHumanSender() (id string, name string, agentType protocol.AgentType) {
 	if n := strings.TrimSpace(config.AppConfig().ResolvedAutomation().HumanName); n != "" {
@@ -139,10 +218,14 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Try to parse as full message (agents send this)
 	if err := json.Unmarshal(body, &fullMsg); err == nil && fullMsg.ID != "" {
-		if _, ok := ensureMutationAccess(w, r, fullMsg.Channel); !ok {
+		sess, ok := ensureMutationAccess(w, r, fullMsg.Channel)
+		if !ok {
 			return
 		}
-		// This is a full message from an agent, use it directly
+		if err := bindAndSanitizeFullSendMessage(r, sess, &fullMsg); err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
 		if err := chatHub.SendMessage(&fullMsg); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

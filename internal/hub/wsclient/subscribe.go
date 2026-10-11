@@ -56,12 +56,13 @@ func SubscribeWithAuth(serverHTTPBase, channelName, hubToken, sessionToken strin
 }
 
 // SubscribeAgent connects to /api/agents/ws for push delivery on all agent channels.
-func SubscribeAgent(serverHTTPBase, agentID string, stop <-chan struct{}, onHold func(channel string, held bool)) (chan *protocol.Message, error) {
+// agentToken is the secret returned from POST /api/agents (query agent_token).
+func SubscribeAgent(serverHTTPBase, agentID, agentToken string, stop <-chan struct{}, onHold func(channel string, held bool)) (chan *protocol.Message, error) {
 	agentID = strings.TrimSpace(agentID)
 	if agentID == "" {
 		return nil, fmt.Errorf("agent_id required")
 	}
-	wsURL, err := agentWSURL(serverHTTPBase, agentID)
+	wsURL, err := agentWSURL(serverHTTPBase, agentID, agentToken)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +109,7 @@ func channelWSURL(serverHTTPBase, channel string, extra []string, auth *wsAuth) 
 	return u.String(), nil
 }
 
-func agentWSURL(serverHTTPBase, agentID string) (string, error) {
+func agentWSURL(serverHTTPBase, agentID, agentToken string) (string, error) {
 	base := strings.TrimRight(strings.TrimSpace(serverHTTPBase), "/")
 	u, err := url.Parse(base)
 	if err != nil {
@@ -126,6 +127,9 @@ func agentWSURL(serverHTTPBase, agentID string) (string, error) {
 	u.Path = "/api/agents/ws"
 	q := u.Query()
 	q.Set("agent_id", agentID)
+	if tok := strings.TrimSpace(agentToken); tok != "" {
+		q.Set("agent_token", tok)
+	}
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }

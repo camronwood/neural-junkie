@@ -19,7 +19,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (h *Hub) SendMessage(msg *protocol.Message) error {
+func (h *Hub) SendMessage(msg *protocol.Message) (err error) {
 	h.inheritCollaborationFromChannel(msg)
 	agent.AttachUserRulesMetadataIfMissing(msg)
 	if msg != nil && msg.IdeRouteAgentType() != "" && msg.Channel != "" {
@@ -36,6 +36,13 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	if err := h.rejectClosedCollaborationChannel(msg); err != nil {
 		return err
 	}
+	// Increment execution budget only after the message is accepted into the transcript.
+	accepted := false
+	defer func() {
+		if err == nil && accepted {
+			h.recordExecutionMessageAccepted(msg)
+		}
+	}()
 	h.normalizeCollabTurnHandoffMentions(msg)
 	h.processCollaborationLifecycle(msg)
 	h.attachCollaborationData(msg)
@@ -107,6 +114,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 				h.mu.Lock()
 				h.appendChannelMessageLocked(msg.Channel, msg)
 				h.mu.Unlock()
+				accepted = true
 				return nil
 			}
 		}
@@ -135,15 +143,19 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		commandMsg.Metadata[protocol.MetadataSlashCommand] = true
 
 		ctx := context.Background()
-		response, err := h.commandHandler.ProcessCommand(ctx, msg)
-		if err != nil {
-			return fmt.Errorf("command processing error: %w", err)
+		response, cmdErr := h.commandHandler.ProcessCommand(ctx, msg)
+		if cmdErr != nil {
+			return fmt.Errorf("command processing error: %w", cmdErr)
 		}
 		if response != nil {
 			h.attachCollaborationData(response)
 		}
 		defer h.noteChannelActivity(commandMsg)
-		return h.persistSlashCommandExchange(commandMsg, response)
+		if persistErr := h.persistSlashCommandExchange(commandMsg, response); persistErr != nil {
+			return persistErr
+		}
+		accepted = true
+		return nil
 	}
 
 	// Check for automatic repository agent creation
@@ -204,6 +216,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	// Ephemeral message types -- broadcast to subscribers but don't persist in history
 	if msg.Type == protocol.MessageTypeStreamDelta || msg.Type == protocol.MessageTypeStreamEnd || msg.Type == protocol.MessageTypeAgentStatus {
 		h.broadcast(msg.Channel, msg)
+		accepted = true
 		return nil
 	}
 
@@ -243,6 +256,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 
 		// ALSO broadcast to channel subscribers (so agents can see mentions)
 		h.broadcast(msg.Channel, msg)
+		accepted = true
 	} else if uiEchoed {
 		// History already has the pre-classify echo; replace with stamped metadata
 		// and deliver to agents only (UI already saw the message).
@@ -252,6 +266,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		}
 		// Refresh UI with stamped turn decision / governance.
 		h.deliverToSubscribers(h.uiSubscribers[msg.Channel], msg)
+		accepted = true
 	} else {
 		// Regular channel message
 		if h.shouldSkipHumanJoinAnnouncementLocked(msg.Channel, msg) {
@@ -259,6 +274,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		}
 		h.appendChannelMessageLocked(msg.Channel, msg)
 		h.broadcast(msg.Channel, msg)
+		accepted = true
 	}
 
 	if fileChangeRegErr != nil {
@@ -1436,6 +1452,11 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			continue
 		}
 
+		// Atomic claim before send (single-flight); clear on send failure.
+		if h.collabManager != nil && !h.collabManager.ClaimTaskPromptDispatch(collabID, task.ID, forceRedispatch) {
+			continue
+		}
+
 		mentionName := task.AssignedName
 		if mentionName == "" {
 			mentionName = "team"
@@ -1538,15 +1559,15 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		}
 		if err := h.SendMessage(taskMsg); err != nil {
 			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
+			if h.collabManager != nil {
+				if clearErr := h.collabManager.ClearTaskPromptDispatched(collabID, task.ID); clearErr != nil {
+					log.Printf("[Collaboration] ClearTaskPromptDispatched %s: %v", task.ID[:8], clearErr)
+				}
+			}
 			h.orchestrationDispatchFailed(context.Background(), attempt, err, task)
 			continue
 		}
 		workflow.LogTaskDispatched(collabID, task.ID, dispatchToken)
-		if h.collabManager != nil {
-			if err := h.collabManager.MarkTaskPromptDispatched(collabID, task.ID); err != nil {
-				log.Printf("[Collaboration] MarkTaskPromptDispatched %s: %v", task.ID[:8], err)
-			}
-		}
 		sent++
 	}
 	if sent > 0 && h.collabManager != nil {

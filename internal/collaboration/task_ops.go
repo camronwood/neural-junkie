@@ -206,6 +206,42 @@ func (cm *CollaborationManager) ClaimActionExecution(collabID, taskID string) bo
 	return false
 }
 
+// ClaimTaskPromptDispatch atomically claims the right to send a collaboration_task
+// prompt. Mirrors ClaimActionExecution for agent tasks. When force is false,
+// returns false if already claimed. When force is true (redispatch), reclaims
+// even if PromptDispatched. Advances pending → in_progress. Callers must
+// ClearTaskPromptDispatched on send failure.
+func (cm *CollaborationManager) ClaimTaskPromptDispatch(collabID, taskID string, force bool) bool {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return false
+	}
+	for i := range c.Tasks {
+		if c.Tasks[i].ID != taskID {
+			continue
+		}
+		if c.Tasks[i].Status == TaskCompleted {
+			return false
+		}
+		if !force && c.Tasks[i].PromptDispatched {
+			return false
+		}
+		if !force && c.Tasks[i].Status == TaskBlocked {
+			return false
+		}
+		c.Tasks[i].PromptDispatched = true
+		if c.Tasks[i].Status == TaskPending {
+			c.Tasks[i].Status = TaskInProgress
+		}
+		c.Tasks[i].UpdatedAt = time.Now()
+		c.UpdatedAt = time.Now()
+		return true
+	}
+	return false
+}
+
 // SetTaskAwaitingApproval toggles the approval gate on a task.
 func (cm *CollaborationManager) SetTaskAwaitingApproval(collabID, taskID string, awaiting bool) error {
 	cm.mu.Lock()

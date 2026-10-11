@@ -69,6 +69,13 @@ func (cm *CollaborationManager) createCollaborationCore(
 	opts CreateOptions,
 	initialPhase CollaborationPhase,
 ) (*Collaboration, error) {
+	// Resolve hub agents before taking cm.mu to avoid lock-order deadlock
+	// with Hub methods that take hub.mu then call into the collab manager.
+	agents, cfg, err := cm.resolveCollaborationAgents(agentIDs, opts, cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -81,55 +88,6 @@ func (cm *CollaborationManager) createCollaborationCore(
 	if active >= MaxConcurrentCollaborations {
 		return nil, fmt.Errorf("maximum concurrent collaborations (%d) reached — %s",
 			MaxConcurrentCollaborations, summarizeActiveCollaborations(cm.collaborations))
-	}
-
-	agentIDSet := make(map[string]bool)
-	for _, id := range agentIDs {
-		agentIDSet[id] = true
-	}
-	for _, t := range opts.InitialTasks {
-		if t.AssignedTo != "" {
-			agentIDSet[t.AssignedTo] = true
-		}
-	}
-	// Preserve agentIDs order (map iteration is nondeterministic and breaks round-robin).
-	allIDs := make([]string, 0, len(agentIDSet))
-	seenID := make(map[string]bool, len(agentIDSet))
-	for _, id := range agentIDs {
-		if agentIDSet[id] && !seenID[id] {
-			seenID[id] = true
-			allIDs = append(allIDs, id)
-		}
-	}
-	for _, t := range opts.InitialTasks {
-		id := t.AssignedTo
-		if id != "" && agentIDSet[id] && !seenID[id] {
-			seenID[id] = true
-			allIDs = append(allIDs, id)
-		}
-	}
-	if len(allIDs) < MinAgentsPerCollaboration {
-		return nil, fmt.Errorf("at least %d agent is required", MinAgentsPerCollaboration)
-	}
-	if len(allIDs) > HardMaxAgentsPerCollaboration {
-		return nil, fmt.Errorf("at most %d agents are allowed per collaboration (got %d)",
-			HardMaxAgentsPerCollaboration, len(allIDs))
-	}
-
-	cfg = cfg.WithScaledDefaults(len(allIDs))
-	agents := make([]CollaborationAgent, 0, len(allIDs))
-	for _, id := range allIDs {
-		info, err := cm.hub.GetAgent(id)
-		if err != nil {
-			return nil, fmt.Errorf("agent %s not found: %w", id, err)
-		}
-		agents = append(agents, CollaborationAgent{
-			AgentID:   info.ID,
-			AgentName: info.Name,
-			AgentType: info.Type,
-			Expertise: info.Expertise,
-			Role:      SuggestRole(info.Type, info.Expertise),
-		})
 	}
 
 	now := time.Now()
@@ -210,6 +168,63 @@ func (cm *CollaborationManager) createCollaborationCore(
 	}
 	log.Printf("[CollaborationManager] Created %s collaboration %s with %d agents", source, collabID[:8], len(agents))
 	return collab, nil
+}
+
+// resolveCollaborationAgents looks up hub agents without holding cm.mu.
+func (cm *CollaborationManager) resolveCollaborationAgents(
+	agentIDs []string,
+	opts CreateOptions,
+	cfg DiscussionConfig,
+) ([]CollaborationAgent, DiscussionConfig, error) {
+	agentIDSet := make(map[string]bool)
+	for _, id := range agentIDs {
+		agentIDSet[id] = true
+	}
+	for _, t := range opts.InitialTasks {
+		if t.AssignedTo != "" {
+			agentIDSet[t.AssignedTo] = true
+		}
+	}
+	// Preserve agentIDs order (map iteration is nondeterministic and breaks round-robin).
+	allIDs := make([]string, 0, len(agentIDSet))
+	seenID := make(map[string]bool, len(agentIDSet))
+	for _, id := range agentIDs {
+		if agentIDSet[id] && !seenID[id] {
+			seenID[id] = true
+			allIDs = append(allIDs, id)
+		}
+	}
+	for _, t := range opts.InitialTasks {
+		id := t.AssignedTo
+		if id != "" && agentIDSet[id] && !seenID[id] {
+			seenID[id] = true
+			allIDs = append(allIDs, id)
+		}
+	}
+	if len(allIDs) < MinAgentsPerCollaboration {
+		return nil, cfg, fmt.Errorf("at least %d agent is required", MinAgentsPerCollaboration)
+	}
+	if len(allIDs) > HardMaxAgentsPerCollaboration {
+		return nil, cfg, fmt.Errorf("at most %d agents are allowed per collaboration (got %d)",
+			HardMaxAgentsPerCollaboration, len(allIDs))
+	}
+
+	cfg = cfg.WithScaledDefaults(len(allIDs))
+	agents := make([]CollaborationAgent, 0, len(allIDs))
+	for _, id := range allIDs {
+		info, err := cm.hub.GetAgent(id)
+		if err != nil || info == nil {
+			return nil, cfg, fmt.Errorf("agent %s not found: %w", id, err)
+		}
+		agents = append(agents, CollaborationAgent{
+			AgentID:   info.ID,
+			AgentName: info.Name,
+			AgentType: info.Type,
+			Expertise: info.Expertise,
+			Role:      SuggestRole(info.Type, info.Expertise),
+		})
+	}
+	return agents, cfg, nil
 }
 
 // UpdateRunbook updates a draft or reviewing runbook.
