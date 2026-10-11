@@ -24,7 +24,19 @@ func HubTokenConfigured() bool {
 	return HubAccessToken() != ""
 }
 
-// ExtractHubToken reads X-NJ-Hub-Token, Authorization: Bearer, or ?hub_token= query param.
+// allowHubTokenQuery reports whether ?hub_token= may authenticate a request.
+// Prefer X-NJ-Hub-Token / Authorization headers. Query tokens are accepted only
+// for WebSocket upgrades (browsers cannot set custom headers) or when
+// NEURAL_JUNKIE_RELAXED_LOCAL=1 (dev escape hatch).
+func allowHubTokenQuery(r *http.Request) bool {
+	if RelaxedLocal() {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+}
+
+// ExtractHubToken reads X-NJ-Hub-Token or Authorization: Bearer.
+// ?hub_token= is accepted only when allowHubTokenQuery permits it.
 func ExtractHubToken(r *http.Request) string {
 	if h := strings.TrimSpace(r.Header.Get("X-NJ-Hub-Token")); h != "" {
 		return h
@@ -34,7 +46,9 @@ func ExtractHubToken(r *http.Request) string {
 		return strings.TrimSpace(auth[7:])
 	}
 	if q := strings.TrimSpace(r.URL.Query().Get("hub_token")); q != "" {
-		return q
+		if allowHubTokenQuery(r) {
+			return q
+		}
 	}
 	return ""
 }

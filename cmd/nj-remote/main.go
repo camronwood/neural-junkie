@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,9 +19,9 @@ import (
 )
 
 var (
-	listenAddr = flag.String("addr", ":19876", "HTTP listen address")
+	listenAddr = flag.String("addr", "127.0.0.1:19876", "HTTP listen address (default loopback)")
 	root       = flag.String("root", ".", "Workspace root directory")
-	token      = flag.String("token", "", "Bearer token (optional)")
+	token      = flag.String("token", "", "Bearer token (required unless NJ_REMOTE_ALLOW_INSECURE=1)")
 )
 
 func main() {
@@ -31,6 +33,29 @@ func main() {
 	info, err := os.Stat(absRoot)
 	if err != nil || !info.IsDir() {
 		log.Fatalf("root must be a directory: %v", err)
+	}
+
+	tok := strings.TrimSpace(*token)
+	if tok == "" {
+		tok = strings.TrimSpace(os.Getenv("NJ_REMOTE_TOKEN"))
+		*token = tok
+	}
+	allowInsecure := os.Getenv("NJ_REMOTE_ALLOW_INSECURE") == "1"
+	if tok == "" && !allowInsecure {
+		log.Fatal("nj-remote requires -token or NJ_REMOTE_TOKEN (set NJ_REMOTE_ALLOW_INSECURE=1 only for trusted local testing)")
+	}
+	if tok == "" && allowInsecure {
+		log.Printf("WARNING: nj-remote running without token (NJ_REMOTE_ALLOW_INSECURE=1)")
+	}
+
+	addr := strings.TrimSpace(*listenAddr)
+	if addr == "" {
+		addr = "127.0.0.1:19876"
+	}
+	// Bare ":port" binds all interfaces — rewrite to loopback unless explicitly opted in.
+	if strings.HasPrefix(addr, ":") && os.Getenv("NJ_REMOTE_LISTEN_ALL") != "1" {
+		addr = "127.0.0.1" + addr
+		log.Printf("nj-remote binding %s (set NJ_REMOTE_LISTEN_ALL=1 to listen on all interfaces)", addr)
 	}
 
 	mux := http.NewServeMux()
@@ -48,8 +73,8 @@ func main() {
 	mux.HandleFunc("/api/lsp/request", handleSidecarLSPRequest(absRoot))
 	mux.HandleFunc("/api/lsp/hover", handleSidecarLSPHover(absRoot))
 
-	log.Printf("nj-remote listening on %s root=%s", *listenAddr, absRoot)
-	log.Fatal(http.ListenAndServe(*listenAddr, mux))
+	log.Printf("nj-remote listening on %s root=%s", addr, absRoot)
+	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
 func auth(next http.HandlerFunc) http.HandlerFunc {
@@ -63,6 +88,31 @@ func auth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+// checkOrigin allows empty Origin (non-browser), loopback / tauri hosts, or same-host.
+func checkOrigin(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if strings.EqualFold(u.Scheme, "tauri") {
+		return true
+	}
+	host := strings.ToLower(u.Hostname())
+	switch host {
+	case "localhost", "127.0.0.1", "::1", "tauri.localhost":
+		return true
+	}
+	reqHost := r.Host
+	if h, _, err := net.SplitHostPort(reqHost); err == nil {
+		reqHost = h
+	}
+	return strings.EqualFold(host, reqHost)
 }
 
 func relPath(root, query string) (string, error) {

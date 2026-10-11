@@ -40,6 +40,15 @@ func TestFetchURLBlocksPrivateHost(t *testing.T) {
 	}
 }
 
+func TestCheckPublicURL_blocksMetadataAndDNSLoopback(t *testing.T) {
+	if err := CheckPublicURL("http://169.254.169.254/latest/meta-data/"); err == nil {
+		t.Fatal("expected metadata IP blocked")
+	}
+	if err := CheckPublicURL("http://localhost/"); err == nil {
+		t.Fatal("expected localhost blocked")
+	}
+}
+
 func TestWebSearchNotConfigured(t *testing.T) {
 	mcp.SetAppConfig(nil)
 	t.Cleanup(func() { mcp.SetAppConfig(nil) })

@@ -142,4 +142,32 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         let _ = fs::remove_dir_all(&sibling);
     }
+
+    #[test]
+    fn rejects_symlink_escape() {
+        let tmp = env::temp_dir();
+        let root = tmp.join("nj_path_symlink_root");
+        let outside = tmp.join("nj_path_symlink_outside");
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&outside);
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("secret.txt"), "x").unwrap();
+        let link = root.join("escape");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            if symlink(&outside, &link).is_err() {
+                return;
+            }
+            let roots = vec![root.to_string_lossy().into_owned()];
+            let candidate = link.join("secret.txt");
+            assert!(
+                within_any_root(&roots, candidate.to_str().unwrap()).is_err(),
+                "symlink escape should be rejected"
+            );
+        }
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&outside);
+    }
 }

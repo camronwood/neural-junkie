@@ -134,7 +134,16 @@ export function MessageList({
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [, setLoadingOlder] = useState(false);
   const loadOlderRef = useRef(false);
+  const loadOlderAbortRef = useRef<AbortController | null>(null);
+  const loadOlderGenRef = useRef(0);
   const [archiveSearchHits, setArchiveSearchHits] = useState<MessageType[]>([]);
+
+  useEffect(() => {
+    loadOlderGenRef.current += 1;
+    loadOlderAbortRef.current?.abort();
+    loadOlderAbortRef.current = null;
+    loadOlderRef.current = false;
+  }, [channel]);
 
   useEffect(() => {
     if (normalizedSearchQuery.length < 3) {
@@ -201,17 +210,27 @@ export function MessageList({
     if (!oldest?.id) return;
     loadOlderRef.current = true;
     setLoadingOlder(true);
+    const gen = ++loadOlderGenRef.current;
+    loadOlderAbortRef.current?.abort();
+    const ac = new AbortController();
+    loadOlderAbortRef.current = ac;
     try {
       const api = new ChatAPI(serverAddr || getHubBaseURL());
-      const older = await api.fetchMessages(channel, 50, oldest.id);
+      const older = await api.fetchMessages(channel, 50, oldest.id, { signal: ac.signal });
+      if (gen !== loadOlderGenRef.current || useChatStore.getState().channel !== channel) {
+        return;
+      }
       if (older.length > 0) {
         useChatStore.getState().prependMessages(older);
       }
     } catch (e) {
+      if ((e as { name?: string })?.name === 'AbortError') return;
       console.warn('[MessageList] load older failed', e);
     } finally {
-      loadOlderRef.current = false;
-      setLoadingOlder(false);
+      if (gen === loadOlderGenRef.current) {
+        loadOlderRef.current = false;
+        setLoadingOlder(false);
+      }
     }
   }, [channel, channelMessages, normalizedSearchQuery, serverAddr]);
 

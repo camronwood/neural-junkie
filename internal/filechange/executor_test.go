@@ -78,6 +78,30 @@ func TestExecutorRejectsTraversal(t *testing.T) {
 	}
 }
 
+func TestExecutorRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "escape")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink not supported: %v", err)
+	}
+	exec := NewFileChangeExecutor(root)
+	err := exec.ExecuteFileChange(&FileChange{
+		Operation:  FileOperationCreate,
+		FilePath:   filepath.Join(link, "pwned.txt"),
+		NewContent: "nope",
+	})
+	if err == nil {
+		t.Fatal("expected symlink escape rejected")
+	}
+	if !strings.Contains(err.Error(), "path outside workspace") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestExecutorRejectsPrefixSibling(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "ws")
 	sibling := filepath.Join(t.TempDir(), "ws_evil")

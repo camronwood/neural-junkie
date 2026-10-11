@@ -12,7 +12,7 @@ import (
 
 var (
 	sidecarLSPManager = lspserver.NewManager()
-	lspUpgrader       = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	lspUpgrader = websocket.Upgrader{CheckOrigin: checkOrigin}
 )
 
 func handleSidecarLSPWebSocket(root string) http.HandlerFunc {

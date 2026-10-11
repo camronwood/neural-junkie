@@ -31,7 +31,7 @@ install_local() {
   sudo tee "$ENV_FILE" >/dev/null <<EOF
 NJ_REMOTE_TOKEN=${TOKEN}
 NJ_REMOTE_ROOT=${REPO_ROOT:-$HOME}
-NJ_REMOTE_ADDR=:${PORT}
+NJ_REMOTE_ADDR=127.0.0.1:${PORT}
 EOF
   sudo tee /etc/systemd/system/nj-remote.service >/dev/null <<'UNIT'
 [Unit]
@@ -60,7 +60,7 @@ set -euo pipefail
 sudo tee /etc/nj-remote.env >/dev/null <<EOF
 NJ_REMOTE_TOKEN=${NJ_REMOTE_TOKEN}
 NJ_REMOTE_ROOT=${NJ_REMOTE_ROOT}
-NJ_REMOTE_ADDR=:${NJ_REMOTE_PORT}
+NJ_REMOTE_ADDR=127.0.0.1:${NJ_REMOTE_PORT}
 EOF
 sudo tee /etc/systemd/system/nj-remote.service >/dev/null <<'UNIT'
 [Unit]

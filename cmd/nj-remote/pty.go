@@ -19,7 +19,7 @@ func handleSidecarPTY(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	upgrader := websocket.Upgrader{CheckOrigin: checkOrigin}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
