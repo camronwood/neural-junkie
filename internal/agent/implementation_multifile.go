@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -10,11 +12,11 @@ import (
 
 const implSessionMaxFiles = 5
 
+// swiftDirTokenRE matches folder tokens like TriviaGame/ in user prompts.
+var swiftDirTokenRE = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_\-]*)/`)
+
 // implementationTargets returns ordered file paths still relevant for a multi-file session.
 func implementationTargets(manifest *StackManifest, userContent string) []string {
-	if manifest == nil {
-		return nil
-	}
 	lower := strings.ToLower(strings.TrimSpace(userContent))
 	themeTask := strings.Contains(lower, "theme") ||
 		strings.Contains(lower, "dark") ||
@@ -32,11 +34,85 @@ func implementationTargets(manifest *StackManifest, userContent string) []string
 		out = append(out, p)
 	}
 
-	if themeTask && manifest.HasTailwind && manifest.TailwindConfig != "" {
-		add(manifest.TailwindConfig)
+	if manifest != nil {
+		if themeTask && manifest.HasTailwind && manifest.TailwindConfig != "" {
+			add(manifest.TailwindConfig)
+		}
+		if manifest.EntryPoint != "" && (themeTask || manifest.HasReact || manifest.HasVue) {
+			add(manifest.EntryPoint)
+		}
 	}
-	if manifest.EntryPoint != "" && (themeTask || manifest.HasReact || manifest.HasVue) {
-		add(manifest.EntryPoint)
+	for _, p := range swiftImplementationTargetsFromPrompt(userContent) {
+		add(p)
+	}
+	return out
+}
+
+// swiftImplementationTargetsFromPrompt extracts .swift deliverable paths from the user ask.
+// Bare names are qualified with a mentioned folder token (e.g. TriviaGame/).
+// ContentView.swift and GameView.swift are treated as alternatives (prefer ContentView).
+func swiftImplementationTargetsFromPrompt(userContent string) []string {
+	raw := DetectFilePaths(userContent)
+	if len(raw) == 0 {
+		return nil
+	}
+	dir := firstSwiftDirToken(userContent)
+	var swift []string
+	seen := make(map[string]bool)
+	for _, p := range raw {
+		p = strings.TrimSpace(strings.TrimPrefix(p, "./"))
+		if p == "" || !strings.HasSuffix(strings.ToLower(p), ".swift") {
+			continue
+		}
+		p = filepath.ToSlash(p)
+		if !strings.Contains(p, "/") && dir != "" {
+			p = dir + "/" + p
+		}
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+		swift = append(swift, p)
+	}
+	return dedupeSwiftUIAlternatives(swift)
+}
+
+func firstSwiftDirToken(userContent string) string {
+	for _, m := range swiftDirTokenRE.FindAllStringSubmatch(userContent, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		tok := strings.TrimSpace(m[1])
+		if tok == "" {
+			continue
+		}
+		// Skip common relative noise.
+		switch strings.ToLower(tok) {
+		case ".", "..", "src", "app", "lib", "pkg", "cmd", "internal":
+			continue
+		}
+		return tok
+	}
+	return ""
+}
+
+func dedupeSwiftUIAlternatives(paths []string) []string {
+	hasContentView := false
+	for _, p := range paths {
+		if strings.EqualFold(filepath.Base(p), "ContentView.swift") {
+			hasContentView = true
+			break
+		}
+	}
+	if !hasContentView {
+		return paths
+	}
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if strings.EqualFold(filepath.Base(p), "GameView.swift") {
+			continue
+		}
+		out = append(out, p)
 	}
 	return out
 }
@@ -47,6 +123,9 @@ func implementationTargetSatisfied(wsPath, rel, userContent string) bool {
 	rel = strings.TrimSpace(rel)
 	if wsPath == "" || rel == "" {
 		return false
+	}
+	if strings.HasSuffix(strings.ToLower(rel), ".swift") {
+		return swiftImplementationTargetSatisfied(wsPath, rel)
 	}
 	b, err := os.ReadFile(filepath.Join(wsPath, rel))
 	if err != nil {
@@ -75,6 +154,39 @@ func implementationTargetSatisfied(wsPath, rel, userContent string) bool {
 		return strings.Contains(strings.ToLower(body), "dark")
 	}
 	return false
+}
+
+func swiftImplementationTargetSatisfied(wsPath, rel string) bool {
+	if fileNonEmpty(wsPath, rel) {
+		return true
+	}
+	if !strings.EqualFold(filepath.Base(rel), "ContentView.swift") {
+		return false
+	}
+	dir := filepath.ToSlash(filepath.Dir(rel))
+	if dir == "." {
+		dir = ""
+	}
+	alts := []string{
+		filepath.ToSlash(filepath.Join(dir, "GameView.swift")),
+		filepath.ToSlash(filepath.Join(dir, "Views", "ContentView.swift")),
+	}
+	for _, alt := range alts {
+		alt = strings.TrimPrefix(alt, "/")
+		if fileNonEmpty(wsPath, alt) {
+			return true
+		}
+	}
+	return false
+}
+
+func fileNonEmpty(wsPath, rel string) bool {
+	rel = strings.TrimSpace(strings.TrimPrefix(filepath.ToSlash(rel), "./"))
+	if rel == "" {
+		return false
+	}
+	b, err := os.ReadFile(filepath.Join(wsPath, filepath.FromSlash(rel)))
+	return err == nil && len(bytes.TrimSpace(b)) > 0
 }
 
 // remainingImplementationTargets lists manifest targets not yet satisfied on disk.

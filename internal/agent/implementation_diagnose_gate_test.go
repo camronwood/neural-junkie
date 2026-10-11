@@ -87,3 +87,32 @@ func TestStampImplSessionAbortOutcome(t *testing.T) {
 		t.Fatalf("outcome=%v want cancelled", outcome2["outcome"])
 	}
 }
+
+func TestRequiresDiagnoseGate_greenfieldSwiftDoesNotRequire(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	state := &ImplementationSessionState{StackManifest: &StackManifest{}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "ch", protocol.AgentInfo{ID: "u", Name: "User"}, iosTriviaPrompt)
+	if requiresDiagnoseGate(msg, state, dir) {
+		t.Fatal("pure greenfield Swift creates must not require diagnose gate")
+	}
+}
+
+func TestRequiresDiagnoseGate_multiFileExistingTargetsStillRequire(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeMultifileTestFile(t, dir, "tailwind.config.js", `module.exports = { content: ["./src/**/*"] };`)
+	writeMultifileTestFile(t, dir, "src/App.tsx", `export default function App() { return <div />; }`)
+	state := &ImplementationSessionState{
+		StackManifest: &StackManifest{
+			HasReact:       true,
+			HasTailwind:    true,
+			TailwindConfig: "tailwind.config.js",
+			EntryPoint:     "src/App.tsx",
+		},
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "ch", protocol.AgentInfo{ID: "u", Name: "User"}, "implement light/dark theme toggle in the sidebar")
+	if !requiresDiagnoseGate(msg, state, dir) {
+		t.Fatal("multi-file edits of existing targets should still require diagnose gate")
+	}
+}

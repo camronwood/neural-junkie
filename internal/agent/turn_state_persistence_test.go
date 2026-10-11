@@ -196,3 +196,17 @@ func classifyTurnForPersistenceTest(t *testing.T, a *Agent, msg *protocol.Messag
 	}
 	return st
 }
+
+func TestAppliedVerifySkippedIsSuccessfulActionEvidence(t *testing.T) {
+	ledger := &ActionEvidenceLedger{}
+	st := &turnState{
+		evidence: ledger,
+		implSessionOutcome: map[string]interface{}{
+			"outcome": "applied_verify_skipped",
+		},
+	}
+	st.buildActionEvidence()
+	if !ledger.Has(EvidenceEditApplied) {
+		t.Fatalf("applied_verify_skipped should count as successful evidence: %+v", ledger.Entries())
+	}
+}

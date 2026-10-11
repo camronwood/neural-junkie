@@ -357,3 +357,23 @@ func TestDeriveTurnGoal_userFlowRustBlackjackForcesSession(t *testing.T) {
 		t.Fatalf("action=%s want edit after harness sync", goal.Action)
 	}
 }
+
+func TestValidateResponseAllowsAppliedClaimForVerifySkippedOutcome(t *testing.T) {
+	goal := TurnGoal{Action: ActionEdit, ExpectedEvidence: []EvidenceKind{EvidenceEditProposed, EvidenceEditApplied}}
+	ledger := &ActionEvidenceLedger{}
+	st := &turnState{
+		evidence: ledger,
+		implSessionOutcome: map[string]interface{}{
+			"outcome": "applied_verify_skipped",
+		},
+		implSessionProposed: true,
+	}
+	st.buildActionEvidence()
+	if !ledger.Has(EvidenceEditApplied) {
+		t.Fatalf("applied_verify_skipped must stamp EditApplied: %+v", ledger.Entries())
+	}
+	issues := validateResponseAgainstEvidence(goal, ledger, &protocol.Message{}, "Implementation session complete — applied; verification skipped.", nil)
+	if len(issues) != 0 {
+		t.Fatalf("unexpected issues: %v", issues)
+	}
+}

@@ -92,12 +92,42 @@ func (a *Agent) ResolveProposalPath(ctx context.Context, sourceMsg *protocol.Mes
 	if sourceMsg != nil {
 		wsPath = a.resolveWorkspacePath(sourceMsg)
 		userContent = sourceMsg.Content
+		// Continuations ("Approved… Continue") should qualify against the original ask.
+		if a != nil && userAffirmsPendingImplementation(userContent) {
+			for i := len(a.channelHistory(sourceMsg.Channel)) - 1; i >= 0; i-- {
+				m := a.channelHistory(sourceMsg.Channel)[i]
+				if m == nil || m.ID == sourceMsg.ID {
+					continue
+				}
+				if protocol.IsUserLikeSender(m.From) && messageStampedImplAction(m) {
+					userContent = m.Content
+					break
+				}
+			}
+		}
 	}
 	path = normalizeFileChangeRelPath(path)
+	path = qualifyBareSwiftPathFromPrompt(path, userContent, manifest)
 	if resolved, err := DisambiguateAmbiguousBasename(wsPath, path, userContent); err == nil && resolved != "" {
 		path = resolved
 	}
 	return RedirectProposalPathForWorkspace(path, wsPath, manifest, "")
+}
+
+// qualifyBareSwiftPathFromPrompt maps bare Foo.swift → Folder/Foo.swift when the
+// user asked for files under Folder/ (e.g. TriviaGame/TriviaGameApp.swift).
+func qualifyBareSwiftPathFromPrompt(path, userContent string, manifest *StackManifest) string {
+	path = normalizeFileChangeRelPath(path)
+	if path == "" || strings.Contains(path, "/") || !strings.HasSuffix(strings.ToLower(path), ".swift") {
+		return path
+	}
+	base := filepath.Base(path)
+	for _, t := range implementationTargets(manifest, userContent) {
+		if strings.EqualFold(filepath.Base(t), base) {
+			return filepath.ToSlash(t)
+		}
+	}
+	return path
 }
 
 func protectedWorkspaceFilesFromMessage(msg *protocol.Message) []string {

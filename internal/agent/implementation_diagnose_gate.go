@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -30,7 +32,28 @@ func requiresDiagnoseGate(msg *protocol.Message, state *ImplementationSessionSta
 		seed = msg.Content
 	}
 	remaining := remainingImplementationTargets(wsPath, state.StackManifest, seed)
-	return len(remaining) > 1
+	if len(remaining) <= 1 {
+		return false
+	}
+	// Multi-file continue can list several greenfield creates (e.g. Swift TriviaGame
+	// paths). Forcing a diagnose essay before any file exists only burns the circuit
+	// breaker — require diagnosis when at least one remaining target is already on disk.
+	for _, rel := range remaining {
+		if implementationTargetExistsOnDisk(wsPath, rel) {
+			return true
+		}
+	}
+	return false
+}
+
+func implementationTargetExistsOnDisk(wsPath, rel string) bool {
+	wsPath = strings.TrimSpace(wsPath)
+	rel = strings.TrimSpace(rel)
+	if wsPath == "" || rel == "" {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(wsPath, filepath.FromSlash(rel)))
+	return err == nil && info != nil && !info.IsDir()
 }
 
 func (s *ImplementationSessionState) diagnoseGateBlocksProposals() bool {

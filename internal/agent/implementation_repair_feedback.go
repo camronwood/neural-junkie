@@ -353,6 +353,8 @@ func outcomeScore(outcome map[string]interface{}) int {
 	switch outcome["outcome"] {
 	case "applied_and_verified":
 		return 100
+	case "applied_verify_skipped":
+		return 90
 	case "proposals_submitted":
 		if failed, _ := outcome["verify_failed"].(bool); !failed {
 			return 80

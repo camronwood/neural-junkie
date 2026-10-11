@@ -100,7 +100,7 @@ func (st *turnState) buildActionEvidence() {
 		switch value {
 		case "proposals_submitted":
 			ledger.Record(ActionEvidence{Kind: EvidenceEditProposed, Status: "succeeded", Detail: value})
-		case "applied_and_verified":
+		case "applied_and_verified", "applied_verify_skipped":
 			ledger.Record(ActionEvidence{Kind: EvidenceEditApplied, Status: "succeeded", Detail: value})
 		case "applied_verify_failed":
 			ledger.Record(ActionEvidence{Kind: EvidenceEditApplied, Status: "failed", Detail: value})

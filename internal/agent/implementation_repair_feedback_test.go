@@ -123,3 +123,15 @@ func protocolNewImplMsg(t *testing.T, meta map[string]interface{}) *protocol.Mes
 	}
 	return msg
 }
+
+func TestOutcomeScore_appliedVerifySkipped(t *testing.T) {
+	if got := outcomeScore(map[string]interface{}{"outcome": "applied_verify_skipped"}); got != 90 {
+		t.Fatalf("score=%d want 90", got)
+	}
+	if outcomeScore(map[string]interface{}{"outcome": "applied_and_verified"}) <= outcomeScore(map[string]interface{}{"outcome": "applied_verify_skipped"}) {
+		t.Fatal("verified should score above verify_skipped")
+	}
+	if outcomeScore(map[string]interface{}{"outcome": "applied_verify_skipped"}) <= outcomeScore(map[string]interface{}{"outcome": "proposals_submitted", "verify_failed": false}) {
+		t.Fatal("verify_skipped should score above clean proposals")
+	}
+}
