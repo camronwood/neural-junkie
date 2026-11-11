@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useFileChangeStore } from '../stores/fileChangeStore';
@@ -26,40 +26,18 @@ import {
   isAwaitingWorkspaceConfirmation,
   isPlanningAwaitingFirstTurn,
   executingFileTasksAwaitingProposal,
-  FILE_PROPOSAL_QUEUE_LABEL,
   planningGenerationErrorSummary,
   planningStalledParticipantNames,
   taskNeedsFileDeliverable,
 } from '../utils/collaborationPanelState';
 import { buildCollabChannelOutboundMetadata } from '../utils/collaborationOutboundMetadata';
 import { loadWorkspaceContextMode } from '../utils/outboundChatMetadata';
-import { taskOrchestrationLabel } from '../utils/collaborationTaskOrchestration';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { RunbookGraphModal } from './runbook-graph';
 import { RunbookHistoryPanel } from './runbook/RunbookHistoryPanel';
-
-function CollabAdvancedDebug({
-  collabIdPrefix,
-  testId,
-}: {
-  collabIdPrefix?: string;
-  testId: string;
-}) {
-  const cmd = collabIdPrefix
-    ? `make debug-collab COLAB=${collabIdPrefix} LIVE=1`
-    : 'make debug-collab LIVE=1';
-  return (
-    <details data-testid={testId} style={{ marginTop: 8 }}>
-      <summary style={{ fontSize: 11, color: 'var(--text-secondary, #888)', cursor: 'pointer' }}>
-        Advanced debug
-      </summary>
-      <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-secondary, #999)', lineHeight: 1.4 }}>
-        From a terminal in the Neural Junkie repo:{' '}
-        <code style={{ fontSize: 11 }}>{cmd}</code>
-      </p>
-    </details>
-  );
-}
+import { CollabLifecycleBanners } from './collaboration/CollabLifecycleBanners';
+import { CollabParticipantRequests } from './collaboration/CollabParticipantRequests';
+import { CollabTaskList } from './collaboration/CollabTaskList';
 
 interface CollaborationPanelProps {
   collaboration: Collaboration;
@@ -95,15 +73,6 @@ const phaseColors: Record<CollaborationPhase, string> = {
   completed: '#059669',
   cancelled: '#ef4444',
 };
-
-function taskIcon(status: string): string {
-  switch (status) {
-    case 'in_progress': return '🔄';
-    case 'completed': return '✅';
-    case 'blocked': return '🚫';
-    default: return '⬜';
-  }
-}
 
 export function CollaborationPanel({
   collaboration,
@@ -178,7 +147,6 @@ export function CollaborationPanel({
   };
   const completedTasks = c.tasks?.filter(t => t.status === 'completed').length ?? 0;
   const totalTasks = c.tasks?.length ?? 0;
-  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const isTerminal = c.phase === 'completed' || c.phase === 'cancelled';
   const planningRecapPending = c.planning_recap_status === 'pending';
   const recapFacilitatorName =
@@ -551,286 +519,23 @@ export function CollaborationPanel({
           </div>
         )}
 
-        {setupInProgress && (
-          <div
-            data-testid="collaboration-setup-banner"
-            role="status"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #8b5cf6',
-              backgroundColor: 'rgba(139, 92, 246, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#c4b5fd', marginBottom: 6 }}>
-              Setting up collaboration workspace…
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              Creating the sandbox or git worktree, materializing deliverable stub files, and preparing task
-              assignments. This can take up to a minute on first run.
-            </p>
-          </div>
-        )}
-
-        {c.phase === 'reviewing' && (
-          <div
-            data-testid="collaboration-review-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #3b82f6',
-              backgroundColor: 'rgba(59, 130, 246, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#93c5fd', marginBottom: 6 }}>
-              Waiting for your approval
-            </div>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              {planningRecapPending && !c.planning_recap?.trim() ? (
-                <>
-                  Planning is complete. <strong>@{recapFacilitatorName}</strong> is writing the session summary
-                  now — the plan is below. <strong>Approve &amp; start</strong> unlocks when the recap is posted.
-                </>
-              ) : (
-                <>
-                  Planning is complete. Review the plan and session summary below, then{' '}
-                  <strong>Approve &amp; start</strong> to create the collaboration workspace and assign tasks, or{' '}
-                  <strong>Revise</strong> to send agents back to planning.
-                </>
-              )}
-            </p>
-            {planningRecapPending && !c.planning_recap?.trim() && (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#fbbf24' }} role="status">
-                Generating session summary with @{recapFacilitatorName}… This usually takes 30–90 seconds.
-              </p>
-            )}
-          </div>
-        )}
-
-        {c.phase === 'planning' && planningGenErrors.length > 0 && (
-          <div
-            data-testid="collaboration-generation-error-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #dc2626',
-              backgroundColor: 'rgba(220, 38, 38, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fca5a5', marginBottom: 6 }}>
-              Model generation failed during planning
-            </div>
-            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.5 }}>
-              {planningGenErrors.map((entry) => (
-                <li key={entry.agentId}>
-                  <strong>@{entry.agentName}</strong>: {entry.errorCode}
-                  {entry.count > 1 ? ` (${entry.count}×)` : ''}
-                  {entry.turnAdvanced
-                    ? ' — turn skipped; next participant prompted.'
-                    : ' — retrying this turn. Check Settings → Collaboration planning provider or model availability.'}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {c.phase === 'planning' && planningStalled.length > 0 && planningGenErrors.length === 0 && (
-          <div
-            data-testid="collaboration-planning-stall-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #b45309',
-              backgroundColor: 'rgba(180, 83, 9, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
-              Waiting on {planningStalled.map((n) => `@${n}`).join(', ')}
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              These participants have not posted this round. Confirm agents are online in the sidebar, and check
-              Settings → Collaboration planning provider (or that Ollama is running).
-            </p>
-            <CollabAdvancedDebug
-              collabIdPrefix={c.id.slice(0, 8)}
-              testId="collaboration-planning-stall-advanced"
-            />
-          </div>
-        )}
-
-        {c.phase === 'planning' && planningAwaitingFirstTurn && (
-          <div
-            data-testid="collaboration-planning-wait-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #b45309',
-              backgroundColor: 'rgba(180, 83, 9, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
-              Waiting for the first agent turn
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              The hub prompted the first participant. If nothing appears after ~30s, confirm agents are online and
-              the planning model is reachable (Settings → Collaboration planning provider).
-            </p>
-            <CollabAdvancedDebug testId="collaboration-planning-wait-advanced" />
-          </div>
-        )}
-
-        {c.phase === 'executing' && executingStuck && (
-          <div
-            data-testid="collaboration-executing-stuck-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #b45309',
-              backgroundColor: 'rgba(180, 83, 9, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
-              Execution may be stuck
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              No tasks completed yet while one is in progress. Try <strong>Resume plan</strong> or{' '}
-              <strong>Redispatch</strong> / <strong>Reassign</strong> the in-progress task. Confirm the assignee
-              agent is online.
-            </p>
-            <CollabAdvancedDebug
-              collabIdPrefix={c.id.slice(0, 8)}
-              testId="collaboration-executing-stuck-advanced"
-            />
-          </div>
-        )}
-
-        {c.phase === 'executing' && chatOnlyCompletedFileTasks.length > 0 && (
-          <div
-            data-testid="collaboration-file-deliverable-hint-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #b45309',
-              backgroundColor: 'rgba(180, 83, 9, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
-              File deliverable may be missing
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              {chatOnlyCompletedFileTasks.length} task(s) marked completed without file output. Approve{' '}
-              <strong>{FILE_PROPOSAL_QUEUE_LABEL}</strong> in the toolbar or chat proposal cards — not tool
-              approvals. Ask the assignee to emit a [FILE_CHANGE] block if none appear. Prefer{' '}
-              <strong>Redispatch</strong> over Mark collaboration done until files land.
-            </p>
-          </div>
-        )}
-
-        {c.phase === 'executing' && fileTasksAwaitingProposal.length > 0 && (
-          <div
-            data-testid="collaboration-file-awaiting-proposal-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #b45309',
-              backgroundColor: 'rgba(180, 83, 9, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
-              Waiting for file proposals
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              {fileTasksAwaitingProposal.length} in-progress task(s) need a <strong>[FILE_CHANGE]</strong> proposal.
-              Chat markdown does not write to disk — approve proposals in{' '}
-              <strong>{FILE_PROPOSAL_QUEUE_LABEL}</strong> (toolbar) when they appear.
-            </p>
-          </div>
-        )}
-
-        {awaitingWorkspaceConfirmation && (
-          <div
-            data-testid="collaboration-workspace-gate-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #b45309',
-              backgroundColor: 'rgba(180, 83, 9, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
-              Confirm execution workspace
-            </div>
-            <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              Agents are paused until you confirm where files will be written. Click <strong>Confirm workspace</strong>{' '}
-              below or use the dialog on channel <span style={{ fontFamily: 'monospace' }}>{collabChannel}</span>.
-            </p>
-            {onConfirmWorkspace && (
-              <button
-                type="button"
-                onClick={onConfirmWorkspace}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  border: 'none',
-                  backgroundColor: '#d97706',
-                  color: '#fff',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
-              >
-                Confirm workspace
-              </button>
-            )}
-          </div>
-        )}
-
-        {approvedAwaitingDispatch && (
-          <div
-            data-testid="collaboration-dispatch-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #10b981',
-              backgroundColor: 'rgba(16, 185, 129, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#6ee7b7', marginBottom: 6 }}>
-              Tasks dispatching…
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              Workspace confirmed. Task prompts are being sent to assignees — no Continue step needed for sandbox +
-              bound project repos.
-            </p>
-          </div>
-        )}
-
-        {c.phase === 'planning' && !planningAwaitingFirstTurn && (
-          <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary, #aaa)', lineHeight: 1.45 }}>
-            Agents are discussing and refining the plan.{' '}
-            {submitForReviewEnabled ? (
-              <>
-                Planning discussion is complete — use <strong>Submit for review</strong> for the session summary,
-                or wait for automatic transition if consensus already moved you to review.
-              </>
-            ) : (
-              <>
-                <strong>Submit for review</strong> unlocks when planning finishes (consensus, message limit, or round
-                limit). Most collaborations move to review automatically when that happens.
-              </>
-            )}
-          </p>
-        )}
+        <CollabLifecycleBanners
+          collaboration={c}
+          collabChannel={collabChannel}
+          setupInProgress={Boolean(setupInProgress)}
+          planningRecapPending={planningRecapPending}
+          recapFacilitatorName={recapFacilitatorName}
+          planningGenErrors={planningGenErrors}
+          planningStalled={planningStalled}
+          planningAwaitingFirstTurn={Boolean(planningAwaitingFirstTurn)}
+          executingStuck={Boolean(executingStuck)}
+          chatOnlyCompletedFileTasksCount={chatOnlyCompletedFileTasks.length}
+          fileTasksAwaitingProposalCount={fileTasksAwaitingProposal.length}
+          awaitingWorkspaceConfirmation={awaitingWorkspaceConfirmation}
+          approvedAwaitingDispatch={approvedAwaitingDispatch}
+          submitForReviewEnabled={submitForReviewEnabled}
+          onConfirmWorkspace={onConfirmWorkspace}
+        />
 
         {/* Participants */}
         <div style={{ marginBottom: 16 }}>
@@ -858,59 +563,13 @@ export function CollaborationPanel({
           )}
         </div>
 
-        {pendingParticipantRequests.length > 0 && !isTerminal && (
-          <div
-            data-testid="collaboration-participant-requests"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #3b82f6',
-              backgroundColor: 'rgba(59, 130, 246, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#93c5fd', marginBottom: 8 }}>
-              Pending join requests
-            </div>
-            {pendingParticipantRequests.map((req) => (
-              <div
-                key={`${req.agent_id}-${req.created_at}`}
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  gap: 8,
-                  marginBottom: 8,
-                  fontSize: 12,
-                  color: 'var(--text-secondary, #ccc)',
-                }}
-              >
-                <span style={{ flex: '1 1 140px' }}>
-                  <strong>@{req.requested_by_name || 'An agent'}</strong> wants to add{' '}
-                  <strong>@{req.agent_name}</strong>
-                </span>
-                <button
-                  type="button"
-                  data-testid={`collaboration-participant-approve-${req.agent_id}`}
-                  onClick={() => void handleParticipantApprove(req.agent_id, req.agent_name)}
-                  disabled={isSubmitting}
-                  style={taskActionBtnStyle('#10b981')}
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  data-testid={`collaboration-participant-deny-${req.agent_id}`}
-                  onClick={() => void handleParticipantDeny(req.agent_id, req.agent_name)}
-                  disabled={isSubmitting}
-                  style={taskActionBtnStyle('#ef4444')}
-                >
-                  Deny
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <CollabParticipantRequests
+          requests={pendingParticipantRequests}
+          isTerminal={isTerminal}
+          isSubmitting={isSubmitting}
+          onApprove={handleParticipantApprove}
+          onDeny={handleParticipantDeny}
+        />
 
         {c.phase === 'planning' &&
           !planningAwaitingFirstTurn &&
@@ -924,230 +583,21 @@ export function CollaborationPanel({
             </p>
           )}
 
-        {/* Progress bar (during execution) */}
-        {c.phase === 'executing' && totalTasks > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 12, color: 'var(--text-secondary, #888)' }}>Progress</span>
-              <span style={{ fontSize: 12, color: 'var(--text-secondary, #888)' }}>{completedTasks}/{totalTasks} tasks ({progress}%)</span>
-            </div>
-            <div style={{
-              height: 6, borderRadius: 3,
-              backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                height: '100%', borderRadius: 3,
-                width: `${progress}%`,
-                backgroundColor: '#8b5cf6',
-                transition: 'width 0.3s ease',
-              }} />
-            </div>
-          </div>
-        )}
-
-        {/* Tasks */}
-        {c.tasks && c.tasks.length > 0 ? (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <h4 style={{ margin: 0, fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary, #888)', letterSpacing: 0.5 }}>
-                Tasks
-              </h4>
-              <button
-                type="button"
-                onClick={() => setGraphOpen(true)}
-                style={{
-                  padding: '4px 8px',
-                  fontSize: 11,
-                  borderRadius: 4,
-                  border: '1px solid var(--border-color, #444)',
-                  background: 'transparent',
-                  color: 'var(--text-primary, #ccc)',
-                  cursor: 'pointer',
-                }}
-              >
-                View graph
-              </button>
-            </div>
-            {c.approve_warnings && c.approve_warnings.length > 0 ? (
-              <div
-                style={{
-                  marginBottom: 10,
-                  padding: '8px 10px',
-                  borderRadius: 6,
-                  border: '1px solid #b45309',
-                  backgroundColor: 'rgba(180, 83, 9, 0.12)',
-                  fontSize: 12,
-                  color: '#fcd34d',
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>Plan validation</div>
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  {c.approve_warnings.map((w) => (
-                    <li key={w}>{w}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            {c.tasks.map((task: CollaborationTask, i: number) => {
-              const reassignCandidates = (c.agents || []).filter(
-                (a) => a.agent_id && a.agent_id !== task.assigned_to
-              );
-              const showReassign =
-                !isTerminal &&
-                c.phase === 'executing' &&
-                task.status !== 'completed' &&
-                reassignCandidates.length > 0;
-              return (
-              <div key={task.id} style={{
-                padding: '8px 10px', marginBottom: 6,
-                borderRadius: 6,
-                backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
-                fontSize: 13,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                  <span>{taskIcon(task.status)}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, color: 'var(--text-primary, #eee)' }}>
-                      Task {i + 1}: {task.title}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary, #999)', marginTop: 2 }}>
-                      Assigned to @{task.assigned_name || 'unassigned'}
-                    </div>
-                    {task.options?.expected_model || task.options?.expected_provider_id ? (
-                      <div style={{ fontSize: 11, color: '#a5b4fc', marginTop: 4 }}>
-                        Model: {task.options.expected_model || 'agent default'}
-                        {task.options.expected_provider_id
-                          ? ` · provider ${task.options.expected_provider_id}`
-                          : ''}
-                        {task.options.routing_reason ? ` · ${task.options.routing_reason}` : ''}
-                      </div>
-                    ) : null}
-                    {c.tasks && taskOrchestrationLabel(task, c.tasks, c.phase) ? (
-                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
-                        {taskOrchestrationLabel(task, c.tasks, c.phase)}
-                      </div>
-                    ) : null}
-                    {c.phase === 'executing' &&
-                    task.status === 'in_progress' &&
-                    taskNeedsFileDeliverable(task) ? (
-                      <div style={{ fontSize: 11, color: '#fbbf24', marginTop: 4, lineHeight: 1.4 }}>
-                        File deliverable: assignee must emit a <strong>[FILE_CHANGE]</strong> proposal — approve in{' '}
-                        <strong>{FILE_PROPOSAL_QUEUE_LABEL}</strong> (toolbar). Chat-only replies do not write to disk.
-                      </div>
-                    ) : null}
-                    {c.phase === 'executing' && task.awaiting_approval ? (
-                      <div
-                        data-testid={`collaboration-task-awaiting-approval-${task.id}`}
-                        style={{ fontSize: 11, color: '#fbbf24', marginTop: 4, lineHeight: 1.4 }}
-                      >
-                        Requires your approval before this action runs (webhook / SMS / email / wait_human).
-                      </div>
-                    ) : null}
-                    {!isTerminal && task.status !== 'completed' && c.phase === 'executing' && (
-                      <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {task.awaiting_approval ? (
-                          <button
-                            type="button"
-                            data-testid={`collaboration-task-approve-${task.id}`}
-                            onClick={() => void handleTaskApprove(task)}
-                            disabled={isSubmitting}
-                            style={taskActionBtnStyle('#f59e0b')}
-                          >
-                            Approve
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => void handleTaskDone(task)}
-                          disabled={isSubmitting}
-                          style={taskActionBtnStyle('#10b981')}
-                        >
-                          Complete
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleTaskSkip(task)}
-                          disabled={isSubmitting}
-                          style={taskActionBtnStyle('#94a3b8')}
-                        >
-                          Skip
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleTaskRedispatch(task)}
-                          disabled={isSubmitting}
-                          style={taskActionBtnStyle('#3b82f6')}
-                        >
-                          Redispatch
-                        </button>
-                        {showReassign && (
-                          <button
-                            type="button"
-                            data-testid={`collaboration-task-reassign-${task.id}`}
-                            onClick={() => {
-                              setReassignTaskId((prev) => (prev === task.id ? null : task.id));
-                              setReassignAgentId(reassignCandidates[0]?.agent_id || '');
-                            }}
-                            disabled={isSubmitting}
-                            style={taskActionBtnStyle('#f59e0b')}
-                          >
-                            Reassign
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    {reassignTaskId === task.id && showReassign && (
-                      <div
-                        data-testid={`collaboration-task-reassign-form-${task.id}`}
-                        style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}
-                      >
-                        <select
-                          aria-label={`Reassign ${task.title}`}
-                          value={reassignAgentId}
-                          onChange={(e) => setReassignAgentId(e.target.value)}
-                          style={{
-                            flex: '1 1 140px',
-                            padding: '4px 8px',
-                            borderRadius: 4,
-                            border: '1px solid var(--border-color, #444)',
-                            backgroundColor: 'var(--bg-secondary, #1e1e1e)',
-                            color: 'var(--text-primary, #eee)',
-                            fontSize: 12,
-                          }}
-                        >
-                          {reassignCandidates.map((a) => (
-                            <option key={a.agent_id} value={a.agent_id}>
-                              @{a.agent_name}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => void handleTaskReassign(task)}
-                          disabled={isSubmitting || !reassignAgentId}
-                          style={taskActionBtnStyle('#10b981')}
-                        >
-                          Confirm
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              );
-            })}
-          </div>
-        ) : (
-          (c.phase === 'reviewing' || c.phase === 'approved' || c.phase === 'executing') && (
-            <p
-              data-testid="collaboration-tasks-empty"
-              style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--text-secondary, #999)', lineHeight: 1.45 }}
-            >
-              No tasks yet. Approve a plan with task assignments, or revise so agents add concrete work items.
-            </p>
-          )
-        )}
+        <CollabTaskList
+          collaboration={c}
+          isTerminal={isTerminal}
+          isSubmitting={isSubmitting}
+          reassignTaskId={reassignTaskId}
+          reassignAgentId={reassignAgentId}
+          onReassignTaskIdChange={setReassignTaskId}
+          onReassignAgentIdChange={setReassignAgentId}
+          onViewGraph={() => setGraphOpen(true)}
+          onTaskApprove={handleTaskApprove}
+          onTaskDone={handleTaskDone}
+          onTaskSkip={handleTaskSkip}
+          onTaskRedispatch={handleTaskRedispatch}
+          onTaskReassign={handleTaskReassign}
+        />
 
         {/* Plan artifact */}
         {c.plan && c.plan.content && (
@@ -1507,16 +957,4 @@ export function CollaborationPanel({
       />
     </div>
   );
-}
-
-function taskActionBtnStyle(color: string): CSSProperties {
-  return {
-    padding: '4px 8px',
-    borderRadius: 4,
-    border: '1px solid var(--border-color, #444)',
-    background: 'transparent',
-    color,
-    fontSize: 11,
-    cursor: 'pointer',
-  };
 }

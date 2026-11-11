@@ -16,10 +16,7 @@ func handleGitChanges(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	userID := strings.TrimSpace(r.URL.Query().Get("user_id"))
-	if userID == "" {
-		userID = "default"
-	}
+	userID := preferSessionListUserID(r, r.URL.Query().Get("user_id"))
 	pending := chatHub.GetGitChangeManager().ListPending(userID)
 	if pending == nil {
 		pending = []*gitchange.Proposal{}

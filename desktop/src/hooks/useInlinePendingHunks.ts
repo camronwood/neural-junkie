@@ -167,7 +167,7 @@ export function useInlinePendingHunks(
         (h) => !acceptedHunksRef.current.has(h.id)
       );
       if (remaining.length === 0) {
-        void useFileChangeStore.getState().approveChange(change.id, 'default', next);
+        void useFileChangeStore.getState().approveChange(change.id, undefined, next);
       }
     });
 

@@ -9,6 +9,8 @@ import { useSettingsStore } from '../../../stores/settingsStore';
 import { getMonacoThemeId, registerMonacoThemes } from '../../../utils/editorThemes';
 import { MANIFEST_FIELD_HINTS } from './packDevConstants';
 import { PackValidatePreview } from './PackValidatePreview';
+import { PackSidecarTrustWarning } from './PackSidecarTrustWarning';
+import { yamlDeclaresSidecar } from './packSidecarTrust';
 import type { PackValidationReport } from '../../../api/chatAPI';
 import { registerRestartBlocker } from '../../../utils/restartSafety';
 
@@ -247,8 +249,13 @@ export function PackManifestEditor({ packDir, initialYaml, onPackDirChange }: Pa
         {packDir && (
           <p className="text-[11px] font-mono text-slack-textMuted break-all">{packDir}</p>
         )}
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && (
+          <p className="text-xs text-red-400" data-testid="pack-manifest-editor-error">
+            {error}
+          </p>
+        )}
         {message && <p className="text-xs text-teal-300">{message}</p>}
+        <PackSidecarTrustWarning visible={yamlDeclaresSidecar(yaml)} />
         <div className="border border-slack-border rounded-lg overflow-hidden min-h-[280px]">
           <Editor
             height="280px"

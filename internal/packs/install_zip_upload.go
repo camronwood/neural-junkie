@@ -47,6 +47,9 @@ func InstallFromZipBytes(data []byte) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	if IsOfficialPackID(m.ID) {
+		return nil, fmt.Errorf("pack id %q collides with an official catalog pack", m.ID)
+	}
 
 	destRoot, err := UserPacksDir()
 	if err != nil {

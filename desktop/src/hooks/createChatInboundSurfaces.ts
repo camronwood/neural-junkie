@@ -39,8 +39,8 @@ export type ChatInboundSurfacesDeps = {
   loadCounts: () => void | Promise<unknown>;
   activeWorkspaceId: string | null;
   explorerWorkspaces: ReadonlyArray<{ id: string }>;
-  fetchPendingChanges: (userId: string) => Promise<unknown>;
-  fetchPendingGitChanges: (userId: string) => Promise<unknown>;
+  fetchPendingChanges: (userId?: string) => Promise<unknown>;
+  fetchPendingGitChanges: (userId?: string) => Promise<unknown>;
   pendingChangeCount: number;
   pendingChanges: ReadonlyArray<{ id: string; channel?: string; requested_at?: string }>;
   pendingGitChanges: ReadonlyArray<{ id: string; channel?: string; requested_at?: string }>;
@@ -112,7 +112,7 @@ export function createChatInboundSurfaces(deps: ChatInboundSurfacesDeps) {
     if (!proposal) return;
     if (proposal.kind === 'file_change') {
       void deps
-        .fetchPendingChanges(deps.username || 'default')
+        .fetchPendingChanges(deps.username || undefined)
         .then(async () => {
           if (proposal.status !== 'pending') return;
           try {
@@ -149,7 +149,7 @@ export function createChatInboundSurfaces(deps: ChatInboundSurfacesDeps) {
         });
       }
     } else {
-      void deps.fetchPendingGitChanges(deps.username || 'default').catch((error) =>
+      void deps.fetchPendingGitChanges(deps.username || undefined).catch((error) =>
         console.error('Failed to refresh pending Git changes:', error),
       );
     }

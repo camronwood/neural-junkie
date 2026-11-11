@@ -356,8 +356,8 @@ See **[SECURITY.md](SECURITY.md)** for the full threat model, environment variab
 - Sensitive APIs require loopback or `NEURAL_JUNKIE_HUB_TOKEN`
 - CORS restricted to local dev origins (not `*`) unless `NEURAL_JUNKIE_CORS_ANY=1`
 - Workspace and hub-data paths use containment checks; chat markdown uses DOMPurify
+- Session tokens + channel ACLs, API keys/roles, rate limits, and encrypted credential storage at rest — see [SECURITY.md](SECURITY.md)
 
-**Still missing for internet-facing deploys:**
-- Per-user auth and channel ACLs
-- Rate limiting
-- Encrypted credential storage at rest
+**Thin browser UI:** Served by `handleHome` in `cmd/server/assistant_state_handlers.go` (chat + pending file-change approval). Not a workspace IDE. Repo `public/` is a screenshot gallery only.
+
+**Still out of scope for internet-facing multi-tenant deploys:** SSO/JWT enterprise auth, horizontal hub scale — see [STABLE_SCOPE.md](STABLE_SCOPE.md).

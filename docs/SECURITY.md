@@ -94,7 +94,7 @@ Require loopback **or** valid `NEURAL_JUNKIE_HUB_TOKEN` (`X-NJ-Hub-Token`, `Auth
 | `/api/messages`, `/api/messages/search` | GET | Channel ACL when enforced |
 | `/api/threads/*` | GET/POST | Reads: channel ACL; replies: session + ACL |
 | `/api/collaborations*`, `/api/runbooks*` | GET/POST/PUT | Mutations require session/API key |
-| `/api/file-changes`, `/api/git-changes` | GET/POST | Agent change workflow |
+| `/api/file-changes`, `/api/git-changes` | GET/POST | Agent change workflow; **approve/reject/propose/PATCH require** `ensureMutationAccess` (session or API key; viewer blocked). Actor id comes from the session, not a client-supplied `user_id=default`. |
 | `/api/memory/*`, `/api/learnings/*` | GET/POST | Personal learning store |
 | `/api/packs/*` (install, enable, dev-link) | POST/PUT/DELETE | Pack mutations |
 | `/api/settings`, `/api/providers`, `/api/slack/config`, `/api/web-search/config` | PUT/POST | Config writes |

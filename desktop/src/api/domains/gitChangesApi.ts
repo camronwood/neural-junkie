@@ -5,10 +5,10 @@ import type { HubFetchFn } from './packsApi';
 export class GitChangesApi {
   constructor(private readonly hubFetch: HubFetchFn) {}
 
-  async fetchGitChanges(userId: string): Promise<GitChangeProposal[]> {
-    const response = await this.hubFetch(
-      `/api/git-changes?user_id=${encodeURIComponent(userId)}`
-    );
+  async fetchGitChanges(userId?: string): Promise<GitChangeProposal[]> {
+    const trimmed = (userId ?? '').trim();
+    const qs = trimmed ? `?user_id=${encodeURIComponent(trimmed)}` : '';
+    const response = await this.hubFetch(`/api/git-changes${qs}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch git changes: ${response.statusText}`);
     }

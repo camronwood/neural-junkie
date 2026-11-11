@@ -6,6 +6,19 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+### Security
+- **File-change mutations** — Approve/reject/propose/PATCH now call `ensureMutationAccess`; actor id comes from the session/API key (no more `user_id=default` invent).
+- **Customer pack zip install** — `InstallFromZipBytes` rejects official catalog pack ids before wiping `~/.neural-junkie/packs/<id>/`.
+
+### Fixed
+- **Desktop version drift** — `tauri.conf.json` synced to `1.2.0-beta.32` (matches `package.json` / Cargo.toml). Use `scripts/verify-desktop-version-consistency.sh`.
+
+### Changed
+- **Extraction loop 1** — Room chrome hook (`useChatWindowRoomChrome`), `CollabPhaseStatusBanner`, and Tauri `credentials.rs` pulled out of god modules.
+- **Extraction loop 2** — `useChatWindowIdeChrome`, `CollabPhaseStatusStack` (stall/wait/stuck), Tauri `pty.rs`.
+- **Pack Dev Studio** — Persistent sidecar trust warning for hub/MCP sidecars and official-id reservation.
+- **Docs** — AGENT_CODEMAP thin UI path, ARCHITECTURE security shipped-state, STABLE_SCOPE agent WebSocket row aligned with FUTURE_ENHANCEMENTS.
+
 ## [1.2.0-beta.32] - 2026-10-11
 
 Impl-session honesty for auto-apply greenfield, Desktop Listen STT notes, Arena in-app benchmarks, and multi-phase security hardening.

@@ -256,7 +256,7 @@ export class ChatAPI {
     return this.messagesApi.searchMessages(channel, query, limit);
   }
 
-  async fetchGitChanges(userId: string): Promise<GitChangeProposal[]> {
+  async fetchGitChanges(userId?: string): Promise<GitChangeProposal[]> {
     return this.gitChangesApi.fetchGitChanges(userId);
   }
 
@@ -1512,26 +1512,26 @@ export class ChatAPI {
     return this.fileChangesApi.proposeFileChangeFromMessage(params);
   }
 
-  async listPendingFileChanges(userId: string = 'default'): Promise<FileChange[]> {
+  async listPendingFileChanges(userId?: string): Promise<FileChange[]> {
     return this.fileChangesApi.listPendingFileChanges(userId);
   }
 
   async approveFileChange(
     changeId: string,
-    userId: string = 'default',
+    userId?: string,
     newContent?: string
   ): Promise<FileChange> {
     return this.fileChangesApi.approveFileChange(changeId, userId, newContent);
   }
 
-  async approveFileChangeRequest(requestId: string, userId: string = 'default'): Promise<FileChangeRequest> {
+  async approveFileChangeRequest(requestId: string, userId?: string): Promise<FileChangeRequest> {
     return this.fileChangesApi.approveFileChangeRequest(requestId, userId);
   }
 
   async rejectFileChangeRequest(
     requestId: string,
     reason: string = 'No reason provided',
-    userId: string = 'default',
+    userId?: string,
   ): Promise<FileChangeRequest> {
     return this.fileChangesApi.rejectFileChangeRequest(requestId, reason, userId);
   }
@@ -1540,7 +1540,7 @@ export class ChatAPI {
     return this.fileChangesApi.updateFileChangeContent(changeId, newContent);
   }
 
-  async rejectFileChange(changeId: string, reason: string = 'No reason provided', userId: string = 'default'): Promise<FileChange> {
+  async rejectFileChange(changeId: string, reason: string = 'No reason provided', userId?: string): Promise<FileChange> {
     return this.fileChangesApi.rejectFileChange(changeId, reason, userId);
   }
 
