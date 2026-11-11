@@ -15,6 +15,7 @@ All notable changes to Neural Junkie.
 
 ### Changed
 - **Extraction loop 1** — Room chrome hook (`useChatWindowRoomChrome`), `CollabPhaseStatusBanner`, and Tauri `credentials.rs` pulled out of god modules.
+- **Extraction loop 2** — `useChatWindowIdeChrome`, `CollabPhaseStatusStack` (stall/wait/stuck), Tauri `pty.rs`.
 - **Pack Dev Studio** — Persistent sidecar trust warning for hub/MCP sidecars and official-id reservation.
 - **Docs** — AGENT_CODEMAP thin UI path, ARCHITECTURE security shipped-state, STABLE_SCOPE agent WebSocket row aligned with FUTURE_ENHANCEMENTS.
 

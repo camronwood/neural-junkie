@@ -37,30 +37,7 @@ import { taskOrchestrationLabel } from '../utils/collaborationTaskOrchestration'
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { RunbookGraphModal } from './runbook-graph';
 import { RunbookHistoryPanel } from './runbook/RunbookHistoryPanel';
-import { CollabPhaseStatusBanner } from './collaboration/CollabPhaseStatusBanner';
-
-function CollabAdvancedDebug({
-  collabIdPrefix,
-  testId,
-}: {
-  collabIdPrefix?: string;
-  testId: string;
-}) {
-  const cmd = collabIdPrefix
-    ? `make debug-collab COLAB=${collabIdPrefix} LIVE=1`
-    : 'make debug-collab LIVE=1';
-  return (
-    <details data-testid={testId} style={{ marginTop: 8 }}>
-      <summary style={{ fontSize: 11, color: 'var(--text-secondary, #888)', cursor: 'pointer' }}>
-        Advanced debug
-      </summary>
-      <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-secondary, #999)', lineHeight: 1.4 }}>
-        From a terminal in the Neural Junkie repo:{' '}
-        <code style={{ fontSize: 11 }}>{cmd}</code>
-      </p>
-    </details>
-  );
-}
+import { CollabPhaseStatusStack } from './collaboration/CollabPhaseStatusStack';
 
 interface CollaborationPanelProps {
   collaboration: Collaboration;
@@ -610,80 +587,14 @@ export function CollaborationPanel({
           </div>
         )}
 
-        <CollabPhaseStatusBanner phase={c.phase} planningGenErrors={planningGenErrors} />
-
-        {c.phase === 'planning' && planningStalled.length > 0 && planningGenErrors.length === 0 && (
-          <div
-            data-testid="collaboration-planning-stall-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #b45309',
-              backgroundColor: 'rgba(180, 83, 9, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
-              Waiting on {planningStalled.map((n) => `@${n}`).join(', ')}
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              These participants have not posted this round. Confirm agents are online in the sidebar, and check
-              Settings → Collaboration planning provider (or that Ollama is running).
-            </p>
-            <CollabAdvancedDebug
-              collabIdPrefix={c.id.slice(0, 8)}
-              testId="collaboration-planning-stall-advanced"
-            />
-          </div>
-        )}
-
-        {c.phase === 'planning' && planningAwaitingFirstTurn && (
-          <div
-            data-testid="collaboration-planning-wait-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #b45309',
-              backgroundColor: 'rgba(180, 83, 9, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
-              Waiting for the first agent turn
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              The hub prompted the first participant. If nothing appears after ~30s, confirm agents are online and
-              the planning model is reachable (Settings → Collaboration planning provider).
-            </p>
-            <CollabAdvancedDebug testId="collaboration-planning-wait-advanced" />
-          </div>
-        )}
-
-        {c.phase === 'executing' && executingStuck && (
-          <div
-            data-testid="collaboration-executing-stuck-banner"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: '1px solid #b45309',
-              backgroundColor: 'rgba(180, 83, 9, 0.12)',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
-              Execution may be stuck
-            </div>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
-              No tasks completed yet while one is in progress. Try <strong>Resume plan</strong> or{' '}
-              <strong>Redispatch</strong> / <strong>Reassign</strong> the in-progress task. Confirm the assignee
-              agent is online.
-            </p>
-            <CollabAdvancedDebug
-              collabIdPrefix={c.id.slice(0, 8)}
-              testId="collaboration-executing-stuck-advanced"
-            />
-          </div>
-        )}
+        <CollabPhaseStatusStack
+          phase={c.phase}
+          collabIdPrefix={c.id.slice(0, 8)}
+          planningGenErrors={planningGenErrors}
+          planningStalled={planningStalled}
+          planningAwaitingFirstTurn={Boolean(planningAwaitingFirstTurn)}
+          executingStuck={Boolean(executingStuck)}
+        />
 
         {c.phase === 'executing' && chatOnlyCompletedFileTasks.length > 0 && (
           <div

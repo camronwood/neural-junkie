@@ -52,7 +52,6 @@ import {
 } from '../lazyPanels';
 import { useSecondaryAnalysisStore } from '../../stores/secondaryAnalysisStore';
 import { useCollaborationsStore, collaborationsByIDSnapshot } from '../../stores/collaborationsStore';
-import { useIdeOverlayStore } from '../../stores/ideOverlayStore';
 import {
   isAwaitingWorkspaceConfirmation,
   isNonTerminalCollaborationPhase,
@@ -82,7 +81,7 @@ import { useFileExplorerStore } from '../../stores/fileExplorerStore';
 import { useFileChangeStore } from '../../stores/fileChangeStore';
 import { useGitChangeStore } from '../../stores/gitChangeStore';
 import { getHubBaseURL, useHubAccessToken, useHubSessionToken } from '../../config/hubUrl';
-import { isIdeLayout, layoutPresetLabel, panelsForPreset } from '../../utils/layoutPresets';
+import { layoutPresetLabel, panelsForPreset } from '../../utils/layoutPresets';
 import {
   mainChatMaxWidth,
   measureMainChatMaxWidth,
@@ -110,6 +109,7 @@ import { useChatOutboundDispatch } from '../../hooks/useChatOutboundDispatch';
 import { registerRestartBlocker } from '../../utils/restartSafety';
 import { pendingProposalCount } from '../../utils/pendingChangeNavigation';
 import { useChatWindowRoomChrome } from '../../hooks/useChatWindowRoomChrome';
+import { useChatWindowIdeChrome } from '../../hooks/useChatWindowIdeChrome';
 import {
   withClientPaletteCommands,
   agentsToCollaborationAgents,
@@ -221,10 +221,11 @@ export function ChatWindow({
   // State for tracking counts
   const [totalAgentsCount, setTotalAgentsCount] = useState(0);
 
-  // State for file explorer and code editor panels
-  const [fileExplorerOpen, setFileExplorerOpen] = useState(false);
-  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const {
+    fileExplorerOpen,
+    setFileExplorerOpen,
+    codeEditorOpen,
+    setCodeEditorOpen,
     quickOpenOpen,
     symbolModalOpen,
     fastEditOpen,
@@ -235,35 +236,18 @@ export function ChatWindow({
     setFastEditOpen,
     setProblemsOpen,
     setGitModalOpen,
-  } = useIdeOverlayStore(
-    (s) => ({
-      quickOpenOpen: s.quickOpenOpen,
-      symbolModalOpen: s.symbolModalOpen,
-      fastEditOpen: s.fastEditOpen,
-      problemsOpen: s.problemsOpen,
-      gitModalOpen: s.gitModalOpen,
-      setQuickOpenOpen: s.setQuickOpenOpen,
-      setSymbolModalOpen: s.setSymbolModalOpen,
-      setFastEditOpen: s.setFastEditOpen,
-      setProblemsOpen: s.setProblemsOpen,
-      setGitModalOpen: s.setGitModalOpen,
-    }),
-    shallow
-  );
-  const [activePackModal, setActivePackModal] = useState<string | null>(null);
-  const phoenixModalOpen = activePackModal === 'phoenix-import';
-  const roomChatModalOpen = activePackModal === 'room-chat';
-  const modelArenaModalOpen = activePackModal === 'model-arena';
-  const aiInterviewModalOpen = activePackModal === 'ai-interview-prep';
-  const layoutProfile = usePacksStore((s) => s.layoutProfile);
-  const hasIdeV2 = usePacksStore((s) => s.hasCapability('ide-v2'));
-  const idePackActive = usePacksStore((s) => s.idePackActive());
-  const hasIdeComposer = usePacksStore((s) => s.hasCapability('ide-v3-composer'));
-  const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
-  const ideEnabled = hasIdeV2 || idePackActive;
-  const ideLayoutAvailable = ideEnabled;
-  const enabledPackCount = usePacksStore((s) => s.packs.filter((p) => p.enabled).length);
-  const customPackToolbarActions = usePacksStore((s) => s.getToolbarActions());
+    setActivePackModal,
+    phoenixModalOpen,
+    roomChatModalOpen,
+    modelArenaModalOpen,
+    aiInterviewModalOpen,
+    hasIdeComposer,
+    ideLayout,
+    ideEnabled,
+    ideLayoutAvailable,
+    enabledPackCount,
+    customPackToolbarActions,
+  } = useChatWindowIdeChrome();
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
   const toolbarChipsPlacement = layoutSettings.toolbarChipsPlacement ?? 'top';
   const mainContentRef = useRef<HTMLDivElement>(null);
