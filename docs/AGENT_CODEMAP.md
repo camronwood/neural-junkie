@@ -17,7 +17,7 @@ Where to edit what. Prefer this over guessing from file size or similar names.
 | Collab phase machine (hub) | `internal/collaboration/manager.go` | High flake risk; prefer surgical fixes with evidence |
 | File explorer / IDE chrome | `desktop/src/components/FileExplorerPanel.tsx` (shell) + `desktop/src/components/fileExplorer/` (`useFileExplorerPanelModel`, `FileExplorerTree`, `FileExplorerContextMenu`, add-workspace / remove confirm, utils) | Prefer extracting into `fileExplorer/` over growing the panel |
 | Native FS / window / updater | `desktop/src-tauri/src/main.rs` | High risk; security + signing |
-| Thin browser hub UI | `public/` | Chat + pending file-change only — **not** the desktop IDE |
+| Thin browser hub UI | `cmd/server/assistant_state_handlers.go` (`handleHome`) | Chat + pending file-change only — **not** the desktop IDE. Repo `public/` is a screenshot gallery, not the hub UI. |
 | Message / agent dispatch | `internal/hub/hub_dispatch.go` | Lifecycle + routing into agents |
 | Slash commands | `internal/hub/commands_*.go` via `commandExecutors()` in `commands_core.go` | See [Hub slash ownership](#hub-slash-ownership) |
 | Implementation sessions | `internal/agent/implementation_*.go` | Large graph; prefer surgical fixes |
@@ -47,7 +47,7 @@ New hub HTTP endpoint for the desktop client:
 | `internal/intent` vs `internal/routing` | Intent = turn stamps; routing = knowledge/model selection |
 | Chat message with code fences | Does **not** write files; needs tools / `[FILE_CHANGE]` + Pending changes approval |
 | `make gui` / “GUI test” | Tauri desktop app via Makefile; hub WS/HTTP unit tests live in `test/hub_websocket_test.go` (renamed from `gui_test.go`) |
-| Web UI at `/` | Thin chat shell; full IDE is Tauri `desktop/` |
+| Web UI at `/` | Thin chat shell from `handleHome` (not `public/`); full IDE is Tauri `desktop/` |
 | `implementation_intent.go` “deprecated” stubs | Intentionally false / museum — do not “fix” them into live heuristics without product review |
 
 ## Do not touch (without explicit human scope)

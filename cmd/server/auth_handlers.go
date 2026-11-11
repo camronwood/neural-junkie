@@ -77,6 +77,34 @@ func ensureMutationAccess(w http.ResponseWriter, r *http.Request, channel string
 	return sess, true
 }
 
+// sessionActorID returns the audit/display user id for a mutation session.
+// Prefer Username; never invent "default".
+func sessionActorID(sess *hub.HubSession) string {
+	if sess == nil {
+		return ""
+	}
+	if u := strings.TrimSpace(sess.Username); u != "" {
+		return u
+	}
+	return strings.TrimSpace(sess.UserID)
+}
+
+// preferSessionListUserID resolves a list filter user id from session/API key
+// when present; otherwise returns a trimmed query value (may be empty — never forces "default").
+func preferSessionListUserID(r *http.Request, queryUser string) string {
+	if apiSess := sessionFromAPIKey(r); apiSess != nil {
+		if id := sessionActorID(apiSess); id != "" {
+			return id
+		}
+	}
+	if sess := hub.SessionFromRequest(r, hubSessions); sess != nil {
+		if id := sessionActorID(sess); id != "" {
+			return id
+		}
+	}
+	return strings.TrimSpace(queryUser)
+}
+
 // resolveSessionRole caps client-supplied roles; admin requires bootstrap or an existing admin caller.
 func resolveSessionRole(r *http.Request, requested string) string {
 	want := hub.NormalizeRole(requested)

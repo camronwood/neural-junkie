@@ -2,6 +2,11 @@
 import type { HubFetchFn } from './packsApi';
 import type { FileChange, FileChangeDiff, FileChangeRequest } from '../../types/protocol';
 
+function userIdQuery(userId?: string): string {
+  const trimmed = (userId ?? '').trim();
+  return trimmed ? `?user_id=${encodeURIComponent(trimmed)}` : '';
+}
+
 export class FileChangesApi {
   constructor(private readonly hubFetch: HubFetchFn) {}
 
@@ -12,18 +17,21 @@ export class FileChangesApi {
     targetPath?: string;
     userId?: string;
   }): Promise<FileChange> {
+    const body: Record<string, string> = {
+      channel: params.channel,
+      message_id: params.messageId,
+      workspace_id: params.workspaceId,
+      target_path: params.targetPath || '',
+    };
+    if (params.userId?.trim()) {
+      body.user_id = params.userId.trim();
+    }
     const response = await this.hubFetch(`/api/file-changes/propose-from-message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        channel: params.channel,
-        message_id: params.messageId,
-        workspace_id: params.workspaceId,
-        target_path: params.targetPath || '',
-        user_id: params.userId || 'default',
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -34,9 +42,8 @@ export class FileChangesApi {
     return response.json();
   }
 
-  async listPendingFileChanges(userId: string = 'default'): Promise<FileChange[]> {
-    const response = await this.hubFetch(`/api/file-changes?user_id=${encodeURIComponent(userId)}`
-    );
+  async listPendingFileChanges(userId?: string): Promise<FileChange[]> {
+    const response = await this.hubFetch(`/api/file-changes${userIdQuery(userId)}`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch file changes: ${response.statusText}`);
@@ -47,20 +54,23 @@ export class FileChangesApi {
 
   async approveFileChange(
     changeId: string,
-    userId: string = 'default',
+    userId?: string,
     newContent?: string
   ): Promise<FileChange> {
     const body =
       newContent !== undefined && newContent !== ''
         ? JSON.stringify({ new_content: newContent })
         : undefined;
-    const response = await this.hubFetch(`/api/file-changes/approve/${changeId}?user_id=${encodeURIComponent(userId)}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body,
-    });
+    const response = await this.hubFetch(
+      `/api/file-changes/approve/${changeId}${userIdQuery(userId)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body,
+      }
+    );
 
     if (!response.ok) {
       const detail = (await response.text()).trim();
@@ -70,9 +80,9 @@ export class FileChangesApi {
     return response.json();
   }
 
-  async approveFileChangeRequest(requestId: string, userId: string = 'default'): Promise<FileChangeRequest> {
+  async approveFileChangeRequest(requestId: string, userId?: string): Promise<FileChangeRequest> {
     const response = await this.hubFetch(
-      `/api/file-changes/requests/${encodeURIComponent(requestId)}/approve?user_id=${encodeURIComponent(userId)}`,
+      `/api/file-changes/requests/${encodeURIComponent(requestId)}/approve${userIdQuery(userId)}`,
       { method: 'POST' },
     );
     if (!response.ok) {
@@ -85,14 +95,18 @@ export class FileChangesApi {
   async rejectFileChangeRequest(
     requestId: string,
     reason: string = 'No reason provided',
-    userId: string = 'default',
+    userId?: string,
   ): Promise<FileChangeRequest> {
+    const body: Record<string, string> = { reason };
+    if (userId?.trim()) {
+      body.user_id = userId.trim();
+    }
     const response = await this.hubFetch(
       `/api/file-changes/requests/${encodeURIComponent(requestId)}/reject`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, reason }),
+        body: JSON.stringify(body),
       },
     );
     if (!response.ok) {
@@ -119,16 +133,17 @@ export class FileChangesApi {
     return response.json();
   }
 
-  async rejectFileChange(changeId: string, reason: string = 'No reason provided', userId: string = 'default'): Promise<FileChange> {
+  async rejectFileChange(changeId: string, reason: string = 'No reason provided', userId?: string): Promise<FileChange> {
+    const body: Record<string, string> = { reason };
+    if (userId?.trim()) {
+      body.user_id = userId.trim();
+    }
     const response = await this.hubFetch(`/api/file-changes/reject/${changeId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        user_id: userId,
-        reason: reason,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

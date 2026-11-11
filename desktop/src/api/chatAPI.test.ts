@@ -404,6 +404,31 @@ describe('FileChangesApi', () => {
     expect(data).toHaveLength(1);
   });
 
+  it('listPendingFileChanges omits user_id when unset', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    });
+    const { FileChangesApi } = await import('./domains/fileChangesApi');
+    const api = new FileChangesApi(hubFetch);
+    await api.listPendingFileChanges();
+    expect(hubFetch).toHaveBeenCalledWith('/api/file-changes');
+  });
+
+  it('approveFileChange omits user_id query when unset', async () => {
+    const hubFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'fc-1' }),
+    });
+    const { FileChangesApi } = await import('./domains/fileChangesApi');
+    const api = new FileChangesApi(hubFetch);
+    await api.approveFileChange('fc-1');
+    expect(hubFetch).toHaveBeenCalledWith(
+      '/api/file-changes/approve/fc-1',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
   it('approveFileChange throws on non-ok', async () => {
     const hubFetch = vi.fn().mockResolvedValue({
       ok: false,

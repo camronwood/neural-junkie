@@ -35,7 +35,7 @@ See also: [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md), [KNOWN_ISS
 | Full in-app searchable archive | Phase 2+ | Export + find bar; optional search API later |
 | Web UI parity with desktop | Limitation | Browser at `/` has chat + pending approval; not a full workspace IDE |
 | IDE v4 (remote SSH, full Monaco LSP) | Shipped v1.2 | [IDE_V4.md](IDE_V4.md) |
-| Agent WebSocket transport | Phase 3 | `cmd/agent` still polls |
+| Agent WebSocket transport | Shipped | Standalone agents use hub WebSocket by default (`GET /api/agents/ws`); HTTP polling via `--poll` |
 | Notarized macOS at v1.0.0 | Deferred | Planned **v1.0.1** when Apple account is available — see `macos-adhoc-sign` in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
 
 ---

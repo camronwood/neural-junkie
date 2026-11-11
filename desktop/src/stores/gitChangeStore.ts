@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import type { GitChangeProposal } from '../types/protocol';
+import { useChatStore } from './chatStore';
 
 interface GitChangeStore {
   pendingGitChanges: GitChangeProposal[];
@@ -13,14 +14,21 @@ interface GitChangeStore {
   rejectGitChange: (id: string, reason?: string) => Promise<void>;
 }
 
+function actorUserId(explicit?: string): string | undefined {
+  const trimmed = (explicit ?? '').trim();
+  if (trimmed && trimmed !== 'default') return trimmed;
+  const fromStore = useChatStore.getState().username?.trim();
+  return fromStore || undefined;
+}
+
 export const useGitChangeStore = create<GitChangeStore>((set) => ({
   pendingGitChanges: [],
   changesById: {},
   busyById: {},
   errorsById: {},
-  fetchPendingGitChanges: async (userId = 'default') => {
+  fetchPendingGitChanges: async (userId?: string) => {
     const api = new ChatAPI(getHubBaseURL());
-    const rows = await api.fetchGitChanges(userId);
+    const rows = await api.fetchGitChanges(actorUserId(userId));
     const pendingGitChanges = rows.filter((row) => row.status === 'pending');
     set((state) => ({
       pendingGitChanges,

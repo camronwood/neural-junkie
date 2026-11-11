@@ -23,11 +23,7 @@ func handleFileChanges(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from query parameter (for now, using a simple approach)
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		userID = "default" // Default user for demo
-	}
+	userID := preferSessionListUserID(r, r.URL.Query().Get("user_id"))
 
 	fileChangeManager := chatHub.GetFileChangeManager()
 	pendingChanges := fileChangeManager.ListPendingFileChanges(userID)
@@ -60,6 +56,9 @@ func handleProposeFileChangeFromMessage(w http.ResponseWriter, r *http.Request) 
 	}
 	if strings.TrimSpace(req.Channel) == "" || strings.TrimSpace(req.MessageID) == "" {
 		http.Error(w, "channel and message_id are required", http.StatusBadRequest)
+		return
+	}
+	if _, ok := ensureMutationAccess(w, r, strings.TrimSpace(req.Channel)); !ok {
 		return
 	}
 	if strings.TrimSpace(req.WorkspaceID) == "" {
@@ -257,14 +256,18 @@ func handleApproveFileChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from request body or query
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		userID = "default" // Default user for demo
-	}
-
 	fileChangeManager := chatHub.GetFileChangeManager()
 	current, _ := fileChangeManager.GetFileChangeRecord(path)
+	channel := ""
+	if current != nil {
+		channel = current.Channel
+	}
+	sess, ok := ensureMutationAccess(w, r, channel)
+	if !ok {
+		return
+	}
+	userID := sessionActorID(sess)
+
 	wasPending := current != nil && current.Status == filechange.FileChangeStatusPending
 
 	var req struct {
@@ -340,22 +343,30 @@ func handleRejectFileChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID and reason from request body
+	fileChangeManager := chatHub.GetFileChangeManager()
+	current, _ := fileChangeManager.GetFileChangeRecord(path)
+	channel := ""
+	if current != nil {
+		channel = current.Channel
+	}
+	sess, ok := ensureMutationAccess(w, r, channel)
+	if !ok {
+		return
+	}
+	userID := sessionActorID(sess)
+
 	var req struct {
 		UserID string `json:"user_id"`
 		Reason string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		req.UserID = "default"
+		req.Reason = "No reason provided"
+	}
+	if strings.TrimSpace(req.Reason) == "" {
 		req.Reason = "No reason provided"
 	}
 
-	if req.UserID == "" {
-		req.UserID = "default"
-	}
-
-	fileChangeManager := chatHub.GetFileChangeManager()
-	change, err := fileChangeManager.RejectFileChange(path, req.UserID, req.Reason)
+	change, err := fileChangeManager.RejectFileChange(path, userID, req.Reason)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -377,6 +388,14 @@ func handleFileChangeDiff(w http.ResponseWriter, r *http.Request) {
 	fileChangeManager := chatHub.GetFileChangeManager()
 
 	if r.Method == http.MethodPatch {
+		current, _ := fileChangeManager.GetFileChangeRecord(path)
+		channel := ""
+		if current != nil {
+			channel = current.Channel
+		}
+		if _, ok := ensureMutationAccess(w, r, channel); !ok {
+			return
+		}
 		var req struct {
 			NewContent string `json:"new_content"`
 		}
@@ -444,10 +463,15 @@ func handleFileChangeRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fileChangeManager := chatHub.GetFileChangeManager()
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		userID = "default"
+	channel := ""
+	if existing, err := fileChangeManager.GetFileChangeRequest(requestID); err == nil && existing != nil {
+		channel = existing.Channel
 	}
+	sess, ok := ensureMutationAccess(w, r, channel)
+	if !ok {
+		return
+	}
+	userID := sessionActorID(sess)
 
 	switch action {
 	case "approve":
@@ -468,11 +492,7 @@ func handleFileChangeRequest(w http.ResponseWriter, r *http.Request) {
 			Reason string `json:"reason"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			body.UserID = userID
 			body.Reason = "No reason provided"
-		}
-		if body.UserID != "" {
-			userID = body.UserID
 		}
 		if body.Reason == "" {
 			body.Reason = "No reason provided"

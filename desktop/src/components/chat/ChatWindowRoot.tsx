@@ -109,7 +109,7 @@ import { useChatCommandActions } from '../../hooks/useChatCommandActions';
 import { useChatOutboundDispatch } from '../../hooks/useChatOutboundDispatch';
 import { registerRestartBlocker } from '../../utils/restartSafety';
 import { pendingProposalCount } from '../../utils/pendingChangeNavigation';
-import { useRoomStore } from '../../stores/roomStore';
+import { useChatWindowRoomChrome } from '../../hooks/useChatWindowRoomChrome';
 import {
   withClientPaletteCommands,
   agentsToCollaborationAgents,
@@ -186,12 +186,13 @@ export function ChatWindow({
     shallow
   );
 
-  const roomMode = useRoomStore((s) => s.mode);
-  const activeRoomId = useRoomStore((s) => s.room?.id ?? null);
-  const activeRoomJoinCode = useRoomStore((s) => s.joinCode);
-  const activeRoomName = useRoomStore((s) => s.room?.name ?? null);
-  const roomPresenceMembers = useRoomStore((s) => s.presenceMembers);
-  const refreshRoomPresence = useRoomStore((s) => s.refreshPresence);
+  const {
+    activeRoomId,
+    visibleChannels,
+    activeRoomSidebarMeta,
+    currentChannelType,
+    connectedRoomMembers,
+  } = useChatWindowRoomChrome(channels, channel);
 
   const hasStreamingOnChannel = useChatStore(
     (s) => {
@@ -216,41 +217,6 @@ export function ChatWindow({
   useSidebarAutoUnhide(agents, channels);
 
   useEffect(() => onOpenDomainPacksModal(() => setDomainPacksOpen(true)), []);
-
-  useEffect(() => {
-    if (roomMode !== 'guest' || !activeRoomId) return;
-    void refreshRoomPresence();
-    const id = window.setInterval(() => {
-      void refreshRoomPresence();
-    }, 3000);
-    return () => window.clearInterval(id);
-  }, [roomMode, activeRoomId, refreshRoomPresence]);
-
-  const visibleChannels = useMemo(() => {
-    if (roomMode === 'guest' && activeRoomId) {
-      return channels.filter((c) => c.type === 'room' && c.room_id === activeRoomId);
-    }
-    return channels;
-  }, [channels, roomMode, activeRoomId]);
-
-  const activeRoomSidebarMeta = useMemo(() => {
-    if (!activeRoomId) return null;
-    return {
-    explorerWorkspaces,
-      id: activeRoomId,
-      joinCode: activeRoomJoinCode || undefined,
-      name: activeRoomName || undefined,
-    };
-  }, [activeRoomId, activeRoomJoinCode, activeRoomName]);
-
-  const currentChannelType = useMemo(() => {
-    return channels.find((c) => c.name === channel)?.type ?? null;
-  }, [channels, channel]);
-
-  const connectedRoomMembers = useMemo(() => {
-    if (currentChannelType !== 'room') return [];
-    return (roomPresenceMembers ?? []).filter((m: any) => m?.connected === true);
-  }, [currentChannelType, roomPresenceMembers]);
 
   // State for tracking counts
   const [totalAgentsCount, setTotalAgentsCount] = useState(0);

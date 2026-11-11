@@ -4,6 +4,7 @@ import { PackScaffoldWizard } from './PackScaffoldWizard';
 import { PackManifestEditor } from './PackManifestEditor';
 import { PackDevLink } from './PackDevLink';
 import { PackTestPanel } from './PackTestPanel';
+import { PackSidecarTrustWarning } from './PackSidecarTrustWarning';
 import { CustomPackInstall } from '../CustomPackInstall';
 
 type DevTab = 'create' | 'edit' | 'link' | 'test';
@@ -48,6 +49,8 @@ export function PackDevStudio() {
       </div>
 
       <CustomPackInstall />
+
+      <PackSidecarTrustWarning />
 
       <div className="flex flex-wrap gap-2 border-b border-slack-border pb-2">
         {tabs.map((t) => (

@@ -17,6 +17,14 @@ function hubClient(): ChatAPI {
   return new ChatAPI(addr);
 }
 
+/** Prefer chat username for list/audit query params; hub uses session for mutations. */
+function actorUserId(explicit?: string): string | undefined {
+  const trimmed = (explicit ?? '').trim();
+  if (trimmed && trimmed !== 'default') return trimmed;
+  const fromStore = useChatStore.getState().username?.trim();
+  return fromStore || undefined;
+}
+
 function refreshWorkspaceForFilePath(filePath: string): Promise<void> {
   const { workspaces } = useFileExplorerStore.getState();
   const matchedWorkspace = findLongestMatchingWorkspace(filePath, workspaces);
@@ -67,12 +75,12 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
   previewData: null,
 
   // Fetch pending file changes
-  fetchPendingChanges: async (userId = 'default') => {
+  fetchPendingChanges: async (userId?: string) => {
     set({ loading: true, error: null });
     
     try {
       const api = hubClient();
-      const changes = await api.listPendingFileChanges(userId);
+      const changes = await api.listPendingFileChanges(actorUserId(userId));
       const pendingChanges = Array.isArray(changes) ? changes : [];
       set((state) => ({
         pendingChanges,
@@ -93,7 +101,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
   },
 
   // Approve a file change
-  approveChange: async (changeId: string, userId = 'default', newContent?: string) => {
+  approveChange: async (changeId: string, userId?: string, newContent?: string) => {
     set((state) => ({
       busyById: { ...state.busyById, [changeId]: true },
       errorsById: { ...state.errorsById, [changeId]: '' },
@@ -102,7 +110,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     
     try {
       const api = hubClient();
-      const approvedChange = await api.approveFileChange(changeId, userId, newContent);
+      const approvedChange = await api.approveFileChange(changeId, actorUserId(userId), newContent);
       
       // Remove the approved change from the list
       const state = get();
@@ -131,7 +139,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     }
   },
 
-  approveRequest: async (requestId: string, userId = 'default') => {
+  approveRequest: async (requestId: string, userId?: string) => {
     set((state) => ({
       busyById: { ...state.busyById, [requestId]: true },
       errorsById: { ...state.errorsById, [requestId]: '' },
@@ -139,7 +147,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     }));
     try {
       const api = hubClient();
-      const request = await api.approveFileChangeRequest(requestId, userId);
+      const request = await api.approveFileChangeRequest(requestId, actorUserId(userId));
       const memberIds = new Set((request.changes || []).map((c) => c.id));
       const state = get();
       const removed = state.pendingChanges.filter(
@@ -189,7 +197,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
   },
 
   // Reject a file change
-  rejectChange: async (changeId: string, reason = 'No reason provided', userId = 'default') => {
+  rejectChange: async (changeId: string, reason = 'No reason provided', userId?: string) => {
     set((state) => ({
       busyById: { ...state.busyById, [changeId]: true },
       errorsById: { ...state.errorsById, [changeId]: '' },
@@ -198,7 +206,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     
     try {
       const api = hubClient();
-      const rejectedChange = await api.rejectFileChange(changeId, reason, userId);
+      const rejectedChange = await api.rejectFileChange(changeId, reason, actorUserId(userId));
       cancelEditApplyStream(changeId);
       
       // Remove the rejected change from the list
@@ -220,7 +228,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     }
   },
 
-  rejectRequest: async (requestId: string, reason = 'No reason provided', userId = 'default') => {
+  rejectRequest: async (requestId: string, reason = 'No reason provided', userId?: string) => {
     set((state) => ({
       busyById: { ...state.busyById, [requestId]: true },
       errorsById: { ...state.errorsById, [requestId]: '' },
@@ -228,7 +236,7 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     }));
     try {
       const api = hubClient();
-      await api.rejectFileChangeRequest(requestId, reason, userId);
+      await api.rejectFileChangeRequest(requestId, reason, actorUserId(userId));
       const members = get().pendingChanges.filter(
         (c) => c.metadata?.request_id === requestId,
       );
