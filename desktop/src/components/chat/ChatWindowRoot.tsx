@@ -5,11 +5,8 @@ import { useTerminalStore } from '../../stores/terminalStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { usePacksStore } from '../../stores/packsStore';
 import { useEditorStore } from '../../stores/editorStore';
-import { getLanguageFromPath } from '../../utils/editorLanguage';
-import { isEditableCsvPath } from '../../utils/csvTable';
 import { useToastStore } from '../../stores/toastStore';
 import { useComposerPrefillStore } from '../../stores/composerPrefillStore';
-import { ChatAPI } from '../../api/chatAPI';
 import { clearCredentials } from '../../utils/secureStorage';
 import {
   cycleWorkspaceContextMode,
@@ -24,23 +21,18 @@ import {
 } from '../../utils/conversationMode';
 import { channelNameToKind, resolveContextScope } from '../../utils/inferContextScope';
 import type { ConversationModeSetting, WorkspaceContextMode } from '../../constants/promptMetadata';
-import { IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_OUTCOME_KEY, CAD_FILES_WRITTEN_KEY } from '../../constants/promptMetadata';
 import {
   detectHubDataAccessNeeds,
   hasGrantedHubDataAccess,
   type HubDataAccessOption,
 } from '../../utils/hubDataAccess';
 import { onOpenDomainPacksModal } from '../../utils/domainPacksModal';
-import {
-  refreshFileExplorerForPaths,
-} from '../../utils/refreshFileExplorer';
-import { loadAgentsFromHub, loadChannelsFromHub, loadChatWindowInitialData } from '../../hooks/useChatWindowData';
+import { loadChatWindowInitialData } from '../../hooks/useChatWindowData';
 import { devLog } from '../../utils/devLog';
 import { useChatInboundMessages } from '../../hooks/useChatInboundMessages';
 import { useChatInboundSurfaces } from '../../hooks/useChatInboundSurfaces';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useSidebarAutoUnhide } from '../../hooks/useSidebarAutoUnhide';
-import { isSlackHubChannelName } from '../../utils/slackChannelDisplay';
 import {
   LazyCodeEditorPanel,
   LazyCollaborationPanel,
@@ -51,20 +43,10 @@ import {
   LazyTaskManagementPanel,
 } from '../lazyPanels';
 import { useSecondaryAnalysisStore } from '../../stores/secondaryAnalysisStore';
-import { useCollaborationsStore, collaborationsByIDSnapshot } from '../../stores/collaborationsStore';
-import {
-  isAwaitingWorkspaceConfirmation,
-  isNonTerminalCollaborationPhase,
-  resolvePanelCollaboration,
-} from '../../utils/collaborationPanelState';
-import { isTerminalCollaborationPhase as isTerminalCollabPhaseHelper } from '../../utils/chatInboundCollab';
 import type { LearningProposalAction } from '../../api/chatAPI';
 import type { LoraTrainPrefill } from '../LoraTrainingPanel';
 import type {
-  AssistantReminder,
-  AssistantTask,
   Channel,
-  Collaboration,
   CommandDefinition,
   Message,
   ThinkingAgent,
@@ -75,12 +57,9 @@ import {
   OUTPUT_LENGTH_CONTINUATION_PROMPT,
 } from '../../types/protocol';
 import { findThreadParentMessage } from '../../utils/slackThread';
-import { syncCollabTurnThinking } from '../../utils/collabThinking';
 import { useSuggestedCommands } from '../../hooks/useSuggestedCommands';
-import { useFileExplorerStore } from '../../stores/fileExplorerStore';
 import { useFileChangeStore } from '../../stores/fileChangeStore';
 import { useGitChangeStore } from '../../stores/gitChangeStore';
-import { getHubBaseURL, useHubAccessToken, useHubSessionToken } from '../../config/hubUrl';
 import { layoutPresetLabel, panelsForPreset } from '../../utils/layoutPresets';
 import {
   mainChatMaxWidth,
@@ -99,8 +78,6 @@ import {
   type ComposerMode,
 } from '../../constants/composerMode';
 import { NJ_BUILD_PLAN_EVENT, buildPlanBuildMessage } from '../../utils/planCard';
-import { resolveWorkspaceScope, scopedRepoPaths } from '../../utils/workspaceScope';
-import { useProjectSetsStore } from '../../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../../utils/ideComposer';
 import { useChatChannelActions } from '../../hooks/useChatChannelActions';
 import { useChatDmActions } from '../../hooks/useChatDmActions';
@@ -110,6 +87,10 @@ import { registerRestartBlocker } from '../../utils/restartSafety';
 import { pendingProposalCount } from '../../utils/pendingChangeNavigation';
 import { useChatWindowRoomChrome } from '../../hooks/useChatWindowRoomChrome';
 import { useChatWindowIdeChrome } from '../../hooks/useChatWindowIdeChrome';
+import { useChatWindowWorkspaceActions } from '../../hooks/useChatWindowWorkspaceActions';
+import { useChatWindowCollaborations } from '../../hooks/useChatWindowCollaborations';
+import { useChatWindowHubBootstrap } from '../../hooks/useChatWindowHubBootstrap';
+import { useChatWindowTaskPanel } from '../../hooks/useChatWindowTaskPanel';
 import {
   withClientPaletteCommands,
   agentsToCollaborationAgents,
@@ -218,9 +199,6 @@ export function ChatWindow({
 
   useEffect(() => onOpenDomainPacksModal(() => setDomainPacksOpen(true)), []);
 
-  // State for tracking counts
-  const [totalAgentsCount, setTotalAgentsCount] = useState(0);
-
   const {
     fileExplorerOpen,
     setFileExplorerOpen,
@@ -280,42 +258,12 @@ export function ChatWindow({
     edge: 'left',
   });
   const fetchPacks = usePacksStore((s) => s.fetchPacks);
-  const { activeWorkspaceId, workspaces: explorerWorkspaces } = useFileExplorerStore(
-    (s) => ({ activeWorkspaceId: s.activeWorkspaceId, workspaces: s.workspaces }),
-    shallow
-  );
-  const openFileInEditor = useEditorStore((s) => s.openFile);
   const openArenaWorkbench = useEditorStore((s) => s.openArenaWorkbench);
   const openKnowledgeGraphWorkbench = useEditorStore((s) => s.openKnowledgeGraphWorkbench);
-  const revealLineInEditor = useEditorStore((s) => s.revealLine);
   const activeEditorTab = useEditorStore((s) => {
     const id = s.activeTabId;
     return id ? (s.tabs.find((t) => t.id === id) ?? null) : null;
   });
-  const editorTabs = useEditorStore((s) => s.tabs);
-  const activeTabId = useEditorStore((s) => s.activeTabId);
-  const activeProjectSetId = useProjectSetsStore((s) => s.activeProjectSetId);
-  const getProjectSetMemberIds = useProjectSetsStore((s) => s.getMemberIds);
-
-  const resolveScopedRepoPaths = useCallback((): string[] => {
-    const scope = resolveWorkspaceScope({
-      workspaces: explorerWorkspaces,
-      activeWorkspaceId,
-      editorTabs,
-      activeTabId,
-      projectSetMemberIds: activeProjectSetId
-        ? getProjectSetMemberIds(activeProjectSetId)
-        : undefined,
-    });
-    return scopedRepoPaths(scope);
-  }, [
-    explorerWorkspaces,
-    activeWorkspaceId,
-    editorTabs,
-    activeTabId,
-    activeProjectSetId,
-    getProjectSetMemberIds,
-  ]);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const channelSearchRef = useRef<HTMLInputElement | null>(null);
   const approveFirstPendingRef = useRef<(() => void | Promise<void>) | null>(null);
@@ -333,147 +281,6 @@ export function ChatWindow({
     }, 0);
     return () => window.clearTimeout(t);
   }, [hasPendingUserQuestion, channel]);
-
-  const handleQuickOpenPath = useCallback(
-    async (path: string) => {
-      const ws =
-        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
-        explorerWorkspaces[0];
-      if (!ws) return;
-      try {
-        const api = new ChatAPI(getHubBaseURL());
-        const content = await api.fetchFileContent(ws.id, path);
-        if (isEditableCsvPath(path)) {
-          openFileInEditor(ws.id, path, content, 'plaintext', { viewMode: 'csv-table' });
-        } else {
-          openFileInEditor(ws.id, path, content, getLanguageFromPath(path));
-        }
-        setCodeEditorOpen(true);
-        setFileExplorerOpen(true);
-      } catch (e) {
-        addToast({
-          type: 'error',
-          title: 'Open file',
-          message: e instanceof Error ? e.message : String(e),
-        });
-      }
-    },
-    [activeWorkspaceId, explorerWorkspaces, openFileInEditor, addToast]
-  );
-
-  const handleImplementationSessionComplete = useCallback(
-    async (metadata?: Record<string, unknown>) => {
-      const outcomeRaw = metadata?.[IMPLEMENTATION_SESSION_OUTCOME_KEY];
-      if (outcomeRaw && typeof outcomeRaw === 'object') {
-        const outcome = outcomeRaw as Record<string, unknown>;
-        if (outcome.verify_failed === true || outcome.circuit_breaker_triggered === true) {
-          const reason =
-            (typeof outcome.failure_type === 'string' && outcome.failure_type) ||
-            (outcome.circuit_breaker_triggered ? 'circuit breaker' : 'verify failed');
-          addToast({
-            type: 'warning',
-            title: 'Implementation session issue',
-            message: `Session finished with ${reason}. Expand the outcome card in chat for details.`,
-          });
-        } else if (outcome.outcome === 'wrong_route' && typeof outcome.suggested_agent === 'string') {
-          addToast({
-            type: 'info',
-            title: 'Wrong specialist for this task',
-            message: `Try ${outcome.suggested_agent} in Agent mode for boot-fix work.`,
-          });
-        }
-      }
-      const raw = metadata?.[IMPLEMENTATION_FILES_CHANGED_KEY];
-      const paths = Array.isArray(raw) ? raw.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
-      if (paths.length === 0) return;
-      const ws =
-        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
-        explorerWorkspaces[0];
-      if (!ws) return;
-      const chatApi = new ChatAPI(getHubBaseURL());
-      for (const relPath of paths) {
-        try {
-          const existing = useEditorStore.getState().getTabByPath(ws.id, relPath);
-          if (existing) {
-            await useEditorStore.getState().refreshTabFromDisk(ws.id, relPath);
-            revealLineInEditor(ws.id, relPath, 1);
-          } else {
-            const content = await chatApi.fetchFileContent(ws.id, relPath);
-            if (isEditableCsvPath(relPath)) {
-              openFileInEditor(ws.id, relPath, content, 'plaintext', { viewMode: 'csv-table' });
-            } else {
-              openFileInEditor(ws.id, relPath, content, getLanguageFromPath(relPath));
-            }
-          }
-        } catch (e) {
-          console.error('[impl-session] open changed file:', relPath, e);
-        }
-      }
-      await refreshFileExplorerForPaths(ws.id, paths);
-      setCodeEditorOpen(true);
-      setFileExplorerOpen(true);
-      void useFileChangeStore.getState().fetchPendingChanges(username || 'default');
-    },
-    [
-      activeWorkspaceId,
-      explorerWorkspaces,
-      openFileInEditor,
-      revealLineInEditor,
-      username,
-      addToast,
-    ]
-  );
-
-  const handleCADFilesWritten = useCallback(
-    async (metadata?: Record<string, unknown>) => {
-      const raw = metadata?.[CAD_FILES_WRITTEN_KEY];
-      const paths = Array.isArray(raw)
-        ? raw.filter((p): p is string => typeof p === 'string' && p.trim() !== '')
-        : [];
-      if (paths.length === 0) return;
-      const ws =
-        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
-        explorerWorkspaces[0];
-      if (!ws) return;
-      await refreshFileExplorerForPaths(ws.id, paths);
-      setFileExplorerOpen(true);
-    },
-    [activeWorkspaceId, explorerWorkspaces]
-  );
-
-  const handleOpenAtLine = useCallback(
-    async (path: string, line: number) => {
-      const ws =
-        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
-        explorerWorkspaces[0];
-      if (!ws) return;
-      try {
-        const api = new ChatAPI(getHubBaseURL());
-        const content = await api.fetchFileContent(ws.id, path);
-        if (isEditableCsvPath(path)) {
-          openFileInEditor(ws.id, path, content, 'plaintext', { viewMode: 'csv-table' });
-        } else {
-          openFileInEditor(ws.id, path, content, getLanguageFromPath(path));
-        }
-        revealLineInEditor(ws.id, path, line);
-        setCodeEditorOpen(true);
-        setFileExplorerOpen(true);
-      } catch (e) {
-        addToast({
-          type: 'error',
-          title: 'Open symbol',
-          message: e instanceof Error ? e.message : String(e),
-        });
-      }
-    },
-    [
-      activeWorkspaceId,
-      explorerWorkspaces,
-      openFileInEditor,
-      revealLineInEditor,
-      addToast,
-    ]
-  );
 
   const { pendingChanges, fetchPendingChanges } = useFileChangeStore(
     (s) => ({
@@ -538,24 +345,10 @@ export function ChatWindow({
   const [learningProposal, setLearningProposal] = useState<LearningProposalAction | null>(null);
   const [learningProposalOpen, setLearningProposalOpen] = useState(false);
 
-  // State for active collaboration panel
-  const [activeCollab, setActiveCollab] = useState<Collaboration | null>(null);
-  const [runbookBuilderDirty, setRunbookBuilderDirty] = useState(false);
   const [runbookLibraryOpen, setRunbookLibraryOpen] = useState(false);
-  const activeCollabRef = useRef<Collaboration | null>(null);
-  const collaborationsByIDRef = useRef<Record<string, Collaboration>>({});
-  const { handleSuggestedCommands } = useSuggestedCommands({
-    collaborationsByIDRef,
-    addToast,
-  });
   const [taskManagementOpen, setTaskManagementOpen] = useState(false);
   const secondaryAnalysisOpen = useSecondaryAnalysisStore((s) => s.panelOpen);
   const setSecondaryAnalysisOpen = useSecondaryAnalysisStore((s) => s.setPanelOpen);
-  const collaborationsByID = useCollaborationsStore((s) => s.byID);
-  const setCollaborationsByID = useCollaborationsStore((s) => s.setByID);
-  const mergeCollabSnapshot = useCollaborationsStore((s) => s.mergeSnapshot);
-  const [assistantTasks, setAssistantTasks] = useState<AssistantTask[]>([]);
-  const [assistantReminders, setAssistantReminders] = useState<AssistantReminder[]>([]);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [chatFindOpen, setChatFindOpen] = useState(false);
   const [hubAccessPending, setHubAccessPending] = useState<{
@@ -567,16 +360,6 @@ export function ChatWindow({
   } | null>(null);
   const [hubAccessLoading, setHubAccessLoading] = useState(false);
   const [hubAccessError, setHubAccessError] = useState<string | null>(null);
-
-  const isTerminalCollaborationPhase = isTerminalCollabPhaseHelper;
-
-  useEffect(() => {
-    activeCollabRef.current = activeCollab;
-  }, [activeCollab]);
-
-  useEffect(() => {
-    collaborationsByIDRef.current = collaborationsByID;
-  }, [collaborationsByID]);
 
   useEffect(() => {
     void usePacksStore.getState().fetchPacks();
@@ -679,64 +462,9 @@ export function ChatWindow({
     ]
   );
 
-  const [workspaceGateCollab, setWorkspaceGateCollab] = useState<Collaboration | null>(null);
-  const [workspaceGateBusy, setWorkspaceGateBusy] = useState(false);
-  const dismissedWorkspaceGateIdRef = useRef<string | null>(null);
-  const workspaceGateToastIdRef = useRef<string | null>(null);
   const handledRepoWorkspaceActionsRef = useRef<Set<string>>(new Set());
   const handledLearningProposalsRef = useRef<Set<string>>(new Set());
   const handledParticipantRequestPromptsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const activeCh = useChatStore.getState().channel;
-    let next: Collaboration | null = null;
-    for (const c of Object.values(collaborationsByID)) {
-      if (c.phase !== 'executing' || c.workspace_acknowledged) continue;
-      const isWorktree = c.execution_mode === 'worktree';
-      if (!isWorktree && !c.working_directory?.trim()) continue;
-      if (c.channel !== activeCh) continue;
-      if (dismissedWorkspaceGateIdRef.current === c.id) continue;
-      next = c;
-      break;
-    }
-    setWorkspaceGateCollab(next);
-    if (next && workspaceGateToastIdRef.current !== next.id) {
-      workspaceGateToastIdRef.current = next.id;
-      addToast({
-        type: 'info',
-        title: 'Confirm execution workspace',
-        message: 'Agents are paused until you click Continue in the workspace dialog.',
-      });
-    }
-    if (!next) {
-      workspaceGateToastIdRef.current = null;
-    }
-  }, [collaborationsByID, channel, addToast]);
-
-  const channelAwaitingWorkspaceCollab = useMemo(() => {
-    for (const c of Object.values(collaborationsByID)) {
-      if (c.channel !== channel) continue;
-      if (isAwaitingWorkspaceConfirmation(c)) return c;
-    }
-    return null;
-  }, [collaborationsByID, channel]);
-
-  const openWorkspaceGate = useCallback(() => {
-    if (!channelAwaitingWorkspaceCollab) return;
-    dismissedWorkspaceGateIdRef.current = null;
-    setWorkspaceGateCollab(channelAwaitingWorkspaceCollab);
-  }, [channelAwaitingWorkspaceCollab]);
-
-  const openWorkspaceGateForCollab = useCallback((collab: Collaboration) => {
-    if (!isAwaitingWorkspaceConfirmation(collab)) return;
-    dismissedWorkspaceGateIdRef.current = null;
-    setWorkspaceGateCollab(collab);
-  }, []);
-
-  const activeCollabForChannel = useMemo(
-    () => Object.values(collaborationsByID).find((c) => c.channel === channel),
-    [collaborationsByID, channel],
-  );
 
   // Clear stale chat width from localStorage
   useEffect(() => {
@@ -764,238 +492,77 @@ export function ChatWindow({
     }
   }, [useSidebarChips]);
 
-  const api = useMemo(() => new ChatAPI(serverAddr), [serverAddr]);
-  const hubHttp = useMemo(
-    () => (serverAddr.startsWith('http') ? serverAddr : `http://${serverAddr}`),
-    [serverAddr]
-  );
-  const channelNamesKey = useMemo(
-    () =>
-      channels
-        .map((c) => c.name)
-        .slice()
-        .sort()
-        .join('\0'),
-    [channels],
-  );
-  const hubSessionToken = useHubSessionToken();
-  const hubAccessToken = useHubAccessToken();
-  // Debounce slack extra-channel subscriptions so channel list hydration does not thrash the socket.
-  const [stableChannelNamesKey, setStableChannelNamesKey] = useState(channelNamesKey);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setStableChannelNamesKey(channelNamesKey), 800);
-    return () => window.clearTimeout(timer);
-  }, [channelNamesKey]);
+  const {
+    api,
+    hubHttp,
+    hubSessionToken,
+    wsURL,
+    wsOutageToastShownRef,
+    wsConnectedChannelRef,
+    totalAgentsCount,
+    loadAgents,
+    loadCounts,
+    loadChannels,
+  } = useChatWindowHubBootstrap({
+    serverAddr,
+    channel,
+    channels,
+    layoutSettings,
+    loadLayoutSettings,
+    setFileExplorerOpen,
+    setCodeEditorOpen,
+    setPanelOpen,
+    setMyAgentsPanelOpen,
+  });
 
-  // Hub restart wipes in-memory sessions; re-mint if we reached chat without a token.
-  useEffect(() => {
-    if (hubSessionToken) return;
-    const name = useChatStore.getState().username?.trim() || 'Anonymous';
-    void api.createSession(name).catch((err) => {
-      console.error('[ChatWindow] Failed to restore hub session for WebSocket:', err);
-    });
-  }, [api, hubSessionToken]);
+  const {
+    setActiveCollab,
+    setRunbookBuilderDirty,
+    activeCollabRef,
+    collaborationsByIDRef,
+    collaborationsByID,
+    mergeCollaborationSnapshot,
+    clearActiveCollabIf,
+    loadCollaborations,
+    activeCollabForChannel,
+    trackedCollaborations,
+    executingCollaborationForChannel,
+    collaborationForChannel,
+    panelCollaboration,
+    isClosedCollaborationChannel,
+    extendableCollaborations,
+  } = useChatWindowCollaborations({ api, channel, addToast });
 
-  const wsURL = useMemo(() => {
-    const slackExtra = stableChannelNamesKey
-      .split('\0')
-      .filter((name) => name && isSlackHubChannelName(name) && name !== channel);
-    return api.getWebSocketURL(channel, slackExtra);
-  }, [api, channel, stableChannelNamesKey, hubSessionToken, hubAccessToken]);
-  
-  const wsOutageToastShownRef = useRef(false);
-  /** Primary channel from the last successful WS connect — used to skip full reload on channel-only URL changes. */
-  const wsConnectedChannelRef = useRef<string | null>(null);
-  
-  // Load layout settings on mount
-  useEffect(() => {
-    loadLayoutSettings();
-  }, [loadLayoutSettings]);
+  const { handleSuggestedCommands } = useSuggestedCommands({
+    collaborationsByIDRef,
+    addToast,
+  });
 
-  // Apply layout settings when specific panel keys change (not whole object — avoids chat toggle resetting files/editor).
-  useEffect(() => {
-    if (layoutSettings) {
-      setFileExplorerOpen(layoutSettings.filesPanelVisible);
-    }
-  }, [layoutSettings?.filesPanelVisible]);
-
-  useEffect(() => {
-    if (layoutSettings) {
-      setCodeEditorOpen(layoutSettings.editorPanelVisible);
-    }
-  }, [layoutSettings?.editorPanelVisible]);
-
-  useEffect(() => {
-    if (layoutSettings) {
-      setPanelOpen(layoutSettings.terminalPanelVisible);
-    }
-  }, [layoutSettings?.terminalPanelVisible, setPanelOpen]);
-
-  useEffect(() => {
-    if (layoutSettings) {
-      setMyAgentsPanelOpen(layoutSettings.myAgentsPanelVisible);
-    }
-  }, [layoutSettings?.myAgentsPanelVisible, setMyAgentsPanelOpen]);
-
-  // Load agents function
-  const loadAgents = useCallback(async () => {
-    try {
-      await loadAgentsFromHub(api);
-    } catch (error) {
-      console.error('Failed to load agents:', error);
-    }
-  }, [api]);
-
-  // Load counts for badges
-  const loadCounts = useCallback(async () => {
-    try {
-      const [myAgents, removedAgents] = await Promise.all([
-        api.fetchMyAgents(),
-        api.fetchRemovedAgents()
-      ]);
-      setTotalAgentsCount(myAgents.length + removedAgents.length);
-    } catch (error) {
-      console.error('Failed to load counts:', error);
-    }
-  }, [api]);
-
-  // Load channels
-  const loadChannels = useCallback(async () => {
-    try {
-      return await loadChannelsFromHub(api);
-    } catch (error) {
-      console.error('Failed to load channels:', error);
-      return null;
-    }
-  }, [api]);
-
-  // Pick up new Slack inbox peer channels for background WS watch.
-  useEffect(() => {
-    void loadChannels();
-    const onSlackInboxUpdated = () => void loadChannels();
-    const onRoomChannelsUpdated = () => void loadChannels();
-    window.addEventListener('nj-slack-inbox-updated', onSlackInboxUpdated);
-    window.addEventListener('nj-room-channels-updated', onRoomChannelsUpdated);
-    const id = window.setInterval(() => void loadChannels(), 5_000);
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener('nj-slack-inbox-updated', onSlackInboxUpdated);
-      window.removeEventListener('nj-room-channels-updated', onRoomChannelsUpdated);
-    };
-  }, [loadChannels]);
-
-  const pruneTerminalCollaborations = (
-    next: Record<string, Collaboration>,
-    channelName: string
-  ): Record<string, Collaboration> => {
-    const terminals = Object.values(next)
-      .filter(
-        c =>
-          isTerminalCollaborationPhase(c.phase) &&
-          (c.channel || '') === channelName
-      )
-      .sort(
-        (a, b) => Date.parse(b.updated_at || '') - Date.parse(a.updated_at || '')
-      );
-    if (terminals.length <= 3) return next;
-    const drop = new Set(terminals.slice(3).map(c => c.id));
-    const pruned = { ...next };
-    for (const id of drop) {
-      delete pruned[id];
-    }
-    return pruned;
-  };
-
-  const mergeCollaborationSnapshot = useCallback((snapshot: Collaboration) => {
-    if (!snapshot?.id) return;
-    const prevSnap = collaborationsByIDSnapshot()[snapshot.id];
-    const isTerminal = isTerminalCollaborationPhase(snapshot.phase);
-    const wasTerminal = prevSnap && isTerminalCollaborationPhase(prevSnap.phase);
-
-    mergeCollabSnapshot(snapshot, pruneTerminalCollaborations);
-
-    if (isTerminal && !wasTerminal) {
-      const completed =
-        snapshot.tasks?.filter(t => t.status === 'completed').length ?? 0;
-      const total = snapshot.tasks?.length ?? 0;
-      addToast({
-        type: 'success',
-        title: 'Collaboration completed',
-        message:
-          total > 0
-            ? `${snapshot.title || 'Collaboration'} — ${completed}/${total} tasks done.`
-            : `${snapshot.title || 'Collaboration'} is closed.`,
-      });
-    }
-
-    setActiveCollab(current => (current?.id === snapshot.id ? snapshot : current));
-
-    const ch = snapshot.channel || useChatStore.getState().channel;
-    if (ch && !isTerminal) {
-      if (snapshot.phase === 'reviewing') {
-        useChatStore.getState().clearThinkingAgents(ch);
-      } else {
-        syncCollabTurnThinking(snapshot, ch);
-      }
-    }
-  }, [addToast, mergeCollabSnapshot]);
-
-  const clearActiveCollabIf = useCallback((collaborationID: string) => {
-    setActiveCollab(current => (current?.id === collaborationID ? null : current));
-  }, []);
-
-  const loadCollaborations = useCallback(async (targetChannel: string) => {
-    try {
-      const includeTerminal = targetChannel.startsWith('collab-');
-      const snapshots = await api.fetchCollaborations(undefined, includeTerminal);
-      setCollaborationsByID((prev) => {
-        const next: Record<string, Collaboration> = {};
-        for (const snapshot of snapshots) {
-          if (!snapshot?.id) continue;
-          if (isTerminalCollaborationPhase(snapshot.phase)) {
-            if (includeTerminal && snapshot.channel === targetChannel) {
-              next[snapshot.id] = snapshot;
-            }
-            continue;
-          }
-          next[snapshot.id] = snapshot;
-        }
-        // Keep channel snapshots when hub list is briefly stale (e.g. right after /runbook redirect).
-        for (const existing of Object.values(prev)) {
-          if (!existing?.id || next[existing.id]) continue;
-          if (existing.channel !== targetChannel) continue;
-          if (!isNonTerminalCollaborationPhase(existing.phase)) continue;
-          next[existing.id] = existing;
-        }
-        if (includeTerminal) {
-          return pruneTerminalCollaborations(next, targetChannel);
-        }
-        return next;
-      });
-      // Prefer the store map just updated above — collaborationsByIDRef lags one effect tick.
-      // Keep the last good snapshot when the hub list briefly omits the active collab.
-      setActiveCollab(current => {
-        if (!current || current.channel !== targetChannel) return current;
-        const refreshed = snapshots.find(snapshot => snapshot.id === current.id);
-        if (refreshed) return refreshed;
-        const cached =
-          collaborationsByIDSnapshot()[current.id] ??
-          collaborationsByIDRef.current[current.id];
-        if (cached && cached.channel === targetChannel) return cached;
-        return current;
-      });
-    } catch (error) {
-      console.error('Failed to load collaborations:', error);
-      addToast({
-        type: 'error',
-        title: 'Could not load collaborations',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Failed to refresh collaboration snapshots. Try again or check hub connectivity.',
-      });
-    }
-  }, [addToast, api]);
+  const {
+    activeWorkspaceId,
+    explorerWorkspaces,
+    resolveScopedRepoPaths,
+    handleQuickOpenPath,
+    handleImplementationSessionComplete,
+    handleCADFilesWritten,
+    handleOpenAtLine,
+    workspaceGateCollab,
+    setWorkspaceGateCollab,
+    workspaceGateBusy,
+    setWorkspaceGateBusy,
+    dismissedWorkspaceGateIdRef,
+    workspaceGateToastIdRef,
+    channelAwaitingWorkspaceCollab,
+    openWorkspaceGate,
+    openWorkspaceGateForCollab,
+  } = useChatWindowWorkspaceActions({
+    channel,
+    username,
+    collaborationsByID,
+    addToast,
+    setCodeEditorOpen,
+    setFileExplorerOpen,
+  });
 
   const {
     handleWorkspaceGateContinue,
@@ -1038,29 +605,21 @@ export function ChatWindow({
     addToast,
   });
 
-  const trackedCollaborations = useMemo(
-    () =>
-      Object.values(collaborationsByID).sort(
-        (a, b) => Date.parse(b.updated_at || '') - Date.parse(a.updated_at || '')
-      ),
-    [collaborationsByID]
-  );
-
-  const executingCollaborationForChannel = useMemo(
-    () =>
-      trackedCollaborations.find(c => c.channel === channel && c.phase === 'executing') ?? null,
-    [trackedCollaborations, channel]
-  );
-
-  const collaborationForChannel = useMemo(
-    () => trackedCollaborations.find(c => c.channel === channel) ?? null,
-    [trackedCollaborations, channel]
-  );
-
-  const panelCollaboration = useMemo(
-    () => resolvePanelCollaboration(activeCollab, collaborationsByID),
-    [activeCollab, collaborationsByID]
-  );
+  const { assistantTasks, setAssistantTasks, setAssistantReminders, taskPanelProps } =
+    useChatWindowTaskPanel({
+      api,
+      channel,
+      username,
+      taskManagementOpen,
+      setTaskManagementOpen,
+      trackedCollaborations,
+      collaborationsByIDRef,
+      loadCollaborations,
+      handleSwitchChannel,
+      setActiveCollab,
+      clearActiveCollabIf,
+      addToast,
+    });
 
   useEffect(() => {
     mainChatVisibilityRef.current = {
@@ -1091,22 +650,6 @@ export function ChatWindow({
     panelCollaboration,
     taskManagementOpen,
   ]);
-
-  const isClosedCollaborationChannel = Boolean(
-    collaborationForChannel && isTerminalCollaborationPhase(collaborationForChannel.phase)
-  );
-
-  const extendableCollaborations = useMemo(
-    () =>
-      trackedCollaborations.filter(
-        (c) =>
-          (c.phase === 'planning' || c.phase === 'reviewing') &&
-          (c.discussion?.status === 'budget_exhausted' ||
-            c.discussion?.status === 'timed_out' ||
-            c.discussion?.status === 'active')
-      ),
-    [trackedCollaborations]
-  );
 
   const {
     surfaceSlackInboundNotification,
@@ -1581,47 +1124,6 @@ export function ChatWindow({
     }
   };
 
-  const loadAssistantState = useCallback(async () => {
-    try {
-      const state = await api.fetchAssistantState(channel);
-      setAssistantTasks(state.tasks || []);
-      setAssistantReminders(state.reminders || []);
-    } catch (error) {
-      console.error('Failed to load assistant state:', error);
-    }
-  }, [api, channel]);
-
-  useEffect(() => {
-    if (!taskManagementOpen) return;
-    void loadCollaborations(channel);
-    loadAssistantState();
-    const id = window.setInterval(loadAssistantState, 30000);
-    return () => window.clearInterval(id);
-  }, [taskManagementOpen, loadAssistantState, loadCollaborations, channel]);
-
-  // Hub phase changes are not always re-broadcast on every message; poll while panel is open.
-  useEffect(() => {
-    if (!activeCollab?.id) return;
-    const targetChannel = activeCollab.channel?.trim() || channel;
-    const tick = () => {
-      if (
-        runbookBuilderDirty &&
-        activeCollab.source === 'runbook' &&
-        (activeCollab.phase === 'draft' || activeCollab.phase === 'reviewing')
-      ) {
-        return;
-      }
-      const latest = collaborationsByIDRef.current[activeCollab.id];
-      if (!latest || !isNonTerminalCollaborationPhase(latest.phase)) {
-        return;
-      }
-      void loadCollaborations(targetChannel);
-    };
-    tick();
-    const id = window.setInterval(tick, 10_000);
-    return () => window.clearInterval(id);
-  }, [activeCollab?.id, activeCollab?.channel, activeCollab?.phase, activeCollab?.source, channel, loadCollaborations, runbookBuilderDirty]);
-
   const toggleToolbarSidebar = useCallback(() => {
     setToolbarSidebarOpen((prev) => {
       const next = !prev;
@@ -2033,115 +1535,7 @@ export function ChatWindow({
           <LazyPanelShell
             panelName="Tasks"
             Component={LazyTaskManagementPanel}
-            props={{
-            collaborations: trackedCollaborations,
-            assistantTasks,
-            assistantReminders,
-            onClose: () => setTaskManagementOpen(false),
-            onOpenCollaboration: async (collab) => {
-              if (collab.channel && collab.channel !== channel) {
-                try {
-                  await handleSwitchChannel(collab.channel);
-                } catch (e) {
-                  console.error('[TaskPanel] failed to switch to collaboration channel:', e);
-                }
-              }
-              setActiveCollab(collab);
-              setTaskManagementOpen(false);
-            },
-            onAssistantTaskDone: async (taskID) => {
-              const previousTasks = assistantTasks;
-              const targetTask = previousTasks.find(task => task.id === taskID);
-              setAssistantTasks(prev =>
-                prev.map(task => (task.id === taskID ? { ...task, status: 'done' } : task))
-              );
-              try {
-                await api.markAssistantTaskDone(taskID);
-                addToast({
-                  type: 'success',
-                  title: 'Task marked done',
-                  message: targetTask ? `"${targetTask.title}" moved to done.` : 'Assistant task moved to done.',
-                });
-                void loadAssistantState();
-              } catch (error) {
-                console.error('Failed to mark assistant task done:', error);
-                setAssistantTasks(previousTasks);
-                addToast({
-                  type: 'error',
-                  title: 'Task update failed',
-                  message: error instanceof Error ? error.message : 'Failed to mark assistant task done.',
-                });
-              }
-            },
-            onAssistantReminderDismiss: async (reminderID) => {
-              const previousReminders = assistantReminders;
-              const targetReminder = previousReminders.find(reminder => reminder.id === reminderID);
-              setAssistantReminders(prev => prev.filter(reminder => reminder.id !== reminderID));
-              try {
-                await api.dismissAssistantReminder(reminderID);
-                addToast({
-                  type: 'success',
-                  title: 'Reminder dismissed',
-                  message: targetReminder ? `"${targetReminder.content}" dismissed.` : 'Assistant reminder dismissed.',
-                });
-                void loadAssistantState();
-              } catch (error) {
-                console.error('Failed to dismiss assistant reminder:', error);
-                setAssistantReminders(previousReminders);
-                addToast({
-                  type: 'error',
-                  title: 'Reminder dismiss failed',
-                  message: error instanceof Error ? error.message : 'Failed to dismiss assistant reminder.',
-                });
-              }
-            },
-            onCollaborationCommand: async (command, collaborationID, feedbackText, taskIndex) => {
-              const from = { name: username || 'User', type: 'human' };
-              const shortID = collaborationID.slice(0, 8);
-              const collab =
-                collaborationsByIDRef.current[collaborationID] ??
-                trackedCollaborations.find(c => c.id === collaborationID);
-              const targetChannel = collab?.channel?.trim() || channel;
-              let content = '';
-              if (command === 'approve') {
-                content = `/resume-plan ${shortID}`;
-              } else if (command === 'revise') {
-                const trimmed = (feedbackText || '').trim();
-                if (!trimmed) {
-                  throw new Error('Revision feedback is required.');
-                }
-                content = `/revise-plan ${shortID} ${trimmed}`;
-              } else if (command === 'complete') {
-                const open = collab?.tasks?.filter(t => t.status !== 'completed') ?? [];
-                content = `/complete-collab ${shortID}${open.length > 0 ? ' --force' : ''}`;
-              } else if (command === 'task-done') {
-                if (taskIndex == null || taskIndex < 0) {
-                  throw new Error('Task index is required.');
-                }
-                content = `/collab-task-done ${shortID} ${taskIndex + 1}`;
-              } else {
-                content = `/cancel-plan ${shortID}`;
-              }
-              try {
-                if (targetChannel !== channel) {
-                  await handleSwitchChannel(targetChannel);
-                }
-                await api.sendMessage(targetChannel, content, from);
-                await loadCollaborations(targetChannel);
-                if (command === 'cancel') {
-                  clearActiveCollabIf(collaborationID);
-                  setTaskManagementOpen(false);
-                }
-              } catch (e) {
-                addToast({
-                  type: 'error',
-                  title: 'Collaboration command failed',
-                  message: e instanceof Error ? e.message : 'Request failed.',
-                });
-                throw e;
-              }
-            },
-            }}
+            props={taskPanelProps}
           />
         )}
 

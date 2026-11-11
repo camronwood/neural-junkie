@@ -5,19 +5,18 @@ mod command_security;
 mod credentials;
 mod path_security;
 mod pty;
+mod browser;
+mod pack_fs;
+mod ollama;
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use tauri::path::BaseDirectory;
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::{
     process::{CommandChild as ShellCommandChild, CommandEvent},
     ShellExt,
@@ -37,9 +36,9 @@ struct CommandResult {
 // PTY commands live in pty.rs
 
 /// Paths returned by native pack directory / zip pickers (outside Tauri fs allowlist).
-type PackPathAllowlist = Arc<Mutex<HashSet<String>>>;
+pub(crate) type PackPathAllowlist = Arc<Mutex<HashSet<String>>>;
 
-fn allowlist_insert(allowlist: &PackPathAllowlist, path: &str) -> Result<(), String> {
+pub(crate) fn allowlist_insert(allowlist: &PackPathAllowlist, path: &str) -> Result<(), String> {
     let abs = path_security::canonicalize_for_allowlist(path)?;
     allowlist
         .lock()
@@ -48,7 +47,7 @@ fn allowlist_insert(allowlist: &PackPathAllowlist, path: &str) -> Result<(), Str
     Ok(())
 }
 
-fn path_allowed(
+pub(crate) fn path_allowed(
     roots: &[String],
     allowlist: &PackPathAllowlist,
     candidate: &str,
@@ -127,210 +126,7 @@ async fn execute_command(
     Ok(result)
 }
 
-#[tauri::command]
-async fn open_browser_window(url: String, app_handle: tauri::AppHandle) -> Result<(), String> {
-    // Never render arbitrary pages inside Neural Junkie.
-    // In-app HTML preview belongs to the web-browser pack workbench only.
-    // Always hand off to the OS default browser — http(s) only.
-    let trimmed = url.trim();
-    if trimmed.is_empty() {
-        return Err("empty URL".to_string());
-    }
-    let lower = trimmed.to_ascii_lowercase();
-    if !(lower.starts_with("http://") || lower.starts_with("https://")) {
-        return Err("only http(s) URLs are allowed".to_string());
-    }
-    app_handle
-        .opener()
-        .open_url(trimmed, None::<&str>)
-        .map_err(|e| format!("Failed to open URL in system browser: {}", e))?;
-    Ok(())
-}
-
-#[tauri::command]
-async fn close_browser_window(app_handle: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app_handle.get_webview_window("browser-popout") {
-        window
-            .close()
-            .map_err(|e| format!("Failed to close browser window: {}", e))?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-async fn capture_browser_screenshot(app_handle: tauri::AppHandle) -> Result<String, String> {
-    // Tauri does not expose a built-in cross-platform screenshot API here.
-    // We'll use JavaScript to capture the page content as an image
-
-    if let Some(window) = app_handle.get_webview_window("embedded-browser") {
-        // Use JavaScript to capture the page
-        let js_code = r#"
-            (async function() {
-                try {
-                    // Use html2canvas if available, otherwise return a data URL with page info
-                    const canvas = document.createElement('canvas');
-                    canvas.width = document.documentElement.scrollWidth;
-                    canvas.height = document.documentElement.scrollHeight;
-                    const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = 'black';
-                    ctx.font = '16px Arial';
-                    ctx.fillText('Screenshot: ' + window.location.href, 20, 50);
-                    ctx.fillText('Captured at: ' + new Date().toISOString(), 20, 80);
-                    return canvas.toDataURL('image/png');
-                } catch (e) {
-                    return 'error:' + e.message;
-                }
-            })();
-        "#;
-
-        match window.eval(js_code) {
-            Ok(_) => {
-                // For now, return a simple data URL indicating screenshot functionality
-                // In production, you'd need to integrate a proper screenshot library
-                Ok("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==".to_string())
-            }
-            Err(e) => Err(format!("Failed to execute screenshot script: {}", e)),
-        }
-    } else if let Some(_popout_window) = app_handle.get_webview_window("browser-popout") {
-        // Same approach for pop-out window
-        Ok("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==".to_string())
-    } else {
-        Err("No browser window available for screenshot".to_string())
-    }
-}
-
-#[tauri::command]
-async fn navigate_browser(url: String, app_handle: tauri::AppHandle) -> Result<(), String> {
-    // This would communicate with the browser window to navigate to the URL
-    // For now, just emit an event that the frontend can listen to
-    app_handle
-        .emit("browser-navigate", &url)
-        .map_err(|e| format!("Failed to emit navigation event: {}", e))?;
-    Ok(())
-}
-
-#[tauri::command]
-async fn create_embedded_browser(
-    url: String,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    // Destroy existing embedded browser if it exists and wait for it to close
-    // This prevents duplicate windows
-    if let Some(window) = app_handle.get_webview_window("embedded-browser") {
-        let _ = window.close();
-        // Give a small delay to ensure the window is fully destroyed
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    }
-
-    // Double-check that window doesn't exist
-    if app_handle.get_webview_window("embedded-browser").is_some() {
-        return Err("Previous browser window still exists".to_string());
-    }
-
-    // Create new browser window positioned over the panel
-    let _window = WebviewWindowBuilder::new(
-        &app_handle,
-        "embedded-browser",
-        WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?),
-    )
-    .title("Embedded Browser")
-    .inner_size(width, height)
-    .position(x, y)
-    .resizable(false)
-    .decorations(false)
-    .always_on_top(false)
-    .skip_taskbar(true)
-    .focused(false) // Don't automatically focus the window
-    .build()
-    .map_err(|e| format!("Failed to create embedded browser: {}", e))?;
-
-    // Explicitly ensure window doesn't have focus
-    // On macOS, we need to handle focus more carefully
-    #[cfg(target_os = "macos")]
-    {
-        // Try to keep main window in front - this is best effort on macOS
-        // Get all windows and find the primary one (not embedded-browser)
-        let windows = app_handle.webview_windows();
-        for (label, _) in windows {
-            if label != "embedded-browser" {
-                if let Some(main_window) = app_handle.get_webview_window(label.as_str()) {
-                    let _ = main_window.set_focus();
-                    break;
-                }
-            }
-        }
-    }
-
-    // Emit event that browser is ready
-    app_handle
-        .emit("browser-ready", &url)
-        .map_err(|e| format!("Failed to emit browser ready event: {}", e))?;
-
-    // The frontend owns page-load state for this secondary webview.
-    // The frontend will handle page load state management
-
-    Ok(())
-}
-
-#[tauri::command]
-async fn update_browser_position(
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    if let Some(window) = app_handle.get_webview_window("embedded-browser") {
-        window
-            .set_position(tauri::LogicalPosition::new(x, y))
-            .map_err(|e| format!("Failed to update browser position: {}", e))?;
-        window
-            .set_size(tauri::LogicalSize::new(width, height))
-            .map_err(|e| format!("Failed to update browser size: {}", e))?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-async fn navigate_embedded_browser(
-    url: String,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    if let Some(_window) = app_handle.get_webview_window("embedded-browser") {
-        // Destroy the existing browser and create a new one with the new URL
-        // This is more reliable than using eval() and provides proper navigation state
-        let _ = destroy_embedded_browser(app_handle.clone()).await;
-
-        // Emit navigation start event
-        app_handle
-            .emit("browser-navigation-start", &url)
-            .map_err(|e| format!("Failed to emit navigation event: {}", e))?;
-
-        // Note: The frontend will need to call create_embedded_browser with the new URL
-        // This approach gives us better control over the navigation lifecycle
-        Ok(())
-    } else {
-        Err("No embedded browser window found".to_string())
-    }
-}
-
-#[tauri::command]
-async fn destroy_embedded_browser(app_handle: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app_handle.get_webview_window("embedded-browser") {
-        window
-            .close()
-            .map_err(|e| format!("Failed to close embedded browser: {}", e))?;
-        // Wait a moment to ensure window is fully closed
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    }
-    Ok(())
-}
+// browser commands live in browser.rs
 
 const MAX_ATTACH_BYTES: usize = 80_000;
 const MAX_ATTACH_COUNT: usize = 12;
@@ -416,319 +212,11 @@ struct PromptAttachmentRead {
     content: String,
 }
 
-const MAX_PACK_ZIP_BYTES: usize = 10 << 20; // 10 MiB — matches hub internal/packs
-
-#[derive(Debug, Serialize, Deserialize)]
-struct PackScaffoldRequest {
-    output_dir: String,
-    id: String,
-    version: String,
-    title: String,
-    description: Option<String>,
-    publisher: Option<String>,
-    requires_packs: Vec<String>,
-    capabilities: Vec<String>,
-    settings_overlay: std::collections::HashMap<String, String>,
-    workspace_guide: Option<String>,
-    runbooks_glob: Option<String>,
-    /// Optional sidebar chip label (max 3 characters).
-    toolbar_chip_label: Option<String>,
-    /// Optional pack-relative icon path (e.g. assets/icons/chip.png).
-    toolbar_chip_icon: Option<String>,
-}
 
 /// Register an absolute path from a native file/folder picker (pack dev / custom install).
 /// Path is canonicalized; `..` escapes are rejected.
-#[tauri::command]
-fn register_pack_path(path: String, app_handle: tauri::AppHandle) -> Result<(), String> {
-    let trimmed = path.trim();
-    if trimmed.is_empty() {
-        return Err("empty path".into());
-    }
-    let allowlist = app_handle.state::<PackPathAllowlist>();
-    allowlist_insert(allowlist.inner(), trimmed)?;
-    Ok(())
-}
+// pack_fs commands live in pack_fs.rs
 
-/// Pick a pack directory via native folder dialog.
-#[tauri::command]
-fn pick_pack_directory(
-    title: Option<String>,
-    app_handle: tauri::AppHandle,
-) -> Result<Option<String>, String> {
-    let mut builder = app_handle.dialog().file();
-    if let Some(t) = title {
-        builder = builder.set_title(&t);
-    }
-    let picked = builder
-        .blocking_pick_folder()
-        .and_then(|p| p.into_path().ok())
-        .map(|p| p.to_string_lossy().into_owned());
-    if let Some(ref path) = picked {
-        let allowlist = app_handle.state::<PackPathAllowlist>();
-        allowlist_insert(allowlist.inner(), path)?;
-    }
-    Ok(picked)
-}
-
-/// Create scaffold pack.yaml and starter assets in output_dir.
-#[tauri::command]
-fn write_pack_scaffold(
-    req: PackScaffoldRequest,
-    allowed_roots: Vec<String>,
-    app_handle: tauri::AppHandle,
-) -> Result<String, String> {
-    let allowlist = app_handle.state::<PackPathAllowlist>();
-    path_allowed(&allowed_roots, allowlist.inner(), &req.output_dir)?;
-    let output_dir = req.output_dir.trim();
-    if output_dir.is_empty() {
-        return Err("output_dir required".into());
-    }
-    let id = req.id.trim();
-    if id.is_empty() {
-        return Err("id required".into());
-    }
-    let title = req.title.trim();
-    if title.is_empty() {
-        return Err("title required".into());
-    }
-    std::fs::create_dir_all(output_dir).map_err(|e| format!("create output dir: {}", e))?;
-    let assets_dir = format!("{}/assets", output_dir);
-    std::fs::create_dir_all(&assets_dir).map_err(|e| format!("create assets dir: {}", e))?;
-    let runbooks_dir = format!("{}/assets/runbooks", output_dir);
-    let _ = std::fs::create_dir_all(&runbooks_dir);
-
-    let workspace_guide = req
-        .workspace_guide
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "assets/WORKSPACE.md".to_string());
-    let guide_path = format!("{}/{}", output_dir, workspace_guide);
-    if let Some(parent) = std::path::Path::new(&guide_path).parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("create guide parent: {}", e))?;
-    }
-    if !std::path::Path::new(&guide_path).exists() {
-        let guide_body = format!(
-            "# {}\n\nWorkspace guide for the **{}** custom pack.\n\n## Layout\n\nDescribe expected folders and data layout here.\n",
-            title, id
-        );
-        std::fs::write(&guide_path, guide_body)
-            .map_err(|e| format!("write workspace guide: {}", e))?;
-    }
-
-    let mut caps: Vec<String> = req.capabilities;
-    if !caps.iter().any(|c| c == "customer-pack") {
-        caps.insert(0, "customer-pack".to_string());
-    }
-    let chip_label = req
-        .toolbar_chip_label
-        .as_ref()
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty());
-    let chip_icon = req
-        .toolbar_chip_icon
-        .as_ref()
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty());
-    let include_toolbar_chip = chip_label.is_some() || chip_icon.is_some();
-    if include_toolbar_chip && !caps.iter().any(|c| c == "pack-toolbar") {
-        caps.push("pack-toolbar".to_string());
-    }
-    let mut yaml = String::new();
-    yaml.push_str(&format!("id: {}\n", id));
-    yaml.push_str(&format!("version: \"{}\"\n", req.version.trim()));
-    yaml.push_str(&format!("title: {}\n", title));
-    if let Some(desc) = req.description.filter(|s| !s.trim().is_empty()) {
-        yaml.push_str(&format!("description: >-\n  {}\n", desc.trim()));
-    }
-    if let Some(pub_name) = req.publisher.filter(|s| !s.trim().is_empty()) {
-        yaml.push_str(&format!("publisher: {}\n", pub_name.trim()));
-    }
-    yaml.push_str("pack_kind: customer\n");
-    yaml.push_str("layout_profile: team\n");
-    yaml.push_str("capabilities:\n");
-    for c in &caps {
-        yaml.push_str(&format!("  - {}\n", c));
-    }
-    if include_toolbar_chip {
-        yaml.push_str("capability_defs:\n");
-        yaml.push_str("  pack-toolbar:\n");
-        yaml.push_str("    kind: toolbar-chip\n");
-        yaml.push_str("    ui:\n");
-        yaml.push_str("      toolbar:\n");
-        yaml.push_str(&format!("        id: {}-chip\n", id));
-        if let Some(label) = chip_label {
-            let short: String = label.chars().take(3).collect();
-            yaml.push_str(&format!("        label: {}\n", short));
-        }
-        if let Some(icon) = chip_icon {
-            yaml.push_str(&format!("        icon: {}\n", icon));
-        }
-    }
-    if !req.requires_packs.is_empty() {
-        yaml.push_str("requires_packs:\n");
-        for p in &req.requires_packs {
-            let p = p.trim();
-            if !p.is_empty() {
-                yaml.push_str(&format!("  - {}\n", p));
-            }
-        }
-    }
-    if !req.settings_overlay.is_empty() {
-        yaml.push_str("settings_overlay:\n");
-        for (k, v) in &req.settings_overlay {
-            yaml.push_str(&format!("  {}: {}\n", k, v));
-        }
-    }
-    yaml.push_str("assets:\n");
-    yaml.push_str(&format!("  workspace_guide: {}\n", workspace_guide));
-    if let Some(glob) = req.runbooks_glob.filter(|s| !s.trim().is_empty()) {
-        yaml.push_str(&format!("  runbooks_glob: {}\n", glob.trim()));
-    }
-
-    let manifest_path = format!("{}/pack.yaml", output_dir);
-    std::fs::write(&manifest_path, &yaml).map_err(|e| format!("write pack.yaml: {}", e))?;
-    Ok(yaml)
-}
-
-/// Read pack.yaml from an absolute pack directory.
-#[tauri::command]
-fn read_pack_yaml_from_dir(
-    absolute_dir: String,
-    allowed_roots: Vec<String>,
-    app_handle: tauri::AppHandle,
-) -> Result<String, String> {
-    let allowlist = app_handle.state::<PackPathAllowlist>();
-    path_allowed(&allowed_roots, allowlist.inner(), &absolute_dir)?;
-    let dir = absolute_dir.trim();
-    if dir.is_empty() {
-        return Err("empty directory".into());
-    }
-    let path = format!("{}/pack.yaml", dir);
-    std::fs::read_to_string(&path).map_err(|e| format!("read {}: {}", path, e))
-}
-
-/// Write pack.yaml to an absolute pack directory.
-#[tauri::command]
-fn write_pack_yaml_to_dir(
-    absolute_dir: String,
-    yaml: String,
-    allowed_roots: Vec<String>,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    let allowlist = app_handle.state::<PackPathAllowlist>();
-    path_allowed(&allowed_roots, allowlist.inner(), &absolute_dir)?;
-    let dir = absolute_dir.trim();
-    if dir.is_empty() {
-        return Err("empty directory".into());
-    }
-    if yaml.trim().is_empty() {
-        return Err("yaml content required".into());
-    }
-    let path = format!("{}/pack.yaml", dir);
-    std::fs::write(&path, yaml).map_err(|e| format!("write {}: {}", path, e))
-}
-
-/// Zip a pack directory for release testing; returns base64 payload.
-#[tauri::command]
-fn zip_pack_directory(
-    absolute_dir: String,
-    allowed_roots: Vec<String>,
-    app_handle: tauri::AppHandle,
-) -> Result<String, String> {
-    let allowlist = app_handle.state::<PackPathAllowlist>();
-    path_allowed(&allowed_roots, allowlist.inner(), &absolute_dir)?;
-    use std::fs::File;
-    use std::io::Write;
-    use zip::write::SimpleFileOptions;
-    use zip::ZipWriter;
-
-    let dir = absolute_dir.trim();
-    if dir.is_empty() {
-        return Err("empty directory".into());
-    }
-    let manifest = format!("{}/pack.yaml", dir);
-    if !std::path::Path::new(&manifest).exists() {
-        return Err(format!("pack.yaml not found in {}", dir));
-    }
-    let tmp = std::env::temp_dir().join(format!("nj-pack-{}.zip", uuid::Uuid::new_v4()));
-    let file = File::create(&tmp).map_err(|e| format!("create zip: {}", e))?;
-    let mut zip = ZipWriter::new(file);
-    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-    let dir_path = std::path::Path::new(dir);
-    for entry in walkdir_for_pack(dir_path)? {
-        let rel = entry
-            .strip_prefix(dir_path)
-            .map_err(|e| e.to_string())?
-            .to_string_lossy()
-            .replace('\\', "/");
-        if entry.is_dir() {
-            continue;
-        }
-        zip.start_file(rel, options)
-            .map_err(|e| format!("zip start file: {}", e))?;
-        let data = std::fs::read(&entry).map_err(|e| format!("read {}: {}", entry.display(), e))?;
-        zip.write_all(&data)
-            .map_err(|e| format!("zip write: {}", e))?;
-    }
-    zip.finish().map_err(|e| format!("zip finish: {}", e))?;
-    let data = std::fs::read(&tmp).map_err(|e| format!("read zip: {}", e))?;
-    let _ = std::fs::remove_file(&tmp);
-    if data.len() > MAX_PACK_ZIP_BYTES {
-        return Err(format!("pack zip exceeds {} bytes", MAX_PACK_ZIP_BYTES));
-    }
-    Ok(base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        data,
-    ))
-}
-
-fn walkdir_for_pack(root: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {
-    let mut out = Vec::new();
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let entries =
-            std::fs::read_dir(&dir).map_err(|e| format!("read dir {}: {}", dir.display(), e))?;
-        for entry in entries {
-            let entry = entry.map_err(|e| e.to_string())?;
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else {
-                out.push(path);
-            }
-        }
-    }
-    Ok(out)
-}
-
-/// Read a custom pack zip as base64 (dialog paths are outside Tauri fs allowlist).
-#[tauri::command]
-fn read_pack_zip_base64(
-    absolute_path: String,
-    allowed_roots: Vec<String>,
-    app_handle: tauri::AppHandle,
-) -> Result<String, String> {
-    let allowlist = app_handle.state::<PackPathAllowlist>();
-    path_allowed(&allowed_roots, allowlist.inner(), &absolute_path)?;
-    let path = absolute_path.trim();
-    if path.is_empty() {
-        return Err("empty path".into());
-    }
-    let meta = std::fs::metadata(path).map_err(|e| format!("{}: {}", path, e))?;
-    if !meta.is_file() {
-        return Err(format!("not a file: {}", path));
-    }
-    if meta.len() as usize > MAX_PACK_ZIP_BYTES {
-        return Err(format!("pack zip exceeds {} bytes", MAX_PACK_ZIP_BYTES));
-    }
-    let data = std::fs::read(path).map_err(|e| format!("read {}: {}", path, e))?;
-    Ok(base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        data,
-    ))
-}
-
-/// Read text files from absolute paths for chat prompt attachments (drag-and-drop from Finder).
 #[tauri::command]
 async fn read_prompt_attachment_paths(
     paths: Vec<String>,
@@ -929,7 +417,6 @@ async fn open_markdown_preview(
 use std::sync::atomic::{AtomicBool, Ordering};
 
 type SidecarChild = Arc<Mutex<Option<ShellCommandChild>>>;
-type OllamaChild = Arc<Mutex<Option<std::process::Child>>>;
 
 static SIDECAR_READY: AtomicBool = AtomicBool::new(false);
 static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
@@ -938,152 +425,10 @@ pub(crate) fn app_is_shutting_down() -> bool {
     SHUTTING_DOWN.load(Ordering::SeqCst)
 }
 
-fn target_triple() -> &'static str {
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    return "aarch64-apple-darwin";
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    return "x86_64-apple-darwin";
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    return "x86_64-unknown-linux-gnu";
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    return "x86_64-pc-windows-msvc";
-    #[allow(unreachable_code)]
-    "unknown"
-}
-
-fn bundled_ollama_runtime_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
-    let triple = target_triple();
-    // Prefer user-updated runtime (~/.neural-junkie/ollama-runtime/{triple}) over app resources.
-    let user_runtime = default_home()
-        .join(".neural-junkie")
-        .join("ollama-runtime")
-        .join(&triple);
-    if bundled_ollama_binary(&user_runtime).exists() {
-        return Some(user_runtime);
-    }
-
-    let rel = format!("ollama/{}", triple);
-    if let Ok(p) = app.path().resolve(&rel, BaseDirectory::Resource) {
-        if bundled_ollama_binary(&p).exists() {
-            return Some(p);
-        }
-    }
-    // Dev (`tauri dev`): fetch-ollama lays out under src-tauri/ollama/{triple}
-    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&rel);
-    if bundled_ollama_binary(&dev).exists() {
-        return Some(dev);
-    }
-    None
-}
-
-fn bundled_ollama_binary(runtime_dir: &std::path::Path) -> PathBuf {
-    #[cfg(target_os = "windows")]
-    {
-        return runtime_dir.join("ollama.exe");
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let nested = runtime_dir.join("bin").join("ollama");
-        if nested.exists() {
-            return nested;
-        }
-        runtime_dir.join("ollama")
-    }
-}
-
-fn system_ollama_on_path() -> bool {
-    std::process::Command::new("ollama")
-        .arg("--version")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
-
-fn isolated_ollama_models_dir(app: &tauri::AppHandle) -> PathBuf {
-    app.path()
-        .app_data_dir()
-        .ok()
-        .map(|p| p.join("ollama-models"))
-        .unwrap_or_else(|| default_home().join(".neural-junkie").join("ollama-models"))
-}
-
-/// Where bundled `ollama serve` stores models. Dev machines with a system Ollama install share ~/.ollama/models.
-fn ollama_models_dir(app: &tauri::AppHandle) -> PathBuf {
-    if let Ok(raw) = std::env::var("NJ_OLLAMA_MODELS") {
-        let trimmed = raw.trim();
-        if !trimmed.is_empty() {
-            return PathBuf::from(trimmed);
-        }
-    }
-    if system_ollama_on_path() {
-        return default_home().join(".ollama").join("models");
-    }
-    isolated_ollama_models_dir(app)
-}
-
-fn ollama_health_client() -> reqwest::blocking::Client {
-    reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
-        .build()
-        .unwrap()
-}
-
-fn is_ollama_healthy() -> bool {
-    let client = ollama_health_client();
-    client
-        .get("http://127.0.0.1:11434/api/tags")
-        .send()
-        .map(|r| r.status().is_success())
-        .unwrap_or(false)
-}
-
-fn wait_for_ollama_health(timeout: std::time::Duration) -> bool {
-    let start = Instant::now();
-    while start.elapsed() < timeout {
-        if is_ollama_healthy() {
-            return true;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(300));
-    }
-    false
-}
-
-fn wait_for_ollama_stopped(timeout: std::time::Duration) -> bool {
-    let start = Instant::now();
-    while start.elapsed() < timeout {
-        if !is_ollama_healthy() {
-            return true;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(200));
-    }
-    false
-}
-
-/// Stop any process listening on port (e.g. orphaned `ollama serve` / `nj-server` not tracked by Tauri).
-fn kill_listeners_on_port(port: u16) {
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    {
-        let port_arg = format!(":{}", port);
-        if let Ok(out) = Command::new("lsof").args(["-ti", &port_arg]).output() {
-            for pid in String::from_utf8_lossy(&out.stdout).split_whitespace() {
-                // Prefer graceful stop so Go hub can tear down pack sidecars; then force.
-                let _ = Command::new("kill").arg(pid).status();
-                std::thread::sleep(std::time::Duration::from_millis(150));
-                let _ = Command::new("kill").args(["-9", pid]).status();
-            }
-        }
-    }
-}
-
-fn stop_all_ollama_on_port() {
-    kill_listeners_on_port(11434);
-    let _ = wait_for_ollama_stopped(std::time::Duration::from_secs(8));
-}
+// ollama helpers live in ollama.rs
 
 /// Default packaged hub listen port (matches desktop hubUrl DEFAULT_HUB_HTTP).
-const DEFAULT_HUB_PORT: u16 = 18765;
+pub(crate) const DEFAULT_HUB_PORT: u16 = 18765;
 
 /// Port for the hub this app manages (from NEURAL_JUNKIE_HUB_URL / VITE_NJ_HUB_URL, else 18765).
 fn managed_hub_port() -> u16 {
@@ -1142,192 +487,11 @@ fn hub_health_once() -> bool {
 fn stop_managed_hub_on_port() {
     let port = managed_hub_port();
     eprintln!("Stopping hub listeners on port {port}…");
-    kill_listeners_on_port(port);
+    ollama::kill_listeners_on_port(port);
     let _ = wait_for_hub_stopped(std::time::Duration::from_secs(8));
 }
 
-fn bundled_ollama_version(binary: &std::path::Path) -> Option<String> {
-    Command::new(binary)
-        .arg("--version")
-        .output()
-        .ok()
-        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
-        .filter(|s| !s.is_empty())
-}
-
-fn stop_bundled_ollama_child(ollama_state: &OllamaChild) {
-    let mut guard = ollama_state.lock().unwrap();
-    if let Some(mut child) = guard.take() {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct SessionOllamaModelsFile {
-    models: Vec<SessionOllamaModelRef>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct SessionOllamaModelRef {
-    endpoint: String,
-    model: String,
-}
-
-fn session_ollama_models_path() -> PathBuf {
-    default_home()
-        .join(".neural-junkie")
-        .join("session-ollama-models.json")
-}
-
-fn read_persisted_session_ollama_models() -> Vec<SessionOllamaModelRef> {
-    let path = session_ollama_models_path();
-    let raw = match std::fs::read_to_string(&path) {
-        Ok(s) => s,
-        Err(_) => return Vec::new(),
-    };
-    serde_json::from_str::<SessionOllamaModelsFile>(&raw)
-        .map(|doc| {
-            doc.models
-                .into_iter()
-                .filter(|m| !m.model.trim().is_empty())
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn unload_ollama_model(endpoint: &str, model: &str) -> Result<(), String> {
-    let endpoint = endpoint.trim().trim_end_matches('/');
-    let endpoint = if endpoint.is_empty() {
-        "http://127.0.0.1:11434"
-    } else {
-        endpoint
-    };
-    let model = model.trim();
-    if model.is_empty() {
-        return Err("empty model".into());
-    }
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let body = serde_json::json!({
-        "model": model,
-        "keep_alive": 0,
-    });
-    let resp = client
-        .post(format!("{endpoint}/api/generate"))
-        .json(&body)
-        .send()
-        .map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let text = resp.text().unwrap_or_default();
-        return Err(format!("ollama unload {status}: {text}"));
-    }
-    Ok(())
-}
-
-/// Ask the hub to unload session models; fall back to the persisted session file + Ollama HTTP.
-fn unload_session_ollama_models_on_exit() {
-    let hub_base = std::env::var("NEURAL_JUNKIE_HUB_URL")
-        .or_else(|_| std::env::var("VITE_NJ_HUB_URL"))
-        .unwrap_or_else(|_| format!("http://127.0.0.1:{DEFAULT_HUB_PORT}"));
-    let hub_base = hub_base.trim().trim_end_matches('/');
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(35))
-        .build();
-    if let Ok(client) = client {
-        if let Ok(resp) = client
-            .post(format!("{hub_base}/api/ollama/unload-session"))
-            .send()
-        {
-            if resp.status().is_success() {
-                let _ = std::fs::remove_file(session_ollama_models_path());
-                eprintln!("Unloaded Ollama session models via hub");
-                return;
-            }
-        }
-    }
-
-    let models = read_persisted_session_ollama_models();
-    if models.is_empty() {
-        return;
-    }
-    let mut unloaded = 0usize;
-    for entry in &models {
-        match unload_ollama_model(&entry.endpoint, &entry.model) {
-            Ok(()) => {
-                unloaded += 1;
-                eprintln!("Unloaded Ollama model {}", entry.model);
-            }
-            Err(err) => eprintln!(
-                "Failed to unload Ollama model {}: {}",
-                entry.model, err
-            ),
-        }
-    }
-    if unloaded > 0 {
-        let _ = std::fs::remove_file(session_ollama_models_path());
-    }
-}
-
-fn spawn_bundled_ollama(app: &tauri::AppHandle, ollama_state: &OllamaChild) -> Option<PathBuf> {
-    let runtime_dir = bundled_ollama_runtime_dir(app)?;
-    let binary = bundled_ollama_binary(&runtime_dir);
-    if !binary.exists() {
-        eprintln!(
-            "Bundled Ollama runtime missing binary at {}",
-            binary.display()
-        );
-        return None;
-    }
-
-    if is_ollama_healthy() {
-        eprintln!("Ollama already running at http://127.0.0.1:11434");
-        return Some(binary);
-    }
-
-    let models_dir = ollama_models_dir(app);
-    if let Err(e) = std::fs::create_dir_all(&models_dir) {
-        eprintln!("Failed to create Ollama models dir: {}", e);
-        return None;
-    }
-
-    let mut cmd = Command::new(&binary);
-    cmd.arg("serve");
-    cmd.current_dir(&runtime_dir);
-    cmd.env("OLLAMA_HOST", "127.0.0.1:11434");
-    cmd.env("OLLAMA_MODELS", &models_dir);
-    cmd.stdout(Stdio::null());
-    cmd.stderr(Stdio::piped());
-
-    match cmd.spawn() {
-        Ok(mut child) => {
-            if let Some(stderr) = child.stderr.take() {
-                std::thread::spawn(move || {
-                    use std::io::{BufRead, BufReader};
-                    let reader = BufReader::new(stderr);
-                    for line in reader.lines().flatten() {
-                        eprintln!("[ollama] {}", line);
-                    }
-                });
-            }
-            *ollama_state.lock().unwrap() = Some(child);
-            if wait_for_ollama_health(std::time::Duration::from_secs(45)) {
-                eprintln!("Bundled Ollama server ready at http://127.0.0.1:11434");
-                Some(binary)
-            } else {
-                eprintln!("Bundled Ollama started but health check timed out");
-                Some(binary)
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to start bundled Ollama: {}", e);
-            None
-        }
-    }
-}
+// ollama commands live in ollama.rs
 
 fn dev_hub_health_url() -> String {
     let base = std::env::var("NEURAL_JUNKIE_HUB_URL")
@@ -1372,7 +536,7 @@ fn spawn_sidecar(
             "1".to_string(),
         );
     }
-    if let Some(models_dir) = ollama_models_dir(app).to_str() {
+    if let Some(models_dir) = ollama::ollama_models_dir(app).to_str() {
         envs.insert("OLLAMA_MODELS".to_string(), models_dir.to_string());
     }
     if let Some(bin) = bundled_ollama {
@@ -1413,123 +577,19 @@ async fn get_server_status() -> Result<bool, String> {
     Ok(SIDECAR_READY.load(Ordering::Relaxed))
 }
 
-#[derive(Debug, Serialize)]
-struct OllamaRuntimeStatus {
-    installed: bool,
-    bundled: bool,
-    running: bool,
-    managed: bool,
-    version: Option<String>,
-}
 
-#[tauri::command]
-fn get_ollama_runtime_status(
-    app: tauri::AppHandle,
-    ollama_state: tauri::State<OllamaChild>,
-) -> Result<OllamaRuntimeStatus, String> {
-    let runtime_dir = bundled_ollama_runtime_dir(&app);
-    let bundled = runtime_dir
-        .as_ref()
-        .map(|dir| bundled_ollama_binary(dir).exists())
-        .unwrap_or(false);
-    let version = runtime_dir.as_ref().and_then(|dir| {
-        let binary = bundled_ollama_binary(dir);
-        if binary.exists() {
-            bundled_ollama_version(&binary)
-        } else {
-            None
-        }
-    });
-    let managed = {
-        let mut guard = ollama_state.lock().unwrap();
-        if let Some(child) = guard.as_mut() {
-            child.try_wait().ok().flatten().is_none()
-        } else {
-            false
-        }
-    };
-    let running = is_ollama_healthy();
-    Ok(OllamaRuntimeStatus {
-        installed: bundled || running,
-        bundled,
-        running,
-        managed,
-        version,
-    })
-}
-
-#[tauri::command]
-fn start_bundled_ollama(
-    app: tauri::AppHandle,
-    ollama_state: tauri::State<OllamaChild>,
-) -> Result<(), String> {
-    if is_ollama_healthy() {
-        return Ok(());
-    }
-    let state = ollama_state.inner().clone();
-    spawn_bundled_ollama(&app, &state)
-        .ok_or_else(|| "Bundled Ollama runtime is not available in this build".to_string())?;
-    if !is_ollama_healthy() {
-        return Err("Ollama started but health check failed".into());
-    }
-    Ok(())
-}
-
-#[tauri::command]
-fn stop_bundled_ollama(
-    app: tauri::AppHandle,
-    ollama_state: tauri::State<OllamaChild>,
-) -> Result<(), String> {
-    let bundled = bundled_ollama_runtime_dir(&app)
-        .map(|dir| bundled_ollama_binary(&dir).exists())
-        .unwrap_or(false);
-    if !bundled {
-        return Err("Bundled Ollama runtime is not available in this build".into());
-    }
-    let had_child = ollama_state.lock().unwrap().is_some();
-    stop_bundled_ollama_child(ollama_state.inner());
-    if !had_child && is_ollama_healthy() {
-        return Err("Ollama is not managed by the desktop shell in this session".into());
-    }
-    Ok(())
-}
-
-#[tauri::command]
-fn restart_bundled_ollama(
-    app: tauri::AppHandle,
-    ollama_state: tauri::State<OllamaChild>,
-) -> Result<(), String> {
-    stop_bundled_ollama_child(ollama_state.inner());
-    std::thread::sleep(std::time::Duration::from_millis(400));
-    if is_ollama_healthy() {
-        stop_all_ollama_on_port();
-    }
-    if is_ollama_healthy() {
-        return Err(
-            "Ollama is still running on port 11434 (stop `ollama serve` or quit other NJ instances, then retry)"
-                .into(),
-        );
-    }
-    let state = ollama_state.inner().clone();
-    spawn_bundled_ollama(&app, &state)
-        .ok_or_else(|| "Bundled Ollama runtime is not available in this build".to_string())?;
-    if !wait_for_ollama_health(std::time::Duration::from_secs(45)) {
-        return Err("Ollama restarted but health check timed out".into());
-    }
-    Ok(())
-}
 
 fn shutdown_managed_processes(
     pty_sessions: &pty::PtySessions,
     sidecar_state: &SidecarChild,
-    ollama_state: &OllamaChild,
+    ollama_state: &ollama::OllamaChild,
 ) {
     if !begin_shutdown(&SHUTTING_DOWN) {
         return;
     }
 
     // Soft-unload models NJ loaded before killing the hub (which may be SIGKILL'd).
-    unload_session_ollama_models_on_exit();
+    ollama::unload_session_ollama_models_on_exit();
 
     let sessions = {
         let mut guard = pty_sessions.lock().unwrap();
@@ -1551,7 +611,7 @@ fn shutdown_managed_processes(
     if !cfg!(debug_assertions) {
         stop_managed_hub_on_port();
     }
-    stop_bundled_ollama_child(ollama_state);
+    ollama::stop_bundled_ollama_child(ollama_state);
     SIDECAR_READY.store(false, Ordering::SeqCst);
 }
 
@@ -1563,7 +623,7 @@ fn begin_shutdown(flag: &AtomicBool) -> bool {
 fn prepare_for_update(app: tauri::AppHandle) -> Result<(), String> {
     let pty_sessions = app.state::<pty::PtySessions>().inner().clone();
     let sidecar_state = app.state::<SidecarChild>().inner().clone();
-    let ollama_state = app.state::<OllamaChild>().inner().clone();
+    let ollama_state = app.state::<ollama::OllamaChild>().inner().clone();
     shutdown_managed_processes(&pty_sessions, &sidecar_state, &ollama_state);
     Ok(())
 }
@@ -1701,7 +761,7 @@ fn probe_hub_websocket(hub_url: String, channel: String) -> Result<String, Strin
 fn main() {
     let pty_sessions: pty::PtySessions = Arc::new(Mutex::new(HashMap::new()));
     let sidecar_state: SidecarChild = Arc::new(Mutex::new(None));
-    let ollama_state: OllamaChild = Arc::new(Mutex::new(None));
+    let ollama_state: ollama::OllamaChild = Arc::new(Mutex::new(None));
     let cleanup_ptys = pty_sessions.clone();
     let cleanup_sidecar = sidecar_state.clone();
     let cleanup_ollama = ollama_state.clone();
@@ -1721,7 +781,7 @@ fn main() {
         .manage(ollama_state)
         .setup(|app| {
             let sidecar_state = app.state::<SidecarChild>().inner().clone();
-            let ollama_state = app.state::<OllamaChild>().inner().clone();
+            let ollama_state = app.state::<ollama::OllamaChild>().inner().clone();
             let app_handle = app.handle().clone();
 
             // Kill any orphan hub on the managed port before the UI can connect to it.
@@ -1734,8 +794,8 @@ fn main() {
                 // is started separately via `make server` or `make refresh`.
                 if cfg!(debug_assertions) {
                     // Dev: start bundled Ollama when fetch-ollama artifacts exist (parity with production).
-                    if !is_ollama_healthy() {
-                        if let Some(bin) = spawn_bundled_ollama(&app_handle, &ollama_state) {
+                    if !ollama::is_ollama_healthy() {
+                        if let Some(bin) = ollama::spawn_bundled_ollama(&app_handle, &ollama_state) {
                             eprintln!("Dev: started bundled Ollama at {}", bin.display());
                         } else {
                             eprintln!(
@@ -1758,12 +818,12 @@ fn main() {
                     return;
                 }
 
-                let bundled_ollama = if is_ollama_healthy() {
-                    bundled_ollama_runtime_dir(&app_handle)
-                        .map(|dir| bundled_ollama_binary(&dir))
+                let bundled_ollama = if ollama::is_ollama_healthy() {
+                    ollama::bundled_ollama_runtime_dir(&app_handle)
+                        .map(|dir| ollama::bundled_ollama_binary(&dir))
                         .filter(|bin| bin.exists())
                 } else {
-                    spawn_bundled_ollama(&app_handle, &ollama_state)
+                    ollama::spawn_bundled_ollama(&app_handle, &ollama_state)
                 };
 
                 // Clear stale hubs on the managed port before spawn so health checks
@@ -1791,13 +851,13 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            register_pack_path,
-            pick_pack_directory,
-            write_pack_scaffold,
-            read_pack_yaml_from_dir,
-            write_pack_yaml_to_dir,
-            zip_pack_directory,
-            read_pack_zip_base64,
+            pack_fs::register_pack_path,
+            pack_fs::pick_pack_directory,
+            pack_fs::write_pack_scaffold,
+            pack_fs::read_pack_yaml_from_dir,
+            pack_fs::write_pack_yaml_to_dir,
+            pack_fs::zip_pack_directory,
+            pack_fs::read_pack_zip_base64,
             read_prompt_attachment_paths,
             execute_command,
             pty::create_pty_session,
@@ -1807,19 +867,19 @@ fn main() {
             pty::close_pty_session,
             decode_scan_well_tiff,
             open_markdown_preview,
-            open_browser_window,
-            close_browser_window,
-            capture_browser_screenshot,
-            navigate_browser,
-            create_embedded_browser,
-            update_browser_position,
-            navigate_embedded_browser,
-            destroy_embedded_browser,
+            browser::open_browser_window,
+            browser::close_browser_window,
+            browser::capture_browser_screenshot,
+            browser::navigate_browser,
+            browser::create_embedded_browser,
+            browser::update_browser_position,
+            browser::navigate_embedded_browser,
+            browser::destroy_embedded_browser,
             get_server_status,
-            get_ollama_runtime_status,
-            start_bundled_ollama,
-            stop_bundled_ollama,
-            restart_bundled_ollama,
+            ollama::get_ollama_runtime_status,
+            ollama::start_bundled_ollama,
+            ollama::stop_bundled_ollama,
+            ollama::restart_bundled_ollama,
             prepare_for_update,
             credentials::encrypt_credential_blob,
             credentials::decrypt_credential_blob,

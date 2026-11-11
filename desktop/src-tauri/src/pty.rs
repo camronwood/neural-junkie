@@ -14,9 +14,9 @@ use crate::path_security;
 
 // ── PTY session management ──────────────────────────────────────────────
 
-struct PtySession {
+pub(crate) struct PtySession {
     writer: Box<dyn Write + Send>,
-    _child: Box<dyn portable_pty::Child + Send>,
+    pub(crate) _child: Box<dyn portable_pty::Child + Send>,
     pair: portable_pty::PtyPair,
     process_id: Option<u32>,
 }
@@ -24,7 +24,7 @@ struct PtySession {
 pub type PtySessions = Arc<Mutex<HashMap<String, PtySession>>>;
 
 #[derive(Debug, Serialize)]
-struct PtySessionStatus {
+pub struct PtySessionStatus {
     foreground_work: bool,
 }
 
