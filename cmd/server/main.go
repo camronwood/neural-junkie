@@ -58,6 +58,10 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+		if !rejectDisallowedMutateOrigin(w, r) {
+			return
+		}
+
 		hub.RateLimitMiddleware(apiRateLimiter, next)(w, r)
 	}
 }

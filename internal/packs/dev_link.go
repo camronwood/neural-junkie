@@ -32,6 +32,9 @@ func SyncPackFromDir(srcDir string) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	if IsOfficialPackID(m.ID) {
+		return nil, fmt.Errorf("pack id %q collides with an official catalog pack", m.ID)
+	}
 	destRoot, err := UserPacksDir()
 	if err != nil {
 		return nil, err
@@ -39,7 +42,10 @@ func SyncPackFromDir(srcDir string) (*Manifest, error) {
 	if err := os.MkdirAll(destRoot, 0755); err != nil {
 		return nil, err
 	}
-	dest := filepath.Join(destRoot, m.ID)
+	dest, err := PackInstallDest(destRoot, m.ID)
+	if err != nil {
+		return nil, err
+	}
 	if err := os.RemoveAll(dest); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}

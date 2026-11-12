@@ -113,10 +113,10 @@ func (m *Manifest) Validate() error {
 	if m == nil {
 		return fmt.Errorf("nil manifest")
 	}
-	m.ID = strings.TrimSpace(m.ID)
-	if m.ID == "" {
-		return fmt.Errorf("pack manifest missing id")
+	if err := ValidatePackIDFormat(m.ID); err != nil {
+		return fmt.Errorf("pack manifest id: %w", err)
 	}
+	m.ID = NormalizePackID(m.ID)
 	if strings.TrimSpace(m.Title) == "" {
 		return fmt.Errorf("pack %q missing title", m.ID)
 	}

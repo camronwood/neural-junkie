@@ -3,10 +3,9 @@ package main
 import (
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
-
-	_ "net/http/pprof"
 
 	"github.com/camronwood/neural-junkie/internal/mcp/resources"
 )
@@ -20,8 +19,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/channels/open-dm", corsMiddleware(localOnly(handleOpenDM)))
 	http.HandleFunc("/api/channels/create-dm-agent", corsMiddleware(localOnly(handleCreateDMAgent)))
 	http.HandleFunc("/api/cli-agent-types", corsMiddleware(handleCLIAgentTypes))
-	http.HandleFunc("/api/cli-agents", corsMiddleware(handleCLIAgents))
-	http.HandleFunc("/api/cli-agents/", corsMiddleware(handleCLIAgentsSubRoute))
+	http.HandleFunc("/api/cli-agents", corsMiddleware(localOnly(handleCLIAgents)))
+	http.HandleFunc("/api/cli-agents/", corsMiddleware(localOnly(handleCLIAgentsSubRoute)))
 	http.HandleFunc("/api/channels/join", corsMiddleware(localOnly(handleJoinChannel)))
 	http.HandleFunc("/api/channels/delete", corsMiddleware(localOnly(handleDeleteChannel)))
 	http.HandleFunc("/api/channels/archive", corsMiddleware(localOnly(handleArchiveChannel)))
@@ -61,10 +60,10 @@ func registerRoutes() {
 	http.HandleFunc("/api/runbook-runs/", corsMiddleware(localOnly(handleRunbookRunsRoute)))
 	http.HandleFunc("/api/connectors", corsMiddleware(localOnly(handleConnectorsRoute)))
 	http.HandleFunc("/api/connectors/", corsMiddleware(localOnly(handleConnectorsRoute)))
-	http.HandleFunc("/api/auth/session", corsMiddleware(handleAuthSession))
-	http.HandleFunc("/api/auth/api-keys", corsMiddleware(handleAPIKeysRoute))
-	http.HandleFunc("/api/auth/api-keys/", corsMiddleware(handleAPIKeyRevoke))
-	http.HandleFunc("/api/room/join", corsMiddleware(handleRoomJoin))
+	http.HandleFunc("/api/auth/session", corsMiddleware(localOnly(handleAuthSession)))
+	http.HandleFunc("/api/auth/api-keys", corsMiddleware(localOnly(handleAPIKeysRoute)))
+	http.HandleFunc("/api/auth/api-keys/", corsMiddleware(localOnly(handleAPIKeyRevoke)))
+	http.HandleFunc("/api/room/join", corsMiddleware(localOnly(handleRoomJoin)))
 	http.HandleFunc("/api/room/create", corsMiddleware(localOnly(handleRoomCreate)))
 	http.HandleFunc("/api/room/leave", corsMiddleware(localOnly(handleRoomLeave)))
 	http.HandleFunc("/api/room/end", corsMiddleware(localOnly(handleRoomEnd)))
@@ -173,8 +172,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/file-changes/", corsMiddleware(localOnly(handleFileChangeDiff)))
 
 	// AI Provider API endpoints
-	http.HandleFunc("/api/agents/", corsMiddleware(handleAgentProvider))
-	http.HandleFunc("/api/agents/switch-all-providers", corsMiddleware(handleSwitchAllProviders))
+	http.HandleFunc("/api/agents/", corsMiddleware(localOnly(handleAgentProvider)))
+	http.HandleFunc("/api/agents/switch-all-providers", corsMiddleware(localOnly(handleSwitchAllProviders)))
 	http.HandleFunc("/api/ollama/status", corsMiddleware(handleOllamaStatus))
 	http.HandleFunc("/api/ollama/models", corsMiddleware(handleOllamaModels))
 	http.HandleFunc("/api/test-ollama-connection", corsMiddleware(handleTestOllamaConnection))
@@ -202,8 +201,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/integrations/jira/test", corsMiddleware(localOnly(handleIntegrationsJiraTest)))
 	http.HandleFunc("/api/integrations/github/test", corsMiddleware(localOnly(handleIntegrationsGitHubTest)))
 	http.HandleFunc("/api/integrations/linear/test", corsMiddleware(localOnly(handleIntegrationsLinearTest)))
-	http.HandleFunc("/api/packs", corsMiddleware(handlePacksRoute))
-	http.HandleFunc("/api/packs/", corsMiddleware(handlePacksRoute))
+	http.HandleFunc("/api/packs", corsMiddleware(localOnly(handlePacksRoute)))
+	http.HandleFunc("/api/packs/", corsMiddleware(localOnly(handlePacksRoute)))
 	http.HandleFunc("/api/expert-presets", corsMiddleware(handleExpertPresets))
 	http.HandleFunc("/api/agents/configured", corsMiddleware(handleConfiguredAgents))
 	http.HandleFunc("/api/agents/restart", corsMiddleware(localOnly(handleRestartAgents)))
@@ -254,21 +253,21 @@ func registerRoutes() {
 	http.HandleFunc("/api/mcp/pack-tools/", corsMiddleware(localOnly(handlePackToolsRoute)))
 	http.HandleFunc("/api/memory", corsMiddleware(localOnly(handleMemoryRoute)))
 	http.HandleFunc("/api/memory/", corsMiddleware(localOnly(handleMemoryRoute)))
-	http.HandleFunc("/api/user-rules", corsMiddleware(handleUserRules))
+	http.HandleFunc("/api/user-rules", corsMiddleware(localOnly(handleUserRules)))
 	http.HandleFunc("/api/plans", corsMiddleware(localOnly(handlePlans)))
 	http.HandleFunc("/api/plans/", corsMiddleware(localOnly(handlePlansSubRoute)))
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
 	http.HandleFunc("/api/assistant/state", corsMiddleware(handleAssistantState))
-	http.HandleFunc("/api/assistant/task-done", corsMiddleware(handleAssistantTaskDone))
-	http.HandleFunc("/api/assistant/reminder-dismiss", corsMiddleware(handleAssistantReminderDismiss))
+	http.HandleFunc("/api/assistant/task-done", corsMiddleware(localOnly(handleAssistantTaskDone)))
+	http.HandleFunc("/api/assistant/reminder-dismiss", corsMiddleware(localOnly(handleAssistantReminderDismiss)))
 	http.HandleFunc("/api/assistant/google/config", corsMiddleware(localOnly(handleAssistantGoogleConfig)))
 	http.HandleFunc("/api/assistant/google/status", corsMiddleware(handleAssistantGoogleStatus))
-	http.HandleFunc("/api/assistant/google/auth", corsMiddleware(handleAssistantGoogleAuth))
+	http.HandleFunc("/api/assistant/google/auth", corsMiddleware(localOnly(handleAssistantGoogleAuth)))
 	http.HandleFunc("/api/assistant/google/callback", corsMiddleware(handleAssistantGoogleCallback))
-	http.HandleFunc("/api/assistant/google/disconnect", corsMiddleware(handleAssistantGoogleDisconnect))
-	http.HandleFunc("/api/assistant/google/sync", corsMiddleware(handleAssistantGoogleSync))
+	http.HandleFunc("/api/assistant/google/disconnect", corsMiddleware(localOnly(handleAssistantGoogleDisconnect)))
+	http.HandleFunc("/api/assistant/google/sync", corsMiddleware(localOnly(handleAssistantGoogleSync)))
 	http.HandleFunc("/api/assistant/listen/status", corsMiddleware(localOnly(handleAssistantListenStatus)))
 	http.HandleFunc("/api/assistant/listen/start", corsMiddleware(localOnly(handleAssistantListenStart)))
 	http.HandleFunc("/api/assistant/listen/chunk", corsMiddleware(localOnly(handleAssistantListenChunk)))
@@ -281,21 +280,21 @@ func registerRoutes() {
 	http.HandleFunc("/api/stream/subscriptions/", corsMiddleware(localOnly(handleStreamSubscriptions)))
 
 	http.HandleFunc("/api/slack/status", corsMiddleware(handleSlackStatus))
-	http.HandleFunc("/api/slack/connection", corsMiddleware(handleSlackConnection))
+	http.HandleFunc("/api/slack/connection", corsMiddleware(localOnly(handleSlackConnection)))
 	http.HandleFunc("/api/slack/config", corsMiddleware(localOnly(handleSlackConfig)))
-	http.HandleFunc("/api/slack/bindings", corsMiddleware(handleSlackBindings))
-	http.HandleFunc("/api/slack/test-post", corsMiddleware(handleSlackTestPost))
-	http.HandleFunc("/api/slack/oauth/start", corsMiddleware(handleSlackOAuthStart))
+	http.HandleFunc("/api/slack/bindings", corsMiddleware(localOnly(handleSlackBindings)))
+	http.HandleFunc("/api/slack/test-post", corsMiddleware(localOnly(handleSlackTestPost)))
+	http.HandleFunc("/api/slack/oauth/start", corsMiddleware(localOnly(handleSlackOAuthStart)))
 	http.HandleFunc("/api/slack/oauth/callback", corsMiddleware(handleSlackOAuthCallback))
-	http.HandleFunc("/api/slack/oauth/user-dm/start", corsMiddleware(handleSlackOAuthUserDMStart))
+	http.HandleFunc("/api/slack/oauth/user-dm/start", corsMiddleware(localOnly(handleSlackOAuthUserDMStart)))
 	http.HandleFunc("/api/slack/oauth/user-dm/callback", corsMiddleware(handleSlackOAuthUserDMCallback))
-	http.HandleFunc("/api/slack/disconnect", corsMiddleware(handleSlackDisconnect))
-	http.HandleFunc("/api/slack/restart", corsMiddleware(handleSlackRestart))
+	http.HandleFunc("/api/slack/disconnect", corsMiddleware(localOnly(handleSlackDisconnect)))
+	http.HandleFunc("/api/slack/restart", corsMiddleware(localOnly(handleSlackRestart)))
 	http.HandleFunc("/api/slack/channels", corsMiddleware(handleSlackChannels))
 	http.HandleFunc("/api/slack/diagnose", corsMiddleware(handleSlackDiagnose))
 	http.HandleFunc("/api/slack/smoke/run", corsMiddleware(localOnly(handleSlackSmokeRun)))
-	http.HandleFunc("/api/slack/inbox", corsMiddleware(handleSlackInbox))
-	http.HandleFunc("/api/slack/inbox/test-dm", corsMiddleware(handleSlackInboxTestDM))
+	http.HandleFunc("/api/slack/inbox", corsMiddleware(localOnly(handleSlackInbox)))
+	http.HandleFunc("/api/slack/inbox/test-dm", corsMiddleware(localOnly(handleSlackInboxTestDM)))
 	http.HandleFunc("/api/slack/inbox/dm-debug", corsMiddleware(handleSlackInboxDMDebug))
 	http.HandleFunc("/api/slack/inbox/human-dm-debug", corsMiddleware(handleSlackInboxHumanDMDebug))
 	http.HandleFunc("/api/web-search/config", corsMiddleware(localOnly(handleWebSearchConfig)))
@@ -323,8 +322,14 @@ func registerRoutes() {
 			pprofAddr = "127.0.0.1:6060"
 		}
 		go func() {
+			mux := http.NewServeMux()
+			mux.HandleFunc("/debug/pprof/", pprof.Index)
+			mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+			mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 			log.Printf("🔧 NEURAL_JUNKIE_DEBUG: Go pprof on http://%s/debug/pprof/ (heap, goroutine, etc.)", pprofAddr)
-			if err := http.ListenAndServe(pprofAddr, nil); err != nil {
+			if err := http.ListenAndServe(pprofAddr, mux); err != nil {
 				log.Printf("NEURAL_JUNKIE_DEBUG pprof listener: %v", err)
 			}
 		}()

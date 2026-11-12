@@ -102,3 +102,86 @@ func TestLocalOnlyAllowsLoopback(t *testing.T) {
 		t.Fatal("handler should run for loopback")
 	}
 }
+
+func TestCorsMiddlewareRejectsDisallowedMutateOrigin(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_CORS_ANY", "")
+	t.Setenv("NEURAL_JUNKIE_CORS_ORIGINS", "")
+	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "")
+
+	called := false
+	h := corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/slack/disconnect", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("Origin", "https://evil.example")
+	h(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for evil Origin, got %d %s", rec.Code, rec.Body.String())
+	}
+	if called {
+		t.Fatal("handler must not run for disallowed Origin")
+	}
+}
+
+func TestCorsMiddlewareAllowsLoopbackMutateOrigin(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_CORS_ANY", "")
+	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "")
+
+	called := false
+	h := corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/slack/disconnect", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("Origin", "http://127.0.0.1:1420")
+	h(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d %s", rec.Code, rec.Body.String())
+	}
+	if !called {
+		t.Fatal("handler should run for allowed Origin")
+	}
+}
+
+func TestCorsMiddlewareRejectsCrossSiteSecFetch(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_CORS_ANY", "")
+	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "")
+
+	called := false
+	h := corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/assistant/task-done", nil)
+	req.RemoteAddr = "127.0.0.1:9"
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	h(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+	if called {
+		t.Fatal("handler must not run")
+	}
+}
+
+func TestSlackDisconnectRemoteRejected(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "")
+	h := localOnly(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/slack/disconnect", nil)
+	req.RemoteAddr = "203.0.113.8:9"
+	h(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
