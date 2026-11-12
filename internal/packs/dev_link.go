@@ -32,9 +32,8 @@ func SyncPackFromDir(srcDir string) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	if IsOfficialPackID(m.ID) {
-		return nil, fmt.Errorf("pack id %q collides with an official catalog pack", m.ID)
-	}
+	// Official packs are intentionally synced here (catalog / test fixtures).
+	// Sideload zip installs reject official ids in InstallFromZipBytes.
 	destRoot, err := UserPacksDir()
 	if err != nil {
 		return nil, err
