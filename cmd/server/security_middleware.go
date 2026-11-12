@@ -122,6 +122,38 @@ func browserOriginAllowed(origin, requestHost string) bool {
 	return false
 }
 
+// safeHTTPMethod reports methods that must not trigger CSRF mutate checks.
+func safeHTTPMethod(method string) bool {
+	switch strings.ToUpper(method) {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	default:
+		return false
+	}
+}
+
+// rejectDisallowedMutateOrigin blocks cross-site browser mutations (CSRF to loopback).
+// Uses browserOriginAllowed with an empty requestHost so DNS-rebinding Host==Origin is not trusted.
+func rejectDisallowedMutateOrigin(w http.ResponseWriter, r *http.Request) bool {
+	if safeHTTPMethod(r.Method) {
+		return true
+	}
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin != "" {
+		if !browserOriginAllowed(origin, "") {
+			http.Error(w, "Forbidden: Origin not allowed for mutating requests", http.StatusForbidden)
+			return false
+		}
+		return true
+	}
+	// Modern browsers send Sec-Fetch-Site on navigations/fetches; reject explicit cross-site.
+	if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+		http.Error(w, "Forbidden: cross-site mutating request", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
 func setCORSHeaders(w http.ResponseWriter, r *http.Request) {
 	origin := r.Header.Get("Origin")
 	if corsAllowsOrigin(origin) {
@@ -140,6 +172,9 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request) {
 func localOnly(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !hub.RequireHubAccess(w, r) {
+			return
+		}
+		if !rejectDisallowedMutateOrigin(w, r) {
 			return
 		}
 		next(w, r)

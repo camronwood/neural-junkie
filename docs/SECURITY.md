@@ -6,7 +6,7 @@ Neural Junkie is a **local-first** developer tool: the hub and desktop app are d
 
 | Threat | Mitigation |
 |--------|------------|
-| Random website calls `http://127.0.0.1:18765` | Hub binds **127.0.0.1**; restricted CORS; sensitive routes need loopback or hub token |
+| Random website calls `http://127.0.0.1:18765` | Hub binds **127.0.0.1**; mutating requests reject disallowed `Origin` / cross-site `Sec-Fetch-Site`; sensitive routes need loopback or hub token |
 | Path traversal (workspace / hub data) | `pathutil.WithinRoot`, `resolveHubDataPath` |
 | XSS in chat markdown | DOMPurify; `style` attribute disallowed |
 | Agent impersonation via `/api/send` | `from` ignored unless `NEURAL_JUNKIE_HUB_TOKEN` is set |
@@ -14,6 +14,8 @@ Neural Junkie is a **local-first** developer tool: the hub and desktop app are d
 | Credential theft from disk | Tauri: AES-GCM in `credentials.dat` (machine-bound key) |
 | API keys / Slack tokens in config | AES-GCM in `config.json` via `secrets.key` or `NEURAL_JUNKIE_CONFIG_KEY` |
 | API abuse | Per-IP/session rate limits (disable with `NEURAL_JUNKIE_RATE_LIMIT=0`) |
+| Pack zip sideload overwrites official packs | Pack ids normalized + format-validated; official ids rejected case-insensitively; install dest contained under packs root |
+| Go pprof on hub port | pprof is **not** registered on the hub mux; only on the debug listener when `NEURAL_JUNKIE_DEBUG=1` |
 
 ## Authentication and channel ACLs
 
@@ -81,7 +83,7 @@ Most hub settings are editable in the desktop **Settings** panel (Security, Serv
 | `NEURAL_JUNKIE_LISTEN_ALL=1` | Bind `0.0.0.0` (requires hub token unless DEBUG/RELAXED_LOCAL) |
 | `NEURAL_JUNKIE_CORS_ANY=1` | Wildcard CORS (legacy) |
 | `NEURAL_JUNKIE_SESSION_TTL_HOURS` | Session lifetime (default 168h) |
-| `NEURAL_JUNKIE_DEBUG=1` | Debug routes + pprof (loopback) |
+| `NEURAL_JUNKIE_DEBUG=1` | Debug routes + dedicated loopback pprof listener (not on hub `:18765`) |
 
 ## Local-only routes (hub access)
 

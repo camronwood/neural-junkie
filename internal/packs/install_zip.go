@@ -116,7 +116,10 @@ func installFromZipURL(packID, rawURL, wantVersion string) error {
 	if err := os.MkdirAll(destRoot, 0755); err != nil {
 		return err
 	}
-	dest := filepath.Join(destRoot, packID)
+	dest, err := PackInstallDest(destRoot, packID)
+	if err != nil {
+		return err
+	}
 	if err := os.RemoveAll(dest); err != nil && !os.IsNotExist(err) {
 		return err
 	}

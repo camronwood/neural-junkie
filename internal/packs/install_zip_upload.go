@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
 // InstallFromZipBytes validates and installs a pack zip to ~/.neural-junkie/packs/<id>/.
@@ -58,12 +57,32 @@ func InstallFromZipBytes(data []byte) (*Manifest, error) {
 	if err := os.MkdirAll(destRoot, 0755); err != nil {
 		return nil, err
 	}
-	dest := filepath.Join(destRoot, m.ID)
+	dest, err := PackInstallDest(destRoot, m.ID)
+	if err != nil {
+		return nil, err
+	}
+	staging, err := os.MkdirTemp(destRoot, ".nj-pack-stage-*")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if staging != "" {
+			_ = os.RemoveAll(staging)
+		}
+	}()
+	if err := copyDir(manifestDir, staging); err != nil {
+		return nil, err
+	}
 	if err := os.RemoveAll(dest); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	if err := copyDir(manifestDir, dest); err != nil {
-		return nil, err
+	if err := os.Rename(staging, dest); err != nil {
+		// Fallback when rename crosses devices: copy then remove staging (defer).
+		if copyErr := copyDir(manifestDir, dest); copyErr != nil {
+			return nil, fmt.Errorf("install pack: rename: %v; copy: %w", err, copyErr)
+		}
+	} else {
+		staging = "" // renamed into place; skip deferred cleanup
 	}
 	return LoadManifest(dest)
 }

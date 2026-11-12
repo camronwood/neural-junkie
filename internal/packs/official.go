@@ -1,6 +1,11 @@
 package packs
 
-import "strings"
+import (
+	"fmt"
+	"path/filepath"
+	"regexp"
+	"strings"
+)
 
 // OfficialPackIDs are known official domain pack ids (catalog ordering and ID collision checks).
 var OfficialPackIDs = []string{"ide", "software-development", "life-sciences", "specialist-tuning", "cad", "aws", "incident-management", "web-browser", "music-creation", "model-arena", "room-chat", "maps"}
@@ -35,15 +40,60 @@ func IsRetiredAbilityPackAgentType(agentType string) bool {
 	return false
 }
 
-// IsOfficialPackID reports whether id is a reserved official pack id.
+var packIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`)
+
+// NormalizePackID lowercases and trims a pack id for comparisons and install paths.
+func NormalizePackID(packID string) string {
+	return strings.ToLower(strings.TrimSpace(packID))
+}
+
+// ValidatePackIDFormat rejects empty, path-like, or otherwise unsafe pack ids.
+func ValidatePackIDFormat(packID string) error {
+	raw := strings.TrimSpace(packID)
+	if raw == "" {
+		return fmt.Errorf("pack id required")
+	}
+	if strings.ContainsAny(raw, `/\`) || strings.Contains(raw, "..") || strings.HasPrefix(raw, ".") {
+		return fmt.Errorf("pack id %q must not be a relative path", packID)
+	}
+	id := NormalizePackID(raw)
+	if !packIDPattern.MatchString(id) {
+		return fmt.Errorf("pack id %q must match %s", packID, packIDPattern.String())
+	}
+	return nil
+}
+
+// IsOfficialPackID reports whether id is a reserved official pack id (case-insensitive).
 func IsOfficialPackID(packID string) bool {
-	packID = strings.TrimSpace(packID)
+	packID = NormalizePackID(packID)
 	for _, id := range OfficialPackIDs {
 		if id == packID {
 			return true
 		}
 	}
 	return false
+}
+
+// PackInstallDest returns packsRoot/<normalized-id> after validating id and containment.
+func PackInstallDest(packsRoot, packID string) (string, error) {
+	if err := ValidatePackIDFormat(packID); err != nil {
+		return "", err
+	}
+	id := NormalizePackID(packID)
+	root, err := filepath.Abs(packsRoot)
+	if err != nil {
+		return "", err
+	}
+	dest := filepath.Join(root, id)
+	absDest, err := filepath.Abs(dest)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(root, absDest)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("pack install path escapes packs directory")
+	}
+	return absDest, nil
 }
 
 // PackIDForAgentType returns the official pack id that owns agentType, or "".

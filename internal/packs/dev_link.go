@@ -32,6 +32,8 @@ func SyncPackFromDir(srcDir string) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Official packs are intentionally synced here (catalog / test fixtures).
+	// Sideload zip installs reject official ids in InstallFromZipBytes.
 	destRoot, err := UserPacksDir()
 	if err != nil {
 		return nil, err
@@ -39,7 +41,10 @@ func SyncPackFromDir(srcDir string) (*Manifest, error) {
 	if err := os.MkdirAll(destRoot, 0755); err != nil {
 		return nil, err
 	}
-	dest := filepath.Join(destRoot, m.ID)
+	dest, err := PackInstallDest(destRoot, m.ID)
+	if err != nil {
+		return nil, err
+	}
 	if err := os.RemoveAll(dest); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
