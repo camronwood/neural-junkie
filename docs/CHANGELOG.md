@@ -6,18 +6,23 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.33] - 2026-11-13
+
+Hub mutate CSRF hardening, pack sideload containment, and desktop god-module extraction after the beta.32 security/auth baseline.
+
 ### Security
 - **File-change mutations** — Approve/reject/propose/PATCH now call `ensureMutationAccess`; actor id comes from the session/API key (no more `user_id=default` invent).
-- **Customer pack zip install** — `InstallFromZipBytes` rejects official catalog pack ids before wiping `~/.neural-junkie/packs/<id>/`.
+- **Mutate Origin CSRF** — CORS/`localOnly` middleware rejects disallowed `Origin` and cross-site `Sec-Fetch-Site` on mutating requests; previously open mutators (Slack disconnect, provider switch, packs, auth session/keys, assistant/google, room join, …) now require loopback or hub token.
+- **Customer pack zip install** — Official catalog ids rejected case-insensitively; pack ids format-validated; install destinations contained under the packs root (blocks `./life-sciences`, `Life-Sciences`, `../` bypasses). `SyncPackFromDir` still installs official trees for catalog/fixtures.
+- **pprof** — No longer registered on the hub mux; debug builds keep a dedicated loopback pprof listener only.
 
 ### Fixed
-- **Desktop version drift** — `tauri.conf.json` synced to `1.2.0-beta.32` (matches `package.json` / Cargo.toml). Use `scripts/verify-desktop-version-consistency.sh`.
+- **Desktop version drift** — `tauri.conf.json` synced through the beta.32/33 release path (matches `package.json` / Cargo.toml). Use `scripts/verify-desktop-version-consistency.sh`.
 
 ### Changed
-- **Extraction loop 1** — Room chrome hook (`useChatWindowRoomChrome`), `CollabPhaseStatusBanner`, and Tauri `credentials.rs` pulled out of god modules.
-- **Extraction loop 2** — `useChatWindowIdeChrome`, `CollabPhaseStatusStack` (stall/wait/stuck), Tauri `pty.rs`.
+- **Extraction loops 1–4** — ChatWindow hooks (`useChatWindowRoomChrome`, `IdeChrome`, `WorkspaceActions`, `Collaborations`, `HubBootstrap`, `TaskPanel`), collab banners/task list, and Tauri modules (`credentials.rs`, `pty.rs`, `browser.rs`, `pack_fs.rs`, `ollama.rs`).
 - **Pack Dev Studio** — Persistent sidecar trust warning for hub/MCP sidecars and official-id reservation.
-- **Docs** — AGENT_CODEMAP thin UI path, ARCHITECTURE security shipped-state, STABLE_SCOPE agent WebSocket row aligned with FUTURE_ENHANCEMENTS.
+- **Docs** — AGENT_CODEMAP / ARCHITECTURE / SECURITY threat table updated for Origin mutate guards and pack containment.
 
 ## [1.2.0-beta.32] - 2026-10-11
 

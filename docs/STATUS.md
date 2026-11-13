@@ -1,10 +1,10 @@
 # Project Status
 
-**Last Updated:** October 2026
+**Last Updated:** November 2026
 
 ## Current State: Open Beta (v1.2.x)
 
-Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.2.0-beta.32](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.32) (impl-session auto_apply honesty + Desktop Listen + Arena + security hardening). Gate 5 interactive smoke still open on [#18](https://github.com/camronwood/neural-junkie/issues/18) ([platform-smoke-beta27.md](testing/platform-smoke-beta27.md) package verify PASS). **Stable cut:** follow [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and [STABLE_SCOPE.md](STABLE_SCOPE.md).
+Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.2.0-beta.33](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.33) (mutate Origin CSRF + pack install containment + god-module extraction on the beta.32 security baseline). Gate 5 interactive smoke still open on [#18](https://github.com/camronwood/neural-junkie/issues/18) ([platform-smoke-beta27.md](testing/platform-smoke-beta27.md) package verify PASS). **Stable cut:** follow [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and [STABLE_SCOPE.md](STABLE_SCOPE.md).
 
 **Marketing site:** [camronwood.github.io/neural-junkie](https://camronwood.github.io/neural-junkie/)
 

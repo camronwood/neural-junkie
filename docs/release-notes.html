@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.32">v1.2.0-beta.32</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.33">v1.2.0-beta.33</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.33">1.2.0-beta.33</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.32">1.2.0-beta.32</a>
       <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.31">1.2.0-beta.31</a>
@@ -253,6 +255,13 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1.2.0-beta.33" class="release-version-heading">1.2.0-beta.33 <span class="release-date">— 2026-11-13</span></h2>
+      <p><strong>CSRF mutate guards + pack containment + extraction.</strong> Hub mutating requests reject disallowed browser Origin / cross-site fetches; pack zip sideload cannot overwrite official packs via case or path tricks; pprof stays off the hub mux. Desktop ChatWindow/collab/Tauri god modules continue to shrink. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.33">GitHub Releases</a>.</p>
+      <ul>
+        <li><strong>Security</strong> — <code>ensureMutationAccess</code> on file-change mutations; Origin/Sec-Fetch-Site mutate guards; localOnly on previously open mutators; pack ID normalize + dest containment; dedicated debug pprof listener only.</li>
+        <li><strong>Extraction</strong> — ChatWindow hooks, collab lifecycle/task components, Tauri <code>browser</code>/<code>pack_fs</code>/<code>ollama</code>/<code>pty</code>/<code>credentials</code> modules.</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.32" class="release-version-heading">1.2.0-beta.32 <span class="release-date">— 2026-10-11</span></h2>
 
       <p><strong>Honest auto-apply + Desktop Listen + Arena.</strong> Greenfield impl sessions no longer claim “proposals not applied” after files land; Swift multi-file continue keeps <code>TriviaGame/</code> deliverables moving. Desktop Listen STT notes, in-app Arena benchmarks, and security-review hardening ship together. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.32">GitHub Releases</a>.</p>
