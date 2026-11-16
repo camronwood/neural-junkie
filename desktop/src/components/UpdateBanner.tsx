@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { UPDATE_CHECK_INTERVAL_MS } from '../utils/appUpdater';
+import { maybeSendPresencePing } from '../utils/presencePing';
 import { useAppUpdaterStore } from '../stores/appUpdaterStore';
 
 export function UpdateBanner() {
@@ -13,16 +14,19 @@ export function UpdateBanner() {
 
   useEffect(() => {
     void check();
+    void maybeSendPresencePing();
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void check();
+        void maybeSendPresencePing();
       }
     }, UPDATE_CHECK_INTERVAL_MS);
 
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
         void check();
+        void maybeSendPresencePing();
       }
     };
     document.addEventListener('visibilitychange', onVisible);

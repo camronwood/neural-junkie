@@ -1,0 +1,18 @@
+name = "nj-presence"
+main = "src/index.ts"
+compatibility_date = "2024-06-10"
+workers_dev = true
+preview_urls = false
+
+[[kv_namespaces]]
+binding = "PRESENCE_KV"
+id = "00000000000000000000000000000000"
+preview_id = "00000000000000000000000000000000"
+
+# After first deploy, create a real KV namespace and replace id:
+#   npx wrangler kv namespace create PRESENCE_KV
+# Then set the stats token:
+#   npx wrangler secret put PRESENCE_STATS_TOKEN
+
+[observability]
+enabled = true

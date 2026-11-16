@@ -71,6 +71,8 @@ scripts/gemini-headless-home/
 __pycache__/
 node_modules/
 workers/slack-oauth-relay/.wrangler/
+workers/presence/.wrangler/
+workers/presence/node_modules/
 yarn.lock
 
 # Local Go module cache (sandbox / CI)

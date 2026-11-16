@@ -3,6 +3,7 @@ import { APP_INFO, TECH_STACK, getAppVersion } from '../../utils/appInfo';
 import {
   getUpdateChannelLabel,
 } from '../../utils/appUpdater';
+import { isPresenceOptedOut, setPresenceOptOut } from '../../utils/presencePing';
 import { useAppUpdaterStore } from '../../stores/appUpdaterStore';
 import { getHubBaseURL, getHubWebSocketURL } from '../../config/hubUrl';
 import { openExternalLink, type SettingsTabProps } from './settingsShared';
@@ -13,6 +14,7 @@ export function AboutSettingsTab({
   onRerunSetup,
 }: SettingsTabProps & { onRerunSetup?: () => void }) {
   const [appVersion, setAppVersion] = useState<string>('1.0.0');
+  const [presenceEnabled, setPresenceEnabled] = useState(() => !isPresenceOptedOut());
   const updaterStatus = useAppUpdaterStore((state) => state.status);
   const update = useAppUpdaterStore((state) => state.update);
   const updateProgress = useAppUpdaterStore((state) => state.progress);
@@ -23,6 +25,7 @@ export function AboutSettingsTab({
   useEffect(() => {
     if (!isActive) return;
     void getAppVersion().then(setAppVersion);
+    setPresenceEnabled(!isPresenceOptedOut());
   }, [isActive]);
 
 
@@ -79,6 +82,27 @@ export function AboutSettingsTab({
           <span className="text-sm text-slack-textMuted">Linux packages currently update manually.</span>
         )}
         {updateError && <span className="text-sm text-red-400">{updateError}</span>}
+      </div>
+      <div className="mt-4 p-3 bg-slack-bgHover rounded">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={presenceEnabled}
+            onChange={(e) => {
+              const enabled = e.target.checked;
+              setPresenceEnabled(enabled);
+              setPresenceOptOut(!enabled);
+            }}
+          />
+          <span>
+            <span className="block text-sm text-slack-text">Anonymous presence</span>
+            <span className="block text-xs text-slack-textMuted mt-1">
+              Tells us only that this install opened the app (opaque ID, once per day). No version, OS,
+              features, or chat content. Turn off for air-gapped use.
+            </span>
+          </span>
+        </label>
       </div>
     </div>
 

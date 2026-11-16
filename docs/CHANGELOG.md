@@ -6,6 +6,9 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+### Added
+- **Anonymous install presence** — free Cloudflare Worker (`workers/presence/`) counts unique desktop installs via an opaque UUID ping once per UTC day (no version/OS/features/chat). Settings → About opt-out; `make presence-deploy-cf`; bake `VITE_PRESENCE_URL` into release builds.
+
 ## [1.2.0-beta.33] - 2026-11-13
 
 Hub mutate CSRF hardening, pack sideload containment, and desktop god-module extraction after the beta.32 security/auth baseline.

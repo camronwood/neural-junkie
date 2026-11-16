@@ -17,6 +17,7 @@ Where to edit what. Prefer this over guessing from file size or similar names.
 | Collab phase machine (hub) | `internal/collaboration/manager.go` | High flake risk; prefer surgical fixes with evidence |
 | File explorer / IDE chrome | `desktop/src/components/FileExplorerPanel.tsx` (shell) + `desktop/src/components/fileExplorer/` (`useFileExplorerPanelModel`, `FileExplorerTree`, `FileExplorerContextMenu`, add-workspace / remove confirm, utils) | Prefer extracting into `fileExplorer/` over growing the panel |
 | Native FS / window / updater | `desktop/src-tauri/src/main.rs` | High risk; security + signing |
+| Anonymous install presence | `workers/presence/`, `desktop/src/utils/presencePing.ts` | Opaque ID ping only; Settings opt-out |
 | Thin browser hub UI | `cmd/server/assistant_state_handlers.go` (`handleHome`) | Chat + pending file-change only — **not** the desktop IDE. Repo `public/` is a screenshot gallery, not the hub UI. |
 | Message / agent dispatch | `internal/hub/hub_dispatch.go` | Lifecycle + routing into agents |
 | Slash commands | `internal/hub/commands_*.go` via `commandExecutors()` in `commands_core.go` | See [Hub slash ownership](#hub-slash-ownership) |
