@@ -24,7 +24,7 @@ export function setPresenceOptOut(optOut: boolean, storage: Storage = localStora
 }
 
 /** Public free Worker used by release builds when env is unset. */
-export const DEFAULT_PRESENCE_URL = 'https://nj-presence.neuraljunkie.workers.dev';
+export const DEFAULT_PRESENCE_URL = 'https://nj-presence.camronwood.workers.dev';
 
 export function presenceEndpointUrl(
   env: ImportMetaEnv | Record<string, string | undefined> = import.meta.env,

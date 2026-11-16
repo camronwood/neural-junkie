@@ -40,4 +40,6 @@ npm test
 npm run dev
 ```
 
-Desktop builds need `VITE_PRESENCE_URL=https://nj-presence.YOUR_SUBDOMAIN.workers.dev` (no trailing slash).
+Production URL: `https://nj-presence.camronwood.workers.dev` (Cloudflare account `camronwood@gmail.com`; baked into release CI as `VITE_PRESENCE_URL`).
+
+Admin stats token (local only): `~/.config/neural-junkie/presence-stats-token`
