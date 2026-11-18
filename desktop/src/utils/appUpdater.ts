@@ -80,12 +80,17 @@ function parsePolicy(raw: Record<string, unknown>, version: string): AppUpdatePo
   };
 }
 
-function installationId(): string {
+/** Sticky anonymous install UUID (updater rollout + presence ping). */
+export function getOrCreateInstallationId(): string {
   const existing = localStorage.getItem(INSTALLATION_ID_KEY);
   if (existing) return existing;
   const value = crypto.randomUUID();
   localStorage.setItem(INSTALLATION_ID_KEY, value);
   return value;
+}
+
+function installationId(): string {
+  return getOrCreateInstallationId();
 }
 
 /** Stable FNV-1a bucket, exported for deterministic rollout tests. */

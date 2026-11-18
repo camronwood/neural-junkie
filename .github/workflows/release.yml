@@ -9,6 +9,8 @@ env:
   NODE_VERSION: '24'
   # beta and rc tags use the beta updater build path; only plain semver is stable.
   VITE_UPDATE_CHANNEL: ${{ (contains(github.ref_name, 'beta') || contains(github.ref_name, '-rc.') || contains(github.ref_name, '-rc')) && 'beta' || 'stable' }}
+  # Anonymous install presence (opaque UUID ping). Free Cloudflare Worker.
+  VITE_PRESENCE_URL: https://nj-presence.camronwood.workers.dev
 
 permissions:
   contents: write
