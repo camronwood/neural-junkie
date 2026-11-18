@@ -6,6 +6,10 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.34] - 2026-11-18
+
+Anonymous unique-install presence for free open-beta user counting, with Settings opt-out.
+
 ### Added
 - **Anonymous install presence** — free Cloudflare Worker (`workers/presence/`) counts unique desktop installs via an opaque UUID ping once per UTC day (no version/OS/features/chat). Settings → About opt-out; `make presence-deploy-cf`; bake `VITE_PRESENCE_URL` into release builds.
 

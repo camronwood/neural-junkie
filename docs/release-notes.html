@@ -122,11 +122,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.33">v1.2.0-beta.33</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.34">v1.2.0-beta.34</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1.2.0-beta.34">1.2.0-beta.34</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.33">1.2.0-beta.33</a>
       <span aria-hidden="true">·</span>
       <a href="#v1.2.0-beta.32">1.2.0-beta.32</a>
@@ -255,6 +257,12 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1.2.0-beta.34" class="release-version-heading">1.2.0-beta.34 <span class="release-date">— 2026-11-18</span></h2>
+      <p><strong>Anonymous install presence.</strong> Release builds can ping a free Cloudflare Worker once per UTC day with an opaque install UUID so we can count unique open-beta users — no version, OS, features, or chat content. Opt out in Settings → About. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.34">GitHub Releases</a>.</p>
+      <ul>
+        <li><strong>Presence</strong> — <code>workers/presence/</code> + desktop daily ping; <code>VITE_PRESENCE_URL</code> baked in release CI; <code>make presence-deploy-cf</code>.</li>
+      </ul>
+
       <h2 id="v1.2.0-beta.33" class="release-version-heading">1.2.0-beta.33 <span class="release-date">— 2026-11-13</span></h2>
       <p><strong>CSRF mutate guards + pack containment + extraction.</strong> Hub mutating requests reject disallowed browser Origin / cross-site fetches; pack zip sideload cannot overwrite official packs via case or path tricks; pprof stays off the hub mux. Desktop ChatWindow/collab/Tauri god modules continue to shrink. Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.33">GitHub Releases</a>.</p>
       <ul>
