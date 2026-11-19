@@ -40,9 +40,9 @@ flowchart TB
 | Area | Shipped / in progress | Gap |
 |------|----------------------|-----|
 | Graphs | Collab DAG, runbook graph layout | Template gallery polish; richer browse UX |
-| Packages | Share Agent hydrate (`HydrateFromExport`), `/import-agent-mcp --hydrate`, learnings merge (`ImportShareLearnings`) | Broader agent types; LoRA pull-on-import polish |
-| Cheap nodes | User tools + **pack tool grants** (`/api/mcp/pack-tools`) on custom experts; ability packs attach to Assistant | Full Settings wizard UX; remote MCP registry completeness |
-| Provenance | Traces + workflow-events | Unified run → definition version → events → traces navigation |
+| Packages | Share Agent hydrate (`HydrateFromExport`), `/import-agent-mcp --hydrate`, learnings merge (`ImportShareLearnings`); desktop **Import agent** (path remap + hydrate) | Broader agent types; LoRA pull-on-import CTA polish |
+| Cheap nodes | User tools + **pack tool grants**; Settings → **MCP Tool Wizard**; `/api/mcp/user-servers` registry | Remote MCP dial/stdio connect |
+| Provenance | Traces + workflow-events; runbook library Export/Import + history Provenance | Richer gallery + full trace deep-link |
 | Media | Optional external media MCP | Inert when unset; mock HTTP in tests — keep Comfy out of repo |
 
 ## Security / local-first

@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Away overnight orchestrator: run real-user gates → morning bug report.
 
-Report-only by default (no Cursor fix-loop, no agent-ready drain). You triage
-docs/testing/away-morning-YYYY-MM-DD.md in the morning.
+Report-only by default. Unattended pre-stable path:
 
-Order (see docs/AWAY_OPERATIONS.md):
+  AWAY_GATE=full MORNING_RC=1 AWAY_FIX_ON_FAIL=1 AUTO_STABLE_CUT=1
+
+Order (see docs/AWAY_OPERATIONS.md / docs/PRE_STABLE_RELIABILITY.md):
   1. make test-all
   2. make layer-gate LAYER=user-flows  (real user journeys)
   3. thin climb canary (implement + chat) unless AWAY_GATE=full → layer-climb
   4. make desktop-e2e (UI click journeys) unless SKIP_DESKTOP_E2E=1
   5. write away-morning bug report
   6. optional morning RC if MORNING_RC=1 / --morning-rc
+  7. optional AWAY_FIX_ON_FAIL=1 → layer-fix-loop / away-agent on FAIL
+  8. optional AUTO_STABLE_CUT=1 → scripts/auto-cut-stable-if-ready.sh when 2× green
 """
 
 from __future__ import annotations
@@ -89,7 +92,7 @@ def write_bug_report(
         f"# Away morning bug report — {stamp}",
         "",
         f"Generated: {now}  ",
-        "Mode: **report-only** (no agent fix-loop, no agent-ready drain)",
+        "Mode: **unattended ship bar** (agents/scripts own FAIL → PR → RC → stable)",
         "",
         "## Summary",
         "",
@@ -115,7 +118,10 @@ def write_bug_report(
             lines.append(f"### `{name}`")
             lines.append("")
             lines.append(f"- {note or 'See latest layer-gate / desktop-e2e report under `docs/testing/`.'}")
-            lines.append("- Triage: product bug → fix in chat/PR; flake → note and re-run; capture → new user-flow / desktop-e2e.")
+            lines.append(
+                "- Unattended: `AWAY_FIX_ON_FAIL=1` runs layer-fix-loop / away-agent; "
+                "do not weaken scenarios."
+            )
             lines.append("")
 
     lines.extend(
@@ -146,12 +152,12 @@ def write_bug_report(
     lines.extend(
         [
             "",
-            "## Morning checklist",
+            "## Unattended follow-up",
             "",
-            "1. Read FAIL sections above.",
-            "2. Open linked `docs/testing/layer-gate-*.md` / desktop-e2e reports for transcripts.",
-            "3. Fix product here, or file a GitHub issue (`agent-ready` only if you want unsupervised later).",
-            "4. Cut RC manually when ready: `make away-morning-rc` (or `DRY_RUN=1` first).",
+            "1. FAIL → `AWAY_FIX_ON_FAIL` / daytime `make away-agent` (no human triage required).",
+            "2. Open linked `docs/testing/layer-gate-*.md` / desktop-e2e reports only if debugging agents.",
+            "3. `MORNING_RC=1` cuts RC when green + HEAD delta.",
+            "4. `AUTO_STABLE_CUT=1` + 2 consecutive green mornings → `scripts/auto-cut-stable-if-ready.sh`.",
             "",
         ]
     )
@@ -193,8 +199,13 @@ def main() -> int:
     apply_release_prep_env(ROOT)
     stamp = datetime.now(CT).strftime("%Y-%m-%d")
     gate_rows: list[tuple[str, int, str]] = []
+    fix_on_fail = (os.environ.get("AWAY_FIX_ON_FAIL") or "").strip() == "1"
+    auto_stable = (os.environ.get("AUTO_STABLE_CUT") or "").strip() == "1"
     notes: list[str] = [
-        "Report-only overnight: gates ran; no layer-fix-loop / Cursor agent / agent-ready drain.",
+        "Away overnight ship bar: gates ran"
+        + ("; AWAY_FIX_ON_FAIL=1" if fix_on_fail else "; report-only fix path")
+        + ("; AUTO_STABLE_CUT=1" if auto_stable else "")
+        + ".",
     ]
     away_gate = (os.environ.get("AWAY_GATE") or "user-flows").strip().lower()
     worst = 0
@@ -256,7 +267,53 @@ def main() -> int:
         deadline_ct=args.deadline_ct,
     )
 
-    if do_morning_rc:
+    # Unattended fix path: first failing layer → layer-fix-loop; also drain agent-ready.
+    if fix_on_fail and worst != 0:
+        fail_names = [name for name, rc, _ in gate_rows if rc != 0]
+        notes.append(f"AWAY_FIX_ON_FAIL: failing gates={fail_names}")
+        layer = "implement"
+        for name in fail_names:
+            if "user-flows" in name:
+                layer = "user-flows"
+                break
+            if "chat" in name:
+                layer = "chat"
+                break
+            if "collab" in name:
+                layer = "collab"
+                break
+            if "implement" in name or "climb" in name:
+                layer = "implement"
+                break
+            if "desktop-e2e" in name or "test-all" in name:
+                layer = "ci"
+                break
+        notes.append(f"Starting layer-fix-loop LAYER={layer} MAX_ITER=2")
+        write_bug_report(
+            stamp=stamp,
+            gate_rows=gate_rows,
+            notes=notes,
+            deadline_ct=args.deadline_ct,
+        )
+        fl = run(
+            [
+                "make",
+                "layer-fix-loop",
+                f"LAYER={layer}",
+                "MAX_ITER=2",
+            ]
+        )
+        notes.append(f"layer-fix-loop exit {fl}")
+        ag = run(["make", "away-agent"])
+        notes.append(f"away-agent exit {ag}")
+        write_bug_report(
+            stamp=stamp,
+            gate_rows=gate_rows,
+            notes=notes,
+            deadline_ct=args.deadline_ct,
+        )
+
+    if do_morning_rc and worst == 0:
         subprocess.run(["chmod", "+x", str(SCRIPTS_DIR / "away-morning-rc.sh")], check=False)
         mrc = run([str(SCRIPTS_DIR / "away-morning-rc.sh")])
         notes.append(f"morning RC script exit {mrc}")
@@ -266,10 +323,33 @@ def main() -> int:
             notes=notes,
             deadline_ct=args.deadline_ct,
         )
+    elif do_morning_rc and worst != 0:
+        notes.append("Skipped morning RC — ship bar not all green.")
+        print("Skipping morning RC (gates failed).", flush=True)
+        write_bug_report(
+            stamp=stamp,
+            gate_rows=gate_rows,
+            notes=notes,
+            deadline_ct=args.deadline_ct,
+        )
     else:
-        print("Skipping morning RC (report-only; set MORNING_RC=1 to enable).", flush=True)
+        print("Skipping morning RC (set MORNING_RC=1 to enable).", flush=True)
 
-    print("Away overnight complete (report-only).")
+    if auto_stable and worst == 0:
+        subprocess.run(
+            ["chmod", "+x", str(SCRIPTS_DIR / "auto-cut-stable-if-ready.sh")],
+            check=False,
+        )
+        cut = run([str(SCRIPTS_DIR / "auto-cut-stable-if-ready.sh"), "--execute"])
+        notes.append(f"auto-cut-stable-if-ready exit {cut}")
+        write_bug_report(
+            stamp=stamp,
+            gate_rows=gate_rows,
+            notes=notes,
+            deadline_ct=args.deadline_ct,
+        )
+
+    print("Away overnight complete.")
     return 0 if worst == 0 else worst
 
 

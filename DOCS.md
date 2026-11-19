@@ -12,7 +12,7 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 | Product overview | [USER_VALUE_GUIDE.md](docs/USER_VALUE_GUIDE.md) |
 | Hardware requirements | [HARDWARE.md](docs/HARDWARE.md) |
 | In-app auto-update | [RELEASE_UPDATES.md](docs/RELEASE_UPDATES.md) |
-| Away ops / morning RC | [AWAY_OPERATIONS.md](docs/AWAY_OPERATIONS.md) · [AGENTS.md](AGENTS.md) |
+| Away ops / morning RC | [AWAY_OPERATIONS.md](docs/AWAY_OPERATIONS.md) · [PRE_STABLE_RELIABILITY.md](docs/PRE_STABLE_RELIABILITY.md) · [AGENTS.md](AGENTS.md) |
 
 ## Product depth
 

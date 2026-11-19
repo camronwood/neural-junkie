@@ -82,6 +82,8 @@ When Apple Developer account is available:
 
 ## Gate 5 — Platform install smoke matrix
 
+**Unattended replacement (2026-11):** Interactive click-through is no longer a human blocker. Prefer `make ship-bar` / `make ship-bar-package` plus two consecutive green `away-morning-*.md` reports ([PRE_STABLE_RELIABILITY.md](PRE_STABLE_RELIABILITY.md), [AWAY_OPERATIONS.md](AWAY_OPERATIONS.md)). Optional manual OS install remains soak-only.
+
 Record PASS/FAIL and notes. Use existing release installers until you cut a new tag.
 
 | Platform | Install artifact | Wizard Ollama | DM + reply | Updater check | PASS |

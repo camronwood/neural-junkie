@@ -37,6 +37,8 @@ import { LoraApi } from './domains/loraApi';
 import { SecondaryAnalysisApi } from './domains/secondaryAnalysisApi';
 import { LearningsApi } from './domains/learningsApi';
 import { AgentsExtrasApi } from './domains/agentsExtrasApi';
+import { UserToolsApi } from './domains/userToolsApi';
+import type { UserMCPServer, UserMCPTool } from './domains/userToolsApi';
 import { HubDataApi } from './domains/hubDataApi';
 import { CommandsApi } from './domains/commandsApi';
 import type {
@@ -137,6 +139,7 @@ export class ChatAPI {
   private secondaryAnalysisApi: SecondaryAnalysisApi;
   private learningsApi: LearningsApi;
   private agentsExtrasApi: AgentsExtrasApi;
+  private userToolsApi: UserToolsApi;
   private hubDataApi: HubDataApi;
   private commandsApi: CommandsApi;
 
@@ -173,6 +176,7 @@ export class ChatAPI {
     this.secondaryAnalysisApi = new SecondaryAnalysisApi(hubFetch);
     this.learningsApi = new LearningsApi(hubFetch);
     this.agentsExtrasApi = new AgentsExtrasApi(hubFetch);
+    this.userToolsApi = new UserToolsApi(hubFetch);
     this.hubDataApi = new HubDataApi(hubFetch);
     this.commandsApi = new CommandsApi(hubFetch);
   }
@@ -943,6 +947,38 @@ export class ChatAPI {
     repositoryPath?: string;
   }): Promise<{ success: boolean; message: string; name?: string; lora_train_suggestion?: unknown }> {
     return this.agentsExtrasApi.importAgentBundle(options);
+  }
+
+  async listUserTools(): Promise<UserMCPTool[]> {
+    return this.userToolsApi.listUserTools();
+  }
+
+  async createUserTool(tool: Omit<UserMCPTool, 'id' | 'created_at'>): Promise<UserMCPTool> {
+    return this.userToolsApi.createUserTool(tool);
+  }
+
+  async deleteUserTool(id: string): Promise<void> {
+    return this.userToolsApi.deleteUserTool(id);
+  }
+
+  async testUserTool(id: string, query?: string): Promise<{ success: boolean; result?: string; error?: string }> {
+    return this.userToolsApi.testUserTool(id, query);
+  }
+
+  async grantUserTool(id: string, agentName: string, grant: boolean): Promise<UserMCPTool> {
+    return this.userToolsApi.grantUserTool(id, agentName, grant);
+  }
+
+  async listUserServers(): Promise<UserMCPServer[]> {
+    return this.userToolsApi.listUserServers();
+  }
+
+  async createUserServer(server: Omit<UserMCPServer, 'id' | 'created_at'>): Promise<UserMCPServer> {
+    return this.userToolsApi.createUserServer(server);
+  }
+
+  async deleteUserServer(id: string): Promise<void> {
+    return this.userToolsApi.deleteUserServer(id);
   }
 
   async testAnthropicConnection(apiKey: string, useAIHub: boolean = true, aiHubEndpoint?: string): Promise<ConnectionTestResult> {

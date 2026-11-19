@@ -1,4 +1,4 @@
-.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-transcript-metrics test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-preflight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy presence-deploy-cf test-growth-loop test-growth-once test-growth-list check-catalog-downloads sync-sd-pack user-flow-scenario user-flow-scenarios user-flow-scenarios-list sut-loop sut-loop-once sut-loop-list sut-overnight semantic-eval semantic-eval-compare memory-retrieval-corpus memory-eval
+.PHONY: help build local-build local-install run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync site-seo-sync github-metadata-sync deps-lora server-regression server-debug collab-scenarios-all collab-scenarios-core collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-transcript-metrics test-everything test-everything-full release-prep release-prep-fix-loop bump-homebrew-cask layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-preflight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy presence-deploy-cf test-growth-loop test-growth-once test-growth-list check-catalog-downloads sync-sd-pack user-flow-scenario user-flow-scenarios user-flow-scenarios-list sut-loop sut-loop-once sut-loop-list sut-overnight semantic-eval semantic-eval-compare memory-retrieval-corpus memory-eval ship-bar ship-bar-package auto-cut-stable away-agent
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -45,6 +45,10 @@ release-help: ## Release & testing workflow — start here (layers, overnight, f
 	@echo "  make overnight-preflight                # afternoon check before overnight"
 	@echo "  make overnight                          # walk-away release-prep (tmux; clean ~4h)"
 	@echo "  make overnight NJ_OVERNIGHT_TARGET=away # real user scenarios → morning bug report"
+	@echo "  make overnight NJ_OVERNIGHT_TARGET=away AWAY_GATE=full MORNING_RC=1 AWAY_FIX_ON_FAIL=1 AUTO_STABLE_CUT=1"
+	@echo "  make ship-bar                           # user-trust automated ship bar (full)"
+	@echo "  make ship-bar-package                   # version + updater package verify"
+	@echo "  make auto-cut-stable                    # cut v1.2.0 when 2× green away mornings"
 	@echo "  make layer-overnight LAYER=implement    # walk-away layer fix loop"
 	@echo ""
 	@echo "RELEASE-ENG / META (not ship gates)"
@@ -416,7 +420,7 @@ overnight-preflight: ## Afternoon check before overnight (models + hub + Arena +
 	 ./scripts/overnight-preflight.sh
 
 overnight: ## Walk-away clean gate: reset + hub + preflight + release-prep in tmux (see scripts/overnight.sh)
-	@chmod +x scripts/overnight.sh scripts/ensure-ollama-models-ready.py scripts/away-overnight.py scripts/away-agent-loop.py scripts/away-morning-rc.sh scripts/desktop-e2e.sh scripts/auto-rc-next-tag.sh
+	@chmod +x scripts/overnight.sh scripts/ensure-ollama-models-ready.py scripts/away-overnight.py scripts/away-agent-loop.py scripts/away-morning-rc.sh scripts/desktop-e2e.sh scripts/auto-rc-next-tag.sh scripts/auto-cut-stable-if-ready.sh scripts/ship-bar.sh
 	@NJ_OVERNIGHT_TARGET='$(or $(NJ_OVERNIGHT_TARGET),release-prep)' \
 	 BENCHMARK_SUITE='$(or $(BENCHMARK_SUITE),release)' \
 	 NO_PULL='$(or $(NO_PULL),1)' \
@@ -434,7 +438,20 @@ overnight: ## Walk-away clean gate: reset + hub + preflight + release-prep in tm
 	 LAYER='$(LAYER)' SKIP_GATE='$(SKIP_GATE)' \
 	 AWAY_DEADLINE_CT='$(AWAY_DEADLINE_CT)' AWAY_GATE='$(AWAY_GATE)' SKIP_DESKTOP_E2E='$(SKIP_DESKTOP_E2E)' \
 	 SKIP_MORNING_RC='$(SKIP_MORNING_RC)' MORNING_RC='$(MORNING_RC)' \
+	 AWAY_FIX_ON_FAIL='$(AWAY_FIX_ON_FAIL)' AUTO_STABLE_CUT='$(AUTO_STABLE_CUT)' \
 	 ./scripts/overnight.sh
+
+ship-bar: ## User-trust automated ship bar (full live gates + package verify)
+	@chmod +x scripts/ship-bar.sh scripts/ship-bar-package.sh
+	@./scripts/ship-bar.sh $(if $(QUICK),--quick,$(if $(PACKAGE),--package,--full))
+
+ship-bar-package: ## Version consistency + updater manifest verify (Gate 5 automation)
+	@chmod +x scripts/ship-bar-package.sh
+	@./scripts/ship-bar-package.sh
+
+auto-cut-stable: ## Cut v1.2.0 when 2 consecutive away mornings are green (DRY_RUN default)
+	@chmod +x scripts/auto-cut-stable-if-ready.sh scripts/check-consecutive-away-green.py
+	@./scripts/auto-cut-stable-if-ready.sh $(if $(EXECUTE),--execute,--dry-run)
 
 away-agent: ## Claim one agent-ready GitHub issue → Cursor → PR (auto-merge)
 	@chmod +x scripts/away-agent-loop.py

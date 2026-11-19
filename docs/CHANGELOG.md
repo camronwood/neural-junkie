@@ -6,6 +6,16 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+### Added
+- **Unattended pre-stable ship bar** — `make ship-bar` / `ship-bar-package`, consecutive away-green check, `AUTO_STABLE_CUT` via `scripts/auto-cut-stable-if-ready.sh`; launchd examples default `AWAY_GATE=full` + `MORNING_RC=1` + `AWAY_FIX_ON_FAIL=1`. Docs: [PRE_STABLE_RELIABILITY.md](PRE_STABLE_RELIABILITY.md), [AWAY_OPERATIONS.md](AWAY_OPERATIONS.md).
+- **Share Agent Import UI** — My Agents → Import agent (hydrate + path remap) wired to `POST /api/import`.
+- **MCP Tool Wizard settings** — Settings → MCP Tool Wizard for HTTP user tools (create/test/grant) + remote MCP registry (`/api/mcp/user-servers`).
+- **Runbook packages UX** — library export/import + grouped templates; run history Provenance button.
+
+### Changed
+- **Gate 5 (#18)** — interactive installer smoke replaced by automated ship bar for stable cut (documented in KNOWN_ISSUES).
+- **D5** — software-development pack MCP sidecar stops starting retired `code-review` tools; quieter create-expert copy.
+
 ## [1.2.0-beta.34] - 2026-11-18
 
 Anonymous unique-install presence for free open-beta user counting, with Settings opt-out.

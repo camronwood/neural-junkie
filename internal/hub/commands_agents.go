@@ -516,7 +516,7 @@ func (ch *CommandHandler) handleListAgents(ctx context.Context, msg *protocol.Me
 		response.WriteString("No agents available.\n\n")
 		response.WriteString("**Create agents:**\n")
 		response.WriteString("• `/create-repo-agent <path>` - Repository expert\n")
-		response.WriteString("• `/create-expert <type> [name]` - Specialist agent (backend, frontend, architecture, code-review, assistant, ...)\n")
+		response.WriteString("• `/create-expert <type> [name]` - Specialist agent (backend, frontend, architecture, security, assistant, ...)\n")
 		response.WriteString("• `/create-confluence-agent <space>` - Confluence expert\n")
 	}
 
@@ -607,9 +607,9 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 		return ch.systemResponse(msg.Channel,
 			"Usage: `/create-expert <type> [name ...] [provider] [model]`\n\n"+
 				"**Preset types** (curated engineering specialists):\n"+
-				"• `backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`, `biology`, `cad`, `assistant`\n\n"+
+				"• `backend`, `frontend`, `devops`, `security`, `architecture`, `biology`, `cad`, `assistant`\n\n"+
 				"• Legacy explicit slugs also work when the development pack is enabled: `rust`, `database`\n\n"+
-				"**Custom experts:** use any other slug (e.g. `guitar`, `legal-advice`).\n\n"+
+				"**Custom experts:** use any other slug (e.g. `guitar`, `legal-advice`). Code review uses domain specialists (D5).\n\n"+
 				"The expert is created in a **private DM** with you — it is **not** added to this channel. Invite the agent from the channel member UI when you want help here.\n\n"+
 				"**Examples:**\n"+
 				"```\n"+

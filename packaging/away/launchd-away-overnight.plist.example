@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Install (example):
-    cp packaging/away/launchd-away-overnight.plist.example ~/Library/LaunchAgents/com.neuraljunkie.away-overnight.plist
-    # Edit WorkingDirectory / PATH to your checkout and tools
+  Unattended pre-stable overnight (AWAY_GATE=full + MORNING_RC + fix-on-fail).
+
+  Install:
+    cp packaging/away/launchd-away-overnight.plist.example \
+      ~/Library/LaunchAgents/com.neuraljunkie.away-overnight.plist
+    # Edit WorkingDirectory to this checkout (prefer .worktrees/pre-stable-reliability)
+    launchctl unload ~/Library/LaunchAgents/com.neuraljunkie.away-overnight.plist 2>/dev/null || true
     launchctl load ~/Library/LaunchAgents/com.neuraljunkie.away-overnight.plist
 
-  Starts at 22:00 America/Chicago so bug-hunt + merges finish before ~05:00 CT morning RC.
+  Starts at 22:00 America/Chicago. Pair with launchd-away-agent.plist.example for daytime PR drain.
 -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
   <string>com.neuraljunkie.away-overnight</string>
   <key>WorkingDirectory</key>
-  <string>/Users/camronwood/development/projects/neural-junkie</string>
+  <string>/Users/camronwood/development/projects/neural-junkie/.worktrees/pre-stable-reliability</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/bin/make</string>
@@ -33,6 +37,14 @@
     <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
     <key>AWAY_DEADLINE_CT</key>
     <string>05:00</string>
+    <key>AWAY_GATE</key>
+    <string>full</string>
+    <key>MORNING_RC</key>
+    <string>1</string>
+    <key>AWAY_FIX_ON_FAIL</key>
+    <string>1</string>
+    <key>AUTO_STABLE_CUT</key>
+    <string>1</string>
   </dict>
   <key>StandardOutPath</key>
   <string>/tmp/nj-away-overnight.out.log</string>

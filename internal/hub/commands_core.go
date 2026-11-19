@@ -1274,10 +1274,10 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		// ── Expert Agents ─────────────────────────────────────────────
 		{
 			Name:        "/create-expert",
-			Description: "Create a specialist agent (backend, frontend, devops, security, architecture, code-review, biology, cad, assistant)",
+			Description: "Create a specialist agent (backend, frontend, devops, security, architecture, biology, cad, assistant)",
 			Category:    "Expert Agents",
 			Arguments: []protocol.CommandArgument{
-				{Name: "type", Description: "Expert type: preset (backend, frontend, devops, security, architecture, code-review, biology, cad, assistant) or any custom slug (e.g. guitar, legal-advice)", Type: "string", Required: true},
+				{Name: "type", Description: "Expert type: preset (backend, frontend, devops, security, architecture, biology, cad, assistant) or any custom slug (e.g. guitar, legal-advice)", Type: "string", Required: true},
 				{Name: "name", Description: "Custom name for the agent", Type: "string", Required: false},
 				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
 				{Name: "model", Description: "AI model name", Type: "model", Required: false},

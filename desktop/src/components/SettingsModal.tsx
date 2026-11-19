@@ -26,6 +26,7 @@ import { IntegrationsSettingsTab } from './settings/IntegrationsSettingsTab';
 import { ConnectorsSettingsTab } from './settings/ConnectorsSettingsTab';
 import { WebSearchSettingsTab } from './settings/WebSearchSettingsTab';
 import { AssistantToolsSettingsTab } from './settings/AssistantToolsSettingsTab';
+import { McpToolsSettingsTab } from './settings/McpToolsSettingsTab';
 import { SlackSettingsTab } from './settings/SlackSettingsTab';
 import { StreamsSettingsTab } from './settings/StreamsSettingsTab';
 import { SecuritySettingsTab } from './settings/SecuritySettingsTab';
@@ -204,6 +205,7 @@ export function SettingsModal({ isOpen, onClose, initialTab, onRerunSetup }: Set
             <IntegrationsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'integrations'} />
             <WebSearchSettingsTab hubHttp={hubHttp} isActive={activeTab === 'web-search'} />
             <AssistantToolsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'assistant-tools'} />
+            {activeTab === 'mcp-tools' ? <McpToolsSettingsTab api={connectorsApi} /> : null}
             <SlackSettingsTab hubHttp={hubHttp} isActive={activeTab === 'slack'} />
             <StreamsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'streams'} />
             <SecuritySettingsTab hubHttp={hubHttp} isActive={activeTab === 'security'} />
