@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-11-13 · **Current beta:** [v1.2.0-beta.34](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.34) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
+**Last updated:** 2026-11-18 · **Current beta:** [v1.2.0-beta.34](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.34) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) · **Unattended:** [PRE_STABLE_RELIABILITY.md](PRE_STABLE_RELIABILITY.md)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -16,7 +16,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | GitHub | Summary |
 |----|--------|--------|---------|
-| `blocker-platform-smoke` | **Release blocker** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Gate 5 platform smoke pending operator sign-off (macOS arm64 + Windows or Linux) on **v1.2.0-beta.27** installer. Checklist: [stable-platform-smoke.md](testing/stable-platform-smoke.md), matrix: [platform-smoke-beta27.md](testing/platform-smoke-beta27.md). |
+| `blocker-platform-smoke` | **Automated replacement** | [#18](https://github.com/camronwood/neural-junkie/issues/18) | Interactive Gate 5 click-through is **replaced** by the unattended ship bar: `make ship-bar` / `make ship-bar-package` (desktop version consistency, updater manifest verify, `desktop-e2e`, user-flows ×2 via away mornings). Close #18 when two consecutive `away-morning-*.md` reports are all-green and package verify PASSes. Manual OS install remains optional soak, not a human blocker. See [PRE_STABLE_RELIABILITY.md](PRE_STABLE_RELIABILITY.md), [AWAY_OPERATIONS.md](AWAY_OPERATIONS.md). |
 
 ### Cleared for cut (tracker hygiene 2026-07-20)
 

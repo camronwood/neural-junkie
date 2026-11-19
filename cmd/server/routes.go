@@ -249,6 +249,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/learnings/", corsMiddleware(localOnly(handleLearningsRoute)))
 	http.HandleFunc("/api/mcp/user-tools", corsMiddleware(localOnly(handleUserToolsRoute)))
 	http.HandleFunc("/api/mcp/user-tools/", corsMiddleware(localOnly(handleUserToolsRoute)))
+	http.HandleFunc("/api/mcp/user-servers", corsMiddleware(localOnly(handleUserServersRoute)))
+	http.HandleFunc("/api/mcp/user-servers/", corsMiddleware(localOnly(handleUserServersRoute)))
 	http.HandleFunc("/api/mcp/pack-tools", corsMiddleware(localOnly(handlePackToolsRoute)))
 	http.HandleFunc("/api/mcp/pack-tools/", corsMiddleware(localOnly(handlePackToolsRoute)))
 	http.HandleFunc("/api/memory", corsMiddleware(localOnly(handleMemoryRoute)))

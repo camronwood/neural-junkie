@@ -174,10 +174,10 @@
       <p>Gates that must pass before stable cut. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ROADMAP-Q3-2026.md">Q3 roadmap</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md">stable release checklist</a>.</p>
       <ul class="issues-list">
         <li class="issue-item" id="blocker-platform-smoke">
-          <span class="issue-badge issue-badge--release-blocker">Release blocker</span>
-          <strong>Platform smoke pending sign-off</strong>
+          <span class="issue-badge issue-badge--limitation">Automated replacement</span>
+          <strong>Platform smoke → automated ship bar</strong>
           <a class="issue-github-link" href="https://github.com/camronwood/neural-junkie/issues/18">#18</a>
-          <p>Gate 5 platform smoke on <strong>v1.2.0-beta.27</strong> — minimum macOS arm64 + one of Windows x64 or Linux x64. Checklist: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/stable-platform-smoke.md">stable-platform-smoke.md</a>, matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/platform-smoke-beta27.md">platform-smoke-beta27.md</a>.</p>
+          <p>Interactive Gate 5 click-through is replaced by <code>make ship-bar</code> / <code>make ship-bar-package</code> (version consistency, updater verify, desktop-e2e, user-flows via consecutive away mornings). Close #18 when two consecutive <code>away-morning-*.md</code> reports are all-green. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PRE_STABLE_RELIABILITY.md">PRE_STABLE_RELIABILITY.md</a>.</p>
         </li>
       </ul>
 

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Daytime unattended drain: claim one agent-ready issue → Cursor → agent-pr.
+
+  Install:
+    cp packaging/away/launchd-away-agent.plist.example \
+      ~/Library/LaunchAgents/com.neuraljunkie.away-agent.plist
+    # Edit WorkingDirectory; requires gh + Cursor agent CLI + load-env.sh secrets
+    launchctl load ~/Library/LaunchAgents/com.neuraljunkie.away-agent.plist
+
+  Runs every 2 hours 09:00–19:00 America/Chicago on weekdays (StartCalendarInterval
+  is one dict — duplicate the plist Label suffix if you need multiple hours, or use
+  a wrapper cron). This example fires at 10:00 daily.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.neuraljunkie.away-agent</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/camronwood/development/projects/neural-junkie/.worktrees/pre-stable-reliability</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/make</string>
+    <string>away-agent</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>10</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/nj-away-agent.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/nj-away-agent.err.log</string>
+</dict>
+</plist>

@@ -10,4 +10,8 @@ describe('settingsNav connectors', () => {
   it('includes connectors in ALL_SETTINGS_TABS', () => {
     expect(ALL_SETTINGS_TABS).toContain('connectors');
   });
+
+  it('includes MCP Tool Wizard in ALL_SETTINGS_TABS', () => {
+    expect(ALL_SETTINGS_TABS).toContain('mcp-tools');
+  });
 });

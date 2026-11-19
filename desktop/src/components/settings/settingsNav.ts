@@ -15,6 +15,7 @@ export type SettingsTab =
   | 'integrations'
   | 'web-search'
   | 'assistant-tools'
+  | 'mcp-tools'
   | 'slack'
   | 'streams'
   | 'security'
@@ -87,6 +88,7 @@ export const SETTINGS_ADVANCED_GROUPS: SettingsNavGroup[] = [
       { id: 'integrations', label: 'Integrations' },
       { id: 'web-search', label: 'Web search' },
       { id: 'assistant-tools', label: 'Assistant tools' },
+      { id: 'mcp-tools', label: 'MCP Tool Wizard' },
       { id: 'slack', label: 'Slack' },
       { id: 'streams', label: 'Streams' },
     ],

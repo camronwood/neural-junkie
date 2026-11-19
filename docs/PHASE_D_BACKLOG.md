@@ -54,13 +54,13 @@ Sequence follows dependency order in [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md).
 | Dropping Windows EXE from release artifacts | Deferred | |
 | macOS notarization (track as v1.2.1 when Apple creds ready) | Deferred | |
 
-## D5 — Specialist simplification (deferred)
+## D5 — Specialist simplification (in progress)
 
 | Item | Detail |
 |------|--------|
 | Goal | MCP dedup + QualityReviewer roll-up after `test-parity-stable` 3/3 at 20/20 |
-| Gate | Agent Runtime Reliability program complete |
-| Files | `internal/mcp/`, `neural-junkie-pack-software-development/pack.yaml` |
+| Status | Agent retired from pack/factory; **sd-mcp-server no longer starts `code-review`**; hub create-expert help scrubbed; My Agents filter drops code-review. Further Architecture/DevOps–SRE tool dedup remains. |
+| Files | `internal/mcp/`, `neural-junkie-pack-software-development/assets/mcp/cmd/sd-mcp-server/main.go` |
 
 ## Suggested tags after stable
 

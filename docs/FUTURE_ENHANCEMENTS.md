@@ -91,7 +91,7 @@ Campaign / article: [composition-model](articles/composition-model.html).
 
 Part of the [Composition Model](COMPOSITION_MODEL.md) umbrella.
 
-**Today:** Repo agents can MCP export/import ([MCP_EXPORTS.md](MCP_EXPORTS.md)), but import **re-indexes from the absolute repo path** in the JSON — embedded resources are mostly for MCP consumers, not live agent hydration. Learnings, custom rules, and LoRA tags travel on separate paths (or not at all). Specialists/pack agents are not exportable. UX is slash-command oriented.
+**Today:** Repo agents support Share Agent bundles with hydrate-from-resources (`HydrateFromExport`, `/import-agent-mcp --hydrate`, desktop **Import agent** with path remap). Learnings/rules/LoRA metadata travel in the bundle. Specialists/pack agents are not exportable yet. LoRA pull-on-import remains a manual follow-up CTA.
 
 **Idea:** One **Share Agent** action that packages an agent so a friend or coworker can import it on their hub and **retain its knowledge** without needing the same absolute path.
 
@@ -125,7 +125,7 @@ Not real-time multi-hub sync — portable file handoff (git, AirDrop, Slack, etc
 
 ### MCP Tool Wizard (user-defined tools → agents)
 
-**Today:** Agents get tools from first-party in-process MCP servers and pack sidecars ([MCP_INTEGRATION.md](MCP_INTEGRATION.md)). Custom experts (`/create-expert`) are persona/rules only — no tool loop. Users cannot register an arbitrary MCP server or attach a home-grown tool to an agent. Closest workaround: built-in `fetch_url` / WebBrowserExpert, or author a pack sidecar + core wiring.
+**Today:** Settings → **MCP Tool Wizard** creates HTTP-fetch tools, tests them, and grants them to custom experts by name (`/api/mcp/user-tools`). Remote MCP URLs persist via `/api/mcp/user-servers` (registry; dial/stdio connect still follow-up). Pack ability grants remain via `/api/mcp/pack-tools`.
 
 **Idea:** A desktop **MCP Tool Wizard** that lets users create (or connect) a tool and grant access to chosen agents — e.g. “read this page/API from my website and return structured data.”
 

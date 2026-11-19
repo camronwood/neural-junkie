@@ -8,6 +8,7 @@ import { PACK_CAP } from '../stores/packCapabilities';
 import { ChatAPI } from '../api/chatAPI';
 import type { CachedAgentInfo, AgentInfo } from '../types/protocol';
 import { AgentInfoModal } from './AgentInfoModal';
+import { AgentImportModal } from './AgentImportModal';
 import { cachedAgentToAgentInfo } from '../utils/cachedAgentToAgentInfo';
 import {
   findLiveAgentForCached,
@@ -65,6 +66,7 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
   const [recallingAgent, setRecallingAgent] = useState<string | null>(null);
   const [switchingProvider, setSwitchingProvider] = useState<string | null>(null);
   const [infoAgentId, setInfoAgentId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
   const [cachedInfoAgent, setCachedInfoAgent] = useState<CachedAgentInfo | null>(null);
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
@@ -589,12 +591,22 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
               <span>👤</span>
               <span>My Agents</span>
             </h2>
-            <button
-              onClick={onClose}
-              className="text-slack-textMuted hover:text-slack-text transition-colors"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setImportOpen(true)}
+                className="text-xs px-2 py-1 rounded border border-slack-border text-slack-textMuted hover:text-slack-text hover:bg-slack-bg"
+                title="Import a Share Agent bundle"
+              >
+                Import agent
+              </button>
+              <button
+                onClick={onClose}
+                className="text-slack-textMuted hover:text-slack-text transition-colors"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           
           {/* Tabs */}
@@ -645,7 +657,7 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
           {/* Filter */}
           <div className="flex gap-1 flex-wrap">
             {(activeTab === 'active'
-              ? ['all', 'backend', 'frontend', 'devops', 'security', 'architecture', 'code-review', 'rust', 'database', 'cli', 'assistant', 'expert']
+              ? ['all', 'backend', 'frontend', 'devops', 'security', 'architecture', 'rust', 'database', 'cli', 'assistant', 'expert']
               : ['all', 'repo', 'confluence', 'cli', 'expert']
             ).map((type) => (
               <button
@@ -953,6 +965,27 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
             availableLMStudioModels={availableLMStudioModels}
           />
         )}
+
+        <AgentImportModal
+          isOpen={importOpen}
+          api={api}
+          onClose={() => setImportOpen(false)}
+          onImported={(message) => {
+            addToast({ type: 'success', title: 'Agent imported', message });
+            void (async () => {
+              try {
+                const [freshMy, freshAgents] = await Promise.all([
+                  api.fetchMyAgents().catch(() => []),
+                  api.fetchAgents({ includeToolCounts: true }).catch(() => null),
+                ]);
+                setMyAgents(freshMy);
+                if (freshAgents) useChatStore.getState().setAgents(freshAgents);
+              } catch (e) {
+                console.error('Failed to refresh agents after import:', e);
+              }
+            })();
+          }}
+        />
       </div>
     </div>
   );
